@@ -1,0 +1,61 @@
+{
+    "name": "Position",
+    "type": "object",
+    "properties": {
+      "protocol": {
+        "type": "string",
+        "description": "DeFi protocol name (Aave, Compound, etc.)"
+      },
+      "blockchain": {
+        "type": "string",
+        "enum": [
+          "ethereum",
+          "polygon",
+          "arbitrum",
+          "optimism",
+          "avalanche",
+          "bsc"
+        ],
+        "description": "Blockchain network"
+      },
+      "position_type": {
+        "type": "string",
+        "enum": [
+          "lending",
+          "borrowing"
+        ],
+        "description": "Type of position"
+      },
+      "asset": {
+        "type": "string",
+        "description": "Asset symbol (ETH, USDC, etc.)"
+      },
+      "amount": {
+        "type": "number",
+        "description": "Amount of asset"
+      },
+      "usd_value": {
+        "type": "number",
+        "description": "USD value of position"
+      },
+      "apy": {
+        "type": "number",
+        "description": "Annual percentage yield"
+      },
+      "health_factor": {
+        "type": "number",
+        "description": "Health factor for borrowing positions"
+      },
+      "collateral_ratio": {
+        "type": "number",
+        "description": "Collateral ratio for borrowing positions"
+      },
+      "liquidation_price": {
+        "type": "number",
+        "description": "Liquidation price threshold"
+      },
+      "is_active": {
+        "type": "boolean",
+        "default": true,
+        "description": "Whether position is currently active"
+   

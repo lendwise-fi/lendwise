@@ -1,0 +1,42 @@
+{
+    "name": "Asset",
+    "type": "object",
+    "properties": {
+      "symbol": {
+        "type": "string",
+        "description": "Asset symbol"
+      },
+      "name": {
+        "type": "string",
+        "description": "Full asset name"
+      },
+      "price_usd": {
+        "type": "number",
+        "description": "Current price in USD"
+      },
+      "market_cap": {
+        "type": "number",
+        "description": "Market capitalization"
+      },
+      "volatility_score": {
+        "type": "number",
+        "minimum": 1,
+        "maximum": 10,
+        "description": "Volatility risk score (1-10)"
+      },
+      "liquidity_score": {
+        "type": "number",
+        "minimum": 1,
+        "maximum": 10,
+        "description": "Liquidity score (1-10)"
+      },
+      "logo_url": {
+        "type": "string",
+        "description": "Asset logo URL"
+      }
+    },
+    "required": [
+      "symbol",
+      "name"
+    ]
+  }

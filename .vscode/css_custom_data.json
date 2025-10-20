@@ -1,0 +1,21 @@
+{
+  "version": 1.1,
+  "atDirectives": [
+    {
+      "name": "@theme",
+      "description": "Tailwind CSS v4 theme configuration block. Define custom design tokens like colors, spacing, fonts, etc."
+    },
+    {
+      "name": "@utility",
+      "description": "Tailwind CSS v4 custom utility directive. Create custom utility classes with standard CSS."
+    },
+    {
+      "name": "@variant",
+      "description": "Tailwind CSS v4 custom variant directive. Create custom state variants like hover, focus, etc."
+    },
+    {
+      "name": "@source",
+      "description": "Tailwind CSS v4 source directive. Specify additional source files to scan for class names."
+    }
+  ]
+}

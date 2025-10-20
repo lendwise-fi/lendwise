@@ -1,0 +1,417 @@
+'use client'
+
+import { useState, useEffect } from 'react'
+import { Position } from '@/lib/entities'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Button } from '@/components/ui/button'
+import { Badge } from '@/components/ui/badge'
+import { Progress } from '@/components/ui/progress'
+import {
+  AlertTriangle,
+  TrendingDown,
+  Shield,
+  Wallet,
+  ChevronRight,
+} from 'lucide-react'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
+
+interface BorrowingOpportunity {
+  protocol: string
+  loanAsset: string
+  collateralAsset: string
+  borrowRateRealtime: number
+  borrowRate7d: number
+  borrowRate30d: number
+  borrowRate90d: number
+  availableLiquidity: number
+  ltv: number
+  liquidationThreshold: number
+  blockchain: string
+  maxBorrowAmount: number
+  minCollateralRequired: number
+}
+
+export default function Borrowing() {
+  const [positions, setPositions] = useState<Position[]>([])
+  const [selectedChain, setSelectedChain] = useState('all')
+  const [investmentHorizon, setInvestmentHorizon] = useState('short')
+  const [collateralToken, setCollateralToken] = useState('ETH')
+  const [loanToken, setLoanToken] = useState('USDC')
+
+  useEffect(() => {
+    loadData()
+  }, [])
+
+  const loadData = async () => {
+    const positionsData = await Position.list()
+    setPositions(positionsData.filter((p) => p.position_type === 'borrowing'))
+  }
+
+  const mockBorrowingOpportunities: BorrowingOpportunity[] = [
+    {
+      protocol: 'Aave V3',
+      loanAsset: 'USDC',
+      collateralAsset: 'ETH',
+      borrowRateRealtime: 3.2,
+      borrowRate7d: 3.4,
+      borrowRate30d: 3.6,
+      borrowRate90d: 3.8,
+      availableLiquidity: 45000000,
+      ltv: 85,
+      liquidationThreshold: 90,
+      blockchain: 'ethereum',
+      maxBorrowAmount: 850000,
+      minCollateralRequired: 1000000,
+    },
+    {
+      protocol: 'Compound V3',
+      loanAsset: 'USDC',
+      collateralAsset: 'ETH',
+      borrowRateRealtime: 2.8,
+      borrowRate7d: 3.0,
+      borrowRate30d: 3.2,
+      borrowRate90d: 3.4,
+      availableLiquidity: 120000000,
+      ltv: 80,
+      liquidationThreshold: 85,
+      blockchain: 'ethereum',
+      maxBorrowAmount: 800000,
+      minCollateralRequired: 1000000,
+    },
+    {
+      protocol: 'Morpho Blue',
+      loanAsset: 'USDC',
+      collateralAsset: 'ETH',
+      borrowRateRealtime: 2.5,
+      borrowRate7d: 2.7,
+      borrowRate30d: 2.9,
+      borrowRate90d: 3.1,
+      availableLiquidity: 28000000,
+      ltv: 90,
+      liquidationThreshold: 94,
+      blockchain: 'ethereum',
+      maxBorrowAmount: 900000,
+      minCollateralRequired: 1000000,
+    },
+    {
+      protocol: 'Radiant Capital',
+      loanAsset: 'USDC',
+      collateralAsset: 'ETH',
+      borrowRateRealtime: 4.1,
+      borrowRate7d: 4.0,
+      borrowRate30d: 3.9,
+      borrowRate90d: 3.8,
+      availableLiquidity: 8500000,
+      ltv: 75,
+      liquidationThreshold: 80,
+      blockchain: 'arbitrum',
+      maxBorrowAmount: 750000,
+      minCollateralRequired: 1000000,
+    },
+  ]
+
+  const getBorrowRateForHorizon = (opportunity: BorrowingOpportunity) => {
+    switch (investmentHorizon) {
+      case 'short':
+        return opportunity.borrowRateRealtime
+      case 'medium':
+        return opportunity.borrowRate7d
+      case 'long':
+        return opportunity.borrowRate30d
+      case 'very_long':
+        return opportunity.borrowRate90d
+      default:
+        return opportunity.borrowRateRealtime
+    }
+  }
+
+  const filteredOpportunities = mockBorrowingOpportunities
+    .filter(
+      (opp) => selectedChain === 'all' || opp.blockchain === selectedChain
+    )
+    .filter(
+      (opp) =>
+        opp.loanAsset === loanToken && opp.collateralAsset === collateralToken
+    )
+    .sort((a, b) => getBorrowRateForHorizon(a) - getBorrowRateForHorizon(b))
+
+  const totalBorrowed = positions.reduce(
+    (sum, p) => sum + (p.usd_value || 0),
+    0
+  )
+  const avgBorrowRate =
+    positions.length > 0
+      ? positions.reduce((sum, p) => sum + (p.apy || 0), 0) / positions.length
+      : 0
+  const avgHealthFactor =
+    positions.length > 0
+      ? positions.reduce((sum, p) => sum + (p.health_factor || 0), 0) /
+        positions.length
+      : 0
+
+  return (
+    <div className="p-8 space-y-8">
+      {/* Header */}
+      <div>
+        <h1 className="text-3xl font-bold text-foreground mb-2">
+          Borrowing Optimization
+        </h1>
+        <p className="text-muted-foreground-400">
+          Minimize costs and maximize capital efficiency while maintaining safe
+          health factors
+        </p>
+      </div>
+
+      {/* Current Borrowing Overview */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <Card className="bg-card border-card-muted backdrop-blur-sm">
+          <CardHeader>
+            <CardTitle className="text-muted-foreground-300 text-sm flex items-center gap-2">
+              <Wallet className="w-4 h-4" />
+              Total Borrowed
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-foreground mb-2">
+              ${totalBorrowed.toLocaleString()}
+            </div>
+            <div className="text-muted-foreground-400 text-sm">
+              Across {positions.length} positions
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="bg-card border-card-muted backdrop-blur-sm">
+          <CardHeader>
+            <CardTitle className="text-muted-foreground-300 text-sm flex items-center gap-2">
+              <TrendingDown className="w-4 h-4" />
+              Avg Borrow Rate
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-red-400 mb-2">
+              {avgBorrowRate.toFixed(2)}%
+            </div>
+            <div className="text-muted-foreground-400 text-sm">
+              Weighted average
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="bg-card border-card-muted backdrop-blur-sm">
+          <CardHeader>
+            <CardTitle className="text-muted-foreground-300 text-sm flex items-center gap-2">
+              <Shield className="w-4 h-4" />
+              Avg Health Factor
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div
+              className={`text-2xl font-bold mb-2 ${avgHealthFactor > 2 ? 'text-green-400' : avgHealthFactor > 1.5 ? 'text-yellow-400' : 'text-red-400'}`}
+            >
+              {avgHealthFactor.toFixed(2)}
+            </div>
+            <div className="text-muted-foreground-400 text-sm">
+              {avgHealthFactor > 2
+                ? 'Healthy'
+                : avgHealthFactor > 1.5
+                  ? 'Caution'
+                  : 'At Risk'}
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Filters */}
+      <Card className="bg-card border-card-muted backdrop-blur-sm">
+        <CardContent className="pt-6">
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <div>
+              <label className="text-sm text-muted-foreground-400 mb-2 block">
+                Collateral Asset
+              </label>
+              <Select
+                value={collateralToken}
+                onValueChange={setCollateralToken}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="ETH">ETH</SelectItem>
+                  <SelectItem value="WBTC">WBTC</SelectItem>
+                  <SelectItem value="USDC">USDC</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div>
+              <label className="text-sm text-muted-foreground-400 mb-2 block">
+                Loan Asset
+              </label>
+              <Select value={loanToken} onValueChange={setLoanToken}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="USDC">USDC</SelectItem>
+                  <SelectItem value="USDT">USDT</SelectItem>
+                  <SelectItem value="DAI">DAI</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div>
+              <label className="text-sm text-muted-foreground-400 mb-2 block">
+                Blockchain
+              </label>
+              <Select value={selectedChain} onValueChange={setSelectedChain}>
+                <SelectTrigger>
+                  <SelectValue placeholder="All Chains" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Chains</SelectItem>
+                  <SelectItem value="ethereum">Ethereum</SelectItem>
+                  <SelectItem value="arbitrum">Arbitrum</SelectItem>
+                  <SelectItem value="polygon">Polygon</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div>
+              <label className="text-sm text-muted-foreground-400 mb-2 block">
+                Time Horizon
+              </label>
+              <Select
+                value={investmentHorizon}
+                onValueChange={setInvestmentHorizon}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="short">Real-time</SelectItem>
+                  <SelectItem value="medium">7-day avg</SelectItem>
+                  <SelectItem value="long">30-day avg</SelectItem>
+                  <SelectItem value="very_long">90-day avg</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Borrowing Opportunities */}
+      <div className="space-y-4">
+        <h2 className="text-xl font-semibold text-foreground">
+          Best Borrowing Rates ({filteredOpportunities.length})
+        </h2>
+        {filteredOpportunities.map((opp, index) => {
+          const currentRate = getBorrowRateForHorizon(opp)
+
+          return (
+            <Card
+              key={index}
+              className="bg-card border-card-muted backdrop-blur-sm hover:bg-slate-800/80 transition-all"
+            >
+              <CardContent className="p-6">
+                <div className="flex items-center justify-between mb-4">
+                  <div className="flex items-center gap-4 flex-1">
+                    <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-red-500 to-orange-600 flex items-center justify-center">
+                      <TrendingDown className="w-6 h-6 text-foreground" />
+                    </div>
+
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 mb-1">
+                        <h3 className="text-lg font-semibold text-foreground">
+                          {opp.protocol}
+                        </h3>
+                        <Badge
+                          variant="outline"
+                          className="text-blue-400 border-blue-500/30"
+                        >
+                          {opp.blockchain}
+                        </Badge>
+                      </div>
+
+                      <div className="flex items-center gap-6 text-sm text-muted-foreground-400">
+                        <span>
+                          Borrow:{' '}
+                          <span className="text-foreground font-medium">
+                            {opp.loanAsset}
+                          </span>
+                        </span>
+                        <span>
+                          Collateral:{' '}
+                          <span className="text-foreground font-medium">
+                            {opp.collateralAsset}
+                          </span>
+                        </span>
+                        <span>
+                          Available:{' '}
+                          <span className="text-foreground font-medium">
+                            ${(opp.availableLiquidity / 1000000).toFixed(1)}M
+                          </span>
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-6">
+                    <div className="text-right">
+                      <div className="text-3xl font-bold text-red-400">
+                        {currentRate.toFixed(2)}%
+                      </div>
+                      <div className="text-xs text-muted-foreground-400">
+                        Borrow APR
+                      </div>
+                    </div>
+
+                    <Button className="bg-blue-600 hover:bg-blue-700">
+                      Borrow
+                      <ChevronRight className="w-4 h-4 ml-1" />
+                    </Button>
+                  </div>
+                </div>
+
+                {/* LTV Metrics */}
+                <div className="grid grid-cols-3 gap-4 pt-4 border-t border-slate-700/50">
+                  <div>
+                    <div className="text-xs text-muted-foreground-400 mb-1">
+                      Max LTV
+                    </div>
+                    <div className="text-lg font-semibold text-foreground">
+                      {opp.ltv}%
+                    </div>
+                  </div>
+                  <div>
+                    <div className="text-xs text-muted-foreground-400 mb-1">
+                      Liquidation Threshold
+                    </div>
+                    <div className="text-lg font-semibold text-foreground">
+                      {opp.liquidationThreshold}%
+                    </div>
+                  </div>
+                  <div>
+                    <div className="text-xs text-muted-foreground-400 mb-1">
+                      Safety Margin
+                    </div>
+                    <div className="text-lg font-semibold text-green-400">
+                      {opp.liquidationThreshold - opp.ltv}%
+                    </div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
