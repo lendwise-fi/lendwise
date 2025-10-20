@@ -1,5 +1,8 @@
 {
   "buildCommand": "pnpm build",
-  "installCommand": "corepack prepare pnpm@10.18.1 --activate && pnpm install",
-  "framework": "nextjs"
+  "installCommand": "npm install -g pnpm@10.18.1 && pnpm install --frozen-lockfile",
+  "framework": "nextjs",
+  "env": {
+    "ENABLE_EXPERIMENTAL_COREPACK": "1"
+  }
 }
