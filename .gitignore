@@ -7,7 +7,6 @@
 .yarn/install-state.gz
 
 # pnpm
-pnpm-lock.yaml
 .pnpm-store
 
 # testing
