@@ -30,28 +30,28 @@ export default function PortfolioChart() {
       case 'yield':
         return {
           dataKey: 'yield',
-          color: '#10b981',
+          color: 'hsl(var(--chart-3))',
           label: 'Average Yield (%)',
           format: (value: number) => `${value}%`,
         }
       case 'borrow':
         return {
           dataKey: 'borrow',
-          color: '#ef4444',
+          color: 'hsl(var(--destructive))',
           label: 'Total Borrow ($)',
           format: (value: number) => `$${value.toLocaleString()}`,
         }
       case 'lending':
         return {
           dataKey: 'lending',
-          color: '#3b82f6',
+          color: 'hsl(var(--chart-1))',
           label: 'Total Lending ($)',
           format: (value: number) => `$${value.toLocaleString()}`,
         }
       default:
         return {
           dataKey: 'value',
-          color: '#3b82f6',
+          color: 'hsl(var(--chart-1))',
           label: 'Portfolio Value ($)',
           format: (value: number) => `$${value.toLocaleString()}`,
         }
@@ -88,13 +88,13 @@ export default function PortfolioChart() {
       <CardContent>
         <ResponsiveContainer width="100%" height={300}>
           <LineChart data={portfolioData}>
-            <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
+            <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
             <XAxis
               dataKey="name"
-              stroke="#94a3b8"
+              stroke="hsl(var(--muted-foreground))"
               style={{ fontSize: '12px' }}
             />
-            <YAxis stroke="#94a3b8" style={{ fontSize: '12px' }} />
+            <YAxis stroke="hsl(var(--muted-foreground))" style={{ fontSize: '12px' }} />
             <Tooltip
               contentStyle={{
                 backgroundColor: 'var(--accent)',

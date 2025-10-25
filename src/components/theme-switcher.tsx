@@ -17,7 +17,7 @@ export function ThemeSwitcher() {
 
   if (!mounted) {
     return (
-      <div className="flex items-center gap-1 rounded-lg bg-slate-800/50 p-1">
+      <div className="flex items-center gap-1 rounded-lg bg-muted/50 p-1">
         <div className="h-8 w-8 rounded-md" />
         <div className="h-8 w-8 rounded-md" />
         <div className="h-8 w-8 rounded-md" />
@@ -32,7 +32,7 @@ export function ThemeSwitcher() {
   ]
 
   return (
-    <div className="flex items-center gap-1 rounded-lg bg-slate-800/50 p-1">
+    <div className="flex items-center gap-1 rounded-lg bg-muted/50 p-1">
       {themes.map(({ value, icon: Icon, label }) => (
         <Button
           key={value}
@@ -40,10 +40,10 @@ export function ThemeSwitcher() {
           size="sm"
           onClick={() => setTheme(value)}
           className={cn(
-            'h-8 w-8 p-0 transition-all hover:bg-slate-700',
+            'h-8 w-8 p-0 transition-all hover:bg-accent',
             theme === value
-              ? 'bg-blue-600 text-foreground hover:bg-blue-500'
-              : 'text-muted-foreground-400 hover:text-foreground'
+              ? 'bg-primary text-primary-foreground hover:bg-primary/90'
+              : 'text-muted-foreground hover:text-accent-foreground'
           )}
           title={label}
         >

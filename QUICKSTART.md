@@ -9,9 +9,6 @@ Follow these steps to get YieldImprove up and running:
 **Important:** This project uses pnpm as the package manager.
 
 ```bash
-# Install pnpm globally if you don't have it
-npm install -g pnpm
-
 # Install project dependencies
 pnpm install
 ```
@@ -79,7 +76,7 @@ const mockPositions: Position[] = [
 
 1. Install wallet libraries:
    ```bash
-   npm install wagmi viem @rainbow-me/rainbowkit
+   pnpm add wagmi viem @rainbow-me/rainbowkit
    ```
 
 2. Configure providers in `app/layout.tsx`
@@ -90,10 +87,10 @@ const mockPositions: Position[] = [
 
 ```bash
 # Build for production
-npm run build
+pnpm build
 
 # Start production server
-npm start
+pnpm start
 ```
 
 Or deploy to Vercel with one click:

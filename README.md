@@ -29,8 +29,7 @@ A modern Next.js 15 application for optimizing DeFi lending and borrowing positi
 
 ### Prerequisites
 
-- Node.js 18.x or higher
-- pnpm 9.x or higher (install with `npm install -g pnpm`)
+- pnpm 9.x or higher
 
 ### Installation
 
@@ -145,7 +144,7 @@ yieldimprove/
 To add new Shadcn UI components:
 
 ```bash
-npx shadcn-ui@latest add [component-name]
+pnpm dlx shadcn-ui@latest add [component-name]
 ```
 
 ### Customizing Theme

@@ -35,8 +35,8 @@ export default function MetricCard({
         <div className="flex items-center gap-2">
           {badge && <Badge className={badge.className}>{badge.text}</Badge>}
           {Icon && (
-            <div className="p-2 rounded-lg bg-blue-500/20">
-              <Icon className="h-4 w-4 text-blue-400" />
+            <div className="p-2 rounded-lg bg-primary/20">
+              <Icon className="h-4 w-4 text-primary" />
             </div>
           )}
         </div>
@@ -51,7 +51,7 @@ export default function MetricCard({
         {change && (
           <div
             className={`flex items-center gap-1 text-xs ${
-              changeType === 'positive' ? 'text-green-400' : 'text-red-400'
+              changeType === 'positive' ? 'text-success' : 'text-destructive'
             }`}
           >
             {changeType === 'positive' ? (

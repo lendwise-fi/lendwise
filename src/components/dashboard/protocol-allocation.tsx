@@ -4,10 +4,10 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from 'recharts'
 
 const data = [
-  { name: 'Aave', value: 45, color: '#3b82f6' },
-  { name: 'Compound', value: 25, color: '#10b981' },
-  { name: 'MakerDAO', value: 20, color: '#f59e0b' },
-  { name: 'Uniswap', value: 10, color: '#8b5cf6' },
+  { name: 'Aave', value: 45, color: 'hsl(var(--chart-1))' },
+  { name: 'Compound', value: 25, color: 'hsl(var(--chart-3))' },
+  { name: 'MakerDAO', value: 20, color: 'hsl(var(--chart-4))' },
+  { name: 'Uniswap', value: 10, color: 'hsl(var(--chart-2))' },
 ]
 
 export default function ProtocolAllocation() {
@@ -34,10 +34,10 @@ export default function ProtocolAllocation() {
             </Pie>
             <Tooltip
               contentStyle={{
-                backgroundColor: '#1e293b',
-                border: '1px solid #334155',
+                backgroundColor: 'hsl(var(--accent))',
+                border: '1px solid hsl(var(--border))',
                 borderRadius: '8px',
-                color: '#fff',
+                color: 'hsl(var(--accent-foreground))',
               }}
             />
           </PieChart>
@@ -53,7 +53,7 @@ export default function ProtocolAllocation() {
                   className="w-3 h-3 rounded-full"
                   style={{ backgroundColor: item.color }}
                 />
-                <span className="text-muted-foreground-300">{item.name}</span>
+                <span className="text-muted-foreground">{item.name}</span>
               </div>
               <span className="text-foreground font-medium">{item.value}%</span>
             </div>

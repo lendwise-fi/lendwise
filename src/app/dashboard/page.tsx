@@ -8,7 +8,7 @@ import PortfolioChart from '@/components/dashboard/portfolio-chart'
 import ProtocolAllocation from '@/components/dashboard/protocol-allocation'
 import { Percent, AlertTriangle } from 'lucide-react'
 
-export default function Dashboard() {
+export default function DashboardPage() {
   const [positions, setPositions] = useState<Position[]>([])
   const [loading, setLoading] = useState(true)
 
