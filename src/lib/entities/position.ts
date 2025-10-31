@@ -1,6 +1,12 @@
 export interface Position {
   protocol: string
-  blockchain: 'ethereum' | 'polygon' | 'arbitrum' | 'optimism' | 'avalanche' | 'bsc'
+  blockchain:
+    | 'ethereum'
+    | 'polygon'
+    | 'arbitrum'
+    | 'optimism'
+    | 'avalanche'
+    | 'bsc'
   position_type: 'lending' | 'borrowing'
   asset: string
   amount: number
@@ -22,7 +28,7 @@ const mockPositions: Position[] = [
     amount: 50000,
     usd_value: 50000,
     apy: 4.25,
-    is_active: true
+    is_active: true,
   },
   {
     protocol: 'Compound V3',
@@ -32,7 +38,7 @@ const mockPositions: Position[] = [
     amount: 15,
     usd_value: 37500,
     apy: 3.8,
-    is_active: true
+    is_active: true,
   },
   {
     protocol: 'Aave V3',
@@ -45,7 +51,7 @@ const mockPositions: Position[] = [
     health_factor: 2.4,
     collateral_ratio: 75,
     liquidation_price: 1800,
-    is_active: true
+    is_active: true,
   },
   {
     protocol: 'Morpho Blue',
@@ -58,8 +64,8 @@ const mockPositions: Position[] = [
     health_factor: 3.1,
     collateral_ratio: 80,
     liquidation_price: 1650,
-    is_active: true
-  }
+    is_active: true,
+  },
 ]
 
 export const Position = {
@@ -88,5 +94,5 @@ export const Position = {
         resolve(data as Position)
       }, 300)
     })
-  }
+  },
 }

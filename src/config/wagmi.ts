@@ -1,5 +1,6 @@
-import { ALL_CHAINS, CHAIN_TRANSPORTS } from './chains'
 import { getDefaultConfig } from '@rainbow-me/rainbowkit'
+
+import { ALL_CHAINS, CHAIN_TRANSPORTS } from './chains'
 
 // Vérifier que les variables d'environnement sont définies
 const projectId = process.env.NEXT_PUBLIC_WALLET_CONNECT_PROJECT_ID

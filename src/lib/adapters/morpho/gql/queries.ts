@@ -1,10 +1,8 @@
 import { gql } from 'urql'
 
-export const GET_USER_POSITIONS = gql`
-  query VaultPositions($chainIds: [Int!], $userAddresses: [String!]) {
-    vaultPositions(
-      where: { chainId_in: $chainIds, userAddress_in: $userAddresses }
-    ) {
+export const USER_LEND_POSITIONS = gql`
+  query UserLendPositions($where: VaultPositionFilters) {
+    vaultPositions(where: $where) {
       items {
         id
         user {
@@ -16,16 +14,68 @@ export const GET_USER_POSITIONS = gql`
           address
           symbol
           name
+          chain {
+            id
+            currency
+            network
+          }
           asset {
             name
             symbol
+            decimals
           }
           state {
-            yearlyApy
+            netApyWithoutRewards
           }
         }
         state {
           assets
+          assetsUsd
+          pnlUsd
+          pnl
+        }
+      }
+    }
+  }
+`
+
+export const USER_BORROW_POSITIONS = gql`
+  query UserBorrowPositions($where: MarketPositionFilters) {
+    marketPositions(where: $where) {
+      items {
+        id
+        healthFactor
+        user {
+          id
+          address
+        }
+        market {
+          id
+          lltv
+          collateralAsset {
+            name
+            symbol
+            decimals
+          }
+          loanAsset {
+            name
+            symbol
+            decimals
+          }
+          morphoBlue {
+            chain {
+              id
+              network
+              currency
+            }
+          }
+        }
+        state {
+          collateral
+          collateralUsd
+          borrowAssets
+          borrowAssetsUsd
+          marginRoe
         }
       }
     }

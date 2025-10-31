@@ -20,3 +20,7 @@ export const getWalletIcon = (name: string): string => {
 
   return `/icons/wallet/${walletIcons[name] || 'wallet'}.svg`
 }
+
+export function generateSlug(name: string): string {
+  return name.toLowerCase().replace(/\s+/g, '-')
+}

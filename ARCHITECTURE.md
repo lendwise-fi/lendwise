@@ -38,6 +38,7 @@ src/
 ### 1. Type Layer (`src/types/`)
 
 Defines all TypeScript interfaces and types used throughout the application:
+
 - `Position`: Individual lending/borrowing position
 - `Market`: Protocol market data
 - `UserPositionSummary`: Aggregated user portfolio data
@@ -46,11 +47,13 @@ Defines all TypeScript interfaces and types used throughout the application:
 ### 2. Configuration Layer (`src/config/`)
 
 **Protocol Configurations:**
+
 - Chain-specific contract addresses
 - Subgraph URLs
 - Protocol metadata
 
 **Contract ABIs:**
+
 - Minimal, focused ABIs containing only the functions we need
 - Typed with TypeScript for type safety
 
@@ -58,12 +61,14 @@ Defines all TypeScript interfaces and types used throughout the application:
 
 **Protocol Services:**
 Each protocol has its own service class that handles:
+
 - Contract interactions via viem
 - Data transformation
 - Error handling
 - Position fetching
 
 **Position Aggregator:**
+
 - Combines data from all protocols
 - Provides unified interface
 - Calculates portfolio metrics
@@ -72,6 +77,7 @@ Each protocol has its own service class that handles:
 ### 4. Hook Layer (`src/hooks/`)
 
 React hooks that:
+
 - Integrate with Wagmi for wallet connection
 - Manage loading/error states
 - Auto-refresh on wallet/chain changes
@@ -100,16 +106,19 @@ Smart Contracts (via viem PublicClient)
 ## Supported Protocols
 
 ### Aave V3
+
 - **Chains:** Ethereum, Polygon, Arbitrum
 - **Features:** Supply, borrow, health factor tracking
 - **Data Source:** Direct on-chain calls
 
 ### Compound V3 (Comet)
+
 - **Chains:** Ethereum, Polygon, Base
 - **Features:** Supply, borrow, collateral tracking
 - **Data Source:** Direct on-chain calls
 
 ### Morpho Blue
+
 - **Chains:** Ethereum, Base
 - **Features:** Isolated lending markets
 - **Data Source:** Subgraph + on-chain fallback
@@ -117,19 +126,25 @@ Smart Contracts (via viem PublicClient)
 ## Key Features
 
 ### 1. Multi-Protocol Position Aggregation
+
 Fetches and combines positions from all supported protocols into a unified view.
 
 ### 2. Real-Time Health Factor Monitoring
+
 Tracks liquidation risk across all borrowing positions.
 
 ### 3. Yield Optimization Recommendations
+
 Analyzes positions to find:
+
 - Higher yield opportunities on same assets
 - Lower borrow rates
 - Health factor warnings
 
 ### 4. Protocol-Agnostic Design
+
 Easy to add new protocols by:
+
 1. Creating a new service class
 2. Adding protocol config
 3. Updating the aggregator
@@ -143,13 +158,13 @@ import { usePositions } from '@/hooks/usePositions'
 
 function MyComponent() {
   const { positions, loading, error } = usePositions()
-  
+
   if (loading) return <div>Loading...</div>
   if (error) return <div>Error: {error.message}</div>
-  
+
   return (
     <div>
-      {positions.map(position => (
+      {positions.map((position) => (
         <PositionCard key={position.id} position={position} />
       ))}
     </div>
@@ -164,7 +179,7 @@ import { usePositionSummary } from '@/hooks/usePositions'
 
 function Dashboard() {
   const { summary, loading } = usePositionSummary()
-  
+
   return (
     <div>
       <h2>Total Value: ${summary?.totalSupplyUSD}</h2>
@@ -181,7 +196,7 @@ import { useOpportunities } from '@/hooks/usePositions'
 
 function Opportunities() {
   const { opportunities, loading } = useOpportunities()
-  
+
   return (
     <div>
       {opportunities.map((opp, i) => (
@@ -212,12 +227,14 @@ NEXT_PUBLIC_ENABLE_TESTNETS=false
 To add support for a new lending protocol:
 
 1. **Add Type Definitions** (if needed)
+
    ```typescript
    // src/types/defi.ts
    export type ProtocolName = 'aave' | 'compound' | 'morpho' | 'newprotocol'
    ```
 
 2. **Create Protocol Config**
+
    ```typescript
    // src/config/protocols.ts
    export const NEW_PROTOCOL_CONFIG: Record<number, ProtocolConfig> = {
@@ -225,17 +242,21 @@ To add support for a new lending protocol:
        name: 'newprotocol',
        displayName: 'New Protocol',
        // ... config
-     }
+     },
    }
    ```
 
 3. **Add Contract ABIs**
+
    ```typescript
    // src/config/abis/newprotocol.ts
-   export const NEW_PROTOCOL_ABI = [ /* ... */ ] as const
+   export const NEW_PROTOCOL_ABI = [
+     /* ... */
+   ] as const
    ```
 
 4. **Create Service Class**
+
    ```typescript
    // src/services/protocols/newprotocol.service.ts
    export class NewProtocolService {

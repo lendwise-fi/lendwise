@@ -19,10 +19,26 @@ export const MORPHO_ABI = [
     outputs: [
       {
         components: [
-          { internalType: 'uint128', name: 'totalSupplyAssets', type: 'uint128' },
-          { internalType: 'uint128', name: 'totalSupplyShares', type: 'uint128' },
-          { internalType: 'uint128', name: 'totalBorrowAssets', type: 'uint128' },
-          { internalType: 'uint128', name: 'totalBorrowShares', type: 'uint128' },
+          {
+            internalType: 'uint128',
+            name: 'totalSupplyAssets',
+            type: 'uint128',
+          },
+          {
+            internalType: 'uint128',
+            name: 'totalSupplyShares',
+            type: 'uint128',
+          },
+          {
+            internalType: 'uint128',
+            name: 'totalBorrowAssets',
+            type: 'uint128',
+          },
+          {
+            internalType: 'uint128',
+            name: 'totalBorrowShares',
+            type: 'uint128',
+          },
           { internalType: 'uint128', name: 'lastUpdate', type: 'uint128' },
           { internalType: 'uint128', name: 'fee', type: 'uint128' },
         ],

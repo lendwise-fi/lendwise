@@ -2,7 +2,9 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { BarChart3, TrendingUp, Shield, Wallet, PieChart } from 'lucide-react'
+
+import { BarChart3, PieChart, Shield, TrendingUp, Wallet } from 'lucide-react'
+
 import { cn } from '@/lib/utils'
 
 const navigationItems = [
@@ -42,19 +44,19 @@ export function AppSidebar() {
   const pathname = usePathname()
 
   return (
-    <aside className="w-64 border-r border-border bg-card/50 backdrop-blur-sm">
+    <aside className="border-border bg-card/50 w-64 border-r backdrop-blur-sm">
       <div className="flex h-full flex-col">
         {/* Header */}
-        <div className="border-b border-border p-6">
+        <div className="border-border border-b p-6">
           <div className="flex items-center gap-2">
-            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-gradient-to-br from-primary to-purple-600">
-              <TrendingUp className="h-6 w-6 text-foreground" />
+            <div className="from-primary flex h-10 w-10 items-center justify-center rounded-lg bg-gradient-to-br to-purple-600">
+              <TrendingUp className="text-foreground h-6 w-6" />
             </div>
             <div>
-              <h1 className="text-lg font-bold text-foreground">
+              <h1 className="text-foreground text-lg font-bold">
                 Yield Optimizer
               </h1>
-              <p className="text-xs text-muted-foreground">DeFi Optimization</p>
+              <p className="text-muted-foreground text-xs">DeFi Optimization</p>
             </div>
           </div>
         </div>
@@ -72,7 +74,7 @@ export function AppSidebar() {
                 className={cn(
                   'flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all',
                   isActive
-                    ? 'bg-primary text-primary-foreground shadow-lg shadow-primary/50'
+                    ? 'bg-primary text-primary-foreground shadow-primary/50 shadow-lg'
                     : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground'
                 )}
               >

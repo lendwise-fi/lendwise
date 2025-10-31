@@ -1,34 +1,36 @@
 'use client'
 
-import { useState, useEffect } from 'react'
-import { Position } from '@/lib/entities'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Progress } from '@/components/ui/progress'
-import { Badge } from '@/components/ui/badge'
-import { Alert, AlertDescription } from '@/components/ui/alert'
-import { Button } from '@/components/ui/button'
+import { useEffect, useState } from 'react'
+
 import {
-  Shield,
-  AlertTriangle,
-  TrendingDown,
   Activity,
-  PieChart as PieChartIcon,
   AlertCircle,
+  AlertTriangle,
   ArrowUp,
   DollarSign,
+  PieChart as PieChartIcon,
+  Shield,
+  TrendingDown,
 } from 'lucide-react'
 import {
-  LineChart,
+  CartesianGrid,
+  Cell,
   Line,
+  LineChart,
+  Pie,
+  PieChart,
+  ResponsiveContainer,
+  Tooltip,
   XAxis,
   YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer,
-  PieChart,
-  Pie,
-  Cell,
 } from 'recharts'
+
+import { Alert, AlertDescription } from '@/components/ui/alert'
+import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Progress } from '@/components/ui/progress'
+import { Position } from '@/lib/entities'
 
 export default function Risk() {
   const [positions, setPositions] = useState<Position[]>([])
@@ -53,10 +55,10 @@ export default function Risk() {
   ]
 
   const collateralData = [
-    { name: 'ETH', value: 65, color: '#3b82f6' },
-    { name: 'WBTC', value: 20, color: '#f59e0b' },
-    { name: 'USDC', value: 10, color: '#10b981' },
-    { name: 'Others', value: 5, color: '#8b5cf6' },
+    { name: 'ETH', value: 65, color: 'var(--color-chart-1)' },
+    { name: 'WBTC', value: 20, color: 'var(--color-chart-2)' },
+    { name: 'USDC', value: 10, color: 'var(--color-chart-3)' },
+    { name: 'Others', value: 5, color: 'var(--color-chart-4)' },
   ]
 
   const currentPrices: Record<string, number> = {
@@ -76,31 +78,29 @@ export default function Risk() {
   }
 
   const calculateRiskMetrics = () => {
-    const borrowingPositions = positions.filter(
+    const borrowPositions = positions.filter(
       (p) => p.position_type === 'borrowing'
     )
     const avgHealthFactor =
-      borrowingPositions.length > 0
-        ? borrowingPositions.reduce(
-            (sum, p) => sum + (p.health_factor || 0),
-            0
-          ) / borrowingPositions.length
+      borrowPositions.length > 0
+        ? borrowPositions.reduce((sum, p) => sum + (p.health_factor || 0), 0) /
+          borrowPositions.length
         : 0
 
-    const safePositions = borrowingPositions.filter(
+    const safePositions = borrowPositions.filter(
       (p) => (p.health_factor || 0) >= 2.0
     )
-    const cautionPositions = borrowingPositions.filter(
+    const cautionPositions = borrowPositions.filter(
       (p) => (p.health_factor || 0) >= 1.5 && (p.health_factor || 0) < 2.0
     )
-    const warningPositions = borrowingPositions.filter(
+    const warningPositions = borrowPositions.filter(
       (p) => (p.health_factor || 0) >= 1.2 && (p.health_factor || 0) < 1.5
     )
-    const criticalPositions = borrowingPositions.filter(
+    const criticalPositions = borrowPositions.filter(
       (p) => (p.health_factor || 0) < 1.2
     )
 
-    const totalPositions = borrowingPositions.length || 1
+    const totalPositions = borrowPositions.length || 1
     const riskScore =
       10 -
       (cautionPositions.length * 2 +
@@ -109,8 +109,8 @@ export default function Risk() {
         totalPositions
 
     const mostRiskyPosition =
-      borrowingPositions.length > 0
-        ? borrowingPositions.reduce((min, p) =>
+      borrowPositions.length > 0
+        ? borrowPositions.reduce((min, p) =>
             (p.health_factor || Infinity) < (min.health_factor || Infinity)
               ? p
               : min
@@ -123,7 +123,7 @@ export default function Risk() {
       cautionPositions: cautionPositions.length,
       warningPositions: warningPositions.length,
       criticalPositions: criticalPositions.length,
-      totalPositions: borrowingPositions.length,
+      totalPositions: borrowPositions.length,
       riskScore: Math.max(0, Math.min(10, riskScore)),
       mostRiskyPosition,
     }
@@ -207,10 +207,10 @@ export default function Risk() {
   const recommendations = getRecommendations()
 
   return (
-    <div className="p-8 space-y-8">
+    <div className="space-y-8 p-8">
       {/* Header */}
       <div>
-        <h1 className="text-3xl font-bold text-foreground mb-2">
+        <h1 className="text-foreground mb-2 text-3xl font-bold">
           Risk Monitor
         </h1>
         <p className="text-muted-foreground-400">
@@ -219,17 +219,17 @@ export default function Risk() {
       </div>
 
       {/* Risk Overview Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+      <div className="grid grid-cols-1 gap-6 md:grid-cols-4">
         <Card className="bg-card border-card-muted backdrop-blur-sm">
           <CardHeader className="pb-2">
-            <CardTitle className="text-muted-foreground-300 text-sm flex items-center gap-2">
-              <Shield className="w-4 h-4" />
+            <CardTitle className="text-muted-foreground-300 flex items-center gap-2 text-sm">
+              <Shield className="h-4 w-4" />
               Avg Health Factor
             </CardTitle>
           </CardHeader>
           <CardContent>
             <div
-              className={`text-3xl font-bold mb-2 ${
+              className={`mb-2 text-3xl font-bold ${
                 avgHealthFactor >= 2
                   ? 'text-green-400'
                   : avgHealthFactor >= 1.5
@@ -244,10 +244,10 @@ export default function Risk() {
             <Badge
               className={
                 avgHealthFactor >= 2
-                  ? 'bg-green-500/20 text-green-400 border-green-500/30'
+                  ? 'border-green-500/30 bg-green-500/20 text-green-400'
                   : avgHealthFactor >= 1.5
-                    ? 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30'
-                    : 'bg-red-500/20 text-red-400 border-red-500/30'
+                    ? 'border-yellow-500/30 bg-yellow-500/20 text-yellow-400'
+                    : 'border-red-500/30 bg-red-500/20 text-red-400'
               }
             >
               {riskZone.label}
@@ -257,13 +257,13 @@ export default function Risk() {
 
         <Card className="bg-card border-card-muted backdrop-blur-sm">
           <CardHeader className="pb-2">
-            <CardTitle className="text-muted-foreground-300 text-sm flex items-center gap-2">
-              <Activity className="w-4 h-4" />
+            <CardTitle className="text-muted-foreground-300 flex items-center gap-2 text-sm">
+              <Activity className="h-4 w-4" />
               Risk Score
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-3xl font-bold text-foreground mb-2">
+            <div className="text-foreground mb-2 text-3xl font-bold">
               {riskScore.toFixed(1)}/10
             </div>
             <Progress value={riskScore * 10} className="h-2" />
@@ -277,10 +277,10 @@ export default function Risk() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-3xl font-bold text-foreground mb-2">
+            <div className="text-foreground mb-2 text-3xl font-bold">
               {cautionPositions + warningPositions + criticalPositions}
             </div>
-            <div className="text-xs text-muted-foreground-400">
+            <div className="text-muted-foreground-400 text-xs">
               of {totalPositions} total positions
             </div>
           </CardContent>
@@ -293,10 +293,10 @@ export default function Risk() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-3xl font-bold text-green-400 mb-2">
+            <div className="mb-2 text-3xl font-bold text-green-400">
               {safePositions}
             </div>
-            <div className="text-xs text-muted-foreground-400">
+            <div className="text-muted-foreground-400 text-xs">
               Health Factor &gt; 2.0
             </div>
           </CardContent>
@@ -304,7 +304,7 @@ export default function Risk() {
       </div>
 
       {/* Health Factor Trend & Collateral Distribution */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
         <Card className="bg-card border-card-muted backdrop-blur-sm">
           <CardHeader>
             <CardTitle className="text-foreground">
@@ -381,7 +381,7 @@ export default function Risk() {
                 >
                   <div className="flex items-center gap-2">
                     <div
-                      className="w-3 h-3 rounded-full"
+                      className="h-3 w-3 rounded-full"
                       style={{ backgroundColor: item.color }}
                     />
                     <span className="text-muted-foreground-300">
@@ -399,11 +399,11 @@ export default function Risk() {
       </div>
 
       {/* Risk Alerts & Recommendations */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
         <Card className="bg-card border-card-muted backdrop-blur-sm">
           <CardHeader>
             <CardTitle className="text-foreground flex items-center gap-2">
-              <AlertTriangle className="w-5 h-5 text-yellow-400" />
+              <AlertTriangle className="h-5 w-5 text-yellow-400" />
               Active Risk Alerts
             </CardTitle>
           </CardHeader>
@@ -469,7 +469,7 @@ export default function Risk() {
         <Card className="bg-card border-card-muted backdrop-blur-sm">
           <CardHeader>
             <CardTitle className="text-foreground flex items-center gap-2">
-              <PieChartIcon className="w-5 h-5 text-blue-400" />
+              <PieChartIcon className="h-5 w-5 text-blue-400" />
               Recommendations
             </CardTitle>
           </CardHeader>
@@ -488,14 +488,14 @@ export default function Risk() {
               return (
                 <div
                   key={index}
-                  className={`flex items-start gap-3 p-3 rounded-lg border ${colorClass}`}
+                  className={`flex items-start gap-3 rounded-lg border p-3 ${colorClass}`}
                 >
-                  <Icon className="w-5 h-5 mt-0.5" />
+                  <Icon className="mt-0.5 h-5 w-5" />
                   <div className="flex-1">
                     <p className="text-foreground text-sm font-medium">
                       {rec.title}
                     </p>
-                    <p className="text-muted-foreground-300 text-xs mt-1">
+                    <p className="text-muted-foreground-300 mt-1 text-xs">
                       {rec.description}
                     </p>
                   </div>
@@ -511,20 +511,20 @@ export default function Risk() {
 
       {/* Most At-Risk Position */}
       {mostRiskyPosition && (
-        <Card className="bg-card border-card-muted backdrop-blur-sm border-l-4 border-l-red-500">
+        <Card className="bg-card border-card-muted border-l-4 border-l-red-500 backdrop-blur-sm">
           <CardHeader>
             <CardTitle className="text-foreground flex items-center gap-2">
-              <AlertCircle className="w-5 h-5 text-red-400" />
+              <AlertCircle className="h-5 w-5 text-red-400" />
               Most At-Risk Position
             </CardTitle>
           </CardHeader>
           <CardContent>
             <div className="flex items-center justify-between">
               <div>
-                <h3 className="text-xl font-semibold text-foreground mb-2">
+                <h3 className="text-foreground mb-2 text-xl font-semibold">
                   {mostRiskyPosition.protocol}
                 </h3>
-                <div className="flex items-center gap-4 text-sm text-muted-foreground-400">
+                <div className="text-muted-foreground-400 flex items-center gap-4 text-sm">
                   <span>
                     Asset:{' '}
                     <span className="text-foreground">
@@ -539,7 +539,7 @@ export default function Risk() {
                   </span>
                   <span>
                     Health Factor:{' '}
-                    <span className="text-red-400 font-bold">
+                    <span className="font-bold text-red-400">
                       {mostRiskyPosition.health_factor?.toFixed(2)}
                     </span>
                   </span>

@@ -1,8 +1,8 @@
-import { MarketStats } from '@/types/lending'
+import { MarketStats } from '@/types'
 
 export default function PoolsTable({ markets }: { markets: MarketStats[] }) {
   return (
-    <table className="w-full border-collapse border border-border">
+    <table className="border-border w-full border-collapse border">
       <thead>
         <tr>
           <th className="border p-2">Protocol</th>

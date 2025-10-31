@@ -1,6 +1,12 @@
 export interface Protocol {
   name: string
-  blockchain: 'ethereum' | 'polygon' | 'arbitrum' | 'optimism' | 'avalanche' | 'bsc'
+  blockchain:
+    | 'ethereum'
+    | 'polygon'
+    | 'arbitrum'
+    | 'optimism'
+    | 'avalanche'
+    | 'bsc'
   tvl: number
   category: 'lending' | 'dex' | 'yield_farming' | 'derivatives'
   risk_score: number
@@ -15,7 +21,7 @@ const mockProtocols: Protocol[] = [
     tvl: 5200000000,
     category: 'lending',
     risk_score: 2,
-    audit_status: 'audited'
+    audit_status: 'audited',
   },
   {
     name: 'Compound V3',
@@ -23,7 +29,7 @@ const mockProtocols: Protocol[] = [
     tvl: 3100000000,
     category: 'lending',
     risk_score: 2,
-    audit_status: 'audited'
+    audit_status: 'audited',
   },
   {
     name: 'Morpho Blue',
@@ -31,7 +37,7 @@ const mockProtocols: Protocol[] = [
     tvl: 850000000,
     category: 'lending',
     risk_score: 3,
-    audit_status: 'audited'
+    audit_status: 'audited',
   },
   {
     name: 'Radiant Capital',
@@ -39,8 +45,8 @@ const mockProtocols: Protocol[] = [
     tvl: 450000000,
     category: 'lending',
     risk_score: 5,
-    audit_status: 'audited'
-  }
+    audit_status: 'audited',
+  },
 ]
 
 export const Protocol = {
@@ -55,9 +61,9 @@ export const Protocol = {
   async get(name: string): Promise<Protocol | null> {
     return new Promise((resolve) => {
       setTimeout(() => {
-        const protocol = mockProtocols.find(p => p.name === name)
+        const protocol = mockProtocols.find((p) => p.name === name)
         resolve(protocol || null)
       }, 300)
     })
-  }
+  },
 }

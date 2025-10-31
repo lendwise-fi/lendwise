@@ -1,12 +1,14 @@
 'use client'
 
-import { useState, useEffect } from 'react'
-import { Position, Protocol } from '@/lib/entities'
-import { Wallet, TrendingUp, Shield, DollarSign } from 'lucide-react'
+import { useEffect, useState } from 'react'
+
+import { DollarSign, Shield, TrendingUp, Wallet } from 'lucide-react'
+import { AlertTriangle, Percent } from 'lucide-react'
+
 import MetricCard from '@/components/dashboard/metric-card'
 import PortfolioChart from '@/components/dashboard/portfolio-chart'
 import ProtocolAllocation from '@/components/dashboard/protocol-allocation'
-import { Percent, AlertTriangle } from 'lucide-react'
+import { Position, Protocol } from '@/lib/entities'
 
 export default function DashboardPage() {
   const [positions, setPositions] = useState<Position[]>([])
@@ -35,34 +37,32 @@ export default function DashboardPage() {
       (sum, pos) => sum + (pos.usd_value || 0),
       0
     )
-    const lendingPositions = positions.filter(
-      (p) => p.position_type === 'lending'
-    )
-    const borrowingPositions = positions.filter(
+    const lendPositions = positions.filter((p) => p.position_type === 'lending')
+    const borrowPositions = positions.filter(
       (p) => p.position_type === 'borrowing'
     )
 
-    const totalLending = lendingPositions.reduce(
+    const totalLending = lendPositions.reduce(
       (sum, pos) => sum + (pos.usd_value || 0),
       0
     )
-    const totalBorrowing = borrowingPositions.reduce(
+    const totalBorrowing = borrowPositions.reduce(
       (sum, pos) => sum + (pos.usd_value || 0),
       0
     )
 
     const avgYield =
-      lendingPositions.length > 0
-        ? lendingPositions.reduce((sum, pos) => sum + (pos.apy || 0), 0) /
-          lendingPositions.length
+      lendPositions.length > 0
+        ? lendPositions.reduce((sum, pos) => sum + (pos.apy || 0), 0) /
+          lendPositions.length
         : 0
 
     const avgHealthFactor =
-      borrowingPositions.length > 0
-        ? borrowingPositions.reduce(
+      borrowPositions.length > 0
+        ? borrowPositions.reduce(
             (sum, pos) => sum + (pos.health_factor || 0),
             0
-          ) / borrowingPositions.length
+          ) / borrowPositions.length
         : 0
 
     return {
@@ -79,10 +79,10 @@ export default function DashboardPage() {
 
   if (loading) {
     return (
-      <div className="p-8 animate-pulse">
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 mb-8">
+      <div className="animate-pulse p-8">
+        <div className="mb-8 grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
           {[...Array(4)].map((_, i) => (
-            <div key={i} className="h-32 bg-card rounded-xl" />
+            <div key={i} className="bg-card h-32 rounded-xl" />
           ))}
         </div>
       </div>
@@ -90,11 +90,11 @@ export default function DashboardPage() {
   }
 
   return (
-    <div className="p-8 space-y-8">
+    <div className="space-y-8 p-8">
       {/* Header */}
       <div className="flex flex-col gap-4">
         <div>
-          <h1 className="text-3xl font-bold text-foreground mb-2">
+          <h1 className="text-foreground mb-2 text-3xl font-bold">
             DeFi Portfolio Overview
           </h1>
           <p className="text-muted-foreground">
@@ -104,7 +104,7 @@ export default function DashboardPage() {
       </div>
 
       {/* Key Metrics */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+      <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
         <MetricCard
           title="Total Portfolio Value"
           value={`$${metrics.totalValue.toLocaleString()}`}
@@ -154,20 +154,20 @@ export default function DashboardPage() {
       </div>
 
       {/* Charts Section */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
         <PortfolioChart />
         <ProtocolAllocation />
       </div>
 
       {/* Quick Actions & Alerts */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <div className="bg-card border border-card-muted backdrop-blur-sm rounded-xl p-6">
-          <h3 className="text-lg font-semibold text-foreground mb-4">
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+        <div className="bg-card border-card-muted rounded-xl border p-6 backdrop-blur-sm">
+          <h3 className="text-foreground mb-4 text-lg font-semibold">
             Optimization Opportunities
           </h3>
           <div className="space-y-3">
-            <div className="flex items-center gap-3 p-3 bg-blue-500/10 rounded-lg border border-blue-500/20">
-              <TrendingUp className="w-5 h-5 text-blue-400" />
+            <div className="flex items-center gap-3 rounded-lg border border-blue-500/20 bg-blue-500/10 p-3">
+              <TrendingUp className="h-5 w-5 text-blue-400" />
               <div>
                 <p className="text-foreground text-sm font-medium">
                   Higher Yield Available
@@ -177,8 +177,8 @@ export default function DashboardPage() {
                 </p>
               </div>
             </div>
-            <div className="flex items-center gap-3 p-3 bg-green-500/10 rounded-lg border border-green-500/20">
-              <Percent className="w-5 h-5 text-green-400" />
+            <div className="flex items-center gap-3 rounded-lg border border-green-500/20 bg-green-500/10 p-3">
+              <Percent className="h-5 w-5 text-green-400" />
               <div>
                 <p className="text-foreground text-sm font-medium">
                   Collateral Optimization
@@ -191,14 +191,14 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        <div className="bg-card border border-card-muted backdrop-blur-sm rounded-xl p-6">
-          <h3 className="text-lg font-semibold text-foreground mb-4">
+        <div className="bg-card border-card-muted rounded-xl border p-6 backdrop-blur-sm">
+          <h3 className="text-foreground mb-4 text-lg font-semibold">
             Risk Alerts
           </h3>
           <div className="space-y-3">
             {metrics.avgHealthFactor < 1.5 && (
-              <div className="flex items-center gap-3 p-3 bg-red-500/10 rounded-lg border border-red-500/20">
-                <AlertTriangle className="w-5 h-5 text-red-400" />
+              <div className="flex items-center gap-3 rounded-lg border border-red-500/20 bg-red-500/10 p-3">
+                <AlertTriangle className="h-5 w-5 text-red-400" />
                 <div>
                   <p className="text-foreground text-sm font-medium">
                     Low Health Factor
@@ -209,8 +209,8 @@ export default function DashboardPage() {
                 </div>
               </div>
             )}
-            <div className="flex items-center gap-3 p-3 bg-yellow-500/10 rounded-lg border border-yellow-500/20">
-              <Shield className="w-5 h-5 text-yellow-400" />
+            <div className="flex items-center gap-3 rounded-lg border border-yellow-500/20 bg-yellow-500/10 p-3">
+              <Shield className="h-5 w-5 text-yellow-400" />
               <div>
                 <p className="text-foreground text-sm font-medium">
                   Market Concentration

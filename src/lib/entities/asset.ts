@@ -15,7 +15,7 @@ const mockAssets: Asset[] = [
     price_usd: 2500,
     market_cap: 300000000000,
     volatility_score: 6,
-    liquidity_score: 10
+    liquidity_score: 10,
   },
   {
     symbol: 'USDC',
@@ -23,7 +23,7 @@ const mockAssets: Asset[] = [
     price_usd: 1.0,
     market_cap: 25000000000,
     volatility_score: 1,
-    liquidity_score: 10
+    liquidity_score: 10,
   },
   {
     symbol: 'USDT',
@@ -31,7 +31,7 @@ const mockAssets: Asset[] = [
     price_usd: 1.0,
     market_cap: 95000000000,
     volatility_score: 1,
-    liquidity_score: 10
+    liquidity_score: 10,
   },
   {
     symbol: 'WBTC',
@@ -39,7 +39,7 @@ const mockAssets: Asset[] = [
     price_usd: 45000,
     market_cap: 8000000000,
     volatility_score: 6,
-    liquidity_score: 9
+    liquidity_score: 9,
   },
   {
     symbol: 'BNB',
@@ -47,8 +47,8 @@ const mockAssets: Asset[] = [
     price_usd: 310,
     market_cap: 48000000000,
     volatility_score: 7,
-    liquidity_score: 9
-  }
+    liquidity_score: 9,
+  },
 ]
 
 export const Asset = {
@@ -63,9 +63,9 @@ export const Asset = {
   async get(symbol: string): Promise<Asset | null> {
     return new Promise((resolve) => {
       setTimeout(() => {
-        const asset = mockAssets.find(a => a.symbol === symbol)
+        const asset = mockAssets.find((a) => a.symbol === symbol)
         resolve(asset || null)
       }, 300)
     })
-  }
+  },
 }

@@ -1,8 +1,10 @@
 'use client'
 
 import * as React from 'react'
-import { Moon, Sun, Monitor } from 'lucide-react'
+
+import { Monitor, Moon, Sun } from 'lucide-react'
 import { useTheme } from 'next-themes'
+
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 
@@ -17,7 +19,7 @@ export function ThemeSwitcher() {
 
   if (!mounted) {
     return (
-      <div className="flex items-center gap-1 rounded-lg bg-muted/50 p-1">
+      <div className="bg-muted/50 flex items-center gap-1 rounded-lg p-1">
         <div className="h-8 w-8 rounded-md" />
         <div className="h-8 w-8 rounded-md" />
         <div className="h-8 w-8 rounded-md" />
@@ -32,7 +34,7 @@ export function ThemeSwitcher() {
   ]
 
   return (
-    <div className="flex items-center gap-1 rounded-lg bg-muted/50 p-1">
+    <div className="bg-muted/50 flex items-center gap-1 rounded-lg p-1">
       {themes.map(({ value, icon: Icon, label }) => (
         <Button
           key={value}
@@ -40,7 +42,7 @@ export function ThemeSwitcher() {
           size="sm"
           onClick={() => setTheme(value)}
           className={cn(
-            'h-8 w-8 p-0 transition-all hover:bg-accent',
+            'hover:bg-accent h-8 w-8 p-0 transition-all',
             theme === value
               ? 'bg-primary text-primary-foreground hover:bg-primary/90'
               : 'text-muted-foreground hover:text-accent-foreground'

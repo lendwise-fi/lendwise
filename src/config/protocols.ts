@@ -1,5 +1,13 @@
-import { ProtocolConfig } from '@/types/defi'
-import { mainnet, polygon, arbitrum, base } from 'viem/chains'
+import { arbitrum, base, mainnet, polygon } from 'viem/chains'
+
+import { GraphqlProtocolAdapter } from '@/lib/adapters/types'
+import { ProtocolConfig, ProtocolName } from '@/types'
+
+// Protocol Registry Entry
+export interface ProtocolRegistryEntry {
+  name: ProtocolName
+  adapter: () => Promise<GraphqlProtocolAdapter>
+}
 
 // AAVE V3 Protocol Configuration
 export const AAVE_CONFIG: Record<number, ProtocolConfig> = {
@@ -109,6 +117,17 @@ export const MORPHO_CONFIG: Record<number, ProtocolConfig> = {
       'https://api.thegraph.com/subgraphs/name/morpho-association/morpho-blue-arbitrum',
     blockExplorer: 'https://arbiscan.io',
   },
+  [polygon.id]: {
+    name: 'morpho',
+    displayName: 'Morpho',
+    chainId: polygon.id,
+    contracts: {
+      morpho: '0xBBBBBbbBBb9cC5e90e3b3Af64bdAF62C37EEFFCb',
+    },
+    subgraphUrl:
+      'https://api.thegraph.com/subgraphs/name/morpho-association/morpho-blue-polygon',
+    blockExplorer: 'https://polygonscan.com',
+  },
 }
 
 // Helper to get protocol config by name and chain
@@ -137,4 +156,52 @@ export function getSupportedProtocols(chainId: number): ProtocolConfig[] {
   if (MORPHO_CONFIG[chainId]) protocols.push(MORPHO_CONFIG[chainId])
 
   return protocols
+}
+
+// ============================================================================
+// PROTOCOL ADAPTER REGISTRY
+// ============================================================================
+// This is the single source of truth for which protocols the app supports.
+//
+// HOW TO ADD A NEW PROTOCOL:
+// 1. Add the protocol name to the Protocol union type in @/types/lending
+// 2. Create an adapter in @/lib/adapters/[protocol] that implements ProtocolAdapter
+// 3. Add a new entry to SUPPORTED_PROTOCOLS array below
+// 4. (Optional) Add protocol config to AAVE_CONFIG, COMPOUND_CONFIG, etc. if needed
+//
+// HOW TO REMOVE A PROTOCOL:
+// 1. Remove the entry from SUPPORTED_PROTOCOLS array
+// 2. Remove from Protocol union type in @/types/lending
+// 3. The rest of the app will automatically adapt
+//
+// The dynamic import ensures code-splitting and lazy loading of adapters.
+// ============================================================================
+
+export const SUPPORTED_PROTOCOLS: ProtocolRegistryEntry[] = [
+  {
+    name: 'morpho',
+    adapter: async () => {
+      const { MorphoAdapter } = await import('@/lib/adapters/morpho')
+      return MorphoAdapter
+    },
+  },
+  // {
+  //   name: 'aave',
+  //   adapter: async () => {
+  //     const { AaveAdapter } = await import('@/lib/adapters/aave')
+  //     return AaveAdapter
+  //   },
+  // },
+  // {
+  //   name: 'compound',
+  //   adapter: async () => {
+  //     const { CompoundAdapter } = await import('@/lib/adapters/compound')
+  //     return CompoundAdapter
+  //   },
+  // },
+]
+
+// Helper to get all protocol names
+export function getProtocolNames(): ProtocolName[] {
+  return SUPPORTED_PROTOCOLS.map((p) => p.name)
 }

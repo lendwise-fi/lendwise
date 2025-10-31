@@ -1,18 +1,15 @@
 'use client'
 
-import { useState, useEffect } from 'react'
-import { Position, Protocol, Asset } from '@/lib/entities'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Button } from '@/components/ui/button'
-import { Badge } from '@/components/ui/badge'
+import { useEffect, useState } from 'react'
+
 import {
-  TrendingUp,
-  Shield,
-  Zap,
   ChevronRight,
-  Target,
-  PieChart,
+  TrendingUp,
 } from 'lucide-react'
+
+import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import {
   Select,
   SelectContent,
@@ -20,6 +17,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import { Asset, Position, Protocol } from '@/lib/entities'
 
 interface LendingOpportunity {
   protocol: string
@@ -174,11 +172,11 @@ export default function Lending() {
   }
 
   return (
-    <div className="p-8 space-y-8">
+    <div className="space-y-8 p-8">
       {/* Header */}
       <div className="flex flex-col gap-4">
         <div>
-          <h1 className="text-3xl font-bold text-foreground mb-2">
+          <h1 className="text-foreground mb-2 text-3xl font-bold">
             Lending Optimization
           </h1>
           <p className="text-muted-foreground-400">
@@ -188,7 +186,7 @@ export default function Lending() {
       </div>
 
       {/* Current Positions Summary */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+      <div className="grid grid-cols-1 gap-6 md:grid-cols-4">
         <Card className="bg-card border-card-muted backdrop-blur-sm">
           <CardHeader>
             <CardTitle className="text-muted-foreground-300 text-sm">
@@ -196,7 +194,7 @@ export default function Lending() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-foreground mb-2">
+            <div className="text-foreground mb-2 text-2xl font-bold">
               $
               {positions
                 .reduce((sum, p) => sum + (p.usd_value || 0), 0)
@@ -215,7 +213,7 @@ export default function Lending() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-green-400 mb-2">
+            <div className="mb-2 text-2xl font-bold text-green-400">
               {positions.length > 0
                 ? (
                     positions.reduce((sum, p) => sum + p.apy, 0) /
@@ -237,7 +235,7 @@ export default function Lending() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-blue-400 mb-2">
+            <div className="mb-2 text-2xl font-bold text-blue-400">
               {new Set(positions.map((p) => p.protocol)).size}
             </div>
             <p className="text-muted-foreground-400 text-xs">Protocols used</p>
@@ -251,7 +249,7 @@ export default function Lending() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-purple-400 mb-2">
+            <div className="mb-2 text-2xl font-bold text-purple-400">
               $
               {positions
                 .reduce((sum, p) => sum + (p.usd_value * p.apy) / 100, 0)
@@ -265,9 +263,9 @@ export default function Lending() {
       {/* Filters */}
       <Card className="bg-card border-card-muted backdrop-blur-sm">
         <CardContent className="pt-6">
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
             <div>
-              <label className="text-sm text-muted-foreground-400 mb-2 block">
+              <label className="text-muted-foreground-400 mb-2 block text-sm">
                 Blockchain
               </label>
               <Select value={selectedChain} onValueChange={setSelectedChain}>
@@ -285,7 +283,7 @@ export default function Lending() {
             </div>
 
             <div>
-              <label className="text-sm text-muted-foreground-400 mb-2 block">
+              <label className="text-muted-foreground-400 mb-2 block text-sm">
                 Asset
               </label>
               <Select value={selectedToken} onValueChange={setSelectedToken}>
@@ -303,7 +301,7 @@ export default function Lending() {
             </div>
 
             <div>
-              <label className="text-sm text-muted-foreground-400 mb-2 block">
+              <label className="text-muted-foreground-400 mb-2 block text-sm">
                 Investment Horizon
               </label>
               <Select
@@ -323,7 +321,7 @@ export default function Lending() {
             </div>
 
             <div>
-              <label className="text-sm text-muted-foreground-400 mb-2 block">
+              <label className="text-muted-foreground-400 mb-2 block text-sm">
                 Sort By
               </label>
               <Select value={sortBy} onValueChange={setSortBy}>
@@ -343,7 +341,7 @@ export default function Lending() {
 
       {/* Opportunities List */}
       <div className="space-y-4">
-        <h2 className="text-xl font-semibold text-foreground">
+        <h2 className="text-foreground text-xl font-semibold">
           Available Opportunities ({filteredOpportunities.length})
         </h2>
         {filteredOpportunities.map((opp, index) => {
@@ -353,23 +351,23 @@ export default function Lending() {
           return (
             <Card
               key={index}
-              className="bg-card border-card-muted backdrop-blur-sm hover:bg-slate-800/80 transition-all"
+              className="bg-card border-card-muted backdrop-blur-sm transition-all hover:bg-slate-800/80"
             >
               <CardContent className="p-6">
                 <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-4 flex-1">
-                    <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-green-500 to-blue-600 flex items-center justify-center">
-                      <TrendingUp className="w-6 h-6 text-foreground" />
+                  <div className="flex flex-1 items-center gap-4">
+                    <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-green-500 to-blue-600">
+                      <TrendingUp className="text-foreground h-6 w-6" />
                     </div>
 
                     <div className="flex-1">
-                      <div className="flex items-center gap-2 mb-1">
-                        <h3 className="text-lg font-semibold text-foreground">
+                      <div className="mb-1 flex items-center gap-2">
+                        <h3 className="text-foreground text-lg font-semibold">
                           {opp.protocol}
                         </h3>
                         <Badge
                           variant="outline"
-                          className="text-blue-400 border-blue-500/30"
+                          className="border-blue-500/30 text-blue-400"
                         >
                           {opp.blockchain}
                         </Badge>
@@ -378,7 +376,7 @@ export default function Lending() {
                         </Badge>
                       </div>
 
-                      <div className="flex items-center gap-6 text-sm text-muted-foreground-400">
+                      <div className="text-muted-foreground-400 flex items-center gap-6 text-sm">
                         <span>
                           Asset:{' '}
                           <span className="text-foreground font-medium">
@@ -406,14 +404,14 @@ export default function Lending() {
                       <div className="text-3xl font-bold text-green-400">
                         {currentApy.toFixed(2)}%
                       </div>
-                      <div className="text-xs text-muted-foreground-400">
+                      <div className="text-muted-foreground-400 text-xs">
                         APY
                       </div>
                     </div>
 
                     <Button className="bg-blue-600 hover:bg-blue-700">
                       Deposit
-                      <ChevronRight className="w-4 h-4 ml-1" />
+                      <ChevronRight className="ml-1 h-4 w-4" />
                     </Button>
                   </div>
                 </div>

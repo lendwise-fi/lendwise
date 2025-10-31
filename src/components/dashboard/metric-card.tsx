@@ -1,8 +1,9 @@
 'use client'
 
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { LucideIcon, TrendingDown, TrendingUp } from 'lucide-react'
+
 import { Badge } from '@/components/ui/badge'
-import { TrendingUp, TrendingDown, LucideIcon } from 'lucide-react'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 
 interface MetricCardProps {
   title: string
@@ -29,24 +30,24 @@ export default function MetricCard({
   return (
     <Card className="bg-card border-card-muted backdrop-blur-sm">
       <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-        <CardTitle className="text-sm font-medium text-card-foreground">
+        <CardTitle className="text-card-foreground text-sm font-medium">
           {title}
         </CardTitle>
         <div className="flex items-center gap-2">
           {badge && <Badge className={badge.className}>{badge.text}</Badge>}
           {Icon && (
-            <div className="p-2 rounded-lg bg-primary/20">
-              <Icon className="h-4 w-4 text-primary" />
+            <div className="bg-primary/20 rounded-lg p-2">
+              <Icon className="text-primary h-4 w-4" />
             </div>
           )}
         </div>
       </CardHeader>
       <CardContent>
-        <div className="text-2xl font-bold text-card-foreground mb-1">
+        <div className="text-card-foreground mb-1 text-2xl font-bold">
           {value}
         </div>
         {subtitle && (
-          <p className="text-xs text-muted-foreground mb-2">{subtitle}</p>
+          <p className="text-muted-foreground mb-2 text-xs">{subtitle}</p>
         )}
         {change && (
           <div
@@ -55,9 +56,9 @@ export default function MetricCard({
             }`}
           >
             {changeType === 'positive' ? (
-              <TrendingUp className="w-3 h-3" />
+              <TrendingUp className="h-3 w-3" />
             ) : (
-              <TrendingDown className="w-3 h-3" />
+              <TrendingDown className="h-3 w-3" />
             )}
             {change}
           </div>

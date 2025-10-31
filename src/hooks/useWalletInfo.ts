@@ -1,5 +1,6 @@
-import { formatAddress } from '@/lib/utils'
 import { useAccount, useBalance } from 'wagmi'
+
+import { formatAddress } from '@/lib/utils'
 
 export type WalletInfo = {
   status: {

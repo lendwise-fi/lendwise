@@ -2,7 +2,17 @@ import type { NextConfig } from 'next'
 
 const nextConfig: NextConfig = {
   reactStrictMode: true,
-  webpack: (config) => {
+  turbopack: {},
+  images: {
+    remotePatterns: [
+      {
+        protocol: 'https',
+        hostname: 'coin-images.coingecko.com',
+        pathname: '/**',
+      },
+    ],
+  },
+  webpack: (config: any) => {
     // Externaliser les modules Node.js qui ne doivent pas être bundlés
     config.externals.push('pino-pretty', 'lokijs', 'encoding')
 

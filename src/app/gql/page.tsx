@@ -1,5 +1,5 @@
-import { createClient, gql } from 'urql'
 import { cacheExchange, fetchExchange } from '@urql/core'
+import { createClient, gql } from 'urql'
 
 const client = createClient({
   url: 'https://api.morpho.org/graphql',

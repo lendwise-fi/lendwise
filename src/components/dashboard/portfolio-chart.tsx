@@ -1,17 +1,19 @@
 'use client'
 
 import { useState } from 'react'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
+
 import {
-  LineChart,
+  CartesianGrid,
   Line,
+  LineChart,
+  ResponsiveContainer,
+  Tooltip,
   XAxis,
   YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer,
 } from 'recharts'
+
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 
 const portfolioData = [
   { name: 'Jan', value: 12000, yield: 8.5, borrow: 5200, lending: 17200 },
@@ -30,28 +32,28 @@ export default function PortfolioChart() {
       case 'yield':
         return {
           dataKey: 'yield',
-          color: 'hsl(var(--chart-3))',
+          color: 'var(--color-chart-3)',
           label: 'Average Yield (%)',
           format: (value: number) => `${value}%`,
         }
       case 'borrow':
         return {
           dataKey: 'borrow',
-          color: 'hsl(var(--destructive))',
+          color: 'var(--color-destructive)',
           label: 'Total Borrow ($)',
           format: (value: number) => `$${value.toLocaleString()}`,
         }
       case 'lending':
         return {
           dataKey: 'lending',
-          color: 'hsl(var(--chart-1))',
+          color: 'var(--color-chart-1)',
           label: 'Total Lending ($)',
           format: (value: number) => `$${value.toLocaleString()}`,
         }
       default:
         return {
           dataKey: 'value',
-          color: 'hsl(var(--chart-1))',
+          color: 'var(--color-chart-1)',
           label: 'Portfolio Value ($)',
           format: (value: number) => `$${value.toLocaleString()}`,
         }
@@ -61,7 +63,7 @@ export default function PortfolioChart() {
   const chartConfig = getChartConfig()
 
   return (
-    <Card className="bg-card border-card-muted backdrop-blur-sm col-span-2">
+    <Card className="bg-card border-card-muted col-span-2 backdrop-blur-sm">
       <CardHeader>
         <div className="flex items-center justify-between">
           <CardTitle className="text-card-foreground">
@@ -88,13 +90,16 @@ export default function PortfolioChart() {
       <CardContent>
         <ResponsiveContainer width="100%" height={300}>
           <LineChart data={portfolioData}>
-            <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+            <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" />
             <XAxis
               dataKey="name"
-              stroke="hsl(var(--muted-foreground))"
+              stroke="var(--color-muted-foreground)"
               style={{ fontSize: '12px' }}
             />
-            <YAxis stroke="hsl(var(--muted-foreground))" style={{ fontSize: '12px' }} />
+            <YAxis
+              stroke="var(--color-muted-foreground)"
+              style={{ fontSize: '12px' }}
+            />
             <Tooltip
               contentStyle={{
                 backgroundColor: 'var(--accent)',

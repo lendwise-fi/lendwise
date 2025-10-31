@@ -1,13 +1,18 @@
 import type { Metadata } from 'next'
+
 import { Inter } from 'next/font/google'
-import './globals.css'
-import { AppSidebar } from '@/components/app-sidebar'
-import { ThemeProvider } from '@/components/theme-provider'
-import { Web3Provider } from '@/components/providers'
-import { Navbar } from '@/components/navbar'
-import { MainContent } from '@/components/main-content'
+
 import { Toaster } from 'sonner'
-import { WalletWatcherProvider } from '@/components/wallet-watcher-provider'
+
+import { AppSidebar } from '@/components/app-sidebar'
+import { Navbar } from '@/components/navbar'
+import {
+  ThemeProvider,
+  WalletWatcherProvider,
+  Web3Provider,
+} from '@/components/providers'
+
+import './globals.css'
 
 const inter = Inter({ subsets: ['latin'] })
 
@@ -32,11 +37,11 @@ export default function RootLayout({
         >
           <Web3Provider>
             <WalletWatcherProvider>
-              <div className="flex min-h-screen bg-background">
+              <div className="flex min-h-screen">
                 <AppSidebar />
-                <main className="flex-1 flex flex-col">
+                <main className="flex-1">
                   <Navbar />
-                  <MainContent>{children}</MainContent>
+                  {children}
                 </main>
               </div>
               <Toaster position="top-right" richColors />

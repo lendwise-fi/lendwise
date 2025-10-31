@@ -14,6 +14,7 @@ pnpm install
 ```
 
 This will install all required packages including:
+
 - Next.js 15
 - React 19
 - Tailwind CSS
@@ -44,6 +45,7 @@ Navigate through the sidebar to explore different features:
 ### Understanding the Data
 
 The application currently uses **mock data** defined in `lib/entities/`:
+
 - `position.ts` - Sample lending and borrowing positions
 - `protocol.ts` - DeFi protocols (Aave, Compound, etc.)
 - `asset.ts` - Cryptocurrency assets
@@ -60,7 +62,7 @@ const mockPositions: Position[] = [
     blockchain: 'ethereum',
     position_type: 'lending',
     // ... add your data
-  }
+  },
 ]
 ```
 
@@ -75,6 +77,7 @@ const mockPositions: Position[] = [
 ### Add Wallet Connection
 
 1. Install wallet libraries:
+
    ```bash
    pnpm add wagmi viem @rainbow-me/rainbowkit
    ```
@@ -101,6 +104,7 @@ Or deploy to Vercel with one click:
 ### Port Already in Use
 
 If port 3000 is already in use:
+
 ```bash
 pnpm dev -- -p 3001
 ```
@@ -108,6 +112,7 @@ pnpm dev -- -p 3001
 ### Module Not Found Errors
 
 Clear Next.js cache and reinstall:
+
 ```bash
 rm -rf .next node_modules
 pnpm install
@@ -117,6 +122,7 @@ pnpm dev
 ### TypeScript Errors
 
 If you see TypeScript errors, ensure all dependencies are installed:
+
 ```bash
 pnpm install --save-dev @types/node @types/react @types/react-dom
 ```
@@ -130,6 +136,7 @@ Next.js has built-in hot reload. Changes to files will automatically refresh the
 ### Adding New Pages
 
 Create a new folder in `app/` directory:
+
 ```
 app/
   ├── your-page/
@@ -139,6 +146,7 @@ app/
 ### Adding New Components
 
 Store reusable components in `components/`:
+
 ```
 components/
   ├── your-component.tsx

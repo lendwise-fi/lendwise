@@ -51,7 +51,7 @@
     SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New',
     monospace;
 
-  --radius: 0rem;
+  --radius: 0.5rem;
 
   --shadow-2xs: 0px 1px 2.5px 0px oklch(0.49 0.09 235 / 0.03);
   --shadow-xs: 0px 1px 2.5px 0px oklch(0.49 0.09 235 / 0.03);

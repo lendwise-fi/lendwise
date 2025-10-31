@@ -15,14 +15,14 @@ To add the InfoSidebar to a new page, simply add the route to the `INFOSIDEBAR_P
 
 ```typescript
 export const INFOSIDEBAR_PAGES = [
-  '/risk',        // Risk management page
-  '/portfolio',   // Portfolio overview
-  '/dashboard',   // Main dashboard
-  '/lending',     // Lending positions
-  '/borrowing',   // Borrowing positions
-  '/vaults',      // Vault management
+  '/risk', // Risk management page
+  '/portfolio', // Portfolio overview
+  '/dashboard', // Main dashboard
+  '/lending', // Lending positions
+  '/borrowing', // Borrowing positions
+  '/vaults', // Vault management
   // Add your new page here
-  '/your-new-page'
+  '/your-new-page',
 ] as const
 ```
 

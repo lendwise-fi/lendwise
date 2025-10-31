@@ -1,13 +1,16 @@
 'use client'
 
 import { useEffect } from 'react'
-import { useAccount } from 'wagmi'
+
 import { getEnsName } from '@wagmi/core'
-import { config } from '@/config/wagmi'
-import { useWalletStore, type Wallet } from '@/stores/walletStore'
-import { isEnsSupported } from '@/config/chains'
+import type { Address } from 'viem'
+import { useAccount } from 'wagmi'
 import { mainnet } from 'wagmi/chains'
+
+import { isEnsSupported } from '@/config/chains'
+import { config } from '@/config/wagmi'
 import { formatAddress } from '@/lib/utils'
+import { type Wallet, useWalletStore } from '@/stores/walletStore'
 
 /**
  * Hook that watches for wallet account changes and automatically updates the wallet store
@@ -57,7 +60,7 @@ export function useWalletWatcher() {
                   try {
                     ensName = await Promise.race([
                       getEnsName(config, {
-                        address: accountAddress as `0x${string}`,
+                        address: accountAddress as Address,
                         chainId: mainnet.id, // Always use mainnet for ENS resolution
                       }),
                       new Promise<null>((resolve) =>

@@ -53,6 +53,7 @@ The app will be available at `http://localhost:3000`
 ## Supported Networks
 
 ### Aave V3
+
 - ✅ Ethereum Mainnet (Chain ID: 1)
 - ✅ Polygon (Chain ID: 137)
 - ✅ Arbitrum (Chain ID: 42161)
@@ -60,11 +61,13 @@ The app will be available at `http://localhost:3000`
 - ✅ Base (Chain ID: 8453)
 
 ### Compound V3
+
 - ✅ Ethereum Mainnet (Chain ID: 1)
 - ✅ Polygon (Chain ID: 137)
 - ✅ Base (Chain ID: 8453)
 
 ### Morpho Blue
+
 - ✅ Ethereum Mainnet (Chain ID: 1)
 - ✅ Base (Chain ID: 8453)
 
@@ -79,19 +82,22 @@ The app will be available at `http://localhost:3000`
 ## Key Features
 
 ### 📊 Dashboard
+
 - Total portfolio value across all protocols
 - Average yield (APY) on lending positions
-- Health factor monitoring for borrowing positions  
+- Health factor monitoring for borrowing positions
 - Net position (lending - borrowing)
 - Protocol-wise breakdown
 
 ### 🔍 Position Tracking
+
 - Real-time on-chain data
 - Supply and borrow positions
 - Collateral status
 - Individual market details
 
 ### 💡 Optimization
+
 - Identifies higher yield opportunities
 - Compares same assets across protocols
 - Health factor warnings
@@ -120,7 +126,7 @@ import { usePositions } from '@/hooks/usePositions'
 
 function MyComponent() {
   const { positions, loading, error, refetch } = usePositions()
-  
+
   // positions: Array of all positions across protocols
   // loading: Boolean indicating fetch status
   // error: Error object if fetch failed
@@ -135,7 +141,7 @@ import { usePositionSummary } from '@/hooks/usePositions'
 
 function Dashboard() {
   const { summary, loading } = usePositionSummary()
-  
+
   // summary.totalSupplyUSD
   // summary.totalBorrowUSD
   // summary.netAPY
@@ -163,13 +169,13 @@ import { useOpportunities } from '@/hooks/usePositions'
 
 function Opportunities() {
   const { opportunities } = useOpportunities()
-  
-  opportunities.forEach(opp => {
-    console.log(opp.type)        // 'higher-yield' | 'health-warning'
-    console.log(opp.title)       // Human-readable title
+
+  opportunities.forEach((opp) => {
+    console.log(opp.type) // 'higher-yield' | 'health-warning'
+    console.log(opp.title) // Human-readable title
     console.log(opp.description) // Detailed description
-    console.log(opp.currentAPY)  // Current APY if applicable
-    console.log(opp.betterAPY)   // Better APY available
+    console.log(opp.currentAPY) // Current APY if applicable
+    console.log(opp.betterAPY) // Better APY available
   })
 }
 ```
@@ -177,18 +183,21 @@ function Opportunities() {
 ## Troubleshooting
 
 ### Wallet Not Connecting
+
 - Clear browser cache
 - Try a different wallet
 - Check that you're on a supported network
 - Ensure WalletConnect Project ID is set
 
 ### No Positions Showing
+
 - Confirm wallet has positions on the current network
 - Check browser console for errors
 - Verify network is supported (see list above)
 - Try switching networks and back
 
 ### Build Errors
+
 ```bash
 # Clear cache and reinstall
 pnpm clean
@@ -200,7 +209,9 @@ pnpm install
 ```
 
 ### RPC Rate Limiting
+
 The app makes multiple RPC calls to fetch positions. If you experience rate limiting:
+
 - Use a custom RPC provider (configure in `src/lib/wagmi.ts`)
 - Consider implementing request caching
 - Add delays between protocol calls
@@ -208,17 +219,21 @@ The app makes multiple RPC calls to fetch positions. If you experience rate limi
 ## Development Tips
 
 ### Adding Support for New Tokens
+
 Token metadata is fetched automatically from contracts. No manual configuration needed.
 
 ### Adding New Protocols
+
 See [ARCHITECTURE.md#adding-a-new-protocol](./ARCHITECTURE.md#adding-a-new-protocol) for step-by-step guide.
 
 ### Testing
+
 ```bash
 # No tests yet - contributions welcome!
 ```
 
 ### Debugging
+
 - Open browser DevTools Console
 - Check for RPC errors or contract call failures
 - Verify contract addresses in `src/config/protocols.ts`
@@ -227,11 +242,13 @@ See [ARCHITECTURE.md#adding-a-new-protocol](./ARCHITECTURE.md#adding-a-new-proto
 ## Performance Optimization
 
 ### Current Performance
+
 - Initial load: Fetches all protocols in parallel
 - Typical fetch time: 2-5 seconds depending on positions
 - Auto-refreshes on wallet/chain change
 
 ### Recommended Improvements
+
 - [ ] Implement React Query for caching
 - [ ] Add service worker for offline support
 - [ ] Lazy load protocol data on demand
@@ -248,6 +265,7 @@ See [ARCHITECTURE.md#adding-a-new-protocol](./ARCHITECTURE.md#adding-a-new-proto
 ## Contributing
 
 Contributions welcome! Areas for improvement:
+
 - Add more protocols (Euler, Radiant, Spark, etc.)
 - Implement transaction execution
 - Add historical data tracking
@@ -257,6 +275,7 @@ Contributions welcome! Areas for improvement:
 ## Support
 
 For issues or questions:
+
 1. Check [ARCHITECTURE.md](./ARCHITECTURE.md) for technical details
 2. Review this setup guide
 3. Open an issue on GitHub

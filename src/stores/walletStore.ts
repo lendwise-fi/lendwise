@@ -34,6 +34,7 @@ interface WalletState {
   updateWallet: (address: string, updates: Partial<Wallet>) => void
   removeWallet: (address: string) => void
   hasWallet: (address: string) => boolean
+  setBaseCurrency: (currency: string) => void
 }
 
 export const useWalletStore = create<WalletState>()(
@@ -90,6 +91,11 @@ export const useWalletStore = create<WalletState>()(
           (w) => w.address.toLowerCase() === address.toLowerCase()
         )
       },
+
+      setBaseCurrency: (currency) =>
+        set(() => ({
+          baseCurrency: currency,
+        })),
     }),
     {
       name: 'persist:account',

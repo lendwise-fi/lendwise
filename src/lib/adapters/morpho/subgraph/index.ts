@@ -1,7 +1,9 @@
-import { ethereumAdapter } from './ethereum'
 import { arbitrumAdapter } from './arbitrum'
+import { ethereumAdapter } from './ethereum'
 
-const adapters: { [chainId: number]: typeof ethereumAdapter | typeof arbitrumAdapter } = {
+const adapters: {
+  [chainId: number]: typeof ethereumAdapter | typeof arbitrumAdapter
+} = {
   1: ethereumAdapter,
   42161: arbitrumAdapter,
 }

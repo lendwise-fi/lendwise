@@ -1,18 +1,17 @@
 'use client'
 
-import { useState, useEffect } from 'react'
-import { Position } from '@/lib/entities'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Button } from '@/components/ui/button'
-import { Badge } from '@/components/ui/badge'
-import { Progress } from '@/components/ui/progress'
+import { useEffect, useState } from 'react'
+
 import {
-  AlertTriangle,
-  TrendingDown,
-  Shield,
-  Wallet,
   ChevronRight,
+  Shield,
+  TrendingDown,
+  Wallet,
 } from 'lucide-react'
+
+import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import {
   Select,
   SelectContent,
@@ -20,6 +19,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import { Position } from '@/lib/entities'
 
 interface BorrowingOpportunity {
   protocol: string
@@ -156,10 +156,10 @@ export default function Borrowing() {
       : 0
 
   return (
-    <div className="p-8 space-y-8">
+    <div className="space-y-8 p-8">
       {/* Header */}
       <div>
-        <h1 className="text-3xl font-bold text-foreground mb-2">
+        <h1 className="text-foreground mb-2 text-3xl font-bold">
           Borrowing Optimization
         </h1>
         <p className="text-muted-foreground-400">
@@ -169,16 +169,16 @@ export default function Borrowing() {
       </div>
 
       {/* Current Borrowing Overview */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
         <Card className="bg-card border-card-muted backdrop-blur-sm">
           <CardHeader>
-            <CardTitle className="text-muted-foreground-300 text-sm flex items-center gap-2">
-              <Wallet className="w-4 h-4" />
+            <CardTitle className="text-muted-foreground-300 flex items-center gap-2 text-sm">
+              <Wallet className="h-4 w-4" />
               Total Borrowed
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-foreground mb-2">
+            <div className="text-foreground mb-2 text-2xl font-bold">
               ${totalBorrowed.toLocaleString()}
             </div>
             <div className="text-muted-foreground-400 text-sm">
@@ -189,13 +189,13 @@ export default function Borrowing() {
 
         <Card className="bg-card border-card-muted backdrop-blur-sm">
           <CardHeader>
-            <CardTitle className="text-muted-foreground-300 text-sm flex items-center gap-2">
-              <TrendingDown className="w-4 h-4" />
+            <CardTitle className="text-muted-foreground-300 flex items-center gap-2 text-sm">
+              <TrendingDown className="h-4 w-4" />
               Avg Borrow Rate
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-red-400 mb-2">
+            <div className="mb-2 text-2xl font-bold text-red-400">
               {avgBorrowRate.toFixed(2)}%
             </div>
             <div className="text-muted-foreground-400 text-sm">
@@ -206,14 +206,14 @@ export default function Borrowing() {
 
         <Card className="bg-card border-card-muted backdrop-blur-sm">
           <CardHeader>
-            <CardTitle className="text-muted-foreground-300 text-sm flex items-center gap-2">
-              <Shield className="w-4 h-4" />
+            <CardTitle className="text-muted-foreground-300 flex items-center gap-2 text-sm">
+              <Shield className="h-4 w-4" />
               Avg Health Factor
             </CardTitle>
           </CardHeader>
           <CardContent>
             <div
-              className={`text-2xl font-bold mb-2 ${avgHealthFactor > 2 ? 'text-green-400' : avgHealthFactor > 1.5 ? 'text-yellow-400' : 'text-red-400'}`}
+              className={`mb-2 text-2xl font-bold ${avgHealthFactor > 2 ? 'text-green-400' : avgHealthFactor > 1.5 ? 'text-yellow-400' : 'text-red-400'}`}
             >
               {avgHealthFactor.toFixed(2)}
             </div>
@@ -231,9 +231,9 @@ export default function Borrowing() {
       {/* Filters */}
       <Card className="bg-card border-card-muted backdrop-blur-sm">
         <CardContent className="pt-6">
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
             <div>
-              <label className="text-sm text-muted-foreground-400 mb-2 block">
+              <label className="text-muted-foreground-400 mb-2 block text-sm">
                 Collateral Asset
               </label>
               <Select
@@ -252,7 +252,7 @@ export default function Borrowing() {
             </div>
 
             <div>
-              <label className="text-sm text-muted-foreground-400 mb-2 block">
+              <label className="text-muted-foreground-400 mb-2 block text-sm">
                 Loan Asset
               </label>
               <Select value={loanToken} onValueChange={setLoanToken}>
@@ -268,7 +268,7 @@ export default function Borrowing() {
             </div>
 
             <div>
-              <label className="text-sm text-muted-foreground-400 mb-2 block">
+              <label className="text-muted-foreground-400 mb-2 block text-sm">
                 Blockchain
               </label>
               <Select value={selectedChain} onValueChange={setSelectedChain}>
@@ -285,7 +285,7 @@ export default function Borrowing() {
             </div>
 
             <div>
-              <label className="text-sm text-muted-foreground-400 mb-2 block">
+              <label className="text-muted-foreground-400 mb-2 block text-sm">
                 Time Horizon
               </label>
               <Select
@@ -309,7 +309,7 @@ export default function Borrowing() {
 
       {/* Borrowing Opportunities */}
       <div className="space-y-4">
-        <h2 className="text-xl font-semibold text-foreground">
+        <h2 className="text-foreground text-xl font-semibold">
           Best Borrowing Rates ({filteredOpportunities.length})
         </h2>
         {filteredOpportunities.map((opp, index) => {
@@ -318,29 +318,29 @@ export default function Borrowing() {
           return (
             <Card
               key={index}
-              className="bg-card border-card-muted backdrop-blur-sm hover:bg-slate-800/80 transition-all"
+              className="bg-card border-card-muted backdrop-blur-sm transition-all hover:bg-slate-800/80"
             >
               <CardContent className="p-6">
-                <div className="flex items-center justify-between mb-4">
-                  <div className="flex items-center gap-4 flex-1">
-                    <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-red-500 to-orange-600 flex items-center justify-center">
-                      <TrendingDown className="w-6 h-6 text-foreground" />
+                <div className="mb-4 flex items-center justify-between">
+                  <div className="flex flex-1 items-center gap-4">
+                    <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-red-500 to-orange-600">
+                      <TrendingDown className="text-foreground h-6 w-6" />
                     </div>
 
                     <div className="flex-1">
-                      <div className="flex items-center gap-2 mb-1">
-                        <h3 className="text-lg font-semibold text-foreground">
+                      <div className="mb-1 flex items-center gap-2">
+                        <h3 className="text-foreground text-lg font-semibold">
                           {opp.protocol}
                         </h3>
                         <Badge
                           variant="outline"
-                          className="text-blue-400 border-blue-500/30"
+                          className="border-blue-500/30 text-blue-400"
                         >
                           {opp.blockchain}
                         </Badge>
                       </div>
 
-                      <div className="flex items-center gap-6 text-sm text-muted-foreground-400">
+                      <div className="text-muted-foreground-400 flex items-center gap-6 text-sm">
                         <span>
                           Borrow:{' '}
                           <span className="text-foreground font-medium">
@@ -368,38 +368,38 @@ export default function Borrowing() {
                       <div className="text-3xl font-bold text-red-400">
                         {currentRate.toFixed(2)}%
                       </div>
-                      <div className="text-xs text-muted-foreground-400">
+                      <div className="text-muted-foreground-400 text-xs">
                         Borrow APR
                       </div>
                     </div>
 
                     <Button className="bg-blue-600 hover:bg-blue-700">
                       Borrow
-                      <ChevronRight className="w-4 h-4 ml-1" />
+                      <ChevronRight className="ml-1 h-4 w-4" />
                     </Button>
                   </div>
                 </div>
 
                 {/* LTV Metrics */}
-                <div className="grid grid-cols-3 gap-4 pt-4 border-t border-slate-700/50">
+                <div className="grid grid-cols-3 gap-4 border-t border-slate-700/50 pt-4">
                   <div>
-                    <div className="text-xs text-muted-foreground-400 mb-1">
+                    <div className="text-muted-foreground-400 mb-1 text-xs">
                       Max LTV
                     </div>
-                    <div className="text-lg font-semibold text-foreground">
+                    <div className="text-foreground text-lg font-semibold">
                       {opp.ltv}%
                     </div>
                   </div>
                   <div>
-                    <div className="text-xs text-muted-foreground-400 mb-1">
+                    <div className="text-muted-foreground-400 mb-1 text-xs">
                       Liquidation Threshold
                     </div>
-                    <div className="text-lg font-semibold text-foreground">
+                    <div className="text-foreground text-lg font-semibold">
                       {opp.liquidationThreshold}%
                     </div>
                   </div>
                   <div>
-                    <div className="text-xs text-muted-foreground-400 mb-1">
+                    <div className="text-muted-foreground-400 mb-1 text-xs">
                       Safety Margin
                     </div>
                     <div className="text-lg font-semibold text-green-400">

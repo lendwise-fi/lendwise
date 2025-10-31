@@ -1,26 +1,30 @@
 'use client'
 
 import React, { useState } from 'react'
-import { useWalletStore, type Wallet } from '@/stores/walletStore'
-import { cn } from '@/lib/utils'
-import { Button } from './ui/button'
+
 import {
-  Settings,
-  Plus,
   ChevronUp,
-  Wallet as WalletIcon,
   PanelRight,
+  Plus,
+  Settings,
+  Wallet as WalletIcon,
 } from 'lucide-react'
-import { WalletAvatar } from './wallet-avatar'
+import { Address } from 'viem'
 import { useEnsName } from 'wagmi'
+
+import { cn } from '@/lib/utils'
+import { type Wallet, useWalletStore } from '@/stores/walletStore'
+
+import { Button } from './ui/button'
+import { WalletAvatar } from './wallet/WalletAvatar'
 
 const WalletRow = ({ wallet }: { wallet: Wallet }) => {
   const { data: ensName } = useEnsName({
-    address: wallet.address as `0x${string}`,
+    address: wallet.address as Address,
   })
 
   return (
-    <div className="flex items-center gap-3 rounded-md p-2 hover:bg-accent">
+    <div className="hover:bg-accent flex items-center gap-3 rounded-md p-2">
       <WalletAvatar address={wallet.address} size={32} />
       <span className="text-sm font-medium">{ensName || wallet.name}</span>
     </div>
@@ -36,8 +40,8 @@ export function InfoSidebar() {
   return (
     <aside
       className={cn(
-        'group relative border-r border-border bg-card/50 transition-all duration-300 ease-in-out flex flex-col',
-        isOpen ? 'w-72' : 'w-20'
+        'group border-border bg-card/50 relative flex h-screen flex-col border-r transition-all duration-300 ease-in-out',
+        isOpen ? 'w-52' : 'w-20'
       )}
     >
       <Button
@@ -52,8 +56,8 @@ export function InfoSidebar() {
         <div
           className={cn(
             'absolute inset-0 h-full transition-opacity duration-200',
-            isOpen ? 'opacity-100' : 'opacity-0 pointer-events-auto',
-            !isOpen && 'opacity-0 pointer-events-none'
+            isOpen ? 'opacity-100' : 'pointer-events-auto opacity-0',
+            !isOpen && 'pointer-events-none opacity-0'
           )}
         >
           {/* Expanded View */}
@@ -69,9 +73,9 @@ export function InfoSidebar() {
                 </Button>
               </div>
             </div>
-            <div className="mb-2 flex items-center justify-between rounded-md p-2 hover:bg-accent cursor-pointer">
+            <div className="hover:bg-accent mb-2 flex cursor-pointer items-center justify-between rounded-md p-2">
               <span className="font-semibold">Decentralized</span>
-              <ChevronUp className="h-4 w-4 text-muted-foreground" />
+              <ChevronUp className="text-muted-foreground h-4 w-4" />
             </div>
             <div className="flex-1 space-y-2 overflow-y-auto">
               {wallets.map((wallet) => (
@@ -84,8 +88,8 @@ export function InfoSidebar() {
         <div
           className={cn(
             'absolute inset-0 h-full transition-opacity duration-200',
-            !isOpen ? 'opacity-100' : 'opacity-0 pointer-events-auto',
-            isOpen && 'opacity-0 pointer-events-none'
+            !isOpen ? 'opacity-100' : 'pointer-events-auto opacity-0',
+            isOpen && 'pointer-events-none opacity-0'
           )}
         >
           {/* Collapsed View */}
@@ -93,9 +97,9 @@ export function InfoSidebar() {
             <Button variant="ghost" size="icon">
               <Plus className="h-5 w-5" />
             </Button>
-            <div className="flex items-center justify-center rounded-md bg-accent p-2 text-accent-foreground">
+            <div className="bg-accent text-accent-foreground flex items-center justify-center rounded-md p-2">
               <WalletIcon className="h-5 w-5" />
-              <ChevronUp className="h-4 w-4 ml-1" />
+              <ChevronUp className="ml-1 h-4 w-4" />
             </div>
             <div className="flex-1 space-y-4 overflow-y-auto pt-2">
               {wallets.map((wallet) => (

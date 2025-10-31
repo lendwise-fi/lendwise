@@ -68,8 +68,16 @@ export const COMPOUND_COMET_ABI = [
           { internalType: 'address', name: 'asset', type: 'address' },
           { internalType: 'address', name: 'priceFeed', type: 'address' },
           { internalType: 'uint64', name: 'scale', type: 'uint64' },
-          { internalType: 'uint64', name: 'borrowCollateralFactor', type: 'uint64' },
-          { internalType: 'uint64', name: 'liquidateCollateralFactor', type: 'uint64' },
+          {
+            internalType: 'uint64',
+            name: 'borrowCollateralFactor',
+            type: 'uint64',
+          },
+          {
+            internalType: 'uint64',
+            name: 'liquidateCollateralFactor',
+            type: 'uint64',
+          },
           { internalType: 'uint64', name: 'liquidationFactor', type: 'uint64' },
           { internalType: 'uint128', name: 'supplyCap', type: 'uint128' },
         ],

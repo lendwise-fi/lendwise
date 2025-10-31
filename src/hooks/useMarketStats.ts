@@ -1,7 +1,7 @@
 import { AaveAdapter } from '@/lib/adapters/aave'
 import { CompoundAdapter } from '@/lib/adapters/compound'
 import { MorphoAdapter } from '@/lib/adapters/morpho'
-import { MarketStats } from '@/types/lending'
+import { MarketStats } from '@/types'
 
 export async function getMarketStats(): Promise<MarketStats[]> {
   const [aave, compound, morpho] = await Promise.allSettled([

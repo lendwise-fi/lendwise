@@ -1,8 +1,9 @@
 'use client'
 
 import { usePathname } from 'next/navigation'
-import { shouldShowInfoSidebar } from '@/config/infoSidebar'
+
 import { InfoSidebar } from '@/components/info-sidebar'
+import { shouldShowInfoSidebar } from '@/config/infoSidebar'
 
 interface MainContentProps {
   children: React.ReactNode

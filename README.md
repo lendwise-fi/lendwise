@@ -45,13 +45,19 @@ cd /Users/cedric/Projects/SmarttDev/yieldimprove
 pnpm install
 ```
 
-3. **Run the development server**
+3. **Run ESLint**
+
+```bash
+pnpm lint
+```
+
+4. **Run the development server**
 
 ```bash
 pnpm dev
 ```
 
-4. **Open your browser**
+5. **Open your browser**
 
 Navigate to [http://localhost:3000](http://localhost:3000) to see the application.
 
@@ -102,6 +108,7 @@ yieldimprove/
 ## Available Pages
 
 ### Dashboard (`/dashboard`)
+
 - Portfolio overview with key metrics
 - Total portfolio value, average yield, health factor
 - Portfolio performance charts
@@ -109,6 +116,7 @@ yieldimprove/
 - Optimization opportunities and risk alerts
 
 ### Lending (`/lending`)
+
 - Best lending rates across protocols
 - Filter by blockchain, asset, and investment horizon
 - Sort by APY, TVL, or risk score
@@ -116,6 +124,7 @@ yieldimprove/
 - Diversification metrics
 
 ### Borrowing (`/borrowing`)
+
 - Lowest borrowing rates
 - Collateral and loan asset selection
 - LTV and liquidation threshold comparison
@@ -123,6 +132,7 @@ yieldimprove/
 - Current borrowing overview
 
 ### Portfolio (`/portfolio`)
+
 - All lending and borrowing positions
 - Net worth calculation
 - Position details with health factors
@@ -130,6 +140,7 @@ yieldimprove/
 - Quick access to position management
 
 ### Risk Monitor (`/risk`)
+
 - Average health factor tracking
 - Risk score calculation
 - Health factor trend charts
@@ -144,7 +155,7 @@ yieldimprove/
 To add new Shadcn UI components:
 
 ```bash
-pnpm dlx shadcn-ui@latest add [component-name]
+pnpm dlx shadcn@latest add [component-name]
 ```
 
 ### Customizing Theme

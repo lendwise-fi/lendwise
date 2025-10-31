@@ -1,8 +1,10 @@
-import { createClient, cacheExchange, fetchExchange } from '@urql/core'
-import { MarketStats } from '@/types/lending'
+import { cacheExchange, createClient, fetchExchange } from '@urql/core'
+
+import { MarketStats } from '@/types'
 
 // NOTE: Replace with the official Morpho Blue Ethereum subgraph URL
-const MORPHO_ETHEREUM_SUBGRAPH_URL = 'https://api.thegraph.com/subgraphs/name/morpho-association/morpho-blue-mainnet'
+const MORPHO_ETHEREUM_SUBGRAPH_URL =
+  'https://api.thegraph.com/subgraphs/name/morpho-association/morpho-blue-mainnet'
 
 const client = createClient({
   url: MORPHO_ETHEREUM_SUBGRAPH_URL,

@@ -1,27 +1,27 @@
 import { http } from 'wagmi'
 import {
+  arbitrum,
+  arbitrumSepolia,
+  avalanche,
+  avalancheFuji,
+  base,
+  baseGoerli,
+  bsc,
+  bscTestnet,
+  celo,
+  celoAlfajores,
+  gnosis,
+  linea,
+  lineaTestnet,
   // Mainnets
   mainnet,
-  arbitrum,
   optimism,
+  optimismSepolia,
   polygon,
-  base,
-  linea,
-  celo,
-  avalanche,
-  bsc,
-  zkSync,
-  gnosis,
+  polygonMumbai,
   // Testnets
   sepolia,
-  arbitrumSepolia,
-  optimismSepolia,
-  polygonMumbai,
-  baseGoerli,
-  lineaTestnet,
-  celoAlfajores,
-  avalancheFuji,
-  bscTestnet,
+  zkSync,
 } from 'wagmi/chains'
 
 if (!process.env.NEXT_PUBLIC_INFURA_API_KEY) {

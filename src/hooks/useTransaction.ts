@@ -1,7 +1,11 @@
-import { ALL_CHAINS } from '@/config/chains'
 import { useState } from 'react'
-import { parseEther, type Hash } from 'viem'
+
+import type { Address, Hash } from 'viem'
+import { parseEther } from 'viem'
 import { useSendTransaction, useWaitForTransactionReceipt } from 'wagmi'
+
+import { ALL_CHAINS } from '@/config/chains'
+
 import { useWalletInfo } from './useWalletInfo'
 
 type NetworkInfo = {
@@ -97,7 +101,7 @@ export const useTransaction = () => {
 
     try {
       const tx = await sendTransactionAsync({
-        to: input.to as `0x${string}`,
+        to: input.to as Address,
         value: parseEther(input.value),
       })
       return tx

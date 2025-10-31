@@ -1,13 +1,14 @@
 'use client'
 
+import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from 'recharts'
+
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from 'recharts'
 
 const data = [
-  { name: 'Aave', value: 45, color: 'hsl(var(--chart-1))' },
-  { name: 'Compound', value: 25, color: 'hsl(var(--chart-3))' },
-  { name: 'MakerDAO', value: 20, color: 'hsl(var(--chart-4))' },
-  { name: 'Uniswap', value: 10, color: 'hsl(var(--chart-2))' },
+  { name: 'Aave', value: 45, color: 'var(--color-chart-1)' },
+  { name: 'Compound', value: 25, color: 'var(--color-chart-3)' },
+  { name: 'MakerDAO', value: 20, color: 'var(--color-chart-4)' },
+  { name: 'Uniswap', value: 10, color: 'var(--color-chart-2)' },
 ]
 
 export default function ProtocolAllocation() {
@@ -50,7 +51,7 @@ export default function ProtocolAllocation() {
             >
               <div className="flex items-center gap-2">
                 <div
-                  className="w-3 h-3 rounded-full"
+                  className="h-3 w-3 rounded-full"
                   style={{ backgroundColor: item.color }}
                 />
                 <span className="text-muted-foreground">{item.name}</span>
