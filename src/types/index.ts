@@ -100,7 +100,7 @@ export interface LendPosition {
 export interface BorrowPosition {
   id: string
   protocol: ProtocolName
-  healthFactor: string
+  healthFactor: number
   userId: string
   userAddress: Address
   poolId: string

@@ -87,12 +87,9 @@ async function getUserLendPositions(
           assetDecimals: position.vault.asset.decimals,
           assetAmount: position.state?.assets ?? 0,
           assetAmountUsd: position.state?.assetsUsd ?? 0,
-          apy: Number(
-            (position.vault.state?.avgNetApy
-              ? position.vault.state.avgNetApy * 100
-              : 0
-            ).toFixed(2)
-          ),
+          apy: position.vault.state?.avgNetApy
+            ? position.vault.state.avgNetApy * 100
+            : 0,
           link: `https://app.morpho.org/${position.vault.chain.network.toLowerCase()}/vault/${position.vault.address}/${generateSlug(position.vault.name)}?subTab=yourPosition`,
         })
       )
@@ -161,7 +158,7 @@ async function getUserBorrowPositions(
         (position): BorrowPosition => ({
           id: position.id,
           protocol: PROTOCOL_ID,
-          healthFactor: position.healthFactor?.toFixed(2) ?? '0',
+          healthFactor: Number(position.healthFactor),
           userId: position.user.id,
           userAddress: position.user.address,
           poolId: position.market.id,

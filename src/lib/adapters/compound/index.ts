@@ -19,6 +19,7 @@ export const COMPOUND_CONFIG: Record<number, ProtocolConfig> = {
     contracts: {
       comptroller: '0x3d9819210A31b4961b30EF54bE2aeD79B9c9Cd3B',
     },
+    markets: [],
     blockExplorer: 'https://etherscan.io',
   },
   [polygon.id]: {
@@ -28,6 +29,7 @@ export const COMPOUND_CONFIG: Record<number, ProtocolConfig> = {
     contracts: {
       comptroller: '0xF25212E676D1F7F89Cd72fFEe66158f541246445',
     },
+    markets: [],
     blockExplorer: 'https://polygonscan.com',
   },
   [base.id]: {
@@ -37,6 +39,7 @@ export const COMPOUND_CONFIG: Record<number, ProtocolConfig> = {
     contracts: {
       comptroller: '0x9c4ec768c28520B50860ea7a15bd7213a9fF58bf',
     },
+    markets: [],
     blockExplorer: 'https://basescan.org',
   },
 }

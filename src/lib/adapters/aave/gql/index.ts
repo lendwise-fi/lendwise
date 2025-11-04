@@ -182,11 +182,10 @@ async function getUserBorrowPositions(
           (position): BorrowPosition => ({
             id: address,
             protocol: PROTOCOL_ID,
-            healthFactor: Number(
+            healthFactor:
               healthFactorMapParams.get(
                 `${address}-${position.market.address}-${position.market.chain.chainId}`
-              ) ?? 0
-            ).toFixed(2),
+              ) ?? 0,
             userId: address,
             userAddress: address,
             poolId: position.market.address,

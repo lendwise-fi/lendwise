@@ -111,7 +111,7 @@ const columns: ColumnDef<BorrowPosition>[] = [
     accessorKey: 'healthFactor',
     header: 'Health',
     enableSorting: true,
-    cell: ({ row }) => row.original.healthFactor,
+    cell: ({ row }) => Number(row.original.healthFactor).toFixed(2),
     enableHiding: false,
   },
   {
