@@ -18,10 +18,6 @@ import {
   ChartTooltip,
   ChartTooltipContent,
 } from '@/components/ui/chart'
-
-
-
-
 import { formatCurrency } from '@/lib/format-currency'
 import { useWalletStore } from '@/stores/walletStore'
 
@@ -131,7 +127,7 @@ export function PieChartDonutText({
                     </span>
                   </div>
                   <span className="text-foreground font-medium">
-                    {item.percent}%
+                    {item.percent?.toFixed(2)}%
                   </span>
                 </div>
               ))}

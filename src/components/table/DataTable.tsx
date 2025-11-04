@@ -61,8 +61,8 @@ export function DataTable<TData, TValue>({
   data,
   searchableColumn,
   filterableColumns,
-  hiddenColumns = [],
-  onRowClick,
+  hiddenColumns: _hiddenColumns = [],
+  onRowClick: _onRowClick,
 }: DataTableProps<TData, TValue>) {
   // const [data, setData] = useState(() => initialData)
   const [rowSelection, setRowSelection] = useState({})
@@ -113,7 +113,14 @@ export function DataTable<TData, TValue>({
               <TableRow key={headerGroup.id}>
                 {headerGroup.headers.map((header) => {
                   return (
-                    <TableHead key={header.id} colSpan={header.colSpan}>
+                    <TableHead 
+                      key={header.id} 
+                      colSpan={header.colSpan}
+                      style={{
+                        width: header.getSize(),
+                        minWidth: header.column.columnDef.minSize,
+                      }}
+                    >
                       {header.isPlaceholder
                         ? null
                         : flexRender(
@@ -135,7 +142,13 @@ export function DataTable<TData, TValue>({
                   className="relative z-0"
                 >
                   {row.getVisibleCells().map((cell) => (
-                    <TableCell key={cell.id}>
+                    <TableCell 
+                      key={cell.id}
+                      style={{
+                        width: cell.column.getSize(),
+                        minWidth: cell.column.columnDef.minSize,
+                      }}
+                    >
                       {flexRender(
                         cell.column.columnDef.cell,
                         cell.getContext()

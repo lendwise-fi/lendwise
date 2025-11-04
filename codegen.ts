@@ -9,14 +9,14 @@ const config: CodegenConfig = {
   generates: {
     // AAVE
     // NOTE: Commented out until queries are properly implemented
-    // 'src/lib/adapters/aave/gql/generated/': {
-    //   schema: 'https://api.v3.aave.com/graphql',
-    //   documents: 'src/lib/adapters/aave/gql/queries.ts',
-    //   preset: 'client',
-    //   presetConfig: {
-    //     fragmentMasking: false,
-    //   },
-    // },
+    'src/lib/adapters/aave/gql/generated/': {
+      schema: 'https://api.v3.aave.com/graphql',
+      documents: 'src/lib/adapters/aave/gql/queries.ts',
+      preset: 'client',
+      presetConfig: {
+        fragmentMasking: false,
+      },
+    },
     // 'src/lib/adapters/aave/subgraph/ethereum/generated/': {
     //   schema:
     //     'https://gateway.thegraph.com/api/9b0da1f7098ab2fd2e701f84324c48cc/subgraphs/id/Cd2gEDVeqnjBn1hSeqFMitw8Q1iiyV9FYUZkLNRcL87g',

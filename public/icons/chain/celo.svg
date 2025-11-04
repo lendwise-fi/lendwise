@@ -1,14 +1,1 @@
-<svg 
-    id="Symbol" 
-    xmlns="http://www.w3.org/2000/svg" 
-    xmlns:xlink="http://www.w3.org/1999/xlink" 
-    x="0px" 
-    y="0px" 
-    viewBox="0 0 384 383" 
-    xml:space="preserve"
->
-    <path 
-        fill="#FCFF52"
-        d="M383.5,0H0.5v383h383V249.3h-63.6C298,298.1,248.7,332,192.3,332c-77.8,0-140.8-63.6-140.8-140.8 C51.4,114,114.5,51,192.3,51c57.5,0,106.8,35,128.7,84.9h62.5V0z"
-    />
-</svg>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 250 250" style="enable-background:new 0 0 250 250" xml:space="preserve"><circle cx="125" cy="125" r="125" style="fill:#fcff52"/><path d="M188.9 60.7H60.7v128.2h128.2v-44.8h-21.3c-7.3 16.3-23.8 27.7-42.7 27.7-26 0-47.1-21.3-47.1-47.1 0-25.9 21.1-47 47.1-47 19.3 0 35.8 11.7 43.1 28.4h20.9V60.7z"/></svg>

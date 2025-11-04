@@ -30,8 +30,7 @@ import { Separator } from '@/components/ui/separator'
 import { WalletAvatar } from '@/components/wallet/WalletAvatar'
 import { useIsMobile } from '@/hooks/useMobile'
 import { formatCompactCurrency } from '@/lib/format-currency'
-import { formatToken } from '@/lib/formatters'
-import { formatAddress, generateSlug } from '@/lib/utils'
+import { formatAddress } from '@/lib/utils'
 import { BorrowPosition } from '@/types'
 
 const columns: ColumnDef<BorrowPosition>[] = [
@@ -39,7 +38,10 @@ const columns: ColumnDef<BorrowPosition>[] = [
     accessorKey: 'protocol',
     header: 'Protocol',
     cell: ({ row }) => (
-      <Badge variant="outline" className="flex items-center gap-2 px-6 py-1.5">
+      <Badge
+        variant="outline"
+        className="flex w-fit items-center gap-2 px-2 py-1.5 whitespace-nowrap"
+      >
         <ProtocolIcon protocol={row.original.protocol} />
         <span className="text-muted-foreground text-xs">
           {row.original.protocol}
@@ -51,7 +53,10 @@ const columns: ColumnDef<BorrowPosition>[] = [
     accessorKey: 'poolChainNetwork',
     header: 'Chain',
     cell: ({ row }) => (
-      <Badge variant="outline" className="flex items-center gap-2 px-4 py-1.5">
+      <Badge
+        variant="outline"
+        className="flex w-fit items-center gap-2 px-2 py-1.5 whitespace-nowrap"
+      >
         <ChainIcon chainSlug={row.original.poolChainNetwork} />
         <span className="text-muted-foreground text-xs">
           {row.original.poolChainNetwork}
@@ -64,7 +69,7 @@ const columns: ColumnDef<BorrowPosition>[] = [
     header: 'Vault / Pool',
     cell: ({ row }) => (
       <div className="flex w-full items-center gap-2">
-        <TokenIcon symbol={row.original.poolSymbol} />
+        <TokenIcon symbol={row.original.loanAssetSymbol} />
         <TableCellViewer item={row.original} />
       </div>
     ),
@@ -83,39 +88,46 @@ const columns: ColumnDef<BorrowPosition>[] = [
     enableHiding: false,
   },
   {
-    header: 'Deposits',
+    header: 'Debt',
     cell: ({ row }) => (
       <div className="flex w-full items-center gap-3">
-        {formatToken(
-          row.original.loanAssetAmount,
-          row.original.loanAssetDecimals,
-          row.original.loanAssetSymbol
-        )}
+        <span>
+          {row.original.loanAssetAmount} {row.original.loanAssetSymbol}
+        </span>
         <Badge variant="secondary">
           {formatCompactCurrency(row.original.loanAssetAmountUsd, 'USD')}
         </Badge>
       </div>
     ),
-
+    enableHiding: false,
+  },
+  {
+    accessorKey: 'apy',
+    header: 'Rate',
+    cell: ({ row }) => <span>{row.original.apy}%</span>,
     enableHiding: false,
   },
   {
     accessorKey: 'healthFactor',
     header: 'Health',
     enableSorting: true,
-    cell: ({ row }) => row.original.healthFactor.toFixed(2),
+    cell: ({ row }) => row.original.healthFactor,
     enableHiding: false,
   },
   {
     id: 'actions',
-    cell: ({ row }) => (
-      <Link
-        target="_blank"
-        href={`https://app.morpho.org/${row.original.poolChainNetwork.toLowerCase()}/vault/${generateSlug(row.original.poolName)}?subTab=yourPosition`}
-      >
-        <ArrowUpRightFromSquare size={15} />
-      </Link>
-    ),
+    size: 80,
+    minSize: 80,
+    cell: ({ row }) =>
+      row.original.link ? (
+        <Link
+          target="_blank"
+          href={row.original.link}
+          className="flex w-full items-center justify-center"
+        >
+          <ArrowUpRightFromSquare size={15} />
+        </Link>
+      ) : null,
   },
 ]
 

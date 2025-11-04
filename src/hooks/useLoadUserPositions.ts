@@ -26,6 +26,7 @@ export function useLoadUserPositions(userAddresses: Address[]) {
         })
         setError(null)
       } catch (err) {
+        console.error(err)
         setError('Erreur lors du chargement des positions')
       }
     })

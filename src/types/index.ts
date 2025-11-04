@@ -1,6 +1,16 @@
 import { Address } from 'viem'
 
-export type ProtocolName = 'aave' | 'compound' | 'morpho'
+import type { ProtocolConfig, ProtocolName } from '@/config/protocols'
+
+// ============================================================================
+// PROTOCOL TYPES
+// ============================================================================
+// Re-export protocol-related types from config for convenience
+// These are auto-generated from PROTOCOL_REGISTRY (single source of truth)
+// ============================================================================
+export type { ProtocolName, ProtocolConfig }
+export { PROTOCOL_NAMES } from '@/config/protocols'
+
 export type PositionType = 'lend' | 'borrow'
 export type AssetType = 'stable' | 'volatile' | 'liquid-staking'
 
@@ -61,21 +71,6 @@ export interface UserPositionSummary {
   >
 }
 
-export interface ProtocolConfig {
-  name: ProtocolName
-  displayName: string
-  chainId: number
-  contracts: {
-    pool?: Address
-    dataProvider?: Address
-    oracle?: Address
-    comptroller?: Address
-    morpho?: Address
-  }
-  subgraphUrl?: string
-  blockExplorer: string
-}
-
 export interface TokenPrice {
   address: Address
   priceUSD: number
@@ -90,7 +85,6 @@ export interface LendPosition {
   poolId: string
   poolName: string
   poolAddress: Address
-  poolSymbol: string
   poolChainId: number
   poolChainCurrency: string
   poolChainNetwork: string
@@ -99,32 +93,33 @@ export interface LendPosition {
   assetDecimals: number
   assetAmount: bigint
   assetAmountUsd: number
-  netApy: number
+  apy: number
+  link?: string
 }
 
 export interface BorrowPosition {
   id: string
   protocol: ProtocolName
-  healthFactor: number
+  healthFactor: string
   userId: string
   userAddress: Address
   poolId: string
   poolName: string
-  poolSymbol: string
   poolChainId: number
   poolChainCurrency: string
   poolChainNetwork: string
   loanAssetName: string
   loanAssetSymbol: string
   loanAssetDecimals: number
-  loanAssetAmount: bigint
+  loanAssetAmount: number
   loanAssetAmountUsd: number
   collateralAssetName?: string
   collateralAssetSymbol?: string
   collateralAssetDecimals?: number
   collateralAssetAmount: bigint
   collateralAssetAmountUsd: number
-  netApy: number
+  apy: number
+  link?: string
 }
 
 export interface UserPosition {

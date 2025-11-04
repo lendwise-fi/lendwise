@@ -1,8 +1,7 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo } from 'react'
 
-import { Address } from 'viem'
 import { useAccount } from 'wagmi'
 
 import {
@@ -12,21 +11,21 @@ import {
 } from '@/components/charts'
 import { DataTableSkeleton } from '@/components/table'
 import { WalletNotConnected } from '@/components/wallet'
-import { useCryptoPrices } from '@/hooks/useCryptoPrices'
+// import { useCryptoPrices } from '@/hooks/useCryptoPrices'
 import { useLoadUserPositions } from '@/hooks/useLoadUserPositions'
-import {
-  getUniqueCoinGeckoIds,
-  mapCurrencyToCoinGecko,
-} from '@/lib/crypto-mapping'
-import { useWalletStore } from '@/stores/walletStore'
-import { BorrowPosition, LendPosition } from '@/types'
+
+// import {
+//   getUniqueCoinGeckoIds,
+//   mapCurrencyToCoinGecko,
+// } from '@/lib/crypto-mapping'
+// import { useWalletStore } from '@/stores/walletStore'
+// import { BorrowPosition, LendPosition } from '@/types'
 
 import { BorrowingTable, LendingTable } from '.'
 
 export function Portfolio() {
   const { address, isConnected } = useAccount()
-  const { baseCurrency } = useWalletStore()
-  const [selectedWallets, setSelectedWallets] = useState<Address[]>([])
+  // const { baseCurrency } = useWalletStore()
 
   // Memoize addresses array to prevent unnecessary re-renders
   const addresses = useMemo(() => (address ? [address] : []), [address])
@@ -35,41 +34,41 @@ export function Portfolio() {
     useLoadUserPositions(addresses)
 
   // Get all unique asset symbols from positions
-  const assetSymbols = useMemo(() => {
-    const symbols = new Set<string>()
+  // const assetSymbols = useMemo(() => {
+  //   const symbols = new Set<string>()
 
-    const allPositions = [
-      ...Object.values(userPositions.lend).flat(),
-      ...Object.values(userPositions.borrow).flat(),
-    ]
+  //   const allPositions = [
+  //     ...Object.values(userPositions.lend).flat(),
+  //     ...Object.values(userPositions.borrow).flat(),
+  //   ]
 
-    allPositions.forEach((position: LendPosition | BorrowPosition) => {
-      if ('assetSymbol' in position) {
-        symbols.add(position.assetSymbol)
-      }
-      if ('collateralAssetSymbol' in position) {
-        symbols.add(position.collateralAssetSymbol ?? '')
-      }
-      if ('loanAssetSymbol' in position) {
-        symbols.add(position.loanAssetSymbol ?? '')
-      }
-    })
+  //   allPositions.forEach((position: LendPosition | BorrowPosition) => {
+  //     if ('assetSymbol' in position) {
+  //       symbols.add(position.assetSymbol)
+  //     }
+  //     if ('collateralAssetSymbol' in position) {
+  //       symbols.add(position.collateralAssetSymbol ?? '')
+  //     }
+  //     if ('loanAssetSymbol' in position) {
+  //       symbols.add(position.loanAssetSymbol ?? '')
+  //     }
+  //   })
 
-    return Array.from(symbols)
-  }, [userPositions])
+  //   return Array.from(symbols)
+  // }, [userPositions])
 
   // Get CoinGecko IDs for all assets
-  const coinIds = useMemo(
-    () => getUniqueCoinGeckoIds(assetSymbols),
-    [assetSymbols]
-  )
+  // const coinIds = useMemo(
+  //   () => getUniqueCoinGeckoIds(assetSymbols),
+  //   [assetSymbols]
+  // )
 
   // Fetch prices for all assets in the selected currency
-  const targetCurrency = mapCurrencyToCoinGecko(baseCurrency)
-  const { prices, loading: pricesLoading } = useCryptoPrices(
-    coinIds,
-    targetCurrency as any
-  )
+  // const targetCurrency = mapCurrencyToCoinGecko(baseCurrency)
+  // const { prices, loading: pricesLoading } = useCryptoPrices(
+  //   coinIds,
+  //   targetCurrency as any
+  // )
 
   useEffect(() => {
     if (address) {
@@ -88,7 +87,7 @@ export function Portfolio() {
 
     Object.keys(userPositions.lend).map((protocol, idx) => {
       const total = userPositions.lend[protocol].reduce(
-        (acc, val) => acc + val.assetAmountUsd,
+        (acc, val) => acc + Number(val.assetAmountUsd),
         0
       )
       totalByProtocol.push(total)
@@ -127,7 +126,7 @@ export function Portfolio() {
 
     Object.keys(userPositions.borrow).map((protocol, idx) => {
       const total = userPositions.borrow[protocol].reduce(
-        (acc, val) => acc + val.collateralAssetAmountUsd,
+        (acc, val) => acc + Number(val.loanAssetAmountUsd),
         0
       )
       totalByProtocol.push(total)

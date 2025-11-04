@@ -31,17 +31,22 @@ import { WalletAvatar } from '@/components/wallet/WalletAvatar'
 import { useIsMobile } from '@/hooks/useMobile'
 import { formatCompactCurrency } from '@/lib/format-currency'
 import { formatToken } from '@/lib/formatters'
-import { formatAddress, generateSlug } from '@/lib/utils'
+import { formatAddress } from '@/lib/utils'
 import { LendPosition } from '@/types'
 
 const columns: ColumnDef<LendPosition>[] = [
   {
     accessorKey: 'protocol',
     header: 'Protocol',
+    size: 110,
+    minSize: 110,
     cell: ({ row }) => (
-      <Badge variant="outline" className="flex items-center gap-2 px-6 py-1.5">
+      <Badge
+        variant="outline"
+        className="flex w-fit items-center gap-2 px-2 py-1.5 whitespace-nowrap"
+      >
         <ProtocolIcon protocol={row.original.protocol} />
-        <span className="text-muted-foreground text-xs">
+        <span className="text-muted-foreground text-xs whitespace-nowrap">
           {row.original.protocol}
         </span>
       </Badge>
@@ -51,7 +56,10 @@ const columns: ColumnDef<LendPosition>[] = [
     accessorKey: 'poolChainNetwork',
     header: 'Chain',
     cell: ({ row }) => (
-      <Badge variant="outline" className="flex items-center gap-2 px-4 py-1.5">
+      <Badge
+        variant="outline"
+        className="flex w-fit items-center gap-2 px-2 py-1.5 whitespace-nowrap"
+      >
         <ChainIcon chainSlug={row.original.poolChainNetwork} />
         <span className="text-muted-foreground text-xs">
           {row.original.poolChainNetwork}
@@ -64,7 +72,7 @@ const columns: ColumnDef<LendPosition>[] = [
     header: 'Vault / Pool',
     cell: ({ row }) => (
       <div className="flex w-full items-center gap-2">
-        <TokenIcon symbol={row.original.poolSymbol} />
+        <TokenIcon symbol={row.original.assetSymbol} />
         <TableCellViewer item={row.original} />
       </div>
     ),
@@ -100,21 +108,25 @@ const columns: ColumnDef<LendPosition>[] = [
     enableHiding: false,
   },
   {
-    accessorKey: 'netApy',
+    accessorKey: 'apy',
     header: 'APY',
-    cell: ({ row }) => (row.original.netApy * 100).toFixed(2) + '%',
+    cell: ({ row }) => <span>{row.original.apy}%</span>,
     enableHiding: false,
   },
   {
     id: 'actions',
-    cell: ({ row }) => (
-      <Link
-        target="_blank"
-        href={`https://app.morpho.org/${row.original.poolChainNetwork.toLowerCase()}/vault/${row.original.poolAddress}/${generateSlug(row.original.poolName)}?subTab=yourPosition`}
-      >
-        <ArrowUpRightFromSquare size={15} />
-      </Link>
-    ),
+    size: 80,
+    minSize: 80,
+    cell: ({ row }) =>
+      row.original.link ? (
+        <Link
+          target="_blank"
+          href={row.original.link}
+          className="flex w-full items-center justify-center"
+        >
+          <ArrowUpRightFromSquare size={15} />
+        </Link>
+      ) : null,
   },
 ]
 

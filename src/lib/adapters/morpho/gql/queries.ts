@@ -1,8 +1,12 @@
 import { gql } from 'urql'
 
 export const USER_LEND_POSITIONS = gql`
-  query UserLendPositions($where: VaultPositionFilters) {
-    vaultPositions(where: $where) {
+  query UserLendPositions(
+    $where: VaultPositionFilters
+    $first: Int
+    $skip: Int
+  ) {
+    vaultPositions(where: $where, first: $first, skip: $skip) {
       items {
         id
         user {
@@ -25,7 +29,7 @@ export const USER_LEND_POSITIONS = gql`
             decimals
           }
           state {
-            netApyWithoutRewards
+            avgNetApy
           }
         }
         state {
@@ -35,13 +39,23 @@ export const USER_LEND_POSITIONS = gql`
           pnl
         }
       }
+      pageInfo {
+        countTotal
+        count
+        limit
+        skip
+      }
     }
   }
 `
 
 export const USER_BORROW_POSITIONS = gql`
-  query UserBorrowPositions($where: MarketPositionFilters) {
-    marketPositions(where: $where) {
+  query UserBorrowPositions(
+    $where: MarketPositionFilters
+    $first: Int
+    $skip: Int
+  ) {
+    marketPositions(where: $where, first: $first, skip: $skip) {
       items {
         id
         healthFactor
@@ -69,6 +83,11 @@ export const USER_BORROW_POSITIONS = gql`
               currency
             }
           }
+          state {
+            avgBorrowApy
+            avgNetBorrowApy
+          }
+          uniqueKey
         }
         state {
           collateral
@@ -77,6 +96,12 @@ export const USER_BORROW_POSITIONS = gql`
           borrowAssetsUsd
           marginRoe
         }
+      }
+      pageInfo {
+        countTotal
+        count
+        limit
+        skip
       }
     }
   }
