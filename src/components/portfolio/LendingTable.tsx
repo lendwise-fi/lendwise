@@ -110,6 +110,7 @@ const columns: ColumnDef<LendPosition>[] = [
   {
     accessorKey: 'apy',
     header: 'APY',
+    size: 60,
     cell: ({ row }) => <span>{Number(row.original.apy).toFixed(2)}%</span>,
     enableHiding: false,
   },

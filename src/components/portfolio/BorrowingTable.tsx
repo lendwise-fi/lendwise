@@ -104,12 +104,14 @@ const columns: ColumnDef<BorrowPosition>[] = [
   {
     accessorKey: 'apy',
     header: 'Rate',
+    size: 60,
     cell: ({ row }) => <span>{row.original.apy}%</span>,
     enableHiding: false,
   },
   {
     accessorKey: 'healthFactor',
     header: 'Health',
+    size: 60,
     enableSorting: true,
     cell: ({ row }) => Number(row.original.healthFactor).toFixed(2),
     enableHiding: false,
