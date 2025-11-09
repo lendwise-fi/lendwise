@@ -7,10 +7,11 @@ import { Toaster } from 'sonner'
 import { AppSidebar } from '@/components/app-sidebar'
 import { Navbar } from '@/components/navbar'
 import {
+  CurrencyProvider,
   ThemeProvider,
   WalletWatcherProvider,
   Web3Provider,
-} from '@/components/providers'
+} from '@/contexts'
 
 import './globals.css'
 
@@ -36,16 +37,18 @@ export default function RootLayout({
           disableTransitionOnChange
         >
           <Web3Provider>
-            <WalletWatcherProvider>
-              <div className="flex min-h-screen">
-                <AppSidebar />
-                <main className="flex-1">
-                  <Navbar />
-                  {children}
-                </main>
-              </div>
-              <Toaster position="top-right" richColors />
-            </WalletWatcherProvider>
+            <CurrencyProvider defaultCurrency="USD">
+              <WalletWatcherProvider>
+                <div className="flex min-h-screen">
+                  <AppSidebar />
+                  <main className="flex-1">
+                    <Navbar />
+                    {children}
+                  </main>
+                </div>
+                <Toaster position="top-right" richColors />
+              </WalletWatcherProvider>
+            </CurrencyProvider>
           </Web3Provider>
         </ThemeProvider>
       </body>

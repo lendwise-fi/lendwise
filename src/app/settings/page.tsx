@@ -4,12 +4,14 @@ import { Suspense, useEffect, useState } from 'react'
 
 import { useRouter, useSearchParams } from 'next/navigation'
 
+import { ConnectButton } from '@rainbow-me/rainbowkit'
 import {
   AlertTriangle,
   CheckCircle,
   Clock,
   Globe,
   Key,
+  LogOutIcon,
   Mail,
   Monitor,
   Moon,
@@ -21,6 +23,8 @@ import {
   Wallet,
 } from 'lucide-react'
 import { toast } from 'sonner'
+import { Address } from 'viem'
+import { useAccount, useDisconnect } from 'wagmi'
 
 import { BlockchainSelector } from '@/components/blockchain-selector'
 import { TokenIcon } from '@/components/icon/TokenIcon'
@@ -47,11 +51,15 @@ import { Separator } from '@/components/ui/separator'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Switch } from '@/components/ui/switch'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { WalletAvatar } from '@/components/wallet'
 import { CHAINS } from '@/config/chains'
 import {
   SUPPORTED_CURRENCIES,
   formatCurrencyDisplay,
 } from '@/config/currencies'
+import { useCurrency } from '@/contexts'
+import { useMultiWalletManager } from '@/hooks/useMultiWalletManager'
+import { formatAddress } from '@/lib/utils'
 import { useWalletStore } from '@/stores/walletStore'
 
 interface User {
@@ -95,7 +103,11 @@ function SettingsContent() {
   const [currentTab, setCurrentTab] = useState('general')
   const router = useRouter()
   const searchParams = useSearchParams()
-  const { baseCurrency, setBaseCurrency } = useWalletStore()
+  const { address: activeAddress } = useAccount()
+  const { disconnect } = useDisconnect()
+  const { baseCurrency, setBaseCurrency } = useCurrency()
+  const { disconnectAddress } = useMultiWalletManager()
+  const { wallets } = useWalletStore()
 
   // Settings states
   const [theme, setTheme] = useState<'light' | 'dark' | 'system'>('system')
@@ -163,6 +175,26 @@ function SettingsContent() {
         setImagePreview(reader.result as string)
       }
       reader.readAsDataURL(file)
+    }
+  }
+
+  const handleDisconnectWallet = async (walletAddress: string) => {
+    try {
+      const isActiveAddress = walletAddress.toLowerCase() === activeAddress?.toLowerCase()
+      const isLastAddress = wallets.length === 1
+
+      // Remove from our store
+      disconnectAddress(walletAddress as Address)
+
+      // If this is the active address or the last address, disconnect from wagmi
+      if (isActiveAddress || isLastAddress) {
+        disconnect()
+      }
+
+      toast.success('Wallet disconnected')
+    } catch (error) {
+      console.error('Failed to disconnect wallet:', error)
+      toast.error('Failed to disconnect wallet')
     }
   }
 
@@ -653,7 +685,16 @@ function SettingsContent() {
                       <p className="text-muted-foreground mb-4">
                         Connect your wallet to manage your DeFi positions
                       </p>
-                      <Button>Connect Wallet</Button>
+                      <ConnectButton.Custom>
+                        {({ openConnectModal, mounted }) => {
+                          if (!mounted) return null
+                          return (
+                            <Button onClick={openConnectModal}>
+                              Connect Wallet
+                            </Button>
+                          )
+                        }}
+                      </ConnectButton.Custom>
                     </div>
                   )
                 }
@@ -666,16 +707,13 @@ function SettingsContent() {
                         className="flex items-center justify-between rounded-lg border p-4"
                       >
                         <div className="flex items-center gap-3">
-                          <div className="flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-br from-purple-500 to-pink-500 font-medium text-white">
-                            {wallet.ens ? wallet.ens[0].toUpperCase() : '👤'}
-                          </div>
+                          <WalletAvatar address={wallet.address} />
                           <div>
                             <div className="font-medium">
-                              {wallet.ens || wallet.name || 'Unnamed Wallet'}
+                              {wallet.ens || formatAddress(wallet.address)}
                             </div>
                             <div className="text-muted-foreground text-sm">
-                              {wallet.address.slice(0, 6)}...
-                              {wallet.address.slice(-4)}
+                              {wallet.address}
                             </div>
                           </div>
                         </div>
@@ -686,8 +724,15 @@ function SettingsContent() {
                               Active
                             </Badge>
                           )}
-                          <Button variant="outline" size="sm">
-                            Manage
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() =>
+                              handleDisconnectWallet(wallet.address)
+                            }
+                          >
+                            <span>Disconnect</span>
+                            <LogOutIcon />
                           </Button>
                         </div>
                       </div>

@@ -4,7 +4,10 @@ import { cache } from 'react'
 
 import { Address } from 'viem'
 
-import { SUPPORTED_PROTOCOLS } from '@/config/protocols'
+import {
+  getProtocolAdapter,
+  getProtocolIds,
+} from '@/config/protocols'
 import { LendPosition, ProtocolName } from '@/types'
 
 // Generate return type dynamically from supported protocols
@@ -13,9 +16,12 @@ type ProtocolPositions = Record<ProtocolName, LendPosition[]>
 export const loadUserLendPositions = cache(async function loadUserLendPositions(
   addresses: Address[]
 ): Promise<ProtocolPositions> {
+  // Get all protocol IDs from registry
+  const protocolIds = getProtocolIds()
+
   // Create empty positions object for all supported protocols
-  const emptyPositions = SUPPORTED_PROTOCOLS.reduce((acc, { name }) => {
-    acc[name] = []
+  const emptyPositions = protocolIds.reduce((acc, protocolId) => {
+    acc[protocolId] = []
     return acc
   }, {} as ProtocolPositions)
 
@@ -27,10 +33,14 @@ export const loadUserLendPositions = cache(async function loadUserLendPositions(
   try {
     // Dynamically load all protocol adapters and fetch positions
     const results = await Promise.allSettled(
-      SUPPORTED_PROTOCOLS.map(async ({ name, adapter }) => {
-        const protocolAdapter = await adapter()
+      protocolIds.map(async (protocolId) => {
+        const adapterLoader = getProtocolAdapter(protocolId)
+        if (!adapterLoader) {
+          throw new Error(`No adapter found for ${protocolId}`)
+        }
+        const protocolAdapter = await adapterLoader()
         const positions = await protocolAdapter.getUserLendPositions(addresses)
-        return { name, positions }
+        return { protocolId, positions }
       })
     )
 
@@ -38,13 +48,13 @@ export const loadUserLendPositions = cache(async function loadUserLendPositions(
     const positions: ProtocolPositions = { ...emptyPositions }
 
     results.forEach((result, index) => {
-      const protocolName = SUPPORTED_PROTOCOLS[index].name
+      const protocolId = protocolIds[index]
 
       if (result.status === 'fulfilled') {
-        positions[result.value.name] = result.value.positions
+        positions[result.value.protocolId] = result.value.positions
       } else {
-        console.error(`${protocolName} adapter failed:`, result.reason)
-        positions[protocolName] = []
+        console.error(`${protocolId} adapter failed:`, result.reason)
+        positions[protocolId] = []
       }
     })
 

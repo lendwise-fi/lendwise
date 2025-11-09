@@ -4,10 +4,11 @@ import { MorphoAdapter } from '@/lib/adapters/morpho'
 import { MarketStats } from '@/types'
 
 export async function getMarketStats(): Promise<MarketStats[]> {
+  // Fetch stats from all protocols using their stats data source
   const [aave, compound, morpho] = await Promise.allSettled([
-    AaveAdapter.stats?.getMarketStats() ?? Promise.resolve([]),
-    CompoundAdapter.stats?.getMarketStats() ?? Promise.resolve([]),
-    MorphoAdapter.stats?.getMarketStats() ?? Promise.resolve([]),
+    AaveAdapter.getMarketStats(),
+    CompoundAdapter.getMarketStats(),
+    MorphoAdapter.getMarketStats(),
   ])
 
   return [

@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo } from 'react'
 
+import { Address } from 'viem'
 import { useAccount } from 'wagmi'
 
 import {
@@ -11,64 +12,28 @@ import {
 } from '@/components/charts'
 import { DataTableSkeleton } from '@/components/table'
 import { WalletNotConnected } from '@/components/wallet'
-// import { useCryptoPrices } from '@/hooks/useCryptoPrices'
+import { getProtocolVersionNameById } from '@/config'
+import { useCurrency } from '@/contexts'
 import { useLoadUserPositions } from '@/hooks/useLoadUserPositions'
-
-// import {
-//   getUniqueCoinGeckoIds,
-//   mapCurrencyToCoinGecko,
-// } from '@/lib/crypto-mapping'
-// import { useWalletStore } from '@/stores/walletStore'
-// import { BorrowPosition, LendPosition } from '@/types'
+import { useWalletStore } from '@/stores/walletStore'
 
 import { BorrowingTable, LendingTable } from '.'
 
 export function Portfolio() {
   const { address, isConnected } = useAccount()
-  // const { baseCurrency } = useWalletStore()
+  const { wallets } = useWalletStore()
+
+  // Get currency context
+  const { rate, loading: conversionLoading } = useCurrency()
 
   // Memoize addresses array to prevent unnecessary re-renders
-  const addresses = useMemo(() => (address ? [address] : []), [address])
+  const addresses = useMemo(
+    () => wallets.map((wallet) => wallet.address as Address),
+    [wallets]
+  )
 
   const { userPositions, fetchUserPositions, isPending, error } =
     useLoadUserPositions(addresses)
-
-  // Get all unique asset symbols from positions
-  // const assetSymbols = useMemo(() => {
-  //   const symbols = new Set<string>()
-
-  //   const allPositions = [
-  //     ...Object.values(userPositions.lend).flat(),
-  //     ...Object.values(userPositions.borrow).flat(),
-  //   ]
-
-  //   allPositions.forEach((position: LendPosition | BorrowPosition) => {
-  //     if ('assetSymbol' in position) {
-  //       symbols.add(position.assetSymbol)
-  //     }
-  //     if ('collateralAssetSymbol' in position) {
-  //       symbols.add(position.collateralAssetSymbol ?? '')
-  //     }
-  //     if ('loanAssetSymbol' in position) {
-  //       symbols.add(position.loanAssetSymbol ?? '')
-  //     }
-  //   })
-
-  //   return Array.from(symbols)
-  // }, [userPositions])
-
-  // Get CoinGecko IDs for all assets
-  // const coinIds = useMemo(
-  //   () => getUniqueCoinGeckoIds(assetSymbols),
-  //   [assetSymbols]
-  // )
-
-  // Fetch prices for all assets in the selected currency
-  // const targetCurrency = mapCurrencyToCoinGecko(baseCurrency)
-  // const { prices, loading: pricesLoading } = useCryptoPrices(
-  //   coinIds,
-  //   targetCurrency as any
-  // )
 
   useEffect(() => {
     if (address) {
@@ -86,19 +51,22 @@ export function Portfolio() {
     const totalByProtocol: number[] = []
 
     Object.keys(userPositions.lend).map((protocol, idx) => {
+      if (!userPositions.lend[protocol].length) return
       const total = userPositions.lend[protocol].reduce(
-        (acc, val) => acc + Number(val.assetAmountUsd),
+        (acc, val) => acc + Number(val.assetAmountUsd) * rate,
         0
       )
       totalByProtocol.push(total)
       nbPositions += userPositions.lend[protocol].length
+      const protocolName = getProtocolVersionNameById(protocol)
       chart.data.push({
-        label: protocol,
+        id: protocol,
+        label: protocolName,
         value: Number(total),
         fill: `var(--color-${protocol})`,
       })
       chart.config[protocol] = {
-        label: protocol,
+        label: protocolName,
         color: `var(--chart-${++idx})`,
       }
     })
@@ -113,7 +81,7 @@ export function Portfolio() {
       `${nbPositions} position${nbPositions > 1 ? 's' : ''}`
 
     return chart
-  }, [userPositions])
+  }, [userPositions, rate])
 
   const borrowPieChartDonut = useMemo(() => {
     const chart: PieChartDonutTextProps = {
@@ -125,19 +93,22 @@ export function Portfolio() {
     const totalByProtocol: number[] = []
 
     Object.keys(userPositions.borrow).map((protocol, idx) => {
+      if (!userPositions.borrow[protocol].length) return
       const total = userPositions.borrow[protocol].reduce(
-        (acc, val) => acc + Number(val.loanAssetAmountUsd),
+        (acc, val) => acc + Number(val.loanAssetAmountUsd) * rate,
         0
       )
       totalByProtocol.push(total)
       nbPositions += userPositions.borrow[protocol].length
+      const protocolName = getProtocolVersionNameById(protocol)
       chart.data.push({
-        label: protocol,
+        id: protocol,
+        label: protocolName,
         value: Number(total),
         fill: `var(--color-${protocol})`,
       })
       chart.config[protocol] = {
-        label: protocol,
+        label: protocolName,
         color: `var(--chart-${++idx})`,
       }
     })
@@ -152,7 +123,7 @@ export function Portfolio() {
       `${nbPositions} position${nbPositions > 1 ? 's' : ''}`
 
     return chart
-  }, [userPositions])
+  }, [userPositions, rate])
 
   if (error) return <p>{error}</p>
 
@@ -201,7 +172,7 @@ export function Portfolio() {
         </div>
 
         {/* Detailed Positions Lists */}
-        {isPending ? (
+        {isPending || conversionLoading ? (
           <div className="space-y-8">
             <DataTableSkeleton />
             <DataTableSkeleton />

@@ -18,8 +18,8 @@ import {
   ChartTooltip,
   ChartTooltipContent,
 } from '@/components/ui/chart'
-import { formatCurrency } from '@/lib/format-currency'
-import { useWalletStore } from '@/stores/walletStore'
+import { useCurrency } from '@/contexts'
+import { formatCompactCurrency } from '@/lib/format-currency'
 
 import { PieChartDonutTextEmpty } from './PieChartDonutTextEmpty'
 
@@ -27,7 +27,13 @@ export interface PieChartDonutTextProps {
   title?: ReactNode
   description?: ReactNode
   config: ChartConfig
-  data: { label: string; value: number; percent?: number; fill: string }[]
+  data: {
+    id: string
+    label: string
+    value: number
+    percent?: number
+    fill: string
+  }[]
   footerTitle?: ReactNode
   footerDescription?: ReactNode
 }
@@ -40,7 +46,7 @@ export function PieChartDonutText({
   footerTitle,
   footerDescription,
 }: PieChartDonutTextProps) {
-  const { baseCurrency } = useWalletStore()
+  const { baseCurrency } = useCurrency()
   const total = data.reduce((acc, val) => acc + val.value, 0)
 
   return (
@@ -89,14 +95,12 @@ export function PieChartDonutText({
                                 y={viewBox.cy}
                                 className="fill-foreground text-sm font-bold"
                               >
-                                {formatCurrency(total, baseCurrency, {
-                                  notation: 'compact',
-                                })}
+                                {formatCompactCurrency(total, baseCurrency)}
                               </tspan>
                               <tspan
                                 x={viewBox.cx}
                                 y={(viewBox.cy || 0) + 24}
-                                className="fill-muted-foreground text-xs"
+                                className="fill-muted-foreground text-xs font-bold"
                               >
                                 {baseCurrency}
                               </tspan>
@@ -119,7 +123,7 @@ export function PieChartDonutText({
                     <div
                       className="h-3 w-3 rounded-full"
                       style={{
-                        backgroundColor: config[item.label].color,
+                        backgroundColor: config[item.id].color,
                       }}
                     />
                     <span className="text-muted-foreground-300">

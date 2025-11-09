@@ -1,4 +1,51 @@
+/**
+ * GraphQL Code Generator Configuration
+ *
+ * This file generates TypeScript types from GraphQL schemas for all protocol adapters.
+ *
+ * IMPORTANT: All schema URLs are imported from protocol config files to maintain
+ * a single source of truth. Never hardcode URLs here - update the config files instead:
+ * - AAVE: src/lib/adapters/aave/config.ts (offchainApiUrl)
+ * - Morpho: src/lib/adapters/morpho/config.ts (offchainApiUrl)
+ * - Compound: src/lib/adapters/compound/config.ts (chains[chainId].custom.subgraphUrl)
+ */
 import type { CodegenConfig } from '@graphql-codegen/cli'
+import { config as loadEnv } from 'dotenv'
+import { mainnet, optimism } from 'viem/chains'
+
+import { AAVE_CONFIG } from './src/lib/adapters/aave/config'
+import { COMPOUND_CONFIG } from './src/lib/adapters/compound/config'
+import { MORPHO_CONFIG } from './src/lib/adapters/morpho/config'
+
+// Load environment variables from .env file
+loadEnv()
+
+// Extract API URLs from configs (single source of truth)
+const aaveV3ApiUrl = AAVE_CONFIG.aave_v3.offchainApiUrl
+const morphoV1ApiUrl = MORPHO_CONFIG.morpho_v1.offchainApiUrl
+const compoundV3EthereumSubgraphUrl =
+  COMPOUND_CONFIG.compound_v3.chains[mainnet.id]?.custom?.subgraphUrl
+
+const compoundV3OptimismSubgraphUrl =
+  COMPOUND_CONFIG.compound_v3.chains[optimism.id]?.custom?.subgraphUrl
+
+if (!aaveV3ApiUrl) {
+  throw new Error(
+    'AAVE V3 API URL not found in config. Please update src/lib/adapters/aave/config.ts'
+  )
+}
+
+if (!morphoV1ApiUrl) {
+  throw new Error(
+    'Morpho V1 API URL not found in config. Please update src/lib/adapters/morpho/config.ts'
+  )
+}
+
+if (!compoundV3EthereumSubgraphUrl || !compoundV3OptimismSubgraphUrl) {
+  throw new Error(
+    'Compound V3 subgraph URL not found in config. Please update src/lib/adapters/compound/config.ts'
+  )
+}
 
 const config: CodegenConfig = {
   overwrite: true,
@@ -7,11 +54,11 @@ const config: CodegenConfig = {
     useTypeImports: true,
   },
   generates: {
-    // AAVE
-    // NOTE: Commented out until queries are properly implemented
-    'src/lib/adapters/aave/gql/generated/': {
-      schema: 'https://api.v3.aave.com/graphql',
-      documents: 'src/lib/adapters/aave/gql/queries.ts',
+    // AAVE V3 - Offchain (GraphQL API)
+    // Schema URL is imported from src/lib/adapters/aave/config.ts
+    'src/lib/adapters/aave/v3/offchain/generated/': {
+      schema: aaveV3ApiUrl,
+      documents: 'src/lib/adapters/aave/v3/offchain/queries.ts',
       preset: 'client',
       presetConfig: {
         fragmentMasking: false,
@@ -36,30 +83,50 @@ const config: CodegenConfig = {
     //   },
     // },
 
-    // COMPOUND
-    // 'src/lib/adapters/compound/gql/generated/': {
-    //   schema:
-    //     'https://api.thegraph.com/subgraphs/name/compound-finance/compound-v3-mainnet',
-    //   documents: 'src/lib/adapters/compound/gql/queries.ts',
-    //   preset: 'client',
-    // },
-    // 'src/lib/adapters/compound/subgraph/ethereum/generated/': {
-    //   schema:
-    //     'https://api.thegraph.com/subgraphs/name/messari/compound-ethereum',
-    //   documents: 'src/lib/adapters/compound/subgraph/ethereum/queries.ts',
-    //   preset: 'client',
-    // },
-    // 'src/lib/adapters/compound/subgraph/arbitrum/generated/': {
-    //   schema:
-    //     'https://api.thegraph.com/subgraphs/name/messari/compound-arbitrum',
-    //   documents: 'src/lib/adapters/compound/subgraph/arbitrum/queries.ts',
-    //   preset: 'client',
-    // },
+    // COMPOUND V3 - Onchain (Subgraph)
+    // Schema URL is imported from src/lib/adapters/compound/config.ts
+    'src/lib/adapters/compound/v3/onchain/generated/': {
+      schema: [
+        {
+          [compoundV3EthereumSubgraphUrl]: {
+            headers: process.env.COMPOUND_THEGRAPH_API_KEY
+              ? {
+                  Authorization: `Bearer ${process.env.COMPOUND_THEGRAPH_API_KEY}`,
+                }
+              : {},
+          },
+        },
+      ],
+      documents: 'src/lib/adapters/compound/v3/onchain/queries.ts',
+      preset: 'client',
+      presetConfig: {
+        fragmentMasking: false,
+      },
+    },
+    'src/lib/adapters/compound/v3/onchain/optimism/generated/': {
+      schema: [
+        {
+          [compoundV3OptimismSubgraphUrl]: {
+            headers: process.env.COMPOUND_THEGRAPH_API_KEY
+              ? {
+                  Authorization: `Bearer ${process.env.COMPOUND_THEGRAPH_API_KEY}`,
+                }
+              : {},
+          },
+        },
+      ],
+      documents: 'src/lib/adapters/compound/v3/onchain/optimism/queries.ts',
+      preset: 'client',
+      presetConfig: {
+        fragmentMasking: false,
+      },
+    },
 
-    // MORPHO
-    'src/lib/adapters/morpho/gql/generated/': {
-      schema: 'https://api.morpho.org/graphql',
-      documents: 'src/lib/adapters/morpho/gql/queries.ts',
+    // MORPHO V1 - Offchain (GraphQL API)
+    // Schema URL is imported from src/lib/adapters/morpho/config.ts
+    'src/lib/adapters/morpho/v1/offchain/generated/': {
+      schema: morphoV1ApiUrl,
+      documents: 'src/lib/adapters/morpho/v1/offchain/queries.ts',
       preset: 'client',
       presetConfig: {
         fragmentMasking: false,

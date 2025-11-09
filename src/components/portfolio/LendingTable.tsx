@@ -28,13 +28,18 @@ import {
 } from '@/components/ui/drawer'
 import { Separator } from '@/components/ui/separator'
 import { WalletAvatar } from '@/components/wallet/WalletAvatar'
+import { getProtocolVersionNameById } from '@/config/protocols'
+import { useCurrency } from '@/contexts'
 import { useIsMobile } from '@/hooks/useMobile'
 import { formatCompactCurrency } from '@/lib/format-currency'
 import { formatToken } from '@/lib/formatters'
 import { formatAddress } from '@/lib/utils'
 import { LendPosition } from '@/types'
 
-const columns: ColumnDef<LendPosition>[] = [
+const createColumns = (
+  currency: string,
+  rate: number
+): ColumnDef<LendPosition>[] => [
   {
     accessorKey: 'protocol',
     header: 'Protocol',
@@ -47,7 +52,7 @@ const columns: ColumnDef<LendPosition>[] = [
       >
         <ProtocolIcon protocol={row.original.protocol} />
         <span className="text-muted-foreground text-xs whitespace-nowrap">
-          {row.original.protocol}
+          {getProtocolVersionNameById(row.original.protocol)}
         </span>
       </Badge>
     ),
@@ -68,17 +73,6 @@ const columns: ColumnDef<LendPosition>[] = [
     ),
   },
   {
-    accessorKey: 'poolName',
-    header: 'Vault / Pool',
-    cell: ({ row }) => (
-      <div className="flex w-full items-center gap-2">
-        <TokenIcon symbol={row.original.assetSymbol} />
-        <TableCellViewer item={row.original} />
-      </div>
-    ),
-    enableHiding: false,
-  },
-  {
     accessorKey: 'userAddress',
     header: 'Address',
     cell: ({ row }) => (
@@ -91,6 +85,17 @@ const columns: ColumnDef<LendPosition>[] = [
     enableHiding: false,
   },
   {
+    accessorKey: 'poolName',
+    header: 'Vault / Pool',
+    cell: ({ row }) => (
+      <div className="flex w-full items-center gap-2">
+        <TokenIcon symbol={row.original.assetSymbol} />
+        <TableCellViewer item={row.original} />
+      </div>
+    ),
+    enableHiding: false,
+  },
+  {
     header: 'Deposits',
     cell: ({ row }) => (
       <div className="flex w-full items-center gap-3">
@@ -100,7 +105,7 @@ const columns: ColumnDef<LendPosition>[] = [
           row.original.assetSymbol
         )}
         <Badge variant="secondary">
-          {formatCompactCurrency(row.original.assetAmountUsd, 'USD')}
+          {formatCompactCurrency(row.original.assetAmountUsd * rate, currency)}
         </Badge>
       </div>
     ),
@@ -157,7 +162,10 @@ function TableCellViewer({ item }: { item: LendPosition }) {
   return (
     <Drawer direction={isMobile ? 'bottom' : 'right'}>
       <DrawerTrigger asChild>
-        <Button variant="link" className="text-foreground w-fit px-0 text-left">
+        <Button
+          variant="link"
+          className="text-foreground w-fit px-0 text-left underline decoration-dashed underline-offset-6"
+        >
           {item.poolName}
         </Button>
       </DrawerTrigger>
@@ -238,6 +246,9 @@ function TableCellViewer({ item }: { item: LendPosition }) {
 }
 
 export function LendingTable({ data }: { data: LendPosition[] }) {
+  const { baseCurrency, rate } = useCurrency()
+  const columns = createColumns(baseCurrency, rate)
+
   return (
     <div>
       <h2 className="text-foreground text-2xl font-semibold">
@@ -254,7 +265,8 @@ export function LendingTable({ data }: { data: LendPosition[] }) {
               value: value as string,
               label: (
                 <div className="flex items-center gap-2">
-                  <ProtocolIcon protocol={value as string} /> {value}
+                  <ProtocolIcon protocol={value as string} />{' '}
+                  {getProtocolVersionNameById(value)}
                 </div>
               ),
             })),

@@ -27,13 +27,23 @@ import {
   DrawerTrigger,
 } from '@/components/ui/drawer'
 import { Separator } from '@/components/ui/separator'
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from '@/components/ui/tooltip'
 import { WalletAvatar } from '@/components/wallet/WalletAvatar'
+import { getProtocolVersionNameById } from '@/config'
+import { useCurrency } from '@/contexts'
 import { useIsMobile } from '@/hooks/useMobile'
 import { formatCompactCurrency } from '@/lib/format-currency'
 import { formatAddress } from '@/lib/utils'
 import { BorrowPosition } from '@/types'
 
-const columns: ColumnDef<BorrowPosition>[] = [
+const createColumns = (
+  currency: string,
+  rate: number
+): ColumnDef<BorrowPosition>[] => [
   {
     accessorKey: 'protocol',
     header: 'Protocol',
@@ -44,7 +54,7 @@ const columns: ColumnDef<BorrowPosition>[] = [
       >
         <ProtocolIcon protocol={row.original.protocol} />
         <span className="text-muted-foreground text-xs">
-          {row.original.protocol}
+          {getProtocolVersionNameById(row.original.protocol)}
         </span>
       </Badge>
     ),
@@ -65,17 +75,6 @@ const columns: ColumnDef<BorrowPosition>[] = [
     ),
   },
   {
-    accessorKey: 'poolName',
-    header: 'Vault / Pool',
-    cell: ({ row }) => (
-      <div className="flex w-full items-center gap-2">
-        <TokenIcon symbol={row.original.loanAssetSymbol} />
-        <TableCellViewer item={row.original} />
-      </div>
-    ),
-    enableHiding: false,
-  },
-  {
     accessorKey: 'userAddress',
     header: 'Address',
     cell: ({ row }) => (
@@ -88,6 +87,17 @@ const columns: ColumnDef<BorrowPosition>[] = [
     enableHiding: false,
   },
   {
+    accessorKey: 'poolName',
+    header: 'Vault / Pool',
+    cell: ({ row }) => (
+      <div className="flex w-full items-center gap-2">
+        <TokenIcon symbol={row.original.loanAssetSymbol} />
+        <TableCellViewer item={row.original} />
+      </div>
+    ),
+    enableHiding: false,
+  },
+  {
     header: 'Debt',
     cell: ({ row }) => (
       <div className="flex w-full items-center gap-3">
@@ -95,10 +105,51 @@ const columns: ColumnDef<BorrowPosition>[] = [
           {row.original.loanAssetAmount} {row.original.loanAssetSymbol}
         </span>
         <Badge variant="secondary">
-          {formatCompactCurrency(row.original.loanAssetAmountUsd, 'USD')}
+          {formatCompactCurrency(
+            row.original.loanAssetAmountUsd * rate,
+            currency
+          )}
         </Badge>
       </div>
     ),
+    enableHiding: false,
+  },
+  {
+    accessorKey: 'collaterals',
+    header: 'Collaterals',
+    size: 60,
+    cell: ({ row }) =>
+      row.original.collaterals ? (
+        <div className="flex items-center gap-2">
+          <div className="flex -space-x-2">
+            {row.original.collaterals?.map((collateral) => (
+              <Tooltip key={collateral.symbol}>
+                <TooltipTrigger asChild>
+                  <div>
+                    <TokenIcon symbol={collateral.symbol} />
+                  </div>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p className="font-bold">
+                    {collateral.symbol}{' '}
+                    {formatCompactCurrency(collateral.amountUSD, currency)}
+                  </p>
+                </TooltipContent>
+              </Tooltip>
+            ))}
+          </div>
+          <Badge variant="secondary">
+            {formatCompactCurrency(
+              row.original.collaterals.reduce((acc, collateral) => {
+                return acc + collateral.amountUSD
+              }, 0),
+              currency
+            )}
+          </Badge>
+        </div>
+      ) : (
+        '-'
+      ),
     enableHiding: false,
   },
   {
@@ -240,6 +291,9 @@ function TableCellViewer({ item }: { item: BorrowPosition }) {
 }
 
 export function BorrowingTable({ data }: { data: BorrowPosition[] }) {
+  const { baseCurrency, rate } = useCurrency()
+  const columns = createColumns(baseCurrency, rate)
+
   return (
     <div>
       <h2 className="text-foreground text-2xl font-semibold">
@@ -256,7 +310,8 @@ export function BorrowingTable({ data }: { data: BorrowPosition[] }) {
               value: value as string,
               label: (
                 <div className="flex items-center gap-2">
-                  <ProtocolIcon protocol={value as string} /> {value}
+                  <ProtocolIcon protocol={value as string} />{' '}
+                  {getProtocolVersionNameById(value)}
                 </div>
               ),
             })),

@@ -1,77 +1,34 @@
-import { arbitrum, base, mainnet, polygon } from 'viem/chains'
-
-import type { ProtocolConfig } from '@/config/protocols'
-
-import { GraphqlProtocolAdapter } from '../types'
-import { gqlAdapter } from './gql'
-
-// Placeholder for a future subgraph adapter
-// import { subgraphAdapter } from './subgraph'
+import { createProtocolAdapter } from '../utils'
+import { MORPHO_CONFIG } from './config'
+import { morphoV1Adapter } from './v1'
 
 // ============================================================================
-// Morpho Protocol Identifier
+// Morpho Protocol Adapter
 // ============================================================================
-export const PROTOCOL_ID = 'morpho' as const
 
-// ============================================================================
-// Morpho Protocol Configuration
-// ============================================================================
-export const MORPHO_CONFIG: Record<number, ProtocolConfig> = {
-  [mainnet.id]: {
-    name: PROTOCOL_ID,
-    displayName: 'Morpho',
-    chainId: mainnet.id,
-    contracts: {
-      morpho: '0xBBBBBbbBBb9cC5e90e3b3Af64bdAF62C37EEFFCb',
-    },
-    markets: [],
-    subgraphUrl:
-      'https://api.thegraph.com/subgraphs/name/morpho-association/morpho-blue-mainnet',
-    blockExplorer: 'https://etherscan.io',
+/**
+ * Main Morpho Protocol Adapter with version support.
+ * Currently supports:
+ * - morpho_v1: Uses GraphQL API (default)
+ *
+ * @example
+ * ```typescript
+ * // Use default version (morpho_v1)
+ * const positions = await MorphoAdapter.getUserLendPositions(['0x...'])
+ *
+ * // Explicitly use morpho_v1
+ * const v1Positions = await MorphoAdapter.getUserLendPositions(['0x...'], 'morpho_v1')
+ * ```
+ */
+export const MorphoAdapter = createProtocolAdapter(
+  MORPHO_CONFIG,
+  {
+    morpho_v1: morphoV1Adapter,
   },
-  [base.id]: {
-    name: PROTOCOL_ID,
-    displayName: 'Morpho',
-    chainId: base.id,
-    contracts: {
-      morpho: '0xBBBBBbbBBb9cC5e90e3b3Af64bdAF62C37EEFFCb',
-    },
-    markets: [],
-    subgraphUrl:
-      'https://api.thegraph.com/subgraphs/name/morpho-association/morpho-blue-base',
-    blockExplorer: 'https://basescan.org',
-  },
-  [arbitrum.id]: {
-    name: PROTOCOL_ID,
-    displayName: 'Morpho',
-    chainId: arbitrum.id,
-    contracts: {
-      morpho: '0xBBBBBbbBBb9cC5e90e3b3Af64bdAF62C37EEFFCb',
-    },
-    markets: [],
-    subgraphUrl:
-      'https://api.thegraph.com/subgraphs/name/morpho-association/morpho-blue-arbitrum',
-    blockExplorer: 'https://arbiscan.io',
-  },
-  [polygon.id]: {
-    name: PROTOCOL_ID,
-    displayName: 'Morpho',
-    chainId: polygon.id,
-    contracts: {
-      morpho: '0xBBBBBbbBBb9cC5e90e3b3Af64bdAF62C37EEFFCb',
-    },
-    markets: [],
-    subgraphUrl:
-      'https://api.thegraph.com/subgraphs/name/morpho-association/morpho-blue-polygon',
-    blockExplorer: 'https://polygonscan.com',
-  },
-}
+  'morpho_v1' // default version
+)
 
 // ============================================================================
-// Morpho Adapter
+// Re-exports
 // ============================================================================
-export const MorphoAdapter: GraphqlProtocolAdapter = {
-  protocol: PROTOCOL_ID,
-  ...gqlAdapter,
-  // stats: subgraphAdapter, // Can be added later
-}
+export { MORPHO_CONFIG } from './config'

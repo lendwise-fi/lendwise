@@ -1,33 +1,40 @@
-import type { Address } from 'viem'
+import type { Assign, Chain, Prettify } from 'viem'
 
-import {
-  AAVE_CONFIG,
-  PROTOCOL_ID as AAVE_PROTOCOL_ID,
-} from '@/lib/adapters/aave'
+import { AAVE_CONFIG } from '@/lib/adapters/aave'
 import { COMPOUND_CONFIG } from '@/lib/adapters/compound'
-import {
-  MORPHO_CONFIG,
-  PROTOCOL_ID as MORPHO_PROTOCOL_ID,
-} from '@/lib/adapters/morpho'
-import type { GraphqlProtocolAdapter } from '@/lib/adapters/types'
+import { MORPHO_CONFIG } from '@/lib/adapters/morpho'
+import type { ProtocolAdapter } from '@/lib/adapters/types'
 
 // ============================================================================
 // PROTOCOL CONFIG INTERFACE
 // ============================================================================
+
+/**
+ * Extended Chain type with custom markets property
+ */
+export type ProtocolChain = Prettify<
+  Assign<
+    Chain<undefined>,
+    Chain & {
+      custom: {
+        subgraphUrl?: string
+        /**
+         * Optional path to the chain client module for automatic registration.
+         * When provided, the system will automatically import and register this chain.
+         * Path should be relative to the adapter's onchain folder.
+         * @example 'ethereum' or 'base'
+         */
+        clientPath?: string
+      }
+    }
+  >
+>
+
 export interface ProtocolConfig {
+  id: string
   name: string
-  displayName: string
-  chainId: number
-  contracts: {
-    pool?: Address
-    dataProvider?: Address
-    oracle?: Address
-    comptroller?: Address
-    morpho?: Address
-  }
-  markets: { name: string; address: Address }[]
-  subgraphUrl?: string
-  blockExplorer: string
+  offchainApiUrl?: string
+  chains: Record<number, ProtocolChain>
 }
 
 // ============================================================================
@@ -44,25 +51,27 @@ export interface ProtocolConfig {
 // - Simply comment out the entry in PROTOCOL_REGISTRY
 //
 // The ProtocolName type and all helper functions are auto-generated from this registry.
+//
+// NOTE: The config now uses the centralized structure (e.g., AAVE_CONFIG.v3.chains)
 // ============================================================================
 
 export const PROTOCOL_REGISTRY = {
-  [AAVE_PROTOCOL_ID]: {
+  aave: {
     displayName: 'Aave',
     config: AAVE_CONFIG,
     adapter: () => import('@/lib/adapters/aave').then((m) => m.AaveAdapter),
   },
-  [MORPHO_PROTOCOL_ID]: {
+  morpho: {
     displayName: 'Morpho',
     config: MORPHO_CONFIG,
     adapter: () => import('@/lib/adapters/morpho').then((m) => m.MorphoAdapter),
   },
-  // compound: {
-  //   displayName: 'Compound',
-  //   config: COMPOUND_CONFIG,
-  //   adapter: () =>
-  //     import('@/lib/adapters/compound').then((m) => m.CompoundAdapter),
-  // },
+  compound: {
+    displayName: 'Compound',
+    config: COMPOUND_CONFIG,
+    adapter: () =>
+      import('@/lib/adapters/compound').then((m) => m.CompoundAdapter),
+  },
 } as const
 
 // ============================================================================
@@ -70,58 +79,93 @@ export const PROTOCOL_REGISTRY = {
 // ============================================================================
 // Everything below is automatically derived from PROTOCOL_REGISTRY
 
-// Derive ProtocolName type from registry keys (single source of truth)
-export type ProtocolName = keyof typeof PROTOCOL_REGISTRY
+/**
+ * Extract all protocol version IDs from the registry configs.
+ * This creates a union type of all version-specific protocol IDs.
+ * Example: 'morpho_v1' | 'aave_v3' | 'compound_v3'
+ */
+export type ProtocolName =
+  keyof (typeof PROTOCOL_REGISTRY)[keyof typeof PROTOCOL_REGISTRY]['config']
 
-// Export protocol name constants for use in code (no need for 'as const')
-export const PROTOCOL_NAMES = {
-  AAVE: AAVE_PROTOCOL_ID,
-  MORPHO: MORPHO_PROTOCOL_ID,
-  // COMPOUND: 'compound', // Uncomment when enabled
-} as const satisfies Record<string, ProtocolName>
+// ============================================================================
+// HELPER FUNCTIONS
+// ============================================================================
 
-// Export individual configs for backward compatibility
-export { AAVE_CONFIG, COMPOUND_CONFIG, MORPHO_CONFIG }
-
-// Get list of all supported protocol names
-export const SUPPORTED_PROTOCOL_NAMES = Object.keys(
-  PROTOCOL_REGISTRY
-) as ProtocolName[]
-
-// Legacy interface for backward compatibility
-export interface ProtocolRegistryEntry {
-  name: ProtocolName
-  adapter: () => Promise<GraphqlProtocolAdapter>
-}
-
-// Legacy array format for backward compatibility
-export const SUPPORTED_PROTOCOLS: ProtocolRegistryEntry[] =
-  SUPPORTED_PROTOCOL_NAMES.map((name) => ({
-    name,
-    adapter: PROTOCOL_REGISTRY[name].adapter,
-  }))
-
-// Get protocol config by name and chain
+/**
+ * Get a specific protocol config by its version ID.
+ *
+ * @param protocolId The version-specific protocol ID (e.g., 'morpho_v1', 'aave_v3')
+ * @returns The protocol config or undefined if not found
+ *
+ * @example
+ * ```typescript
+ * const config = getProtocolConfig('morpho_v1')
+ * // { id: 'morpho_v1', name: 'Morpho V1', chains: {...} }
+ * ```
+ */
 export function getProtocolConfig(
-  protocol: ProtocolName,
-  chainId: number
+  protocolId: ProtocolName
 ): ProtocolConfig | undefined {
-  return PROTOCOL_REGISTRY[protocol]?.config[chainId]
+  for (const entry of Object.values(PROTOCOL_REGISTRY)) {
+    const config = entry.config[protocolId]
+    if (config) {
+      return config
+    }
+  }
+  return undefined
 }
 
-// Get all supported protocols for a specific chain
-export function getSupportedProtocols(chainId: number): ProtocolConfig[] {
-  return SUPPORTED_PROTOCOL_NAMES.map(
-    (protocol) => PROTOCOL_REGISTRY[protocol].config[chainId]
-  ).filter((config): config is ProtocolConfig => config !== undefined)
+/**
+ * Get all protocol IDs from the registry.
+ * Returns an array of all version-specific protocol IDs.
+ *
+ * @example
+ * ```typescript
+ * const ids = getProtocolIds()
+ * // ['aave_v3', 'morpho_v1']
+ * ```
+ */
+export function getProtocolIds(): ProtocolName[] {
+  return Object.values(PROTOCOL_REGISTRY).flatMap((entry) =>
+    Object.keys(entry.config)
+  ) as ProtocolName[]
 }
 
-// Get all protocol names (legacy helper)
-export function getProtocolNames(): ProtocolName[] {
-  return SUPPORTED_PROTOCOL_NAMES
+/**
+ * Get the adapter loader function for a specific protocol ID.
+ *
+ * @param protocolId The version-specific protocol ID (e.g., 'morpho_v1', 'aave_v3')
+ * @returns The adapter loader function or undefined if not found
+ *
+ * @example
+ * ```typescript
+ * const adapterLoader = getProtocolAdapter('morpho_v1')
+ * if (adapterLoader) {
+ *   const adapter = await adapterLoader()
+ *   const positions = await adapter.getUserBorrowPositions(addresses)
+ * }
+ * ```
+ */
+export function getProtocolAdapter(
+  protocolId: ProtocolName
+): (() => Promise<ProtocolAdapter>) | undefined {
+  for (const entry of Object.values(PROTOCOL_REGISTRY)) {
+    if (protocolId in entry.config) {
+      return entry.adapter
+    }
+  }
+  return undefined
 }
 
-// Get protocol display name
-export function getProtocolDisplayName(protocol: ProtocolName): string {
-  return PROTOCOL_REGISTRY[protocol]?.displayName ?? protocol
+export function getProtocolGlobalNameById(id: string): string | undefined {
+  const prefix = id.split('_')[0]
+  return PROTOCOL_REGISTRY[prefix as keyof typeof PROTOCOL_REGISTRY].displayName
+}
+
+export function getProtocolVersionNameById(id: string): string {
+  const prefix = id.split('_')[0]
+  return (
+    PROTOCOL_REGISTRY[prefix as keyof typeof PROTOCOL_REGISTRY].config[id]
+      .name ?? 'n/a'
+  )
 }

@@ -26,7 +26,7 @@ export const ProtocolIcon = ({
   const [error, setError] = useState(false)
 
   // Normalize protocol name to lowercase for file matching
-  const normalizedProtocol = protocol.toLowerCase()
+  const normalizedProtocol = protocol.split('_')[0]
   const iconPath = `/icons/protocol/${normalizedProtocol}.svg`
 
   const handleError = () => {
@@ -45,7 +45,7 @@ export const ProtocolIcon = ({
           className="text-muted-foreground font-bold uppercase"
           style={{ fontSize: size * 0.35 }}
         >
-          {protocol.slice(0, 2)}
+          {normalizedProtocol.slice(0, 2)}
         </span>
       </div>
     )
@@ -53,14 +53,18 @@ export const ProtocolIcon = ({
 
   // Success state - show protocol logo
   return (
-    <Image
-      src={iconPath}
-      alt={`${protocol} logo`}
-      width={size}
-      height={size}
-      onError={handleError}
-      className={`rounded-full ${className}`}
+    <div
+      className={`relative overflow-hidden rounded-full ${className}`}
+      style={{ width: size, height: size }}
       title={protocol}
-    />
+    >
+      <Image
+        src={iconPath}
+        alt={`${protocol} logo`}
+        fill
+        onError={handleError}
+        className="object-cover"
+      />
+    </div>
   )
 }

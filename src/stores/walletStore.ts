@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
+import type { WalletClient } from 'viem'
 
 export interface Wallet {
   address: string
@@ -23,29 +24,35 @@ export interface Network {
 
 interface WalletState {
   wallets: Wallet[]
-  baseCurrency: string
+  clients: Record<string, WalletClient>
+  hiddenAddresses: Set<string> // Addresses explicitly disconnected by user
   lastNotificationSeenAt: string
   network: string
   networks: Network[]
-  theme: string
   userId: string
   addWallet: (wallet: Wallet) => void
   addWallets: (wallets: Wallet[]) => void
   updateWallet: (address: string, updates: Partial<Wallet>) => void
   removeWallet: (address: string) => void
   hasWallet: (address: string) => boolean
-  setBaseCurrency: (currency: string) => void
+  isHidden: (address: string) => boolean
+  hideAddress: (address: string) => void
+  unhideAddress: (address: string) => void
+  setClient: (address: string, client: WalletClient) => void
+  removeClient: (address: string) => void
+  getClient: (address: string) => WalletClient | undefined
+  clearAllClients: () => void
 }
 
 export const useWalletStore = create<WalletState>()(
   persist(
     (set, get) => ({
       wallets: [],
-      baseCurrency: 'EUR',
+      clients: {},
+      hiddenAddresses: new Set<string>(),
       lastNotificationSeenAt: Date.now().toString(),
       network: 'ethereum',
       networks: [],
-      theme: 'dark',
       userId: '',
 
       addWallet: (wallet) =>
@@ -92,13 +99,74 @@ export const useWalletStore = create<WalletState>()(
         )
       },
 
-      setBaseCurrency: (currency) =>
-        set(() => ({
-          baseCurrency: currency,
+      isHidden: (address) => {
+        const state = get()
+        return state.hiddenAddresses.has(address.toLowerCase())
+      },
+
+      hideAddress: (address) =>
+        set((state) => {
+          const newHidden = new Set(state.hiddenAddresses)
+          newHidden.add(address.toLowerCase())
+          return { hiddenAddresses: newHidden }
+        }),
+
+      unhideAddress: (address) =>
+        set((state) => {
+          const newHidden = new Set(state.hiddenAddresses)
+          newHidden.delete(address.toLowerCase())
+          return { hiddenAddresses: newHidden }
+        }),
+
+      setClient: (address, client) =>
+        set((state) => ({
+          clients: { ...state.clients, [address.toLowerCase()]: client },
         })),
+
+      removeClient: (address) =>
+        set((state) => {
+          const clients = { ...state.clients }
+          delete clients[address.toLowerCase()]
+          return { clients }
+        }),
+
+      getClient: (address) => {
+        const state = get()
+        return state.clients[address.toLowerCase()]
+      },
+
+      clearAllClients: () => set({ clients: {} }),
     }),
     {
       name: 'persist:account',
+      storage: {
+        getItem: (name) => {
+          const str = localStorage.getItem(name)
+          if (!str) return null
+          const { state } = JSON.parse(str)
+          return {
+            state: {
+              ...state,
+              hiddenAddresses: new Set(state.hiddenAddresses || []),
+              clients: {}, // Don't persist clients (they need to be recreated)
+            },
+          }
+        },
+        setItem: (name, value) => {
+          const { state } = value
+          localStorage.setItem(
+            name,
+            JSON.stringify({
+              state: {
+                ...state,
+                hiddenAddresses: Array.from(state.hiddenAddresses),
+                clients: {}, // Don't persist clients
+              },
+            })
+          )
+        },
+        removeItem: (name) => localStorage.removeItem(name),
+      },
     }
   )
 )

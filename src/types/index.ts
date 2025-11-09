@@ -1,6 +1,15 @@
 import { Address } from 'viem'
 
-import type { ProtocolConfig, ProtocolName } from '@/config/protocols'
+import type {
+  ProtocolChain,
+  ProtocolConfig,
+  ProtocolName,
+} from '@/config/protocols'
+import {
+  getProtocolAdapter,
+  getProtocolConfig,
+  getProtocolIds,
+} from '@/config/protocols'
 
 // ============================================================================
 // PROTOCOL TYPES
@@ -8,8 +17,8 @@ import type { ProtocolConfig, ProtocolName } from '@/config/protocols'
 // Re-export protocol-related types from config for convenience
 // These are auto-generated from PROTOCOL_REGISTRY (single source of truth)
 // ============================================================================
-export type { ProtocolName, ProtocolConfig }
-export { PROTOCOL_NAMES } from '@/config/protocols'
+export type { ProtocolName, ProtocolConfig, ProtocolChain }
+export { getProtocolAdapter, getProtocolConfig, getProtocolIds }
 
 export type PositionType = 'lend' | 'borrow'
 export type AssetType = 'stable' | 'volatile' | 'liquid-staking'
@@ -20,7 +29,7 @@ export interface Token {
   name: string
   decimals: number
   logoURI?: string
-  type: AssetType
+  type?: AssetType
 }
 
 export interface Market {
@@ -80,13 +89,9 @@ export interface TokenPrice {
 export interface LendPosition {
   id: string
   protocol: ProtocolName
-  userId: string
   userAddress: Address
-  poolId: string
   poolName: string
   poolAddress: Address
-  poolChainId: number
-  poolChainCurrency: string
   poolChainNetwork: string
   assetName: string
   assetSymbol: string
@@ -101,23 +106,16 @@ export interface BorrowPosition {
   id: string
   protocol: ProtocolName
   healthFactor: number
-  userId: string
   userAddress: Address
-  poolId: string
   poolName: string
-  poolChainId: number
-  poolChainCurrency: string
+  poolAddress: Address
   poolChainNetwork: string
   loanAssetName: string
   loanAssetSymbol: string
   loanAssetDecimals: number
   loanAssetAmount: number
   loanAssetAmountUsd: number
-  collateralAssetName?: string
-  collateralAssetSymbol?: string
-  collateralAssetDecimals?: number
-  collateralAssetAmount: bigint
-  collateralAssetAmountUsd: number
+  collaterals: (Token & { amount: number; amountUSD: number })[]
   apy: number
   link?: string
 }

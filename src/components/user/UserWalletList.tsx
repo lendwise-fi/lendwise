@@ -1,22 +1,43 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 
 import { ConnectButton } from '@rainbow-me/rainbowkit'
-import { Check, Copy } from 'lucide-react'
+import { Check, Copy, MoreVertical, Trash2 } from 'lucide-react'
 import { Address } from 'viem'
-import { useAccount, useEnsName } from 'wagmi'
+import { useAccount, useDisconnect, useEnsName } from 'wagmi'
+import { mainnet } from 'wagmi/chains'
 
 import { Button } from '@/components/ui/button'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
+import { useMultiWalletManager } from '@/hooks/useMultiWalletManager'
+import { formatAddress } from '@/lib/utils'
 import { type Wallet, useWalletStore } from '@/stores/walletStore'
 
 import { WalletAvatar } from '../wallet/WalletAvatar'
 
 const WalletRow = ({ wallet }: { wallet: Wallet }) => {
+  const { address: activeAddress } = useAccount()
+  const { disconnect } = useDisconnect()
+  const { updateWallet, clients, wallets } = useWalletStore()
+  const { disconnectAddress } = useMultiWalletManager()
   const { data: ensName } = useEnsName({
     address: wallet.address as Address,
+    chainId: mainnet.id, // Always resolve ENS on mainnet
   })
   const [copiedAddress, setCopiedAddress] = useState<string | null>(null)
+
+  // Update wallet store when ENS name is fetched
+  useEffect(() => {
+    if (ensName && ensName !== wallet.ens) {
+      updateWallet(wallet.address, { ens: ensName })
+    }
+  }, [ensName, wallet.address, wallet.ens, updateWallet])
 
   const handleCopy = (address: string) => {
     navigator.clipboard.writeText(address)
@@ -26,29 +47,72 @@ const WalletRow = ({ wallet }: { wallet: Wallet }) => {
     }, 2000)
   }
 
+  const handleDisconnect = () => {
+    const isActiveAddress = wallet.address.toLowerCase() === activeAddress?.toLowerCase()
+    const isLastAddress = wallets.length === 1
+
+    // Remove from our store
+    disconnectAddress(wallet.address as Address)
+
+    // If this is the active address or the last address, disconnect from wagmi
+    if (isActiveAddress || isLastAddress) {
+      disconnect()
+    }
+  }
+
+  // Display ENS name if available, otherwise formatted address
+  const displayName = wallet.ens || formatAddress(wallet.address)
+  const hasClient = !!clients[wallet.address.toLowerCase()]
+
   return (
     <div
       key={wallet.address}
       className="hover:bg-accent flex items-center justify-between rounded-md p-2"
     >
       <div className="flex items-center gap-x-3">
-        <div className="flex h-8 w-8 items-center justify-center rounded-full">
+        <div className="relative flex h-8 w-8 items-center justify-center rounded-full">
           <WalletAvatar address={wallet.address} size={30} />
+          {hasClient && (
+            <div className="bg-success absolute -top-0.5 -right-0.5 h-2.5 w-2.5 rounded-full border-2 border-white" />
+          )}
         </div>
-        <span className="text-sm font-medium">{ensName || wallet.name}</span>
+        <div className="flex flex-col">
+          <span className="text-sm font-medium">{displayName}</span>
+          {!hasClient && (
+            <span className="text-muted-foreground text-xs">No client</span>
+          )}
+        </div>
       </div>
-      <Button
-        variant="ghost"
-        size="icon"
-        className="h-8 w-8"
-        onClick={() => handleCopy(wallet.address)}
-      >
-        {copiedAddress === wallet.address ? (
-          <Check className="text-success h-4 w-4" />
-        ) : (
-          <Copy className="h-4 w-4" />
-        )}
-      </Button>
+      <div className="flex items-center gap-1">
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-8 w-8"
+          onClick={() => handleCopy(wallet.address)}
+        >
+          {copiedAddress === wallet.address ? (
+            <Check className="text-success h-4 w-4" />
+          ) : (
+            <Copy className="h-4 w-4" />
+          )}
+        </Button>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="ghost" size="icon" className="h-8 w-8">
+              <MoreVertical className="h-4 w-4" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem
+              onClick={handleDisconnect}
+              className="text-destructive focus:text-destructive"
+            >
+              <Trash2 className="mr-2 h-4 w-4" />
+              Disconnect
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </div>
     </div>
   )
 }
@@ -59,15 +123,15 @@ export const UserWalletList = () => {
 
   const handleAddWallet = async () => {
     if (!isConnected || !connector) {
-      // Si pas connecté, on ne peut pas ouvrir le wallet
+      // If not connected, can't open wallet
       return
     }
 
     try {
-      // Récupérer le provider du wallet connecté
+      // Get the provider from the connected wallet
       const provider = await connector.getProvider()
 
-      // Vérifier que c'est un provider EIP-1193
+      // Check if it's an EIP-1193 provider
       if (
         provider &&
         typeof provider === 'object' &&
@@ -76,12 +140,15 @@ export const UserWalletList = () => {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         typeof (provider as any).request === 'function'
       ) {
-        // Demander au wallet de changer de compte (ouvre MetaMask directement)
+        // Request permission to access accounts (opens MetaMask account selector)
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         await (provider as any).request({
           method: 'wallet_requestPermissions',
           params: [{ eth_accounts: {} }],
         })
+
+        // The accountsChanged event will be triggered automatically by the wallet
+        // and WalletWatcherProvider will handle adding the new account to the store
       }
     } catch (error) {
       console.error('Failed to request account change:', error)
@@ -94,9 +161,9 @@ export const UserWalletList = () => {
         <p className="text-muted-foreground text-sm font-medium">Mes Wallets</p>
         {isConnected ? (
           <Button
-            variant="ghost"
+            variant="outline"
             size="sm"
-            className="h-7 text-xs"
+            className="h-7 bg-transparent text-xs"
             onClick={handleAddWallet}
           >
             + Add

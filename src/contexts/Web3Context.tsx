@@ -16,7 +16,7 @@ export function Web3Provider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     // Charger la config uniquement côté client pour éviter les erreurs SSR
-    import('../../config/wagmi').then((mod) => {
+    import('../config/wagmi').then((mod) => {
       setConfig(mod.config)
       setMounted(true)
     })

@@ -51,16 +51,20 @@ export const ChainIcon = ({
     )
   }
 
-  // Success state - show protocol logo
+  // Success state - show chain logo
   return (
-    <Image
-      src={iconPath}
-      alt={`${chainSlug} logo`}
-      width={size}
-      height={size}
-      onError={handleError}
-      className={`rounded-full ${className}`}
+    <div
+      className={`relative rounded-full overflow-hidden ${className}`}
+      style={{ width: size, height: size }}
       title={chainSlug}
-    />
+    >
+      <Image
+        src={iconPath}
+        alt={`${chainSlug} logo`}
+        fill
+        onError={handleError}
+        className="object-cover"
+      />
+    </div>
   )
 }

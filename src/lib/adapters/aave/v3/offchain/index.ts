@@ -1,9 +1,11 @@
 import { cacheExchange, createClient, fetchExchange } from '@urql/core'
 import type { Address } from 'viem'
 
+import type { BaseDataAdapter } from '@/lib/adapters/types'
 import { BorrowPosition, LendPosition } from '@/types'
 
-import { PROTOCOL_ID, marketsGqlParams } from '..'
+import { AAVE_CONFIG } from '../../config'
+import { ALL_MARKETS_GQL_PARAMS } from './config'
 import {
   UserBorrowPositionsQuery,
   UserLendPositionsQuery,
@@ -15,13 +17,10 @@ import {
   USER_MARKET_HEALTH_FACTOR,
 } from './queries'
 
-const AAVE_GRAPHQL_URL = 'https://api.v3.aave.com/graphql'
-
 const client = createClient({
-  url: AAVE_GRAPHQL_URL,
+  url: AAVE_CONFIG.aave_v3.offchainApiUrl!,
   exchanges: [cacheExchange, fetchExchange],
   fetchOptions: {
-    method: 'POST',
     headers: {
       'Content-Type': 'application/json',
     },
@@ -48,7 +47,7 @@ async function getUserLendPositions(
             request: {
               collateralsOnly: false,
               user: address,
-              ...marketsGqlParams,
+              ...ALL_MARKETS_GQL_PARAMS,
               orderBy: {
                 apy: 'DESC',
               },
@@ -57,10 +56,10 @@ async function getUserLendPositions(
           .toPromise()
 
         if (error) {
-          console.error('Failed to fetch Aave positions:', error.message)
+          console.error('Failed to fetch Aave V3 positions:', error.message)
           // Check if it's a timeout error
           if (error.message?.includes('Time-out') || error.networkError) {
-            console.warn('Aave API timeout - returning empty positions')
+            console.warn('Aave V3 API timeout - returning empty positions')
           }
           return []
         }
@@ -69,33 +68,35 @@ async function getUserLendPositions(
           return []
         }
 
-        return data.userSupplies.map(
-          (position): LendPosition => ({
-            id: address,
-            protocol: PROTOCOL_ID,
-            userId: address,
-            userAddress: address,
-            poolId: position.market.address,
-            poolName: position.market.name,
-            poolAddress: position.market.address,
-            poolChainId: position.market.chain.chainId,
-            poolChainCurrency: position.currency.symbol,
-            poolChainNetwork: position.market.chain.name,
-            assetName: position.currency.name,
-            assetSymbol: position.currency.symbol,
-            assetDecimals: position.currency.decimals,
-            assetAmount: position.balance.amount.raw,
-            assetAmountUsd: position.balance.usd,
-            apy: position.apy.formatted,
-            link: `https://app.aave.com/reserve-overview/?underlyingAsset=${position.currency.address.toLowerCase()}&marketName=proto_${position.market.chain.name.toLowerCase()}_v3`,
+        return data.userSupplies
+          .filter((position) => {
+            // Only include supply positions (positive balance)
+            const balance = BigInt(position.balance.amount.raw)
+            return balance > 0n
           })
-        )
+          .map(
+            (position): LendPosition => ({
+              id: address,
+              protocol: AAVE_CONFIG.aave_v3.id,
+              userAddress: address.toLowerCase() as Address,
+              poolName: position.market.name,
+              poolAddress: position.market.address,
+              poolChainNetwork: position.market.chain.name,
+              assetName: position.currency.name,
+              assetSymbol: position.currency.symbol,
+              assetDecimals: position.currency.decimals,
+              assetAmount: position.balance.amount.raw,
+              assetAmountUsd: position.balance.usd,
+              apy: position.apy.formatted,
+              link: `https://app.aave.com/reserve-overview/?underlyingAsset=${position.currency.address.toLowerCase()}&marketName=proto_${position.market.chain.name.toLowerCase()}_v3`,
+            })
+          )
       })
     )
 
     return lendingPositionsResults.flat()
   } catch (err) {
-    console.error('Unexpected error fetching Aave positions:', err)
+    console.error('Unexpected error fetching Aave V3 positions:', err)
     return []
   }
 }
@@ -116,7 +117,7 @@ async function getUserBorrowPositions(
           .query<UserBorrowPositionsQuery>(USER_BORROW_POSITIONS, {
             request: {
               user: address,
-              ...marketsGqlParams,
+              ...ALL_MARKETS_GQL_PARAMS,
               orderBy: {
                 apy: 'DESC',
               },
@@ -125,9 +126,9 @@ async function getUserBorrowPositions(
           .toPromise()
 
         if (error) {
-          console.error('Failed to fetch Aave positions:', error.message)
+          console.error('Failed to fetch Aave V3 positions:', error.message)
           if (error.message?.includes('Time-out') || error.networkError) {
-            console.warn('Aave API timeout - returning empty positions')
+            console.warn('Aave V3 API timeout - returning empty positions')
           }
           return []
         }
@@ -166,7 +167,7 @@ async function getUserBorrowPositions(
                 error.message
               )
               if (error.message?.includes('Time-out') || error.networkError) {
-                console.warn('Aave API timeout - returning empty positions')
+                console.warn('Aave V3 API timeout - returning empty positions')
               }
               return
             }
@@ -178,31 +179,39 @@ async function getUserBorrowPositions(
           })
         )
 
+        const collaterals: BorrowPosition['collaterals'] = []
+        // account.deposits.map((deposit) => {
+        //   return {
+        //     address: deposit.asset.id,
+        //     name: deposit.asset.name,
+        //     symbol: deposit.asset.symbol,
+        //     decimals: deposit.asset.decimals,
+        //     amount: deposit.amount,
+        //     amountUSD:
+        //       Number(
+        //         formatUnits(BigInt(deposit.amount ?? 0), deposit.asset.decimals)
+        //       ) * deposit.asset.lastPriceUSD,
+        //   }
+        // })
+
         return data.userBorrows.map(
           (position): BorrowPosition => ({
             id: address,
-            protocol: PROTOCOL_ID,
+            protocol: AAVE_CONFIG.aave_v3.id,
             healthFactor:
               healthFactorMapParams.get(
                 `${address}-${position.market.address}-${position.market.chain.chainId}`
               ) ?? 0,
-            userId: address,
             userAddress: address,
-            poolId: position.market.address,
             poolName: position.market.name,
-            poolChainId: position.market.chain.chainId,
-            poolChainCurrency: position.currency.symbol,
+            poolAddress: position.market.address,
             poolChainNetwork: position.market.chain.name,
             loanAssetName: position.currency.name,
             loanAssetSymbol: position.currency.symbol,
             loanAssetDecimals: position.currency.decimals,
             loanAssetAmount: position.debt.amount.value,
             loanAssetAmountUsd: position.debt.usd,
-            collateralAssetName: '',
-            collateralAssetSymbol: '',
-            collateralAssetDecimals: 0,
-            collateralAssetAmount: BigInt(0),
-            collateralAssetAmountUsd: 0,
+            collaterals,
             apy: position.apy.formatted,
             link: `https://app.aave.com/reserve-overview/?underlyingAsset=${position.currency.address.toLowerCase()}&marketName=proto_${position.market.chain.name.toLowerCase()}_v3`,
           })
@@ -211,12 +220,13 @@ async function getUserBorrowPositions(
     )
     return borrowPositionsResults.flat()
   } catch (err) {
-    console.error('Unexpected error fetching Aave positions:', err)
+    console.error('Unexpected error fetching Aave V3 positions:', err)
     return []
   }
 }
 
-export const gqlAdapter = {
+export const aaveV3OffchainAdapter: BaseDataAdapter = {
+  dataSourceType: 'offchain',
   getUserLendPositions,
   getUserBorrowPositions,
 }

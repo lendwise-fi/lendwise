@@ -1,54 +1,37 @@
-import { base, mainnet, polygon } from 'viem/chains'
-
-import type { ProtocolConfig } from '@/config/protocols'
-
-import { GraphqlProtocolAdapter } from '../types'
-import { gqlAdapter } from './gql'
-
-// Placeholder for a future subgraph adapter
-// import { subgraphAdapter } from './subgraph'
+import { createProtocolAdapter } from '../utils'
+import { COMPOUND_CONFIG } from './config'
+import { compoundV3Adapter } from './v3'
 
 // ============================================================================
-// Compound V3 (Comet) Configuration
+// Compound Protocol Adapter
 // ============================================================================
-export const COMPOUND_CONFIG: Record<number, ProtocolConfig> = {
-  [mainnet.id]: {
-    name: 'compound',
-    displayName: 'Compound V3',
-    chainId: mainnet.id,
-    contracts: {
-      comptroller: '0x3d9819210A31b4961b30EF54bE2aeD79B9c9Cd3B',
-    },
-    markets: [],
-    blockExplorer: 'https://etherscan.io',
+
+/**
+ * Main Compound Protocol Adapter with version support.
+ * Currently supports:
+ * - compound_v3: Uses Subgraph (default) - Implementation pending
+ *
+ * Note: Compound does not provide a centralized GraphQL API.
+ * Data is fetched from community-maintained subgraphs.
+ *
+ * @example
+ * ```typescript
+ * // Use default version (compound_v3)
+ * const positions = await CompoundAdapter.getUserLendPositions(['0x...'])
+ *
+ * // Explicitly use compound_v3
+ * const v3Positions = await CompoundAdapter.getUserLendPositions(['0x...'], 'compound_v3')
+ * ```
+ */
+export const CompoundAdapter = createProtocolAdapter(
+  COMPOUND_CONFIG,
+  {
+    compound_v3: compoundV3Adapter,
   },
-  [polygon.id]: {
-    name: 'compound',
-    displayName: 'Compound V3',
-    chainId: polygon.id,
-    contracts: {
-      comptroller: '0xF25212E676D1F7F89Cd72fFEe66158f541246445',
-    },
-    markets: [],
-    blockExplorer: 'https://polygonscan.com',
-  },
-  [base.id]: {
-    name: 'compound',
-    displayName: 'Compound V3',
-    chainId: base.id,
-    contracts: {
-      comptroller: '0x9c4ec768c28520B50860ea7a15bd7213a9fF58bf',
-    },
-    markets: [],
-    blockExplorer: 'https://basescan.org',
-  },
-}
+  'compound_v3' // default version
+)
 
 // ============================================================================
-// Compound Adapter
+// Re-exports
 // ============================================================================
-export const CompoundAdapter: GraphqlProtocolAdapter = {
-  protocol: 'compound',
-  ...gqlAdapter,
-  // stats: subgraphAdapter, // Can be added later
-}
+export { COMPOUND_CONFIG } from './config'

@@ -1,30 +1,29 @@
 import { cacheExchange, createClient, fetchExchange } from '@urql/core'
 import type { Address } from 'viem'
 
-import { MORPHO_CONFIG } from '@/config/protocols'
+import type { BaseDataAdapter } from '@/lib/adapters/types'
 import { generateSlug } from '@/lib/utils'
 import { BorrowPosition, LendPosition } from '@/types'
 
-import { PROTOCOL_ID } from '..'
+import { MORPHO_CONFIG } from '../../config'
 import {
   UserBorrowPositionsQuery,
   UserLendPositionsQuery,
 } from './generated/graphql'
 import { USER_BORROW_POSITIONS, USER_LEND_POSITIONS } from './queries'
 
-const MORPHO_GRAPHQL_URL = 'https://api.morpho.org/graphql'
-
 const client = createClient({
-  url: MORPHO_GRAPHQL_URL,
+  url: MORPHO_CONFIG.morpho_v1.offchainApiUrl!,
   exchanges: [cacheExchange, fetchExchange],
   fetchOptions: {
-    method: 'POST',
     headers: {
       'Content-Type': 'application/json',
     },
     // Add timeout to prevent long-hanging requests
     signal: AbortSignal.timeout(20000), // 20 second timeout
   },
+  // Force POST requests instead of GET
+  preferGetMethod: false,
   // Retry failed requests once
   requestPolicy: 'network-only',
 })
@@ -38,7 +37,7 @@ async function getUserLendPositions(
 
   try {
     // Get all chain IDs from MORPHO_CONFIG
-    const chainIds = Object.keys(MORPHO_CONFIG).map(Number)
+    const chainIds = Object.keys(MORPHO_CONFIG.morpho_v1.chains).map(Number)
 
     const allPositions: LendPosition[] = []
     let skip = 0
@@ -50,7 +49,7 @@ async function getUserLendPositions(
         .query<UserLendPositionsQuery>(USER_LEND_POSITIONS, {
           where: {
             chainId_in: chainIds,
-            userAddress_in: [...addresses],
+            userAddress_in: addresses,
           },
           first: 100,
           skip,
@@ -58,10 +57,10 @@ async function getUserLendPositions(
         .toPromise()
 
       if (error) {
-        console.error('Failed to fetch Morpho positions:', error)
+        console.error('Failed to fetch Morpho V1 positions:', error)
         // Check if it's a timeout error
         if (error.message?.includes('Time-out') || error.networkError) {
-          console.warn('Morpho API timeout - returning empty positions')
+          console.warn('Morpho V1 API timeout - returning empty positions')
         }
         return allPositions // Return what we have so far
       }
@@ -70,29 +69,31 @@ async function getUserLendPositions(
         break
       }
 
-      const positions = data.vaultPositions.items.map(
-        (position): LendPosition => ({
-          id: position.id,
-          protocol: PROTOCOL_ID,
-          userId: position.user.id,
-          userAddress: position.user.address,
-          poolId: position.vault.id,
-          poolName: position.vault.name,
-          poolAddress: position.vault.address,
-          poolChainId: position.vault.chain.id,
-          poolChainCurrency: position.vault.chain.currency,
-          poolChainNetwork: position.vault.chain.network,
-          assetName: position.vault.asset.name,
-          assetSymbol: position.vault.asset.symbol,
-          assetDecimals: position.vault.asset.decimals,
-          assetAmount: position.state?.assets ?? 0,
-          assetAmountUsd: position.state?.assetsUsd ?? 0,
-          apy: position.vault.state?.avgNetApy
-            ? position.vault.state.avgNetApy * 100
-            : 0,
-          link: `https://app.morpho.org/${position.vault.chain.network.toLowerCase()}/vault/${position.vault.address}/${generateSlug(position.vault.name)}?subTab=yourPosition`,
+      const positions = data.vaultPositions.items
+        .filter((position) => {
+          // Only include supply positions (positive balance)
+          const balance = BigInt(position.state?.assets ?? 0)
+          return balance > 0n
         })
-      )
+        .map(
+          (position): LendPosition => ({
+            id: position.id,
+            protocol: MORPHO_CONFIG.morpho_v1.id,
+            userAddress: position.user.address.toLowerCase(),
+            poolName: position.vault.name,
+            poolAddress: position.vault.address,
+            poolChainNetwork: position.vault.chain.network,
+            assetName: position.vault.asset.name,
+            assetSymbol: position.vault.asset.symbol,
+            assetDecimals: position.vault.asset.decimals,
+            assetAmount: position.state?.assets ?? 0,
+            assetAmountUsd: position.state?.assetsUsd ?? 0,
+            apy: position.vault.state?.avgNetApy
+              ? position.vault.state.avgNetApy * 100
+              : 0,
+            link: `https://app.morpho.org/${position.vault.chain.network.toLowerCase()}/vault/${position.vault.address}/${generateSlug(position.vault.name)}?subTab=yourPosition`,
+          })
+        )
 
       allPositions.push(...positions)
 
@@ -107,7 +108,7 @@ async function getUserLendPositions(
 
     return allPositions
   } catch (err) {
-    console.error('Unexpected error fetching Morpho positions:', err)
+    console.error('Unexpected error fetching Morpho V1 positions:', err)
     return []
   }
 }
@@ -122,7 +123,7 @@ async function getUserBorrowPositions(
 
   try {
     // Get all chain IDs from MORPHO_CONFIG
-    const chainIds = Object.keys(MORPHO_CONFIG).map(Number)
+    const chainIds = Object.keys(MORPHO_CONFIG.morpho_v1.chains).map(Number)
 
     const allPositions: BorrowPosition[] = []
     let skip = 0
@@ -142,10 +143,10 @@ async function getUserBorrowPositions(
         .toPromise()
 
       if (error) {
-        console.error('Failed to fetch Morpho positions:', error)
+        console.error('Failed to fetch Morpho V1 positions:', error)
         // Check if it's a timeout error
         if (error.message?.includes('Time-out') || error.networkError) {
-          console.warn('Morpho API timeout - returning empty positions')
+          console.warn('Morpho V1 API timeout - returning empty positions')
         }
         return allPositions // Return what we have so far
       }
@@ -154,17 +155,29 @@ async function getUserBorrowPositions(
         break
       }
 
+      const collaterals: BorrowPosition['collaterals'] = []
+      // account.deposits.map((deposit) => {
+      //   return {
+      //     address: deposit.asset.id,
+      //     name: deposit.asset.name,
+      //     symbol: deposit.asset.symbol,
+      //     decimals: deposit.asset.decimals,
+      //     amount: deposit.amount,
+      //     amountUSD:
+      //       Number(
+      //         formatUnits(BigInt(deposit.amount ?? 0), deposit.asset.decimals)
+      //       ) * deposit.asset.lastPriceUSD,
+      //   }
+      // })
+
       const positions = data.marketPositions.items.map(
         (position): BorrowPosition => ({
           id: position.id,
-          protocol: PROTOCOL_ID,
+          protocol: MORPHO_CONFIG.morpho_v1.id,
           healthFactor: Number(position.healthFactor),
-          userId: position.user.id,
           userAddress: position.user.address,
-          poolId: position.market.id,
           poolName: `${position.market.collateralAsset?.symbol}/${position.market.loanAsset?.symbol}`,
-          poolChainId: position.market.morphoBlue.chain.id,
-          poolChainCurrency: position.market.morphoBlue.chain.currency,
+          poolAddress: position.market.uniqueKey,
           poolChainNetwork: position.market.morphoBlue.chain.network,
           loanAssetName: position.market.loanAsset.name,
           loanAssetSymbol: position.market.loanAsset.symbol,
@@ -174,11 +187,7 @@ async function getUserBorrowPositions(
               Number(`1e${position.market.loanAsset.decimals}`)
             : 0,
           loanAssetAmountUsd: position.state?.borrowAssetsUsd ?? 0,
-          collateralAssetName: position.market.collateralAsset?.name,
-          collateralAssetSymbol: position.market.collateralAsset?.symbol,
-          collateralAssetDecimals: position.market.collateralAsset?.decimals,
-          collateralAssetAmount: position.state?.collateral ?? 0,
-          collateralAssetAmountUsd: position.state?.collateralUsd ?? 0,
+          collaterals,
           apy: position.market.state?.avgBorrowApy
             ? Number((position.market.state.avgBorrowApy * 100).toFixed(2))
             : 0,
@@ -199,12 +208,13 @@ async function getUserBorrowPositions(
 
     return allPositions
   } catch (err) {
-    console.error('Unexpected error fetching Morpho positions:', err)
+    console.error('Unexpected error fetching Morpho V1 positions:', err)
     return []
   }
 }
 
-export const gqlAdapter = {
+export const morphoV1OffchainAdapter: BaseDataAdapter = {
+  dataSourceType: 'offchain',
   getUserLendPositions,
   getUserBorrowPositions,
 }
