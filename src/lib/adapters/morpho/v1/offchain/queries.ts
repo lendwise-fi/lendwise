@@ -73,6 +73,7 @@ export const USER_BORROW_POSITIONS = gql`
             decimals
           }
           loanAsset {
+            address
             name
             symbol
             decimals

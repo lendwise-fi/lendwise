@@ -180,6 +180,7 @@ async function getUserBorrowPositions({
           poolAddress: position.market.uniqueKey,
           poolChainId: position.market.morphoBlue.chain.id,
           poolChainNetwork: position.market.morphoBlue.chain.network,
+          loanAssetAddress: position.market.loanAsset.address,
           loanAssetName: position.market.loanAsset.name,
           loanAssetSymbol: position.market.loanAsset.symbol,
           loanAssetDecimals: position.market.loanAsset.decimals,

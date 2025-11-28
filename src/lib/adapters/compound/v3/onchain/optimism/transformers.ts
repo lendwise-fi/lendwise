@@ -1,3 +1,5 @@
+import { Address } from 'viem'
+
 import type { BorrowPosition, LendPosition } from '@/types'
 
 import type {
@@ -95,14 +97,18 @@ export function getUserBorrowPositions(
           protocol: protocolId,
           healthFactor: 0,
           userAddress: account.address.toLowerCase(),
+          poolChainId: 10,
+          poolId: position.market.id,
           poolName: marketConfig?.name ?? marketConfig?.symbol ?? 'Unknown',
           poolAddress: position.market.id,
           poolChainNetwork: 'Optimism',
+          loanAssetAddress: '' as Address,
           loanAssetName: token?.name ?? 'Unknown',
           loanAssetSymbol: token?.symbol ?? 'Unknown',
           loanAssetDecimals: token?.decimals ?? 18,
           loanAssetAmount: 0,
           loanAssetAmountUsd: 0,
+          loanTimestamp: 0,
           collaterals: [],
           apy: protocolAccounting?.avgBorrowApr ?? 0,
           link: `https://app.compound.finance/?market=${token?.symbol?.toLowerCase()}-optimism`,

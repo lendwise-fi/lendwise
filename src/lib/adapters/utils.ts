@@ -151,6 +151,7 @@ export function createProtocolAdapter(
         poolId: string
         interval: MarketRateInterval
         fromTimestamp: number
+        tokenId: Address
       },
       version?: string
     ): Promise<MarketRate[]> {
