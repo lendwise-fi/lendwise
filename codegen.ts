@@ -11,7 +11,7 @@
  */
 import type { CodegenConfig } from '@graphql-codegen/cli'
 import { config as loadEnv } from 'dotenv'
-import { mainnet, optimism } from 'viem/chains'
+import { mainnet, optimism, polygon } from 'viem/chains'
 
 import { AAVE_CONFIG } from './src/lib/adapters/aave/config'
 import { COMPOUND_CONFIG } from './src/lib/adapters/compound/config'
@@ -22,20 +22,26 @@ loadEnv()
 
 // Extract API URLs from configs (single source of truth)
 const aaveV3ApiUrl = AAVE_CONFIG.aave_v3.offchainApiUrl
+const aaveV3EthereumSubgraphUrl =
+  AAVE_CONFIG.aave_v3.chains[mainnet.id]?.custom?.subgraphUrl
+
 const morphoV1ApiUrl = MORPHO_CONFIG.morpho_v1.offchainApiUrl
+const morphoV1EthereumSubgraphUrl =
+  MORPHO_CONFIG.morpho_v1.chains[polygon.id]?.custom?.subgraphUrl
+
 const compoundV3EthereumSubgraphUrl =
   COMPOUND_CONFIG.compound_v3.chains[mainnet.id]?.custom?.subgraphUrl
 
 const compoundV3OptimismSubgraphUrl =
   COMPOUND_CONFIG.compound_v3.chains[optimism.id]?.custom?.subgraphUrl
 
-if (!aaveV3ApiUrl) {
+if (!aaveV3ApiUrl || !aaveV3EthereumSubgraphUrl) {
   throw new Error(
     'AAVE V3 API URL not found in config. Please update src/lib/adapters/aave/config.ts'
   )
 }
 
-if (!morphoV1ApiUrl) {
+if (!morphoV1ApiUrl || !morphoV1EthereumSubgraphUrl) {
   throw new Error(
     'Morpho V1 API URL not found in config. Please update src/lib/adapters/morpho/config.ts'
   )
@@ -59,6 +65,26 @@ const config: CodegenConfig = {
     'src/lib/adapters/aave/v3/offchain/generated/': {
       schema: aaveV3ApiUrl,
       documents: 'src/lib/adapters/aave/v3/offchain/queries.ts',
+      preset: 'client',
+      presetConfig: {
+        fragmentMasking: false,
+      },
+    },
+    // AAVE V3 - Onchain (Subgraph)
+    // Schema URL is imported from src/lib/adapters/aave/config.ts
+    'src/lib/adapters/aave/v3/onchain/generated/': {
+      schema: [
+        {
+          [aaveV3EthereumSubgraphUrl]: {
+            headers: process.env.THEGRAPH_API_KEY
+              ? {
+                  Authorization: `Bearer ${process.env.THEGRAPH_API_KEY}`,
+                }
+              : {},
+          },
+        },
+      ],
+      documents: 'src/lib/adapters/aave/v3/onchain/queries.ts',
       preset: 'client',
       presetConfig: {
         fragmentMasking: false,
@@ -89,9 +115,9 @@ const config: CodegenConfig = {
       schema: [
         {
           [compoundV3EthereumSubgraphUrl]: {
-            headers: process.env.COMPOUND_THEGRAPH_API_KEY
+            headers: process.env.THEGRAPH_API_KEY
               ? {
-                  Authorization: `Bearer ${process.env.COMPOUND_THEGRAPH_API_KEY}`,
+                  Authorization: `Bearer ${process.env.THEGRAPH_API_KEY}`,
                 }
               : {},
           },
@@ -107,9 +133,9 @@ const config: CodegenConfig = {
       schema: [
         {
           [compoundV3OptimismSubgraphUrl]: {
-            headers: process.env.COMPOUND_THEGRAPH_API_KEY
+            headers: process.env.THEGRAPH_API_KEY
               ? {
-                  Authorization: `Bearer ${process.env.COMPOUND_THEGRAPH_API_KEY}`,
+                  Authorization: `Bearer ${process.env.THEGRAPH_API_KEY}`,
                 }
               : {},
           },
@@ -132,19 +158,30 @@ const config: CodegenConfig = {
         fragmentMasking: false,
       },
     },
+    // MORPHO V1 - Onchain (Subgraph)
+    // Schema URL is imported from src/lib/adapters/morpho/config.ts
+    'src/lib/adapters/morpho/v1/onchain/generated/': {
+      schema: [
+        {
+          [morphoV1EthereumSubgraphUrl]: {
+            headers: process.env.THEGRAPH_API_KEY
+              ? {
+                  Authorization: `Bearer ${process.env.THEGRAPH_API_KEY}`,
+                }
+              : {},
+          },
+        },
+      ],
+      documents: 'src/lib/adapters/morpho/v1/onchain/queries.ts',
+      preset: 'client',
+      presetConfig: {
+        fragmentMasking: false,
+      },
+    },
     // 'src/lib/adapters/morpho/subgraph/ethereum/generated/': {
     //   schema:
     //     'https://gateway.thegraph.com/api/9b0da1f7098ab2fd2e701f84324c48cc/subgraphs/id/EgcP7xm9H7dw7q219oLyxVUHuXySt3FCqrAa4HqVgRvu',
     //   documents: 'src/lib/adapters/morpho/subgraph/ethereum/queries.ts',
-    //   preset: 'client',
-    //   presetConfig: {
-    //     fragmentMasking: false,
-    //   },
-    // },
-    // 'src/lib/adapters/morpho/subgraph/arbitrum/generated/': {
-    //   schema:
-    //     'https://gateway.thegraph.com/api/9b0da1f7098ab2fd2e701f84324c48cc/subgraphs/id/XsJn88DNCHJ1kgTqYeTgHMQSK4LuG1LR75339QVeQ26',
-    //   documents: 'src/lib/adapters/morpho/subgraph/arbitrum/queries.ts',
     //   preset: 'client',
     //   presetConfig: {
     //     fragmentMasking: false,

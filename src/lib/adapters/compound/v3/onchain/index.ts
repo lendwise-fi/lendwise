@@ -1,42 +1,41 @@
-import { Client, cacheExchange, createClient, fetchExchange } from '@urql/core'
-import type { Address } from 'viem'
-import { formatUnits } from 'viem'
+import { type Address, formatUnits } from 'viem'
+import { arbitrum, mainnet } from 'viem/chains'
 
-import type { BaseDataAdapter } from '@/lib/adapters/types'
-import { BorrowPosition, LendPosition } from '@/types'
+import type { DataAdapter } from '@/lib/adapters/types'
+import {
+  BorrowPosition,
+  LendPosition,
+  MARKET_RATES_INTERVAL,
+  MarketRate,
+  MarketRateInterval,
+} from '@/types'
 
+import {
+  type BaseChainClient,
+  createChainRegistry,
+  createSubgraphClient,
+} from '../../../shared'
 import { COMPOUND_CONFIG } from '../../config'
 import type {
+  MarketDailyBorrowRatesQuery,
+  MarketDailyLendRatesQuery,
+  MarketHourlyBorrowRatesQuery,
+  MarketHourlyLendRatesQuery,
   UserBorrowPositionsQuery,
   UserLendPositionsQuery,
 } from './generated/graphql'
-import { USER_BORROW_POSITIONS, USER_LEND_POSITIONS } from './queries'
+import {
+  MARKET_DAILY_BORROW_RATES,
+  MARKET_DAILY_LEND_RATES,
+  MARKET_HOURLY_BORROW_RATES,
+  MARKET_HOURLY_LEND_RATES,
+  USER_BORROW_POSITIONS,
+  USER_LEND_POSITIONS,
+} from './queries'
 
-/**
- * Creates a GraphQL client for a specific chain.
- *
- * @param subgraphUrl - The subgraph URL from the chain config
- * @param apiKey - Optional API key for authenticated requests
- * @returns Configured urql Client
- */
-export function createChainClient(
-  subgraphUrl: string,
-  apiKey?: string
-): Client {
-  return createClient({
-    url: subgraphUrl,
-    exchanges: [cacheExchange, fetchExchange],
-    fetchOptions: {
-      headers: {
-        'Content-Type': 'application/json',
-        ...(apiKey && { Authorization: `Bearer ${apiKey}` }),
-      },
-      signal: AbortSignal.timeout(20000), // 20 second timeout
-    },
-    preferGetMethod: false,
-    requestPolicy: 'network-only',
-  })
-}
+// ============================================================================
+// Types
+// ============================================================================
 
 /**
  * Type for chain-specific queries.
@@ -50,101 +49,65 @@ export type ChainQueries = {
 /**
  * Type for chain-specific data transformers.
  * Allows chains with different schemas to provide custom transformation logic.
- *
- * Note: Uses `unknown` for data parameter since different chains may have different
- * GraphQL schemas. Each chain's transformer should type-cast to their specific schema.
  */
 export type ChainTransformers = {
-  /**
-   * Transform raw query data into LendPosition array.
-   * If not provided, uses default transformation logic.
-   * @param data - The GraphQL query result data (schema-specific, should be type-cast)
-   * @param protocolId - The protocol identifier
-   */
   getUserLendPositions?: (data: unknown, protocolId: string) => LendPosition[]
-
-  /**
-   * Transform raw query data into BorrowPosition array.
-   * If not provided, uses default transformation logic.
-   * @param data - The GraphQL query result data (schema-specific, should be type-cast)
-   * @param protocolId - The protocol identifier
-   */
   getUserBorrowPositions?: (
     data: unknown,
     protocolId: string
   ) => BorrowPosition[]
+  getMarketBorrowRates?: (data: unknown, protocolId: string) => MarketRate[]
+  getMarketLendRates?: (data: unknown, protocolId: string) => MarketRate[]
 }
 
 /**
- * Chain client configuration type.
+ * Compound V3 chain client configuration type.
  */
-export type ChainClient = {
-  client: Client
-  chainId: number
-  chainName?: string
-  queries?: ChainQueries
-  transformers?: ChainTransformers
-}
+export type ChainClient = BaseChainClient<ChainQueries, ChainTransformers>
+
+// ============================================================================
+// Chain Registry
+// ============================================================================
 
 /**
- * Registry for chain clients.
- * Uses lazy initialization to avoid circular dependency issues.
+ * Chain registry for Compound V3 onchain adapter.
+ * Manages multi-chain subgraph clients with lazy initialization.
  */
-const chainRegistry: ChainClient[] = []
-let initialized = false
+const chainRegistry = createChainRegistry<ChainClient>(
+  () => COMPOUND_CONFIG.compound_v3.chains,
+  { protocolName: 'Compound V3' }
+)
 
 /**
- * Register a chain client to be used for data fetching.
- * Called by each chain folder (ethereum, base, polygon, etc.)
- *
- * @param config - Chain client configuration
+ * Chain importer for dynamic imports relative to this folder.
  */
-export function registerChain(config: ChainClient): void {
-  chainRegistry.push(config)
-}
+const chainImporter = (path: string) => import(`./${path}`)
 
 /**
- * Initialize all chain clients automatically based on protocol config.
- * This is called lazily on first use to avoid circular dependency issues.
- *
- * Chains are automatically registered by reading the COMPOUND_CONFIG and
- * dynamically importing chain modules that have a clientPath defined.
+ * Register a chain client. Called by each chain folder during initialization.
  */
-async function initializeChains(): Promise<void> {
-  if (initialized) return
-  initialized = true
-
-  // Get all chains from config that have a clientPath defined
-  const chainsToRegister = Object.entries(COMPOUND_CONFIG.compound_v3.chains)
-    .filter(([_, chainConfig]) => chainConfig.custom?.clientPath)
-    .map(([_, chainConfig]) => ({
-      path: chainConfig.custom.clientPath!,
-      chainId: chainConfig.id,
-      chainName: chainConfig.name,
-    }))
-
-  // Dynamically import all chain modules - they will call registerChain()
-  await Promise.all(
-    chainsToRegister.map(async ({ path, chainId, chainName }) => {
-      try {
-        await import(`./${path}`)
-      } catch (error) {
-        console.error(
-          `Failed to initialize chain client for ${chainName} (${chainId}):`,
-          error
-        )
-      }
-    })
-  )
-}
+export const registerChain = chainRegistry.registerChain
 
 /**
  * Get all registered chain clients.
  */
-async function getChainClients(): Promise<ChainClient[]> {
-  await initializeChains()
-  return chainRegistry
-}
+const getChainClients = () => chainRegistry.getChainClients(chainImporter)
+
+/**
+ * Get a specific chain client by chain ID.
+ */
+const getChainClient = (chainId: number) =>
+  chainRegistry.getChainClient(chainId, chainImporter)
+
+/**
+ * Re-export createSubgraphClient as createChainClient for backward compatibility
+ * with existing chain folder implementations.
+ */
+export { createSubgraphClient as createChainClient }
+
+// ============================================================================
+// Chain Name Mapping
+// ============================================================================
 
 /**
  * Maps Compound subgraph Network enum values to human-readable chain names.
@@ -152,15 +115,25 @@ async function getChainClients(): Promise<ChainClient[]> {
  */
 const CHAIN_NAME_MAPPING: Record<
   string,
-  { protocolName: string; marketSlug: string }
+  { protocolName: string; marketSlug: string; chainId: number }
 > = {
-  MAINNET: { protocolName: 'Ethereum', marketSlug: 'mainnet' },
-  ARBITRUM_ONE: { protocolName: 'Arbitrum', marketSlug: 'arb' },
+  MAINNET: {
+    protocolName: 'Ethereum',
+    marketSlug: 'mainnet',
+    chainId: mainnet.id,
+  },
+  ARBITRUM_ONE: {
+    protocolName: 'Arbitrum',
+    marketSlug: 'arb',
+    chainId: arbitrum.id,
+  },
 }
 
-async function getUserLendPositions(
+async function getUserLendPositions({
+  addresses,
+}: {
   addresses: Address[]
-): Promise<LendPosition[]> {
+}): Promise<LendPosition[]> {
   if (!addresses || addresses.length === 0) {
     return []
   }
@@ -257,9 +230,11 @@ async function getUserLendPositions(
   }
 }
 
-async function getUserBorrowPositions(
+async function getUserBorrowPositions({
+  addresses,
+}: {
   addresses: Address[]
-): Promise<BorrowPosition[]> {
+}): Promise<BorrowPosition[]> {
   if (!addresses || addresses.length === 0) {
     return []
   }
@@ -345,15 +320,19 @@ async function getUserBorrowPositions(
                   protocol: COMPOUND_CONFIG.compound_v3.id,
                   healthFactor: 0, //Number(position.healthFactor),
                   userAddress: account.id.toLowerCase(),
+                  poolId: borrow.market.id,
                   poolName: borrow.asset.symbol,
                   poolAddress: borrow.market.relation,
+                  poolChainId: mappingName?.chainId,
                   poolChainNetwork:
                     mappingName?.protocolName ?? borrow.market.protocol.network,
+                  loanAssetAddress: borrow.market.inputToken.id,
                   loanAssetName: borrow.asset.name,
                   loanAssetSymbol: borrow.asset.symbol,
                   loanAssetDecimals: borrow.asset.decimals,
                   loanAssetAmount: balanceInTokens,
                   loanAssetAmountUsd: balanceUsd,
+                  loanTimestamp: borrow.timestamp,
                   collaterals,
                   apy: parseFloat(
                     Number(borrow.market.rates?.[0].rate ?? '0').toFixed(2)
@@ -380,8 +359,141 @@ async function getUserBorrowPositions(
   }
 }
 
-export const compoundV3OnchainAdapter: BaseDataAdapter = {
+async function getMarketBorrowRates({
+  chainId,
+  poolId,
+  interval,
+  fromTimestamp,
+}: {
+  chainId: number
+  poolId: string
+  interval: MarketRateInterval
+  fromTimestamp: number
+}): Promise<MarketRate[]> {
+  if (!poolId || !interval || !fromTimestamp) {
+    return []
+  }
+
+  try {
+    const chainClient = await getChainClient(chainId)
+    if (!chainClient) {
+      return []
+    }
+    const { chainName, client } = chainClient
+
+    const isDaily = interval === MARKET_RATES_INTERVAL.DAY
+    const query = isDaily
+      ? MARKET_DAILY_BORROW_RATES
+      : MARKET_HOURLY_BORROW_RATES
+
+    const { data, error } = await client
+      .query<MarketDailyBorrowRatesQuery | MarketHourlyBorrowRatesQuery>(
+        query,
+        {
+          where: { market: poolId, timestamp_gte: fromTimestamp },
+        }
+      )
+      .toPromise()
+
+    if (error) {
+      console.error(
+        `Failed to fetch ${chainName} Compound V3 ${isDaily ? 'daily' : 'hourly'} borrow rates:`,
+        error
+      )
+      if (error.message?.includes('Time-out') || error.networkError) {
+        console.warn(
+          `${chainName} Compound V3 API timeout - returning empty rates`
+        )
+      }
+      return []
+    }
+
+    const snapshots = isDaily
+      ? (data as MarketDailyBorrowRatesQuery)?.marketDailySnapshots
+      : (data as MarketHourlyBorrowRatesQuery)?.marketHourlySnapshots
+
+    return (
+      snapshots?.map((snapshot) => ({
+        timestamp: Number(snapshot.timestamp),
+        rate: Number(snapshot.rates?.[0].rate ?? '0'),
+      })) ?? []
+    )
+  } catch (err) {
+    console.error(
+      'Unexpected error fetching Compound V3 market borrow rates:',
+      err
+    )
+    return []
+  }
+}
+
+async function getMarketLendRates({
+  chainId,
+  poolId,
+  interval,
+  fromTimestamp,
+}: {
+  chainId: number
+  poolId: string
+  interval: MarketRateInterval
+  fromTimestamp: number
+}): Promise<MarketRate[]> {
+  if (!poolId || !interval || !fromTimestamp) {
+    return []
+  }
+
+  try {
+    const chainClient = await getChainClient(chainId)
+    if (!chainClient) {
+      return []
+    }
+    const { chainName, client } = chainClient
+
+    const isDaily = interval === MARKET_RATES_INTERVAL.DAY
+    const query = isDaily ? MARKET_DAILY_LEND_RATES : MARKET_HOURLY_LEND_RATES
+
+    const { data, error } = await client
+      .query<MarketDailyLendRatesQuery | MarketHourlyLendRatesQuery>(query, {
+        where: { market: poolId, timestamp_gte: fromTimestamp },
+      })
+      .toPromise()
+
+    if (error) {
+      console.error(
+        `Failed to fetch ${chainName} Compound V3 ${isDaily ? 'daily' : 'hourly'} lend rates:`,
+        error
+      )
+      if (error.message?.includes('Time-out') || error.networkError) {
+        console.warn(
+          `${chainName} Compound V3 API timeout - returning empty rates`
+        )
+      }
+      return []
+    }
+
+    const snapshots = isDaily
+      ? (data as MarketDailyLendRatesQuery)?.marketDailySnapshots
+      : (data as MarketHourlyLendRatesQuery)?.marketHourlySnapshots
+
+    return (
+      snapshots?.map((snapshot) => ({
+        timestamp: Number(snapshot.timestamp),
+        rate: Number(snapshot.rates?.[0].rate ?? '0'),
+      })) ?? []
+    )
+  } catch (err) {
+    console.error(
+      'Unexpected error fetching Compound V3 market lend rates:',
+      err
+    )
+    return []
+  }
+}
+
+export const compoundV3OnchainAdapter: DataAdapter = {
   dataSourceType: 'onchain',
   getUserLendPositions,
   getUserBorrowPositions,
+  getMarketBorrowRates,
+  getMarketLendRates,
 }

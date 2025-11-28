@@ -66,7 +66,8 @@ onchain/
          [arbitrum.id]: {
            ...arbitrum,
            custom: {
-             subgraphUrl: 'https://gateway.thegraph.com/api/subgraphs/id/YOUR_ARBITRUM_ID',
+             subgraphUrl:
+               'https://gateway.thegraph.com/api/subgraphs/id/YOUR_ARBITRUM_ID',
              clientPath: 'arbitrum', // ✨ This enables automatic registration
            },
          },
@@ -80,17 +81,18 @@ onchain/
    ```typescript
    // arbitrum/index.ts
    import { arbitrum } from 'viem/chains'
-   import { createChainClient, registerChain } from '../index'
+
    import { COMPOUND_V3_CHAINS } from '../config'
-   
+   import { createChainClient, registerChain } from '../index'
+
    const config = COMPOUND_V3_CHAINS[arbitrum.id]
-   
+
    // Create the client
    const arbitrumClient = createChainClient(
      config.custom.subgraphUrl!,
-     process.env.COMPOUND_THEGRAPH_API_KEY
+     process.env.THEGRAPH_API_KEY
    )
-   
+
    // Register this chain (it will automatically be included in data fetching)
    registerChain({
      client: arbitrumClient,
@@ -103,6 +105,7 @@ onchain/
 3. **That's it!** The chain will be automatically discovered and registered when the adapter initializes.
 
 **Benefits of Automatic Registration:**
+
 - ✅ **Zero boilerplate** - No manual imports or array maintenance
 - ✅ **Config-driven** - Just add `clientPath` to the chain config
 - ✅ **Automatic discovery** - System reads the config and imports chains automatically
@@ -135,17 +138,21 @@ Some chains may have different subgraph schemas. You can override queries per ch
    ```typescript
    // base/index.ts
    import { base } from 'viem/chains'
-   import { createChainClient, registerChain } from '../index'
+
    import { COMPOUND_V3_CHAINS } from '../config'
-   import { USER_LEND_POSITIONS_BASE, USER_BORROW_POSITIONS_BASE } from './queries'
-   
+   import { createChainClient, registerChain } from '../index'
+   import {
+     USER_BORROW_POSITIONS_BASE,
+     USER_LEND_POSITIONS_BASE,
+   } from './queries'
+
    const config = COMPOUND_V3_CHAINS[base.id]
-   
+
    const baseClient = createChainClient(
      config.custom.subgraphUrl!,
-     process.env.COMPOUND_THEGRAPH_API_KEY
+     process.env.THEGRAPH_API_KEY
    )
-   
+
    // Register with custom queries
    registerChain({
      client: baseClient,
@@ -171,7 +178,7 @@ The adapter will automatically use chain-specific queries when provided in the r
 ## Environment Variables
 
 ```env
-COMPOUND_THEGRAPH_API_KEY=your_api_key_here
+THEGRAPH_API_KEY=your_api_key_here
 ```
 
 ## TODO

@@ -1,16 +1,26 @@
 import { cacheExchange, createClient, fetchExchange } from '@urql/core'
 import type { Address } from 'viem'
 
-import type { BaseDataAdapter } from '@/lib/adapters/types'
+import type { DataAdapter } from '@/lib/adapters/types'
 import { generateSlug } from '@/lib/utils'
-import { BorrowPosition, LendPosition } from '@/types'
+import {
+  BorrowPosition,
+  LendPosition,
+  MarketRate,
+  MarketRateInterval,
+} from '@/types'
 
 import { MORPHO_CONFIG } from '../../config'
 import {
+  MarketBorrowRatesQuery,
   UserBorrowPositionsQuery,
   UserLendPositionsQuery,
 } from './generated/graphql'
-import { USER_BORROW_POSITIONS, USER_LEND_POSITIONS } from './queries'
+import {
+  MARKET_BORROW_RATES,
+  USER_BORROW_POSITIONS,
+  USER_LEND_POSITIONS,
+} from './queries'
 
 const client = createClient({
   url: MORPHO_CONFIG.morpho_v1.offchainApiUrl!,
@@ -28,9 +38,11 @@ const client = createClient({
   requestPolicy: 'network-only',
 })
 
-async function getUserLendPositions(
+async function getUserLendPositions({
+  addresses,
+}: {
   addresses: Address[]
-): Promise<LendPosition[]> {
+}): Promise<LendPosition[]> {
   if (!addresses || addresses.length === 0) {
     return []
   }
@@ -113,9 +125,11 @@ async function getUserLendPositions(
   }
 }
 
-async function getUserBorrowPositions(
+async function getUserBorrowPositions({
+  addresses,
+}: {
   addresses: Address[]
-): Promise<BorrowPosition[]> {
+}): Promise<BorrowPosition[]> {
   // Return empty array if no addresses provided
   if (!addresses || addresses.length === 0) {
     return []
@@ -155,29 +169,16 @@ async function getUserBorrowPositions(
         break
       }
 
-      const collaterals: BorrowPosition['collaterals'] = []
-      // account.deposits.map((deposit) => {
-      //   return {
-      //     address: deposit.asset.id,
-      //     name: deposit.asset.name,
-      //     symbol: deposit.asset.symbol,
-      //     decimals: deposit.asset.decimals,
-      //     amount: deposit.amount,
-      //     amountUSD:
-      //       Number(
-      //         formatUnits(BigInt(deposit.amount ?? 0), deposit.asset.decimals)
-      //       ) * deposit.asset.lastPriceUSD,
-      //   }
-      // })
-
       const positions = data.marketPositions.items.map(
         (position): BorrowPosition => ({
           id: position.id,
           protocol: MORPHO_CONFIG.morpho_v1.id,
           healthFactor: Number(position.healthFactor),
           userAddress: position.user.address,
+          poolId: position.market.id,
           poolName: `${position.market.collateralAsset?.symbol}/${position.market.loanAsset?.symbol}`,
           poolAddress: position.market.uniqueKey,
+          poolChainId: position.market.morphoBlue.chain.id,
           poolChainNetwork: position.market.morphoBlue.chain.network,
           loanAssetName: position.market.loanAsset.name,
           loanAssetSymbol: position.market.loanAsset.symbol,
@@ -187,7 +188,17 @@ async function getUserBorrowPositions(
               Number(`1e${position.market.loanAsset.decimals}`)
             : 0,
           loanAssetAmountUsd: position.state?.borrowAssetsUsd ?? 0,
-          collaterals,
+          loanTimestamp: 0,
+          collaterals: [
+            {
+              address: position.market.collateralAsset?.address,
+              name: position.market.collateralAsset?.name ?? '',
+              symbol: position.market.collateralAsset?.symbol ?? '',
+              decimals: position.market.collateralAsset?.decimals ?? 0,
+              amount: position.state?.collateral,
+              amountUSD: position.state?.collateralUsd ?? 0,
+            },
+          ],
           apy: position.market.state?.avgBorrowApy
             ? Number((position.market.state.avgBorrowApy * 100).toFixed(2))
             : 0,
@@ -205,7 +216,6 @@ async function getUserBorrowPositions(
         hasMore = false
       }
     }
-
     return allPositions
   } catch (err) {
     console.error('Unexpected error fetching Morpho V1 positions:', err)
@@ -213,8 +223,50 @@ async function getUserBorrowPositions(
   }
 }
 
-export const morphoV1OffchainAdapter: BaseDataAdapter = {
+async function getMarketBorrowRates({
+  poolId,
+  interval,
+  fromTimestamp,
+}: {
+  poolId: string
+  interval: MarketRateInterval
+  fromTimestamp: number
+}): Promise<MarketRate[]> {
+  const { data, error } = await client
+    .query<MarketBorrowRatesQuery>(MARKET_BORROW_RATES, {
+      marketId: poolId,
+      options: {
+        startTimestamp: fromTimestamp,
+        endTimestamp: null,
+        interval,
+      },
+    })
+    .toPromise()
+
+  if (error) {
+    console.error(`Failed to fetch Morpho V1 borrow rates:`, error)
+    if (error.message?.includes('Time-out') || error.networkError) {
+      console.warn(`Morpho V1 API timeout - returning empty rates`)
+    }
+    return []
+  }
+
+  return (
+    data?.market.historicalState?.netBorrowApy.reverse().map((item) => ({
+      timestamp: item.x,
+      rate: item.y ?? 0,
+    })) ?? []
+  )
+}
+
+async function getMarketLendRates() {
+  return []
+}
+
+export const morphoV1OffchainAdapter: DataAdapter = {
   dataSourceType: 'offchain',
   getUserLendPositions,
   getUserBorrowPositions,
+  getMarketBorrowRates,
+  getMarketLendRates,
 }

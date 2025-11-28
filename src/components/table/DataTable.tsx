@@ -50,7 +50,11 @@ interface DataTableProps<TData, TValue> {
   filterableColumns?: {
     column: string
     title: string
-    options: { value: string; label: string | React.ReactNode }[]
+    options: {
+      value: string
+      label: string | React.ReactNode
+      icon?: React.ComponentType<{ className?: string }>
+    }[]
   }[]
   hiddenColumns?: string[]
   onRowClick?: (row: TData) => void
@@ -100,7 +104,9 @@ export function DataTable<TData, TValue>({
   })
 
   // Check if a select column (checkbox) is present
-  const hasSelectColumn = columns.some((col) => 'id' in col && col.id === 'select')
+  const hasSelectColumn = columns.some(
+    (col) => 'id' in col && col.id === 'select'
+  )
 
   return (
     <div className="space-y-4">
@@ -116,8 +122,8 @@ export function DataTable<TData, TValue>({
               <TableRow key={headerGroup.id}>
                 {headerGroup.headers.map((header) => {
                   return (
-                    <TableHead 
-                      key={header.id} 
+                    <TableHead
+                      key={header.id}
                       colSpan={header.colSpan}
                       style={{
                         width: header.getSize(),
@@ -145,7 +151,7 @@ export function DataTable<TData, TValue>({
                   className="relative z-0"
                 >
                   {row.getVisibleCells().map((cell) => (
-                    <TableCell 
+                    <TableCell
                       key={cell.id}
                       style={{
                         width: cell.column.getSize(),

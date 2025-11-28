@@ -1,18 +1,22 @@
 import { cacheExchange, createClient, fetchExchange } from '@urql/core'
 import type { Address } from 'viem'
 
-import type { BaseDataAdapter } from '@/lib/adapters/types'
-import { BorrowPosition, LendPosition } from '@/types'
+import type { DataAdapter } from '@/lib/adapters/types'
+import { BorrowPosition, LendPosition, MarketRate } from '@/types'
 
 import { AAVE_CONFIG } from '../../config'
 import { ALL_MARKETS_GQL_PARAMS } from './config'
 import {
+  MarketBorrowRatesQuery,
   UserBorrowPositionsQuery,
+  UserLendCollateralsQuery,
   UserLendPositionsQuery,
   UserMarketHealthFactorQuery,
 } from './generated/graphql'
 import {
+  MARKET_BORROW_RATES,
   USER_BORROW_POSITIONS,
+  USER_LEND_COLLATERALS,
   USER_LEND_POSITIONS,
   USER_MARKET_HEALTH_FACTOR,
 } from './queries'
@@ -33,9 +37,11 @@ const client = createClient({
   requestPolicy: 'network-only',
 })
 
-async function getUserLendPositions(
+async function getUserLendPositions({
+  addresses,
+}: {
   addresses: Address[]
-): Promise<LendPosition[]> {
+}): Promise<LendPosition[]> {
   if (!addresses || addresses.length === 0) {
     return []
   }
@@ -101,9 +107,11 @@ async function getUserLendPositions(
   }
 }
 
-async function getUserBorrowPositions(
+async function getUserBorrowPositions({
+  addresses,
+}: {
   addresses: Address[]
-): Promise<BorrowPosition[]> {
+}): Promise<BorrowPosition[]> {
   if (!addresses || addresses.length === 0) {
     return []
   }
@@ -179,20 +187,58 @@ async function getUserBorrowPositions(
           })
         )
 
-        const collaterals: BorrowPosition['collaterals'] = []
-        // account.deposits.map((deposit) => {
-        //   return {
-        //     address: deposit.asset.id,
-        //     name: deposit.asset.name,
-        //     symbol: deposit.asset.symbol,
-        //     decimals: deposit.asset.decimals,
-        //     amount: deposit.amount,
-        //     amountUSD:
-        //       Number(
-        //         formatUnits(BigInt(deposit.amount ?? 0), deposit.asset.decimals)
-        //       ) * deposit.asset.lastPriceUSD,
-        //   }
-        // })
+        const { data: collateralsData, error: collateralsError } = await client
+          .query<UserLendCollateralsQuery>(USER_LEND_COLLATERALS, {
+            request: {
+              collateralsOnly: true,
+              user: address,
+              ...ALL_MARKETS_GQL_PARAMS, // TODO: filter by market with borrow position
+              orderBy: {
+                apy: 'DESC',
+              },
+            },
+          })
+          .toPromise()
+
+        if (collateralsError) {
+          console.error(
+            'Failed to fetch Aave V3 positions:',
+            collateralsError.message
+          )
+          if (
+            collateralsError.message?.includes('Time-out') ||
+            collateralsError.networkError
+          ) {
+            console.warn('Aave V3 API timeout - returning empty positions')
+          }
+          return []
+        }
+
+        const markets_collaterals: Record<
+          string,
+          BorrowPosition['collaterals']
+        > = {}
+        collateralsData?.userSupplies?.forEach((position) => {
+          if (
+            !markets_collaterals[
+              `${position.market.chain.chainId}-${position.market.address}`
+            ]
+          ) {
+            markets_collaterals[
+              `${position.market.chain.chainId}-${position.market.address}`
+            ] = []
+          }
+          markets_collaterals[
+            `${position.market.chain.chainId}-${position.market.address}`
+          ].push({
+            address: position.currency.address,
+            name: position.currency.name,
+            symbol: position.currency.symbol,
+            decimals: position.currency.decimals,
+            amount: Number(position.balance.amount.value),
+            amountUSD: Number(position.balance.usd),
+          })
+        })
 
         return data.userBorrows.map(
           (position): BorrowPosition => ({
@@ -203,15 +249,22 @@ async function getUserBorrowPositions(
                 `${address}-${position.market.address}-${position.market.chain.chainId}`
               ) ?? 0,
             userAddress: address,
+            poolId: position.market.address,
             poolName: position.market.name,
             poolAddress: position.market.address,
+            poolChainId: position.market.chain.chainId,
             poolChainNetwork: position.market.chain.name,
+            loanAssetAddress: position.currency.address,
             loanAssetName: position.currency.name,
             loanAssetSymbol: position.currency.symbol,
             loanAssetDecimals: position.currency.decimals,
             loanAssetAmount: position.debt.amount.value,
             loanAssetAmountUsd: position.debt.usd,
-            collaterals,
+            loanTimestamp: 0,
+            collaterals:
+              markets_collaterals[
+                `${position.market.chain.chainId}-${position.market.address}`
+              ],
             apy: position.apy.formatted,
             link: `https://app.aave.com/reserve-overview/?underlyingAsset=${position.currency.address.toLowerCase()}&marketName=proto_${position.market.chain.name.toLowerCase()}_v3`,
           })
@@ -225,8 +278,50 @@ async function getUserBorrowPositions(
   }
 }
 
-export const aaveV3OffchainAdapter: BaseDataAdapter = {
+async function getMarketBorrowRates({
+  poolId,
+  chainId,
+  tokenId,
+}: {
+  poolId: string
+  chainId: number
+  tokenId: Address
+}): Promise<MarketRate[]> {
+  const { data, error } = await client
+    .query<MarketBorrowRatesQuery>(MARKET_BORROW_RATES, {
+      request: {
+        chainId,
+        market: poolId,
+        underlyingToken: tokenId,
+        window: 'LAST_WEEK',
+      },
+    })
+    .toPromise()
+
+  if (error) {
+    console.error(`Failed to fetch Aave V3 borrow rates:`, error)
+    if (error.message?.includes('Time-out') || error.networkError) {
+      console.warn(`Aave V3 API timeout - returning empty rates`)
+    }
+    return []
+  }
+
+  return (
+    data?.borrowAPYHistory?.map((item) => ({
+      timestamp: Math.floor(new Date(item.date).getTime() / 1000),
+      rate: item.avgRate.value,
+    })) ?? []
+  )
+}
+
+async function getMarketLendRates() {
+  return []
+}
+
+export const aaveV3OffchainAdapter: DataAdapter = {
   dataSourceType: 'offchain',
   getUserLendPositions,
   getUserBorrowPositions,
+  getMarketBorrowRates,
+  getMarketLendRates,
 }

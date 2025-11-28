@@ -17,10 +17,10 @@ import { compoundV3Adapter } from './v3'
  * @example
  * ```typescript
  * // Use default version (compound_v3)
- * const positions = await CompoundAdapter.getUserLendPositions(['0x...'])
+ * const positions = await CompoundAdapter.getUserLendPositions({ addresses: ['0x...'] })
  *
  * // Explicitly use compound_v3
- * const v3Positions = await CompoundAdapter.getUserLendPositions(['0x...'], 'compound_v3')
+ * const v3Positions = await CompoundAdapter.getUserLendPositions({ addresses: ['0x...'] }, 'compound_v3')
  * ```
  */
 export const CompoundAdapter = createProtocolAdapter(

@@ -1,6 +1,12 @@
 import type { Address } from 'viem'
 
-import { BorrowPosition, LendPosition, MarketStats } from '@/types'
+import {
+  BorrowPosition,
+  LendPosition,
+  MarketRate,
+  type MarketRateInterval,
+  MarketStats,
+} from '@/types'
 
 // ============================================================================
 // DATA SOURCE TYPES
@@ -12,14 +18,18 @@ import { BorrowPosition, LendPosition, MarketStats } from '@/types'
 export type DataSourceType = 'offchain' | 'onchain'
 
 // ============================================================================
-// BASE ADAPTER INTERFACES
+// UNIFIED DATA ADAPTER INTERFACE
 // ============================================================================
 
 /**
- * Base interface for all data adapters (GraphQL or Subgraph).
- * Provides core methods for fetching user positions.
+ * Unified interface for all data adapters (GraphQL or Subgraph).
+ * Each implementation chooses which methods to support based on its data source capabilities.
+ *
+ * - GraphQL adapters typically implement position methods for real-time data
+ * - Subgraph adapters typically implement stats/rates methods for historical/aggregated data
+ * - Some adapters may implement all methods if the data source supports it
  */
-export interface BaseDataAdapter {
+export interface DataAdapter {
   /**
    * The type of data source this adapter uses.
    */
@@ -27,25 +37,62 @@ export interface BaseDataAdapter {
 
   /**
    * Fetches the user's lending positions.
-   * @param addresses Array of user addresses to fetch positions for.
+   * @param params Parameters for fetching lending positions.
+   * @param params.addresses Array of user addresses to fetch positions for.
    * @returns A promise that resolves to an array of lending positions.
    */
-  getUserLendPositions(addresses: Address[]): Promise<LendPosition[]>
+  getUserLendPositions?(params: {
+    addresses: Address[]
+  }): Promise<LendPosition[]>
 
   /**
    * Fetches the user's borrowing positions.
-   * @param addresses Array of user addresses to fetch positions for.
+   * @param params Parameters for fetching borrowing positions.
+   * @param params.addresses Array of user addresses to fetch positions for.
    * @returns A promise that resolves to an array of borrowing positions.
    */
-  getUserBorrowPositions(addresses: Address[]): Promise<BorrowPosition[]>
-}
+  getUserBorrowPositions?(params: {
+    addresses: Address[]
+  }): Promise<BorrowPosition[]>
 
-/**
- * Adapter for fetching statistical or historical market data.
- */
-export interface StatsAdapter {
-  getMarketStats(): Promise<MarketStats[]>
-  // other stats methods can go here
+  /**
+   * Fetches market statistics (TVL, volume, APY, etc.).
+   * Typically provided by Subgraph for historical/aggregated data.
+   * @returns A promise that resolves to an array of market statistics.
+   */
+  getMarketStats?(): Promise<MarketStats[]>
+
+  /**
+   * Fetches market rates (supply rates, borrow rates, etc.).
+   * Can be provided by either GraphQL or Subgraph depending on availability.
+   * @param params Parameters for fetching market rates.
+   * @param params.poolId The pool/market identifier.
+   * @param params.timeline The timeline granularity (HOUR or DAY).
+   * @param params.fromTimestamp The starting timestamp for historical data.
+   * @returns A promise that resolves to an array of market rates.
+   */
+  getMarketBorrowRates?(params: {
+    poolId: string
+    interval: MarketRateInterval
+    fromTimestamp: number
+    chainId: number
+    tokenId: Address
+  }): Promise<MarketRate[]>
+
+  /**
+   * Fetches market rates (supply rates, borrow rates, etc.).
+   * Can be provided by either GraphQL or Subgraph depending on availability.
+   * @param params Parameters for fetching market rates.
+   * @param params.poolId The pool/market identifier.
+   * @param params.timeline The timeline granularity (HOUR or DAY).
+   * @param params.fromTimestamp The starting timestamp for historical data.
+   * @returns A promise that resolves to an array of market rates.
+   */
+  getMarketLendRates?(params: {
+    poolId: string
+    interval: MarketRateInterval
+    fromTimestamp: number
+  }): Promise<MarketRate[]>
 }
 
 // ============================================================================
@@ -53,27 +100,40 @@ export interface StatsAdapter {
 // ============================================================================
 
 /**
- * Data source configuration for a specific data type.
- * Allows using different sources (GraphQL/Subgraph) for different operations.
+ * Data source configuration for a specific protocol version.
+ * Allows using different adapters (GraphQL/Subgraph) for different data types.
+ *
+ * Each adapter exposes only the methods supported by its underlying data source:
+ * - positions: Typically a GraphQL adapter with getUserLendPositions/getUserBorrowPositions
+ * - stats: Typically a Subgraph adapter with getMarketStats
+ * - rates: Either GraphQL or Subgraph adapter with getMarketBorrowRates/getMarketLendRates
+ *
+ * @example
+ * ```typescript
+ * const dataSources: DataSourceConfig = {
+ *   positions: aaveV3GraphQLAdapter,  // Implements position methods
+ *   stats: aaveV3SubgraphAdapter,     // Implements stats methods
+ * }
+ * ```
  */
 export interface DataSourceConfig {
   /**
    * Adapter for real-time user position data.
-   * Typically uses GraphQL API for fast, real-time queries.
+   * Should implement getUserLendPositions and/or getUserBorrowPositions.
    */
-  positions?: BaseDataAdapter
+  positions?: DataAdapter
 
   /**
    * Adapter for statistical and historical market data.
-   * Typically uses Subgraph for aggregated historical data.
+   * Should implement getMarketStats.
    */
-  stats?: StatsAdapter
+  stats?: DataAdapter
 
   /**
    * Adapter for historical rate data.
-   * Can use either GraphQL or Subgraph depending on availability.
+   * Should implement getMarketBorrowRates/getMarketLend Rates.
    */
-  rates?: BaseDataAdapter
+  rates?: DataAdapter
 }
 
 /**
@@ -129,22 +189,24 @@ export interface ProtocolAdapter {
   /**
    * Convenience method to fetch lending positions from a specific version.
    * Uses the 'positions' data source (typically GraphQL API).
-   * @param addresses Array of user addresses.
+   * @param params Parameters for fetching lending positions.
+   * @param params.addresses Array of user addresses.
    * @param version Optional version identifier. Uses default if not provided.
    */
   getUserLendPositions(
-    addresses: Address[],
+    params: { addresses: Address[] },
     version?: string
   ): Promise<LendPosition[]>
 
   /**
    * Convenience method to fetch borrowing positions from a specific version.
    * Uses the 'positions' data source (typically GraphQL API).
-   * @param addresses Array of user addresses.
+   * @param params Parameters for fetching borrowing positions.
+   * @param params.addresses Array of user addresses.
    * @param version Optional version identifier. Uses default if not provided.
    */
   getUserBorrowPositions(
-    addresses: Address[],
+    params: { addresses: Address[] },
     version?: string
   ): Promise<BorrowPosition[]>
 
@@ -154,4 +216,43 @@ export interface ProtocolAdapter {
    * @param version Optional version identifier. Uses default if not provided.
    */
   getMarketStats(version?: string): Promise<MarketStats[]>
+
+  /**
+   * Get market rates from a specific version.
+   * Uses the 'rates' data source (typically Subgraph).
+   * @param params Parameters for fetching market rates.
+   * @param params.poolId The pool/market identifier.
+   * @param params.timeline The timeline granularity (HOUR or DAY).
+   * @param params.fromTimestamp The starting timestamp for historical data.
+   * @param version Optional version identifier. Uses default if not provided.
+   */
+  getMarketBorrowRates(
+    params: {
+      chainId: number
+      poolId: string
+      tokenId: Address
+      interval: MarketRateInterval
+      fromTimestamp: number
+    },
+    version?: string
+  ): Promise<MarketRate[]>
+
+  /**
+   * Get market rates from a specific version.
+   * Uses the 'rates' data source (typically Subgraph).
+   * @param params Parameters for fetching market rates.
+   * @param params.poolId The pool/market identifier.
+   * @param params.timeline The timeline granularity (HOUR or DAY).
+   * @param params.fromTimestamp The starting timestamp for historical data.
+   * @param version Optional version identifier. Uses default if not provided.
+   */
+  getMarketLendRates(
+    params: {
+      chainId: number
+      poolId: string
+      interval: MarketRateInterval
+      fromTimestamp: number
+    },
+    version?: string
+  ): Promise<MarketRate[]>
 }

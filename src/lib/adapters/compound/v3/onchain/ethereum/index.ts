@@ -11,7 +11,7 @@ const config = COMPOUND_V3_CHAINS[mainnet.id]
  */
 const ethereumClient = createChainClient(
   config.custom.subgraphUrl!,
-  process.env.COMPOUND_THEGRAPH_API_KEY
+  process.env.THEGRAPH_API_KEY
 )
 
 // Register this chain with the adapter

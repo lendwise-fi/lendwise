@@ -107,14 +107,18 @@ export interface BorrowPosition {
   protocol: ProtocolName
   healthFactor: number
   userAddress: Address
+  poolId: string
   poolName: string
   poolAddress: Address
+  poolChainId: number
   poolChainNetwork: string
+  loanAssetAddress: Address
   loanAssetName: string
   loanAssetSymbol: string
   loanAssetDecimals: number
   loanAssetAmount: number
   loanAssetAmountUsd: number
+  loanTimestamp: number
   collaterals: (Token & { amount: number; amountUSD: number })[]
   apy: number
   link?: string
@@ -133,3 +137,27 @@ export interface MarketStats {
   borrowApy: number
   volume24h?: number
 }
+
+export interface MarketRate {
+  timestamp: number
+  rate: number
+}
+
+/**
+ * Market rates interval constants
+ * Use MARKET_RATES_INTERVAL.DAY or MARKET_RATES_INTERVAL.HOUR
+ */
+export const MARKET_RATES_INTERVAL = {
+  HOUR: 'HOUR',
+  DAY: 'DAY',
+  WEEK: 'WEEK',
+  MONTH: 'MONTH',
+  QUARTER: 'QUARTER',
+  YEAR: 'YEAR',
+} as const
+
+/**
+ * Type derived from MARKET_RATES_INTERVAL values
+ */
+export type MarketRateInterval =
+  (typeof MARKET_RATES_INTERVAL)[keyof typeof MARKET_RATES_INTERVAL]

@@ -46,6 +46,7 @@ export const USER_BORROW_POSITIONS = gql`
       borrows {
         id
         amount
+        timestamp
         asset {
           id
           name
@@ -54,7 +55,11 @@ export const USER_BORROW_POSITIONS = gql`
           lastPriceUSD
         }
         market {
+          id
           name
+          inputToken {
+            id
+          }
           relation
           protocol {
             network
@@ -64,7 +69,6 @@ export const USER_BORROW_POSITIONS = gql`
           }
         }
       }
-
       deposits {
         id
         amount
@@ -76,6 +80,49 @@ export const USER_BORROW_POSITIONS = gql`
           lastPriceUSD
         }
       }
+    }
+  }
+`
+export const MARKET_HOURLY_BORROW_RATES = gql`
+  query MarketHourlyBorrowRates($where: MarketHourlySnapshot_filter) {
+    marketHourlySnapshots(where: $where) {
+      rates(where: { side: BORROWER }) {
+        rate
+      }
+      timestamp
+    }
+  }
+`
+
+export const MARKET_HOURLY_LEND_RATES = gql`
+  query MarketHourlyLendRates($where: MarketHourlySnapshot_filter) {
+    marketHourlySnapshots(where: $where) {
+      rates(where: { side: LENDER }) {
+        rate
+      }
+      timestamp
+    }
+  }
+`
+
+export const MARKET_DAILY_BORROW_RATES = gql`
+  query MarketDailyBorrowRates($where: MarketDailySnapshot_filter) {
+    marketDailySnapshots(where: $where) {
+      rates(where: { side: BORROWER }) {
+        rate
+      }
+      timestamp
+    }
+  }
+`
+
+export const MARKET_DAILY_LEND_RATES = gql`
+  query MarketDailyLendRates($where: MarketDailySnapshot_filter) {
+    marketDailySnapshots(where: $where) {
+      rates(where: { side: LENDER }) {
+        rate
+      }
+      timestamp
     }
   }
 `

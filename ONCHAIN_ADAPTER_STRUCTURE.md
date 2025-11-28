@@ -38,7 +38,8 @@ src/lib/adapters/
 All chain configurations are defined here:
 
 ```typescript
-import { mainnet, base, polygon } from 'viem/chains'
+import { base, mainnet, polygon } from 'viem/chains'
+
 import type { ProtocolConfig } from '@/config/protocols'
 
 export const COMPOUND_CONFIG: Record<string, ProtocolConfig> = {
@@ -79,7 +80,7 @@ export type CompoundV3ChainId = keyof typeof COMPOUND_V3_CHAINS
 Create a reusable client factory function:
 
 ```typescript
-import { cacheExchange, Client, createClient, fetchExchange } from '@urql/core'
+import { Client, cacheExchange, createClient, fetchExchange } from '@urql/core'
 
 /**
  * Creates a GraphQL client for a specific chain.
@@ -111,15 +112,16 @@ export function createChainClient(
 ```typescript
 // ethereum/index.ts
 import { mainnet } from 'viem/chains'
-import { createChainClient, registerChain } from '../index'
+
 import { COMPOUND_V3_CHAINS } from '../config'
+import { createChainClient, registerChain } from '../index'
 
 const config = COMPOUND_V3_CHAINS[mainnet.id]
 
 // Create the client
 const ethereumClient = createChainClient(
   config.custom.subgraphUrl!,
-  process.env.COMPOUND_THEGRAPH_API_KEY
+  process.env.THEGRAPH_API_KEY
 )
 
 // Register this chain (auto-included in data fetching)
@@ -134,6 +136,11 @@ registerChain({
 **Main adapter imports chain modules:**
 
 ```typescript
+// Import chain modules (they auto-register)
+// Registers Ethereum
+import './base'
+import './ethereum'
+
 // index.ts
 // Chain registry
 const chainRegistry: ChainClient[] = []
@@ -142,9 +149,7 @@ export function registerChain(config: ChainClient): void {
   chainRegistry.push(config)
 }
 
-// Import chain modules (they auto-register)
-import './ethereum'  // Registers Ethereum
-import './base'      // Registers Base
+// Registers Base
 // import './polygon'   // Uncomment to enable
 
 function getChainClients(): ChainClient[] {
@@ -162,6 +167,7 @@ async function getUserLendPositions(addresses: Address[]) {
 ```
 
 **Benefits of Self-Registration:**
+
 - ✅ **Zero boilerplate** - No manual array maintenance
 - ✅ **Automatic discovery** - Just import the module
 - ✅ **Easy to enable/disable** - Comment out a single import line
@@ -247,17 +253,20 @@ export const PROTOCOL_CONFIG = {
 ## Current Implementation Status
 
 ### Compound V3 ✅
+
 - ✅ Centralized config in `/src/lib/adapters/compound/config.ts`
 - ✅ `createChainClient` utility in `/src/lib/adapters/compound/v3/onchain/index.ts`
 - ✅ Chain folders: `ethereum/`, `base/`, `polygon/`
 - ✅ Base has custom queries due to different schema
 
 ### Morpho V1 🔄
+
 - ✅ Centralized config in `/src/lib/adapters/morpho/config.ts`
 - ⏳ TODO: Create onchain adapter with `createChainClient` utility
 - ⏳ TODO: Support multiple chains (mainnet, base, arbitrum, polygon, optimism)
 
 ### AAVE V3 ⏳
+
 - ⏳ TODO: Create centralized config
 - ⏳ TODO: Create onchain adapter structure
 - ⏳ TODO: Support multiple chains
@@ -268,7 +277,7 @@ Each protocol may require API keys:
 
 ```env
 # Compound
-COMPOUND_THEGRAPH_API_KEY=your_api_key_here
+THEGRAPH_API_KEY=your_api_key_here
 
 # Morpho (if using authenticated subgraphs)
 MORPHO_THEGRAPH_API_KEY=your_api_key_here

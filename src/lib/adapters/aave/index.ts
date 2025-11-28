@@ -14,10 +14,10 @@ import { aaveV3Adapter } from './v3'
  * @example
  * ```typescript
  * // Use default version (aave_v3)
- * const positions = await AaveAdapter.getUserLendPositions(['0x...'])
+ * const positions = await AaveAdapter.getUserLendPositions({ addresses: ['0x...'] })
  *
  * // Explicitly use aave_v3
- * const v3Positions = await AaveAdapter.getUserLendPositions(['0x...'], 'aave_v3')
+ * const v3Positions = await AaveAdapter.getUserLendPositions({ addresses: ['0x...'] }, 'aave_v3')
  * ```
  */
 export const AaveAdapter = createProtocolAdapter(

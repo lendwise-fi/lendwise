@@ -87,11 +87,49 @@ export const USER_BORROW_POSITIONS = gql`
     }
   }
 `
-
 export const USER_MARKET_HEALTH_FACTOR = gql`
   query UserMarketHealthFactor($request: UserMarketStateRequest!) {
     userMarketState(request: $request) {
       healthFactor
+    }
+  }
+`
+export const USER_LEND_COLLATERALS = gql`
+  query UserLendCollaterals($request: UserSuppliesRequest!) {
+    userSupplies(request: $request) {
+      balance {
+        amount {
+          raw
+          value
+          decimals
+        }
+        usd
+        usdPerToken
+      }
+      currency {
+        address
+        chainId
+        decimals
+        imageUrl
+        name
+        symbol
+      }
+      market {
+        address
+        chain {
+          chainId
+        }
+      }
+    }
+  }
+`
+export const MARKET_BORROW_RATES = gql`
+  query MarketBorrowRates($request: BorrowAPYHistoryRequest!) {
+    borrowAPYHistory(request: $request) {
+      avgRate {
+        value
+      }
+      date
     }
   }
 `

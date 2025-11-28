@@ -1,0 +1,40 @@
+import type { Client } from '@urql/core'
+
+import type { BorrowPosition, LendPosition, MarketRate } from '@/types'
+
+/**
+ * Base chain client configuration type.
+ * Protocols can extend this with their own query and transformer types.
+ */
+export type BaseChainClient<TQueries = unknown, TTransformers = unknown> = {
+  client: Client
+  chainId: number
+  chainName?: string
+  queries?: TQueries
+  transformers?: TTransformers
+}
+
+/**
+ * Chain configuration from protocol config.
+ */
+export type ChainConfig = {
+  id: number
+  name: string
+  custom?: {
+    clientPath?: string
+    subgraphUrl?: string
+  }
+}
+
+/**
+ * Base transformer types that protocols can use or extend.
+ */
+export type BaseChainTransformers = {
+  getUserLendPositions?: (data: unknown, protocolId: string) => LendPosition[]
+  getUserBorrowPositions?: (
+    data: unknown,
+    protocolId: string
+  ) => BorrowPosition[]
+  getMarketBorrowRates?: (data: unknown, protocolId: string) => MarketRate[]
+  getMarketLendRates?: (data: unknown, protocolId: string) => MarketRate[]
+}

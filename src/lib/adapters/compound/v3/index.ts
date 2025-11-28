@@ -8,5 +8,5 @@ import { compoundV3OnchainAdapter } from './onchain'
  */
 export const compoundV3Adapter = createVersionAdapter('v3', {
   positions: compoundV3OnchainAdapter,
-  // stats: compoundV3SubgraphStatsAdapter, // TODO: Implement stats from subgraph
+  rates: compoundV3OnchainAdapter,
 })

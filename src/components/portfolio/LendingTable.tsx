@@ -164,7 +164,7 @@ function TableCellViewer({ item }: { item: LendPosition }) {
       <DrawerTrigger asChild>
         <Button
           variant="link"
-          className="text-foreground w-fit px-0 text-left underline decoration-dashed underline-offset-6"
+          className="text-foreground decoration-muted-foreground w-fit px-0 text-left underline decoration-dashed underline-offset-6"
         >
           {item.poolName}
         </Button>

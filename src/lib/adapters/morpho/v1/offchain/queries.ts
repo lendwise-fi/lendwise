@@ -67,6 +67,7 @@ export const USER_BORROW_POSITIONS = gql`
           id
           lltv
           collateralAsset {
+            address
             name
             symbol
             decimals
@@ -102,6 +103,56 @@ export const USER_BORROW_POSITIONS = gql`
         count
         limit
         skip
+      }
+    }
+  }
+`
+
+export const MARKET_BORROW_RATES = gql`
+  query MarketBorrowRates($marketId: String!, $options: TimeseriesOptions) {
+    market(id: $marketId) {
+      historicalState {
+        borrowApy(options: $options) {
+          x
+          y
+        }
+        netBorrowApy(options: $options) {
+          x
+          y
+        }
+        dailyBorrowApy(options: $options) {
+          x
+          y
+        }
+        fee(options: $options) {
+          x
+          y
+        }
+      }
+    }
+  }
+`
+
+export const MARKET_LEND_RATES = gql`
+  query MarketLendRates($marketId: String!, $options: TimeseriesOptions) {
+    market(id: $marketId) {
+      historicalState {
+        supplyApy(options: $options) {
+          x
+          y
+        }
+        netSupplyApy(options: $options) {
+          x
+          y
+        }
+        dailySupplyApy(options: $options) {
+          x
+          y
+        }
+        fee(options: $options) {
+          x
+          y
+        }
       }
     }
   }

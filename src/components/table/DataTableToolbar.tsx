@@ -15,7 +15,11 @@ interface DataTableToolbarProps<TData> {
   filterableColumns?: {
     column: string
     title: string
-    options: { value: string; label: string | React.ReactNode }[]
+    options: {
+      value: string
+      label: string | React.ReactNode
+      icon?: React.ComponentType<{ className?: string }>
+    }[]
   }[]
 }
 

@@ -1,12 +1,14 @@
 import type { Address } from 'viem'
 
-import type { BorrowPosition, LendPosition, MarketStats } from '@/types'
-
 import type {
-  DataSourceConfig,
-  ProtocolAdapter,
-  VersionAdapter,
-} from './types'
+  BorrowPosition,
+  LendPosition,
+  MarketRate,
+  MarketRateInterval,
+  MarketStats,
+} from '@/types'
+
+import type { DataSourceConfig, ProtocolAdapter, VersionAdapter } from './types'
 
 /**
  * Creates a protocol adapter with version management capabilities.
@@ -45,9 +47,7 @@ export function createProtocolAdapter(
 ): ProtocolAdapter {
   // Validate that default version exists
   if (!versions[defaultVersion]) {
-    throw new Error(
-      `Default version '${defaultVersion}' not found in versions`
-    )
+    throw new Error(`Default version '${defaultVersion}' not found in versions`)
   }
 
   // Validate that version config exists for default version
@@ -81,7 +81,7 @@ export function createProtocolAdapter(
     },
 
     async getUserLendPositions(
-      addresses: Address[],
+      params: { addresses: Address[] },
       version?: string
     ): Promise<LendPosition[]> {
       const versionAdapter = this.getVersion(version)
@@ -93,11 +93,17 @@ export function createProtocolAdapter(
         )
       }
 
-      return positionsAdapter.getUserLendPositions(addresses)
+      if (!positionsAdapter.getUserLendPositions) {
+        throw new Error(
+          `Positions adapter for ${this.protocol} ${versionAdapter.version} does not implement getUserLendPositions`
+        )
+      }
+
+      return positionsAdapter.getUserLendPositions(params)
     },
 
     async getUserBorrowPositions(
-      addresses: Address[],
+      params: { addresses: Address[] },
       version?: string
     ): Promise<BorrowPosition[]> {
       const versionAdapter = this.getVersion(version)
@@ -109,7 +115,13 @@ export function createProtocolAdapter(
         )
       }
 
-      return positionsAdapter.getUserBorrowPositions(addresses)
+      if (!positionsAdapter.getUserBorrowPositions) {
+        throw new Error(
+          `Positions adapter for ${this.protocol} ${versionAdapter.version} does not implement getUserBorrowPositions`
+        )
+      }
+
+      return positionsAdapter.getUserBorrowPositions(params)
     },
 
     async getMarketStats(version?: string): Promise<MarketStats[]> {
@@ -123,7 +135,72 @@ export function createProtocolAdapter(
         return []
       }
 
+      if (!statsAdapter.getMarketStats) {
+        console.warn(
+          `Stats adapter for ${this.protocol} ${versionAdapter.version} does not implement getMarketStats`
+        )
+        return []
+      }
+
       return statsAdapter.getMarketStats()
+    },
+
+    async getMarketBorrowRates(
+      params: {
+        chainId: number
+        poolId: string
+        interval: MarketRateInterval
+        fromTimestamp: number
+      },
+      version?: string
+    ): Promise<MarketRate[]> {
+      const versionAdapter = this.getVersion(version)
+      const ratesAdapter = versionAdapter.dataSources.rates
+
+      if (!ratesAdapter) {
+        console.warn(
+          `No rates data source configured for ${this.protocol} ${versionAdapter.version}`
+        )
+        return []
+      }
+
+      if (!ratesAdapter.getMarketBorrowRates) {
+        console.warn(
+          `Rates adapter for ${this.protocol} ${versionAdapter.version} does not implement getMarketBorrowRates`
+        )
+        return []
+      }
+
+      return ratesAdapter.getMarketBorrowRates(params)
+    },
+
+    async getMarketLendRates(
+      params: {
+        chainId: number
+        poolId: string
+        interval: MarketRateInterval
+        fromTimestamp: number
+      },
+      version?: string
+    ): Promise<MarketRate[]> {
+      const versionAdapter = this.getVersion(version)
+      const ratesAdapter = versionAdapter.dataSources.rates
+
+      if (!ratesAdapter) {
+        console.warn(
+          `No rates data source configured for ${this.protocol} ${versionAdapter.version}`
+        )
+        return []
+      }
+
+      if (!ratesAdapter.getMarketLendRates) {
+        console.warn(
+          `Rates adapter for ${this.protocol} ${versionAdapter.version} does not implement getMarketLendRates`
+        )
+        return []
+      }
+
+      return ratesAdapter.getMarketLendRates(params)
     },
   }
 }

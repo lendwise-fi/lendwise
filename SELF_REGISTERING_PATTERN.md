@@ -17,6 +17,7 @@ const CHAIN_CLIENTS: ChainClient[] = [
 ```
 
 **Issues:**
+
 - ❌ Magic numbers (`CHAINS[1]`, `CHAINS[8453]`)
 - ❌ Redundant code - repeating chain info
 - ❌ Manual maintenance - have to update array when adding/removing chains
@@ -31,6 +32,9 @@ Each chain folder **registers itself** when imported. No manual array maintenanc
 #### 1. Main Adapter Provides Registry
 
 ```typescript
+// Import chain modules (they auto-register when imported)
+import './ethereum'
+
 // compound/v3/onchain/index.ts
 
 // Registry to hold all registered chains
@@ -41,8 +45,7 @@ export function registerChain(config: ChainClient): void {
   chainRegistry.push(config)
 }
 
-// Import chain modules (they auto-register when imported)
-import './ethereum'  // ✅ Registers Ethereum automatically
+// ✅ Registers Ethereum automatically
 // import './base'     // ✅ Uncomment to enable Base
 // import './polygon'  // ✅ Uncomment to enable Polygon
 
@@ -66,15 +69,16 @@ async function getUserLendPositions(addresses: Address[]) {
 ```typescript
 // compound/v3/onchain/ethereum/index.ts
 import { mainnet } from 'viem/chains'
-import { createChainClient, registerChain } from '../index'
+
 import { COMPOUND_V3_CHAINS } from '../config'
+import { createChainClient, registerChain } from '../index'
 
 const config = COMPOUND_V3_CHAINS[mainnet.id]
 
 // Create client
 const ethereumClient = createChainClient(
   config.custom.subgraphUrl!,
-  process.env.COMPOUND_THEGRAPH_API_KEY
+  process.env.THEGRAPH_API_KEY
 )
 
 // ✅ Register this chain - that's it!
@@ -90,15 +94,16 @@ registerChain({
 ```typescript
 // compound/v3/onchain/base/index.ts
 import { base } from 'viem/chains'
-import { createChainClient, registerChain } from '../index'
+
 import { COMPOUND_V3_CHAINS } from '../config'
-import { USER_LEND_POSITIONS_BASE, USER_BORROW_POSITIONS_BASE } from './queries'
+import { createChainClient, registerChain } from '../index'
+import { USER_BORROW_POSITIONS_BASE, USER_LEND_POSITIONS_BASE } from './queries'
 
 const config = COMPOUND_V3_CHAINS[base.id]
 
 const baseClient = createChainClient(
   config.custom.subgraphUrl!,
-  process.env.COMPOUND_THEGRAPH_API_KEY
+  process.env.THEGRAPH_API_KEY
 )
 
 // ✅ Register with custom queries
@@ -116,33 +121,47 @@ registerChain({
 ## Benefits
 
 ### ✅ Zero Boilerplate
+
 No need to manually maintain a `CHAIN_CLIENTS` array. Each chain manages its own registration.
 
 ### ✅ Automatic Discovery
+
 Just import the chain module and it's automatically included in data fetching.
 
 ### ✅ Easy to Enable/Disable
+
 ```typescript
 // Enable/disable chains with a single line
-import './ethereum'  // ✅ Enabled
+import './ethereum'
+// ✅ Enabled
 // import './base'     // ❌ Disabled (commented out)
-import './polygon'   // ✅ Enabled
+import './polygon'
+
+// ✅ Enabled
 ```
 
 ### ✅ Type-Safe
+
 The `registerChain` function enforces the correct structure at compile time.
 
 ### ✅ Decoupled
+
 Each chain is completely independent. Adding a new chain doesn't require touching existing code.
 
 ### ✅ No Magic Numbers
+
 No more `CHAINS[1]` or `CHAINS[8453]`. Everything is explicit and clear.
 
 ### ✅ Self-Documenting
+
 Looking at the imports immediately shows which chains are active:
+
 ```typescript
-import './ethereum'  // Active
-import './base'      // Active
+// Active
+import './base'
+import './ethereum'
+
+// Active
 // import './polygon'  // Inactive
 ```
 
@@ -171,14 +190,15 @@ export const COMPOUND_CONFIG = {
 ```typescript
 // compound/v3/onchain/arbitrum/index.ts
 import { arbitrum } from 'viem/chains'
-import { createChainClient, registerChain } from '../index'
+
 import { COMPOUND_V3_CHAINS } from '../config'
+import { createChainClient, registerChain } from '../index'
 
 const config = COMPOUND_V3_CHAINS[arbitrum.id]
 
 const arbitrumClient = createChainClient(
   config.custom.subgraphUrl!,
-  process.env.COMPOUND_THEGRAPH_API_KEY
+  process.env.THEGRAPH_API_KEY
 )
 
 registerChain({
@@ -192,18 +212,25 @@ registerChain({
 
 ```typescript
 // compound/v3/onchain/index.ts
-import './ethereum'
+import './arbitrum'
 import './base'
-import './arbitrum'  // ✅ That's it! Chain is now active
+import './ethereum'
+
+// ✅ That's it! Chain is now active
 ```
 
 ## Comparison
 
 ### Before (Manual Array)
+
 ```typescript
 // ❌ Lots of boilerplate
-import { ethereumClient, ETHEREUM_CHAIN_ID, ETHEREUM_CHAIN_NAME } from './ethereum'
-import { baseClient, BASE_CHAIN_ID, BASE_CHAIN_NAME } from './base'
+import { BASE_CHAIN_ID, BASE_CHAIN_NAME, baseClient } from './base'
+import {
+  ETHEREUM_CHAIN_ID,
+  ETHEREUM_CHAIN_NAME,
+  ethereumClient,
+} from './ethereum'
 
 const CHAIN_CLIENTS: ChainClient[] = [
   {
@@ -220,15 +247,20 @@ const CHAIN_CLIENTS: ChainClient[] = [
 ```
 
 ### After (Self-Registration)
+
 ```typescript
 // ✅ Clean and simple
-import './ethereum'  // Auto-registers
-import './base'      // Auto-registers
+// Auto-registers
+import './base'
+import './ethereum'
+
+// Auto-registers
 ```
 
 ## Pattern Applicability
 
 This pattern is ideal for:
+
 - ✅ Multi-chain adapters (Compound, Morpho, AAVE)
 - ✅ Plugin systems
 - ✅ Modular architectures
@@ -238,13 +270,16 @@ This pattern is ideal for:
 ## Implementation Status
 
 ### Compound V3 ✅
+
 - ✅ Self-registering pattern implemented
 - ✅ Ethereum chain registered
 - ⏳ Base chain (commented out - pending subgraph)
 - ⏳ Polygon chain (commented out - pending subgraph)
 
 ### Morpho V1 ⏳
+
 - ⏳ TODO: Implement self-registering pattern for onchain adapter
 
 ### AAVE V3 ⏳
+
 - ⏳ TODO: Implement self-registering pattern for onchain adapter

@@ -8,5 +8,5 @@ import { aaveV3OffchainAdapter } from './offchain'
  */
 export const aaveV3Adapter = createVersionAdapter('v3', {
   positions: aaveV3OffchainAdapter,
-  // stats: aaveV3SubgraphAdapter, // TODO: Implement subgraph adapter for stats
+  rates: aaveV3OffchainAdapter,
 })

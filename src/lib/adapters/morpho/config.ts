@@ -1,12 +1,4 @@
-import {
-  arbitrum,
-  base,
-  katana,
-  mainnet,
-  optimism,
-  polygon,
-  unichain,
-} from 'viem/chains'
+import { polygon } from 'viem/chains'
 
 import type { ProtocolConfig } from '@/config/protocols'
 
@@ -19,55 +11,62 @@ export const MORPHO_CONFIG: Record<string, ProtocolConfig> = {
     name: 'Morpho',
     offchainApiUrl: 'https://api.morpho.org/graphql',
     chains: {
-      [mainnet.id]: {
-        ...mainnet,
-        custom: {
-          subgraphUrl:
-            'https://api.thegraph.com/subgraphs/name/morpho-association/morpho-blue-mainnet',
-        },
-      },
-      [base.id]: {
-        ...base,
-        custom: {
-          subgraphUrl:
-            'https://api.thegraph.com/subgraphs/name/morpho-association/morpho-blue-base',
-        },
-      },
-      [arbitrum.id]: {
-        ...arbitrum,
-        custom: {
-          subgraphUrl:
-            'https://api.thegraph.com/subgraphs/name/morpho-association/morpho-blue-arbitrum',
-        },
-      },
+      // [mainnet.id]: {
+      //   ...mainnet,
+      //   custom: {
+      //     subgraphUrl:
+      //       'https://api.thegraph.com/subgraphs/name/morpho-association/morpho-blue-mainnet',
+      //     clientPath: 'ethereum',
+      //   },
+      // },
+      // [base.id]: {
+      //   ...base,
+      //   custom: {
+      //     subgraphUrl:
+      //       'https://api.thegraph.com/subgraphs/name/morpho-association/morpho-blue-base',
+      //     clientPath: 'base',
+      //   },
+      // },
+      // [arbitrum.id]: {
+      //   ...arbitrum,
+      //   custom: {
+      //     subgraphUrl:
+      //       'https://api.thegraph.com/subgraphs/name/morpho-association/morpho-blue-arbitrum',
+      //     clientPath: 'arbitrum',
+      //   },
+      // },
       [polygon.id]: {
         ...polygon,
         custom: {
           subgraphUrl:
-            'https://api.thegraph.com/subgraphs/name/morpho-association/morpho-blue-polygon',
+            'https://gateway.thegraph.com/api/subgraphs/id/EhFokmwryNs7qbvostceRqVdjc3petuD13mmdUiMBw8Y',
+          clientPath: 'polygon',
         },
       },
-      [optimism.id]: {
-        ...optimism,
-        custom: {
-          subgraphUrl:
-            'https://api.thegraph.com/subgraphs/name/morpho-association/morpho-blue-optimism',
-        },
-      },
-      [katana.id]: {
-        ...katana,
-        custom: {
-          subgraphUrl:
-            'https://api.thegraph.com/subgraphs/name/morpho-association/morpho-blue-optimism',
-        },
-      },
-      [unichain.id]: {
-        ...unichain,
-        custom: {
-          subgraphUrl:
-            'https://api.thegraph.com/subgraphs/name/morpho-association/morpho-blue-optimism',
-        },
-      },
+      // [optimism.id]: {
+      //   ...optimism,
+      //   custom: {
+      //     subgraphUrl:
+      //       'https://api.thegraph.com/subgraphs/name/morpho-association/morpho-blue-optimism',
+      //     clientPath: 'optimism',
+      //   },
+      // },
+      // [katana.id]: {
+      //   ...katana,
+      //   custom: {
+      //     subgraphUrl:
+      //       'https://api.thegraph.com/subgraphs/name/morpho-association/morpho-blue-optimism',
+      //     clientPath: 'katana',
+      //   },
+      // },
+      // [unichain.id]: {
+      //   ...unichain,
+      //   custom: {
+      //     subgraphUrl:
+      //       'https://api.thegraph.com/subgraphs/name/morpho-association/morpho-blue-optimism',
+      //     clientPath: 'unichain',
+      //   },
+      // },
     },
   },
 }

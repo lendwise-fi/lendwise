@@ -14,10 +14,10 @@ import { morphoV1Adapter } from './v1'
  * @example
  * ```typescript
  * // Use default version (morpho_v1)
- * const positions = await MorphoAdapter.getUserLendPositions(['0x...'])
+ * const positions = await MorphoAdapter.getUserLendPositions({ addresses: ['0x...'] })
  *
  * // Explicitly use morpho_v1
- * const v1Positions = await MorphoAdapter.getUserLendPositions(['0x...'], 'morpho_v1')
+ * const v1Positions = await MorphoAdapter.getUserLendPositions({ addresses: ['0x...'] }, 'morpho_v1')
  * ```
  */
 export const MorphoAdapter = createProtocolAdapter(

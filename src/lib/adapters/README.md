@@ -5,6 +5,7 @@ This document describes the architecture for protocol adapters in the Yield Opti
 ## Overview
 
 The adapter architecture is designed to:
+
 1. **Support multiple protocol versions** (e.g., AAVE v2, v3)
 2. **Abstract data sources** (GraphQL API vs Subgraph)
 3. **Provide a unified interface** for fetching user positions
@@ -44,6 +45,7 @@ src/lib/adapters/
 #### 1. Data Source Abstraction
 
 Each adapter can use either:
+
 - **GraphQL API**: Direct API provided by the protocol (e.g., AAVE V3 API, Morpho API)
 - **Subgraph**: The Graph protocol subgraph (e.g., Compound community subgraphs)
 
@@ -52,8 +54,12 @@ The `BaseDataAdapter` interface abstracts these differences:
 ```typescript
 interface BaseDataAdapter {
   readonly dataSourceType: 'graphql' | 'subgraph'
-  getUserLendPositions(addresses: Address[]): Promise<LendPosition[]>
-  getUserBorrowPositions(addresses: Address[]): Promise<BorrowPosition[]>
+  getUserLendPositions(params: {
+    addresses: Address[]
+  }): Promise<LendPosition[]>
+  getUserBorrowPositions(params: {
+    addresses: Address[]
+  }): Promise<BorrowPosition[]>
 }
 ```
 
@@ -78,10 +84,16 @@ interface ProtocolAdapter {
   readonly protocol: string
   readonly versions: Record<string, VersionAdapter>
   readonly defaultVersion: string
-  
+
   getVersion(version?: string): VersionAdapter
-  getUserLendPositions(addresses: Address[], version?: string): Promise<LendPosition[]>
-  getUserBorrowPositions(addresses: Address[], version?: string): Promise<BorrowPosition[]>
+  getUserLendPositions(
+    params: { addresses: Address[] },
+    version?: string
+  ): Promise<LendPosition[]>
+  getUserBorrowPositions(
+    params: { addresses: Address[] },
+    version?: string
+  ): Promise<BorrowPosition[]>
 }
 ```
 
@@ -93,7 +105,9 @@ interface ProtocolAdapter {
 import { AaveAdapter } from '@/lib/adapters/aave'
 
 // Uses default version (v3)
-const positions = await AaveAdapter.getUserLendPositions(['0x...'])
+const positions = await AaveAdapter.getUserLendPositions({
+  addresses: ['0x...'],
+})
 ```
 
 ### Specific Version
@@ -102,10 +116,16 @@ const positions = await AaveAdapter.getUserLendPositions(['0x...'])
 import { AaveAdapter } from '@/lib/adapters/aave'
 
 // Explicitly use v3
-const v3Positions = await AaveAdapter.getUserLendPositions(['0x...'], 'v3')
+const v3Positions = await AaveAdapter.getUserLendPositions(
+  { addresses: ['0x...'] },
+  'v3'
+)
 
 // Use v2 (when implemented)
-const v2Positions = await AaveAdapter.getUserLendPositions(['0x...'], 'v2')
+const v2Positions = await AaveAdapter.getUserLendPositions(
+  { addresses: ['0x...'] },
+  'v2'
+)
 ```
 
 ### Access Version Details
@@ -118,7 +138,9 @@ const v3 = AaveAdapter.getVersion('v3')
 console.log(v3.dataAdapter.dataSourceType) // 'graphql'
 
 // Direct access to data adapter
-const positions = await v3.dataAdapter.getUserLendPositions(['0x...'])
+const positions = await v3.dataAdapter.getUserLendPositions({
+  addresses: ['0x...'],
+})
 ```
 
 ## Adding a New Protocol
@@ -141,8 +163,12 @@ export const MY_PROTOCOL_V1_CONFIG: Record<number, ProtocolConfig> = {
     name: PROTOCOL_ID,
     displayName: 'My Protocol V1',
     chainId: mainnet.id,
-    contracts: { /* ... */ },
-    markets: [ /* ... */ ],
+    contracts: {
+      /* ... */
+    },
+    markets: [
+      /* ... */
+    ],
     blockExplorer: 'https://etherscan.io',
   },
 }
@@ -171,10 +197,10 @@ import type { BaseDataAdapter } from '@/lib/adapters/types'
 
 export const myProtocolV1GraphqlAdapter: BaseDataAdapter = {
   dataSourceType: 'graphql',
-  async getUserLendPositions(addresses) {
+  async getUserLendPositions({ addresses }) {
     // Implementation
   },
-  async getUserBorrowPositions(addresses) {
+  async getUserBorrowPositions({ addresses }) {
     // Implementation
   },
 }
@@ -240,14 +266,18 @@ pnpm run codegen
 Update `src/config/protocols.ts`:
 
 ```typescript
-import { MY_PROTOCOL_CONFIG, PROTOCOL_ID as MY_PROTOCOL_ID } from '@/lib/adapters/myprotocol'
+import {
+  MY_PROTOCOL_CONFIG,
+  PROTOCOL_ID as MY_PROTOCOL_ID,
+} from '@/lib/adapters/myprotocol'
 
 export const PROTOCOL_REGISTRY = {
   // ... existing protocols
   [MY_PROTOCOL_ID]: {
     displayName: 'My Protocol',
     config: MY_PROTOCOL_CONFIG,
-    adapter: () => import('@/lib/adapters/myprotocol').then((m) => m.MyProtocolAdapter),
+    adapter: () =>
+      import('@/lib/adapters/myprotocol').then((m) => m.MyProtocolAdapter),
   },
 }
 ```
@@ -282,17 +312,20 @@ export const MyProtocolAdapter = createProtocolAdapter(
 ## Protocol-Specific Notes
 
 ### AAVE
+
 - **Current Versions**: v3 (default)
 - **Data Source**: GraphQL API (`https://api.v3.aave.com/graphql`)
 - **Features**: Multi-chain support, health factor tracking
 - **Future**: v2 support via subgraph
 
 ### Morpho
+
 - **Current Versions**: v1 (default)
 - **Data Source**: GraphQL API (`https://api.morpho.org/graphql`)
 - **Features**: Vault-based lending
 
 ### Compound
+
 - **Current Versions**: v3 (default)
 - **Data Source**: Community Subgraph (no official GraphQL API)
 - **Note**: Relies entirely on The Graph subgraphs
@@ -332,6 +365,7 @@ When testing adapters:
 ### From Old Architecture to New
 
 The old architecture used a flat structure:
+
 ```
 aave/
   gql/
@@ -339,6 +373,7 @@ aave/
 ```
 
 The new architecture uses versioned structure:
+
 ```
 aave/
   config.ts

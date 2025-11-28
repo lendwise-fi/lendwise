@@ -4,10 +4,7 @@ import { cache } from 'react'
 
 import { Address } from 'viem'
 
-import {
-  getProtocolAdapter,
-  getProtocolIds,
-} from '@/config/protocols'
+import { getProtocolAdapter, getProtocolIds } from '@/config/protocols'
 import { LendPosition, ProtocolName } from '@/types'
 
 // Generate return type dynamically from supported protocols
@@ -39,7 +36,9 @@ export const loadUserLendPositions = cache(async function loadUserLendPositions(
           throw new Error(`No adapter found for ${protocolId}`)
         }
         const protocolAdapter = await adapterLoader()
-        const positions = await protocolAdapter.getUserLendPositions(addresses)
+        const positions = await protocolAdapter.getUserLendPositions({
+          addresses,
+        })
         return { protocolId, positions }
       })
     )

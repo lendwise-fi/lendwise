@@ -142,7 +142,7 @@ export function getProtocolIds(): ProtocolName[] {
  * const adapterLoader = getProtocolAdapter('morpho_v1')
  * if (adapterLoader) {
  *   const adapter = await adapterLoader()
- *   const positions = await adapter.getUserBorrowPositions(addresses)
+ *   const positions = await adapter.getUserBorrowPositions({ addresses })
  * }
  * ```
  */

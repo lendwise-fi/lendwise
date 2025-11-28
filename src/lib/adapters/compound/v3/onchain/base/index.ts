@@ -12,7 +12,7 @@ const config = COMPOUND_V3_CHAINS[base.id]
  */
 const baseClient = createChainClient(
   config.custom.subgraphUrl!,
-  process.env.COMPOUND_THEGRAPH_API_KEY
+  process.env.THEGRAPH_API_KEY
 )
 
 // Register this chain with the adapter (with custom queries)
