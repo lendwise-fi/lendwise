@@ -1,19 +1,20 @@
-import { cacheExchange, createClient, fetchExchange } from '@urql/core'
 import type { Address } from 'viem'
 
+import { createGraphQLClient } from '@/lib/adapters/shared'
 import type { DataAdapter } from '@/lib/adapters/types'
 import { BorrowPosition, LendPosition, MarketRate } from '@/types'
 
 import { AAVE_CONFIG } from '../../config'
-import { ALL_MARKETS_GQL_PARAMS } from './config'
 import {
   MarketBorrowRatesQuery,
+  MarketsQuery,
   UserBorrowPositionsQuery,
   UserLendCollateralsQuery,
   UserLendPositionsQuery,
   UserMarketHealthFactorQuery,
 } from './generated/graphql'
 import {
+  ALL_MARKETS,
   MARKET_BORROW_RATES,
   USER_BORROW_POSITIONS,
   USER_LEND_COLLATERALS,
@@ -21,21 +22,40 @@ import {
   USER_MARKET_HEALTH_FACTOR,
 } from './queries'
 
-const client = createClient({
-  url: AAVE_CONFIG.aave_v3.offchainApiUrl!,
-  exchanges: [cacheExchange, fetchExchange],
-  fetchOptions: {
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    // Add timeout to prevent long-hanging requests
-    signal: AbortSignal.timeout(20000), // 20 second timeout
-  },
-  // Force POST requests instead of GET
-  preferGetMethod: false,
-  // Retry failed requests once
-  requestPolicy: 'network-only',
-})
+const client = createGraphQLClient(AAVE_CONFIG.aave_v3.offchainApiUrl!)
+
+async function getMarketsParams(chainIds?: string[]) {
+  const markets = await getAllAvailableMarkets(chainIds)
+  return markets.map((market) => ({
+    chainId: market.chain.chainId,
+    address: market.address,
+  }))
+}
+
+async function getAllAvailableMarkets(chainIds?: string[]) {
+  const { data, error } = await client
+    .query<MarketsQuery>(ALL_MARKETS, {
+      request: {
+        chainIds: chainIds ?? Object.keys(AAVE_CONFIG.aave_v3.chains),
+      },
+    })
+    .toPromise()
+
+  if (error) {
+    console.error('Failed to fetch Aave V3 markets:', error.message)
+    // Check if it's a timeout error
+    if (error.message?.includes('Time-out') || error.networkError) {
+      console.warn('Aave V3 API timeout - returning empty markets')
+    }
+    return []
+  }
+
+  if (!data || !data.markets) {
+    return []
+  }
+
+  return data.markets
+}
 
 async function getUserLendPositions({
   addresses,
@@ -45,7 +65,9 @@ async function getUserLendPositions({
   if (!addresses || addresses.length === 0) {
     return []
   }
+
   try {
+    const marketsParams = await getMarketsParams()
     const lendingPositionsResults = await Promise.all(
       addresses.map(async (address) => {
         const { data, error } = await client
@@ -53,7 +75,7 @@ async function getUserLendPositions({
             request: {
               collateralsOnly: false,
               user: address,
-              ...ALL_MARKETS_GQL_PARAMS,
+              markets: marketsParams,
               orderBy: {
                 apy: 'DESC',
               },
@@ -116,6 +138,7 @@ async function getUserBorrowPositions({
     return []
   }
   try {
+    const marketsParams = await getMarketsParams()
     const borrowPositionsResults = await Promise.all(
       addresses.map(async (address) => {
         const healthFactorKeys = new Set<string>()
@@ -125,7 +148,7 @@ async function getUserBorrowPositions({
           .query<UserBorrowPositionsQuery>(USER_BORROW_POSITIONS, {
             request: {
               user: address,
-              ...ALL_MARKETS_GQL_PARAMS,
+              markets: marketsParams,
               orderBy: {
                 apy: 'DESC',
               },
@@ -141,7 +164,7 @@ async function getUserBorrowPositions({
           return []
         }
 
-        if (!data || !data.userBorrows) {
+        if (!data || !data.userBorrows || !data.userBorrows.length) {
           return []
         }
 
@@ -192,7 +215,11 @@ async function getUserBorrowPositions({
             request: {
               collateralsOnly: true,
               user: address,
-              ...ALL_MARKETS_GQL_PARAMS, // TODO: filter by market with borrow position
+              markets: await getMarketsParams(
+                data?.userBorrows.map(
+                  (position) => position.market.chain.chainId
+                )
+              ),
               orderBy: {
                 apy: 'DESC',
               },

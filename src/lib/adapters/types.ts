@@ -92,6 +92,7 @@ export interface DataAdapter {
     poolId: string
     interval: MarketRateInterval
     fromTimestamp: number
+    chainId: number
   }): Promise<MarketRate[]>
 }
 
@@ -161,7 +162,21 @@ export interface VersionAdapter {
  * Main protocol adapter that manages multiple versions.
  * Provides a unified interface for accessing different protocol versions.
  */
-export interface ProtocolAdapter {
+// Helper type to derive ProtocolAdapter methods from DataAdapter
+// This maps every function in DataAdapter to a new function with an extra optional 'version' argument.
+type ProtocolMethods = {
+  [K in keyof Omit<DataAdapter, 'dataSourceType'>]-?: DataAdapter[K] extends
+    | ((...args: infer A) => infer R)
+    | undefined
+    ? (...args: [...A, version?: string]) => R
+    : never
+}
+
+/**
+ * Main protocol adapter that manages multiple versions.
+ * Provides a unified interface for accessing different protocol versions.
+ */
+export interface ProtocolAdapter extends ProtocolMethods {
   /**
    * The unique name of the protocol (e.g., 'aave', 'morpho', 'compound').
    */
@@ -185,74 +200,4 @@ export interface ProtocolAdapter {
    * @throws Error if the version is not supported.
    */
   getVersion(version?: string): VersionAdapter
-
-  /**
-   * Convenience method to fetch lending positions from a specific version.
-   * Uses the 'positions' data source (typically GraphQL API).
-   * @param params Parameters for fetching lending positions.
-   * @param params.addresses Array of user addresses.
-   * @param version Optional version identifier. Uses default if not provided.
-   */
-  getUserLendPositions(
-    params: { addresses: Address[] },
-    version?: string
-  ): Promise<LendPosition[]>
-
-  /**
-   * Convenience method to fetch borrowing positions from a specific version.
-   * Uses the 'positions' data source (typically GraphQL API).
-   * @param params Parameters for fetching borrowing positions.
-   * @param params.addresses Array of user addresses.
-   * @param version Optional version identifier. Uses default if not provided.
-   */
-  getUserBorrowPositions(
-    params: { addresses: Address[] },
-    version?: string
-  ): Promise<BorrowPosition[]>
-
-  /**
-   * Get market statistics from a specific version.
-   * Uses the 'stats' data source (typically Subgraph).
-   * @param version Optional version identifier. Uses default if not provided.
-   */
-  getMarketStats(version?: string): Promise<MarketStats[]>
-
-  /**
-   * Get market rates from a specific version.
-   * Uses the 'rates' data source (typically Subgraph).
-   * @param params Parameters for fetching market rates.
-   * @param params.poolId The pool/market identifier.
-   * @param params.timeline The timeline granularity (HOUR or DAY).
-   * @param params.fromTimestamp The starting timestamp for historical data.
-   * @param version Optional version identifier. Uses default if not provided.
-   */
-  getMarketBorrowRates(
-    params: {
-      chainId: number
-      poolId: string
-      tokenId: Address
-      interval: MarketRateInterval
-      fromTimestamp: number
-    },
-    version?: string
-  ): Promise<MarketRate[]>
-
-  /**
-   * Get market rates from a specific version.
-   * Uses the 'rates' data source (typically Subgraph).
-   * @param params Parameters for fetching market rates.
-   * @param params.poolId The pool/market identifier.
-   * @param params.timeline The timeline granularity (HOUR or DAY).
-   * @param params.fromTimestamp The starting timestamp for historical data.
-   * @param version Optional version identifier. Uses default if not provided.
-   */
-  getMarketLendRates(
-    params: {
-      chainId: number
-      poolId: string
-      interval: MarketRateInterval
-      fromTimestamp: number
-    },
-    version?: string
-  ): Promise<MarketRate[]>
 }

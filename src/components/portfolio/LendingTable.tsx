@@ -98,13 +98,13 @@ const createColumns = (
   {
     header: 'Deposits',
     cell: ({ row }) => (
-      <div className="flex w-full items-center gap-3">
+      <div className="flex w-full items-center gap-3 text-xs">
         {formatToken(
           row.original.assetAmount,
           row.original.assetDecimals,
           row.original.assetSymbol
         )}
-        <Badge variant="secondary">
+        <Badge variant="secondary" className="text-xs">
           {formatCompactCurrency(row.original.assetAmountUsd * rate, currency)}
         </Badge>
       </div>

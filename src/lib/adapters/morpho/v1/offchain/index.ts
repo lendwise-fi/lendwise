@@ -1,6 +1,6 @@
-import { cacheExchange, createClient, fetchExchange } from '@urql/core'
 import type { Address } from 'viem'
 
+import { createGraphQLClient } from '@/lib/adapters/shared'
 import type { DataAdapter } from '@/lib/adapters/types'
 import { generateSlug } from '@/lib/utils'
 import {
@@ -22,21 +22,7 @@ import {
   USER_LEND_POSITIONS,
 } from './queries'
 
-const client = createClient({
-  url: MORPHO_CONFIG.morpho_v1.offchainApiUrl!,
-  exchanges: [cacheExchange, fetchExchange],
-  fetchOptions: {
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    // Add timeout to prevent long-hanging requests
-    signal: AbortSignal.timeout(20000), // 20 second timeout
-  },
-  // Force POST requests instead of GET
-  preferGetMethod: false,
-  // Retry failed requests once
-  requestPolicy: 'network-only',
-})
+const client = createGraphQLClient(MORPHO_CONFIG.morpho_v1.offchainApiUrl!)
 
 async function getUserLendPositions({
   addresses,

@@ -4,6 +4,7 @@ import {
   base,
   bsc,
   gnosis,
+  linea,
   mainnet,
   metis,
   optimism,
@@ -45,14 +46,14 @@ export const AAVE_CONFIG: Record<string, ProtocolConfig> = {
           clientPath: 'arbitrum',
         },
       },
-      // [linea.id]: {
-      //   ...linea,
-      //   custom: {
-      //     subgraphUrl:
-      //       'https://gateway.thegraph.com/api/subgraphs/id/5Yykt9vDGxjfQE7Rcmw5B5fezoVA4mnL3rDKN27JvYQb',
-      //     clientPath: 'linea',
-      //   },
-      // },
+      [linea.id]: {
+        ...linea,
+        custom: {
+          // subgraphUrl:
+          //   'https://gateway.thegraph.com/api/subgraphs/id/5Yykt9vDGxjfQE7Rcmw5B5fezoVA4mnL3rDKN27JvYQb',
+          // clientPath: 'linea',
+        },
+      },
       [base.id]: {
         ...base,
         custom: {

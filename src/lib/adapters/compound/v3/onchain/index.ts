@@ -13,7 +13,7 @@ import {
 import {
   type BaseChainClient,
   createChainRegistry,
-  createSubgraphClient,
+  createGraphQLClient,
 } from '../../../shared'
 import { COMPOUND_CONFIG } from '../../config'
 import type {
@@ -103,7 +103,7 @@ const getChainClient = (chainId: number) =>
  * Re-export createSubgraphClient as createChainClient for backward compatibility
  * with existing chain folder implementations.
  */
-export { createSubgraphClient as createChainClient }
+export { createGraphQLClient as createChainClient }
 
 // ============================================================================
 // Chain Name Mapping

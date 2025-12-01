@@ -6,15 +6,15 @@ import { Client, cacheExchange, createClient, fetchExchange } from '@urql/core'
 export const DEFAULT_SUBGRAPH_TIMEOUT = 20000
 
 /**
- * Creates a GraphQL client for interacting with a subgraph.
+ * Creates a GraphQL client for interacting with a subgraph or other GraphQL API.
  * This is the shared client factory used by all protocol adapters.
  *
- * @param url - The subgraph URL
+ * @param url - The GraphQL endpoint URL
  * @param apiKey - Optional API key for authenticated requests (e.g., The Graph API key)
  * @param timeout - Optional custom timeout in milliseconds (default: 20000)
  * @returns Configured urql Client
  */
-export function createSubgraphClient(
+export function createGraphQLClient(
   url: string,
   apiKey?: string,
   timeout: number = DEFAULT_SUBGRAPH_TIMEOUT

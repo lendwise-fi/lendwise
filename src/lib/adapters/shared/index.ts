@@ -7,10 +7,7 @@
  * - Base types for chain clients and transformers
  */
 
-export {
-  createSubgraphClient,
-  DEFAULT_SUBGRAPH_TIMEOUT,
-} from './subgraph-client'
+export { createGraphQLClient, DEFAULT_SUBGRAPH_TIMEOUT } from './graphql-client'
 export { createChainRegistry } from './chain-registry'
 export type {
   ChainImporter,

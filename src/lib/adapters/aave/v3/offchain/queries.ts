@@ -133,3 +133,14 @@ export const MARKET_BORROW_RATES = gql`
     }
   }
 `
+export const ALL_MARKETS = gql`
+  query Markets($request: MarketsRequest!) {
+    markets(request: $request) {
+      address
+      chain {
+        chainId
+      }
+      name
+    }
+  }
+`

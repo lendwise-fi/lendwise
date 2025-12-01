@@ -124,7 +124,7 @@ const createColumns = (
     accessorKey: 'loanAssetAmount',
     header: 'Debt',
     cell: ({ row }) => (
-      <div className="flex w-full flex-col items-start">
+      <div className="flex w-full flex-col items-start text-xs">
         <span>
           {row.original.loanAssetAmount} {row.original.loanAssetSymbol}
         </span>

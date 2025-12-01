@@ -11,7 +11,7 @@
  */
 import type { CodegenConfig } from '@graphql-codegen/cli'
 import { config as loadEnv } from 'dotenv'
-import { mainnet, optimism, polygon } from 'viem/chains'
+import { mainnet, optimism } from 'viem/chains'
 
 import { AAVE_CONFIG } from './src/lib/adapters/aave/config'
 import { COMPOUND_CONFIG } from './src/lib/adapters/compound/config'
@@ -27,7 +27,7 @@ const aaveV3EthereumSubgraphUrl =
 
 const morphoV1ApiUrl = MORPHO_CONFIG.morpho_v1.offchainApiUrl
 const morphoV1EthereumSubgraphUrl =
-  MORPHO_CONFIG.morpho_v1.chains[polygon.id]?.custom?.subgraphUrl
+  MORPHO_CONFIG.morpho_v1.chains[mainnet.id]?.custom?.subgraphUrl
 
 const compoundV3EthereumSubgraphUrl =
   COMPOUND_CONFIG.compound_v3.chains[mainnet.id]?.custom?.subgraphUrl
