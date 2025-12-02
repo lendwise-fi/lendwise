@@ -4,8 +4,8 @@ import type {
   BorrowPosition,
   LendPosition,
   MarketRate,
-  MarketRateInterval,
   MarketStats,
+  TimeframeLabel,
 } from '@/types'
 
 import type { DataSourceConfig, ProtocolAdapter, VersionAdapter } from './types'
@@ -149,7 +149,7 @@ export function createProtocolAdapter(
       params: {
         chainId: number
         poolId: string
-        interval: MarketRateInterval
+        interval: TimeframeLabel
         fromTimestamp: number
         tokenId: Address
       },
@@ -179,8 +179,9 @@ export function createProtocolAdapter(
       params: {
         chainId: number
         poolId: string
-        interval: MarketRateInterval
+        interval: TimeframeLabel
         fromTimestamp: number
+        tokenId: Address
       },
       version?: string
     ): Promise<MarketRate[]> {

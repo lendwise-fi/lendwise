@@ -24,6 +24,7 @@ export const USER_LEND_POSITIONS = gql`
             network
           }
           asset {
+            address
             name
             symbol
             decimals

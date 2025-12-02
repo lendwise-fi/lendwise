@@ -7,17 +7,20 @@ import {
   BorrowPosition,
   LendPosition,
   MarketRate,
-  MarketRateInterval,
+  TimeframeLabel,
 } from '@/types'
 
 import { MORPHO_CONFIG } from '../../config'
 import {
   MarketBorrowRatesQuery,
+  MarketLendRatesQuery,
+  TimeseriesInterval,
   UserBorrowPositionsQuery,
   UserLendPositionsQuery,
 } from './generated/graphql'
 import {
   MARKET_BORROW_RATES,
+  MARKET_LEND_RATES,
   USER_BORROW_POSITIONS,
   USER_LEND_POSITIONS,
 } from './queries'
@@ -80,7 +83,10 @@ async function getUserLendPositions({
             userAddress: position.user.address.toLowerCase(),
             poolName: position.vault.name,
             poolAddress: position.vault.address,
+            poolId: position.vault.id,
+            poolChainId: Number(position.vault.chain.id),
             poolChainNetwork: position.vault.chain.network,
+            assetAddress: position.vault.asset.address,
             assetName: position.vault.asset.name,
             assetSymbol: position.vault.asset.symbol,
             assetDecimals: position.vault.asset.decimals,
@@ -210,22 +216,32 @@ async function getUserBorrowPositions({
   }
 }
 
+const TIMEFRAME_MAP: Record<TimeframeLabel, TimeseriesInterval> = {
+  '24h': TimeseriesInterval.Hour,
+  '7d': TimeseriesInterval.Day,
+  '1M': TimeseriesInterval.Day,
+  '3M': TimeseriesInterval.Week,
+  '1Y': TimeseriesInterval.Week,
+  Max: TimeseriesInterval.Quarter,
+}
+
 async function getMarketBorrowRates({
   poolId,
   interval,
   fromTimestamp,
 }: {
   poolId: string
-  interval: MarketRateInterval
+  interval: TimeframeLabel
   fromTimestamp: number
 }): Promise<MarketRate[]> {
+  console.log('borrow', poolId)
   const { data, error } = await client
     .query<MarketBorrowRatesQuery>(MARKET_BORROW_RATES, {
       marketId: poolId,
       options: {
         startTimestamp: fromTimestamp,
         endTimestamp: null,
-        interval,
+        interval: TIMEFRAME_MAP[interval],
       },
     })
     .toPromise()
@@ -246,8 +262,41 @@ async function getMarketBorrowRates({
   )
 }
 
-async function getMarketLendRates() {
-  return []
+async function getMarketLendRates({
+  poolId,
+  interval,
+  fromTimestamp,
+}: {
+  poolId: string
+  interval: TimeframeLabel
+  fromTimestamp: number
+}): Promise<MarketRate[]> {
+  console.log('lend', poolId)
+  const { data, error } = await client
+    .query<MarketLendRatesQuery>(MARKET_LEND_RATES, {
+      marketId: poolId,
+      options: {
+        startTimestamp: fromTimestamp,
+        endTimestamp: null,
+        interval: TIMEFRAME_MAP[interval],
+      },
+    })
+    .toPromise()
+
+  if (error) {
+    console.error(`Failed to fetch Morpho V1 lend rates:`, error)
+    if (error.message?.includes('Time-out') || error.networkError) {
+      console.warn(`Morpho V1 API timeout - returning empty rates`)
+    }
+    return []
+  }
+
+  return (
+    data?.market.historicalState?.netSupplyApy.reverse().map((item) => ({
+      timestamp: item.x,
+      rate: item.y ?? 0,
+    })) ?? []
+  )
 }
 
 export const morphoV1OffchainAdapter: DataAdapter = {

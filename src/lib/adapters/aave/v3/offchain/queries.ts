@@ -133,6 +133,16 @@ export const MARKET_BORROW_RATES = gql`
     }
   }
 `
+export const MARKET_LEND_RATES = gql`
+  query MarketLendRates($request: SupplyAPYHistoryRequest!) {
+    supplyAPYHistory(request: $request) {
+      avgRate {
+        value
+      }
+      date
+    }
+  }
+`
 export const ALL_MARKETS = gql`
   query Markets($request: MarketsRequest!) {
     markets(request: $request) {

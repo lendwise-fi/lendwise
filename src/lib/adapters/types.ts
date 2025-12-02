@@ -4,8 +4,8 @@ import {
   BorrowPosition,
   LendPosition,
   MarketRate,
-  type MarketRateInterval,
   MarketStats,
+  TimeframeLabel,
 } from '@/types'
 
 // ============================================================================
@@ -73,7 +73,7 @@ export interface DataAdapter {
    */
   getMarketBorrowRates?(params: {
     poolId: string
-    interval: MarketRateInterval
+    interval: TimeframeLabel
     fromTimestamp: number
     chainId: number
     tokenId: Address
@@ -90,9 +90,10 @@ export interface DataAdapter {
    */
   getMarketLendRates?(params: {
     poolId: string
-    interval: MarketRateInterval
+    interval: TimeframeLabel
     fromTimestamp: number
     chainId: number
+    tokenId: Address
   }): Promise<MarketRate[]>
 }
 

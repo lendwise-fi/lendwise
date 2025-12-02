@@ -201,9 +201,14 @@ async function getUserLendPositions({
                   userAddress: account.id.toLowerCase(),
                   poolName: position.market.name!,
                   poolAddress: position.market.relation,
+                  poolId: position.market.relation,
+                  poolChainId:
+                    CHAIN_NAME_MAPPING[position.market.protocol.network]
+                      ?.chainId ?? 1,
                   poolChainNetwork:
                     CHAIN_NAME_MAPPING[position.market.protocol.network]
                       ?.protocolName ?? position.market.protocol.network,
+                  assetAddress: position.asset.id as Address,
                   assetName: position.asset.name,
                   assetSymbol: position.asset.symbol,
                   assetDecimals: position.asset.decimals,

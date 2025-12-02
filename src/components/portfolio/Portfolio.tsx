@@ -178,7 +178,7 @@ export function Portfolio() {
             <DataTableSkeleton />
           </div>
         ) : (
-          <div className="mt-16 space-y-28">
+          <div className="mt-12 space-y-12">
             <LendingTable data={Object.values(userPositions.lend).flat()} />
             <BorrowingTable data={Object.values(userPositions.borrow).flat()} />
           </div>

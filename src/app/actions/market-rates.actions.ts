@@ -5,7 +5,7 @@ import { cache } from 'react'
 import { Address } from 'viem'
 
 import { getProtocolAdapter } from '@/config/protocols'
-import type { MarketRate, MarketRateInterval } from '@/types'
+import type { MarketRate, TimeframeLabel } from '@/types'
 
 /**
  * Parameters for loading market rates
@@ -15,7 +15,7 @@ export interface LoadMarketRateParams {
   chainId: number
   poolId: string
   tokenId: Address
-  interval: MarketRateInterval
+  interval: TimeframeLabel
   fromTimestamp: number
 }
 
@@ -61,7 +61,8 @@ export const loadMarketBorrowRates = cache(async function loadMarketRate(
 export const loadMarketLendRates = cache(async function loadMarketRate(
   params: LoadMarketRateParams
 ): Promise<MarketRate[]> {
-  const { chainId, protocolId, interval, fromTimestamp, poolId } = params
+  const { chainId, protocolId, interval, fromTimestamp, poolId, tokenId } =
+    params
 
   try {
     const adapterLoader = getProtocolAdapter(protocolId)
@@ -76,6 +77,7 @@ export const loadMarketLendRates = cache(async function loadMarketRate(
       poolId,
       interval,
       fromTimestamp,
+      tokenId,
     })
 
     return rates

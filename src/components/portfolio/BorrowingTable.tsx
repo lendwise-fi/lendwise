@@ -8,7 +8,6 @@ import { ColumnDef } from '@tanstack/react-table'
 import {
   AlertCircle,
   ArrowUpRightFromSquare,
-  ChevronDown,
   HeartPulse,
   TrendingUp,
 } from 'lucide-react'
@@ -36,16 +35,17 @@ import {
   DrawerTrigger,
 } from '@/components/ui/drawer'
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu'
-import {
   HoverCard,
   HoverCardContent,
   HoverCardTrigger,
 } from '@/components/ui/hover-card'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import { Separator } from '@/components/ui/separator'
 import { CopyButton } from '@/components/ui/shadcn-io/copy-button'
 import { WalletAvatar } from '@/components/wallet/WalletAvatar'
@@ -54,7 +54,7 @@ import { useCurrency } from '@/contexts'
 import { useIsMobile } from '@/hooks/useMobile'
 import { formatCompactCurrency } from '@/lib/format-currency'
 import { formatAddress } from '@/lib/utils'
-import { MARKET_RATES_INTERVAL, type MarketRateInterval } from '@/types'
+import { TIMEFRAME_OPTIONS, TimeframeLabel } from '@/types'
 import { BorrowPosition, MarketRate } from '@/types'
 
 import { LiquidationRiskBar } from '../borrowing/LiquidationRiskBar'
@@ -262,32 +262,11 @@ const chartConfig = {
   },
 } satisfies ChartConfig
 
-type TimeframeLabel = '24h' | '7d' | '1M' | '3M' | '1Y' | 'Max'
-
-interface TimeframeOption {
-  label: TimeframeLabel
-  interval: MarketRateInterval
-  days?: number
-}
-
-const TIMEFRAME_OPTIONS: TimeframeOption[] = [
-  { label: '24h', interval: MARKET_RATES_INTERVAL.HOUR, days: 1 },
-  { label: '7d', interval: MARKET_RATES_INTERVAL.DAY, days: 7 },
-  { label: '1M', interval: MARKET_RATES_INTERVAL.DAY, days: 30 },
-  { label: '3M', interval: MARKET_RATES_INTERVAL.DAY, days: 90 },
-  { label: '1Y', interval: MARKET_RATES_INTERVAL.DAY, days: 365 },
-  { label: 'Max', interval: MARKET_RATES_INTERVAL.DAY },
-]
-
 function TableCellViewer({ item }: { item: BorrowPosition }) {
   const isMobile = useIsMobile()
   const [rates, setRates] = useState<MarketRate[]>([])
   const [selectedTimeframe, setSelectedTimeframe] =
     useState<TimeframeLabel>('7d')
-  const [visibleTimeframes, setVisibleTimeframes] = useState<TimeframeLabel[]>([
-    '24h',
-    '7d',
-  ])
   const [pending, startTransition] = useTransition()
 
   const handleLoadRates = async (timeframeLabel: TimeframeLabel) => {
@@ -297,23 +276,11 @@ function TableCellViewer({ item }: { item: BorrowPosition }) {
     startTransition(async () => {
       setSelectedTimeframe(timeframeLabel)
 
-      // Update visible timeframes logic: keep 2 items, LRU style
-      if (!visibleTimeframes.includes(timeframeLabel)) {
-        setVisibleTimeframes((prev) => [prev[1], timeframeLabel])
-      }
-
       let fromTimestamp = item.loanTimestamp
       if (option.days) {
         const now = Math.floor(Date.now() / 1000)
         fromTimestamp = now - option.days * 24 * 60 * 60
       }
-
-      // For "Max", we use item.loanTimestamp (default behavior)
-      // If option.days is set, we use calculated timestamp.
-      // However, we should probably respect the loan start date if the user wants to see "Since Loan"?
-      // But usually timeline selectors show market history.
-      // Let's assume "Max" = item.loanTimestamp (since inception of loan)
-      // And others = fixed duration from now.
 
       try {
         const rates = await loadMarketBorrowRates({
@@ -321,7 +288,7 @@ function TableCellViewer({ item }: { item: BorrowPosition }) {
           chainId: item.poolChainId,
           poolId: item.poolId,
           tokenId: item.loanAssetAddress,
-          interval: option.interval,
+          interval: option.label,
           fromTimestamp,
         })
         setRates(rates)
@@ -399,41 +366,27 @@ function TableCellViewer({ item }: { item: BorrowPosition }) {
                   Borrowing rate <TrendingUp className="size-4" />
                 </div>
                 <div className="flex items-center gap-1">
-                  {visibleTimeframes.map((label) => (
-                    <Button
-                      key={label}
-                      variant={
-                        selectedTimeframe === label ? 'secondary' : 'ghost'
-                      }
-                      size="sm"
-                      className="h-7 px-2 text-xs"
-                      onClick={() => handleLoadRates(label)}
-                    >
-                      {label}
-                    </Button>
-                  ))}
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button variant="ghost" size="sm" className="h-7 px-2">
-                        <ChevronDown className="size-4" />
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end">
+                  <Select
+                    value={selectedTimeframe}
+                    onValueChange={(value) =>
+                      handleLoadRates(value as TimeframeLabel)
+                    }
+                  >
+                    <SelectTrigger className="h-7 w-[80px] text-xs">
+                      <SelectValue placeholder="Select timeframe" />
+                    </SelectTrigger>
+                    <SelectContent align="end">
                       {TIMEFRAME_OPTIONS.map((option) => (
-                        <DropdownMenuItem
+                        <SelectItem
                           key={option.label}
-                          onClick={() => handleLoadRates(option.label)}
-                          className={
-                            selectedTimeframe === option.label
-                              ? 'bg-accent'
-                              : ''
-                          }
+                          value={option.label}
+                          className="text-xs"
                         >
                           {option.label}
-                        </DropdownMenuItem>
+                        </SelectItem>
                       ))}
-                    </DropdownMenuContent>
-                  </DropdownMenu>
+                    </SelectContent>
+                  </Select>
                 </div>
               </div>
               {pending ? (
@@ -550,34 +503,40 @@ export function BorrowingTable({ data }: { data: BorrowPosition[] }) {
   const uniqueChains = getUniqueColumnValues(data, 'poolChainNetwork')
 
   return (
-    <DataTable
-      columns={columns}
-      data={data}
-      searchableColumn="poolName"
-      filterableColumns={[
-        {
-          column: 'protocol',
-          title: 'Protocol',
-          options: uniqueProtocols.map((protocol) => ({
-            label: getProtocolVersionNameById(protocol),
-            value: protocol,
-            icon: ({ className }) => (
-              <ProtocolIcon protocol={protocol} className={className} />
-            ),
-          })),
-        },
-        {
-          column: 'poolChainNetwork',
-          title: 'Chain',
-          options: uniqueChains.map((chain) => ({
-            label: chain,
-            value: chain,
-            icon: ({ className }) => (
-              <ChainIcon chainSlug={chain} className={className} />
-            ),
-          })),
-        },
-      ]}
-    />
+    <div>
+      <h2 className="text-foreground text-2xl font-semibold">
+        Borrowing positions
+      </h2>
+      <Separator className="my-3" />
+      <DataTable
+        columns={columns}
+        data={data}
+        searchableColumn="poolName"
+        filterableColumns={[
+          {
+            column: 'protocol',
+            title: 'Protocol',
+            options: uniqueProtocols.map((protocol) => ({
+              label: getProtocolVersionNameById(protocol),
+              value: protocol,
+              icon: ({ className }) => (
+                <ProtocolIcon protocol={protocol} className={className} />
+              ),
+            })),
+          },
+          {
+            column: 'poolChainNetwork',
+            title: 'Chain',
+            options: uniqueChains.map((chain) => ({
+              label: chain,
+              value: chain,
+              icon: ({ className }) => (
+                <ChainIcon chainSlug={chain} className={className} />
+              ),
+            })),
+          },
+        ]}
+      />
+    </div>
   )
 }

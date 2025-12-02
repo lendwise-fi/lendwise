@@ -92,7 +92,10 @@ export interface LendPosition {
   userAddress: Address
   poolName: string
   poolAddress: Address
+  poolId: string
+  poolChainId: number
   poolChainNetwork: string
+  assetAddress: Address
   assetName: string
   assetSymbol: string
   assetDecimals: number
@@ -161,3 +164,20 @@ export const MARKET_RATES_INTERVAL = {
  */
 export type MarketRateInterval =
   (typeof MARKET_RATES_INTERVAL)[keyof typeof MARKET_RATES_INTERVAL]
+
+export type TimeframeLabel = '24h' | '7d' | '1M' | '3M' | '1Y' | 'Max'
+
+export interface TimeframeOption {
+  label: TimeframeLabel
+  interval: MarketRateInterval
+  days?: number
+}
+
+export const TIMEFRAME_OPTIONS: TimeframeOption[] = [
+  { label: '24h', interval: MARKET_RATES_INTERVAL.HOUR, days: 1 },
+  { label: '7d', interval: MARKET_RATES_INTERVAL.DAY, days: 7 },
+  { label: '1M', interval: MARKET_RATES_INTERVAL.DAY, days: 30 },
+  { label: '3M', interval: MARKET_RATES_INTERVAL.DAY, days: 90 },
+  { label: '1Y', interval: MARKET_RATES_INTERVAL.DAY, days: 365 },
+  { label: 'Max', interval: MARKET_RATES_INTERVAL.DAY },
+]

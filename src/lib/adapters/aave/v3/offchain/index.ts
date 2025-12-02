@@ -2,12 +2,19 @@ import type { Address } from 'viem'
 
 import { createGraphQLClient } from '@/lib/adapters/shared'
 import type { DataAdapter } from '@/lib/adapters/types'
-import { BorrowPosition, LendPosition, MarketRate } from '@/types'
+import {
+  BorrowPosition,
+  LendPosition,
+  MarketRate,
+  TimeframeLabel,
+} from '@/types'
 
 import { AAVE_CONFIG } from '../../config'
 import {
   MarketBorrowRatesQuery,
+  MarketLendRatesQuery,
   MarketsQuery,
+  TimeWindow,
   UserBorrowPositionsQuery,
   UserLendCollateralsQuery,
   UserLendPositionsQuery,
@@ -16,6 +23,7 @@ import {
 import {
   ALL_MARKETS,
   MARKET_BORROW_RATES,
+  MARKET_LEND_RATES,
   USER_BORROW_POSITIONS,
   USER_LEND_COLLATERALS,
   USER_LEND_POSITIONS,
@@ -109,7 +117,10 @@ async function getUserLendPositions({
               userAddress: address.toLowerCase() as Address,
               poolName: position.market.name,
               poolAddress: position.market.address,
+              poolId: position.market.address,
+              poolChainId: position.market.chain.chainId,
               poolChainNetwork: position.market.chain.name,
+              assetAddress: position.currency.address,
               assetName: position.currency.name,
               assetSymbol: position.currency.symbol,
               assetDecimals: position.currency.decimals,
@@ -305,14 +316,25 @@ async function getUserBorrowPositions({
   }
 }
 
+const TIMEFRAME_MAP: Record<TimeframeLabel, TimeWindow> = {
+  '24h': TimeWindow.LastDay,
+  '7d': TimeWindow.LastWeek,
+  '1M': TimeWindow.LastMonth,
+  '3M': TimeWindow.LastSixMonths,
+  '1Y': TimeWindow.LastYear,
+  Max: TimeWindow.LastYear,
+}
+
 async function getMarketBorrowRates({
   poolId,
   chainId,
   tokenId,
+  interval,
 }: {
   poolId: string
   chainId: number
   tokenId: Address
+  interval: TimeframeLabel
 }): Promise<MarketRate[]> {
   const { data, error } = await client
     .query<MarketBorrowRatesQuery>(MARKET_BORROW_RATES, {
@@ -320,7 +342,7 @@ async function getMarketBorrowRates({
         chainId,
         market: poolId,
         underlyingToken: tokenId,
-        window: 'LAST_WEEK',
+        window: TIMEFRAME_MAP[interval],
       },
     })
     .toPromise()
@@ -334,15 +356,50 @@ async function getMarketBorrowRates({
   }
 
   return (
-    data?.borrowAPYHistory?.map((item) => ({
+    data?.borrowAPYHistory?.reverse().map((item) => ({
       timestamp: Math.floor(new Date(item.date).getTime() / 1000),
       rate: item.avgRate.value,
     })) ?? []
   )
 }
 
-async function getMarketLendRates() {
-  return []
+async function getMarketLendRates({
+  poolId,
+  chainId,
+  tokenId,
+  interval,
+}: {
+  poolId: string
+  chainId: number
+  tokenId: Address
+  interval: TimeframeLabel
+}): Promise<MarketRate[]> {
+  console.log('interval', interval)
+  const { data, error } = await client
+    .query<MarketLendRatesQuery>(MARKET_LEND_RATES, {
+      request: {
+        chainId,
+        market: poolId,
+        underlyingToken: tokenId,
+        window: TIMEFRAME_MAP[interval],
+      },
+    })
+    .toPromise()
+
+  if (error) {
+    console.error(`Failed to fetch Aave V3 borrow rates:`, error)
+    if (error.message?.includes('Time-out') || error.networkError) {
+      console.warn(`Aave V3 API timeout - returning empty rates`)
+    }
+    return []
+  }
+
+  return (
+    data?.supplyAPYHistory?.reverse().map((item) => ({
+      timestamp: Math.floor(new Date(item.date).getTime() / 1000),
+      rate: item.avgRate.value,
+    })) ?? []
+  )
 }
 
 export const aaveV3OffchainAdapter: DataAdapter = {
