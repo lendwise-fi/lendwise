@@ -1,5 +1,5 @@
 import type { DataAdapter } from '@/lib/adapters/types'
-import { MARKET_RATES_INTERVAL, MarketRate, MarketRateInterval } from '@/types'
+import { MarketRate, TimeframeLabel } from '@/types'
 
 import {
   type BaseChainClient,
@@ -74,7 +74,7 @@ async function getMarketBorrowRates({
 }: {
   chainId: number
   poolId: string
-  interval: MarketRateInterval
+  interval: TimeframeLabel
   fromTimestamp: number
 }): Promise<MarketRate[]> {
   if (!poolId || !interval || !fromTimestamp) {
@@ -88,7 +88,7 @@ async function getMarketBorrowRates({
     }
     const { chainName, client } = chainClient
 
-    const isDaily = interval === MARKET_RATES_INTERVAL.DAY
+    const isDaily = true
     const where = { market: poolId, timestamp_gte: fromTimestamp }
 
     if (isDaily) {
