@@ -3,15 +3,15 @@ import {
   avalanche,
   base,
   bsc,
-  gnosis,
+  // gnosis,
   linea,
   mainnet,
-  metis,
+  // metis,
   optimism,
   polygon,
-  scroll,
-  sonic,
-  zksync,
+  // scroll,
+  // sonic,
+  // zksync,
 } from 'viem/chains'
 
 import type { ProtocolConfig } from '@/config/protocols'
@@ -62,14 +62,14 @@ export const AAVE_CONFIG: Record<string, ProtocolConfig> = {
           clientPath: 'base',
         },
       },
-      [gnosis.id]: {
-        ...gnosis,
-        custom: {
-          subgraphUrl:
-            'https://gateway.thegraph.com/api/subgraphs/id/GiNMLDxT1Bdn2dQZxjQLmW24uwpc3geKUBW8RP6oEdg',
-          clientPath: 'gnosis',
-        },
-      },
+      // [gnosis.id]: {
+      //   ...gnosis,
+      //   custom: {
+      //     subgraphUrl:
+      //       'https://gateway.thegraph.com/api/subgraphs/id/GiNMLDxT1Bdn2dQZxjQLmW24uwpc3geKUBW8RP6oEdg',
+      //     clientPath: 'gnosis',
+      //   },
+      // },
       [optimism.id]: {
         ...optimism,
         custom: {
@@ -94,30 +94,30 @@ export const AAVE_CONFIG: Record<string, ProtocolConfig> = {
       //     clientPath: 'plasma',
       //   },
       // },
-      [scroll.id]: {
-        ...scroll,
-        custom: {
-          subgraphUrl:
-            'https://gateway.thegraph.com/api/subgraphs/id/DkvXMxq1skgSe1ehLHWpiUthHU1znnMDK2SUmj9avhEX',
-          clientPath: 'scroll',
-        },
-      },
-      [zksync.id]: {
-        ...zksync,
-        custom: {
-          subgraphUrl:
-            'https://gateway.thegraph.com/api/subgraphs/id/F1LzJN9yPCvTki3vmyb9EgUR74n6F2RfXwe4ngr1C6p6',
-          clientPath: 'zksync',
-        },
-      },
-      [sonic.id]: {
-        ...sonic,
-        custom: {
-          subgraphUrl:
-            'https://gateway.thegraph.com/api/subgraphs/id/6CdwDvShygJALhezEZofxTnAFuckFxQ88Ud8oXVbyeTz',
-          clientPath: 'sonic',
-        },
-      },
+      // [scroll.id]: {
+      //   ...scroll,
+      //   custom: {
+      //     subgraphUrl:
+      //       'https://gateway.thegraph.com/api/subgraphs/id/DkvXMxq1skgSe1ehLHWpiUthHU1znnMDK2SUmj9avhEX',
+      //     clientPath: 'scroll',
+      //   },
+      // },
+      // [zksync.id]: {
+      //   ...zksync,
+      //   custom: {
+      //     subgraphUrl:
+      //       'https://gateway.thegraph.com/api/subgraphs/id/F1LzJN9yPCvTki3vmyb9EgUR74n6F2RfXwe4ngr1C6p6',
+      //     clientPath: 'zksync',
+      //   },
+      // },
+      // [sonic.id]: {
+      //   ...sonic,
+      //   custom: {
+      //     subgraphUrl:
+      //       'https://gateway.thegraph.com/api/subgraphs/id/6CdwDvShygJALhezEZofxTnAFuckFxQ88Ud8oXVbyeTz',
+      //     clientPath: 'sonic',
+      //   },
+      // },
       // [ink.id]: {
       //   ...ink,
       //   custom: {
@@ -142,14 +142,14 @@ export const AAVE_CONFIG: Record<string, ProtocolConfig> = {
       //     clientPath: 'celo',
       //   },
       // },
-      [metis.id]: {
-        ...metis,
-        custom: {
-          subgraphUrl:
-            'https://gateway.thegraph.com/api/subgraphs/id/6T9scnLFxAwcs874DgHNjRp8ZCCRh3vuBvyCUiMM3AKQ',
-          clientPath: 'metis',
-        },
-      },
+      // [metis.id]: {
+      //   ...metis,
+      //   custom: {
+      //     subgraphUrl:
+      //       'https://gateway.thegraph.com/api/subgraphs/id/6T9scnLFxAwcs874DgHNjRp8ZCCRh3vuBvyCUiMM3AKQ',
+      //     clientPath: 'metis',
+      //   },
+      // },
       // [soneium.id]: {
       //   ...soneium,
       //   custom: {

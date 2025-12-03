@@ -154,3 +154,40 @@ export const ALL_MARKETS = gql`
     }
   }
 `
+
+export const LIST_LENDING_MARKETS = gql`
+  query ListLendingMarkets($request: MarketsRequest!) {
+    markets(request: $request) {
+      address
+      chain {
+        name
+        chainId
+      }
+      reserves {
+        supplyInfo {
+          apy {
+            value
+          }
+          supplyCap {
+            usd
+            amount {
+              raw
+            }
+          }
+        }
+        size {
+          usd
+          amount {
+            raw
+          }
+        }
+        underlyingToken {
+          address
+          name
+          symbol
+          decimals
+        }
+      }
+    }
+  }
+`

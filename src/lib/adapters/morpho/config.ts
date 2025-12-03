@@ -8,7 +8,7 @@ import type { ProtocolConfig } from '@/config/protocols'
 export const MORPHO_CONFIG: Record<string, ProtocolConfig> = {
   morpho_v1: {
     id: 'morpho_v1',
-    name: 'Morpho',
+    name: 'Morpho v1',
     offchainApiUrl: 'https://api.morpho.org/graphql',
     chains: {
       [mainnet.id]: {

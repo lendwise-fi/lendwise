@@ -4,6 +4,7 @@ import { createGraphQLClient } from '@/lib/adapters/shared'
 import type { DataAdapter } from '@/lib/adapters/types'
 import {
   BorrowPosition,
+  LendMarket,
   LendPosition,
   MarketRate,
   TimeframeLabel,
@@ -11,6 +12,7 @@ import {
 
 import { AAVE_CONFIG } from '../../config'
 import {
+  ListLendingMarketsQuery,
   MarketBorrowHistoryRatesQuery,
   MarketLendHistoryRatesQuery,
   MarketsQuery,
@@ -22,6 +24,7 @@ import {
 } from './generated/graphql'
 import {
   ALL_MARKETS,
+  LIST_LENDING_MARKETS,
   MARKET_BORROW_HISTORY_RATES,
   MARKET_LEND_HISTORY_RATES,
   USER_BORROW_POSITIONS,
@@ -401,10 +404,64 @@ async function getMarketLendHistoryRates({
   )
 }
 
+async function getLendingMarkets(): Promise<LendMarket[]> {
+  try {
+    const { data, error } = await client
+      .query<ListLendingMarketsQuery>(LIST_LENDING_MARKETS, {
+        request: {
+          chainIds: Object.keys(AAVE_CONFIG.aave_v3.chains).map((key) =>
+            Number(key)
+          ),
+        },
+      })
+      .toPromise()
+
+    if (error) {
+      console.error(`Failed to fetch Aave V3 lending markets:`, error)
+      if (error.message?.includes('Time-out') || error.networkError) {
+        console.warn(`Aave V3 API timeout - returning empty markets`)
+      }
+      return []
+    }
+
+    if (!data || !data.markets) {
+      return []
+    }
+
+    return data.markets
+      .map((market) =>
+        market.reserves.map((reserve) => ({
+          protocol: AAVE_CONFIG.aave_v3.id,
+          poolName: reserve.underlyingToken.name,
+          poolId: market.address,
+          poolAddress: market.address,
+          poolChainId: market.chain.chainId,
+          poolChainNetwork: market.chain.name.toLowerCase(),
+          assetAddress: reserve.underlyingToken.address,
+          assetName: reserve.underlyingToken.name,
+          assetSymbol: reserve.underlyingToken.symbol,
+          assetDecimals: reserve.underlyingToken.decimals,
+          assetAmount: BigInt(reserve.size.amount.raw),
+          assetAmountUsd: reserve.size.usd,
+          liquidityAmount: BigInt(reserve.supplyInfo.supplyCap.amount.raw),
+          liquidityAmountUsd: reserve.supplyInfo.supplyCap.usd,
+          collaterals: [],
+          apy: reserve.supplyInfo.apy.formatted,
+          link: `https://app.aave.com/reserve-overview/?underlyingAsset=${reserve.underlyingToken.address.toLowerCase()}&marketName=proto_${market.chain.name.toLowerCase()}_v3`,
+        }))
+      )
+      .flat()
+  } catch (err) {
+    console.error('Unexpected error fetching Aave V3 lending markets:', err)
+    return []
+  }
+}
+
 export const aaveV3OffchainAdapter: DataAdapter = {
   dataSourceType: 'offchain',
   getUserLendPositions,
   getUserBorrowPositions,
   getMarketBorrowHistoryRates,
   getMarketLendHistoryRates,
+  getLendingMarkets,
 }

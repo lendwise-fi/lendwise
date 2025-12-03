@@ -19,7 +19,7 @@ export default async function LendingPage() {
       </div>
 
       <div className="">
-        <LendingTable data={lendingMarkets['morpho_v1']} />
+        <LendingTable data={Object.values(lendingMarkets).flat()} />
       </div>
     </div>
   )
