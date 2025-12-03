@@ -22,8 +22,14 @@ import { MARKET_DAILY_RATES, MARKET_HOURLY_RATES } from './queries'
  * Allows chains with different schemas to provide custom transformation logic.
  */
 export type ChainTransformers = {
-  getMarketBorrowRates?: (data: unknown, protocolId: string) => MarketRate[]
-  getMarketLendRates?: (data: unknown, protocolId: string) => MarketRate[]
+  getMarketBorrowHistoryRates?: (
+    data: unknown,
+    protocolId: string
+  ) => MarketRate[]
+  getMarketLendHistoryRates?: (
+    data: unknown,
+    protocolId: string
+  ) => MarketRate[]
 }
 
 /**
@@ -66,7 +72,7 @@ const getChainClient = (chainId: number) =>
  */
 export { createGraphQLClient as createChainClient }
 
-async function getMarketBorrowRates({
+async function getMarketBorrowHistoryRates({
   chainId,
   poolId,
   interval,
@@ -147,11 +153,11 @@ async function getMarketBorrowRates({
   }
 }
 
-async function getMarketLendRates() {
+async function getMarketLendHistoryRates() {
   return []
 }
 export const aaveV3OnchainAdapter: DataAdapter = {
   dataSourceType: 'onchain',
-  getMarketBorrowRates,
-  getMarketLendRates,
+  getMarketBorrowHistoryRates,
+  getMarketLendHistoryRates,
 }

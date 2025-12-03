@@ -110,8 +110,11 @@ export const USER_BORROW_POSITIONS = gql`
   }
 `
 
-export const MARKET_BORROW_RATES = gql`
-  query MarketBorrowRates($marketId: String!, $options: TimeseriesOptions) {
+export const MARKET_BORROW_HISTORY_RATES = gql`
+  query MarketBorrowHistoryRates(
+    $marketId: String!
+    $options: TimeseriesOptions
+  ) {
     market(id: $marketId) {
       historicalState {
         borrowApy(options: $options) {
@@ -135,8 +138,11 @@ export const MARKET_BORROW_RATES = gql`
   }
 `
 
-export const MARKET_LEND_RATES = gql`
-  query MarketLendRates($marketId: String!, $options: TimeseriesOptions) {
+export const MARKET_LEND_HISTORY_RATES = gql`
+  query MarketLendHistoryRates(
+    $marketId: String!
+    $options: TimeseriesOptions
+  ) {
     market(id: $marketId) {
       historicalState {
         supplyApy(options: $options) {
@@ -154,6 +160,68 @@ export const MARKET_LEND_RATES = gql`
         fee(options: $options) {
           x
           y
+        }
+      }
+    }
+  }
+`
+
+export const LIST_LENDING_MARKETS = gql`
+  query ListLendingMarkets(
+    $first: Int
+    $skip: Int
+    $where: VaultFilters
+    $orderBy: VaultOrderBy
+    $orderDirection: OrderDirection
+  ) {
+    vaults(
+      first: $first
+      skip: $skip
+      where: $where
+      orderBy: $orderBy
+      orderDirection: $orderDirection
+    ) {
+      pageInfo {
+        countTotal
+        count
+        limit
+        skip
+      }
+      items {
+        id
+        address
+        symbol
+        name
+        asset {
+          address
+          name
+          symbol
+          decimals
+          chain {
+            currency
+            network
+            id
+          }
+        }
+        state {
+          avgNetApy
+          totalAssetsUsd
+          totalAssets
+          allocation {
+            market {
+              collateralAsset {
+                symbol
+              }
+            }
+          }
+          apy
+          avgApy
+          netApy
+          netApyWithoutRewards
+        }
+        liquidity {
+          usd
+          underlying
         }
       }
     }

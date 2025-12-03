@@ -24,7 +24,7 @@ export interface LoadMarketRateParams {
  * @param params - Parameters including timeline, fromTimestamp, and poolId
  * @returns Array of market rates with timestamp and rate
  */
-export const loadMarketBorrowRates = cache(async function loadMarketRate(
+export const loadMarketBorrowHistoryRates = cache(async function loadMarketRate(
   params: LoadMarketRateParams
 ): Promise<MarketRate[]> {
   const { chainId, protocolId, interval, fromTimestamp, poolId, tokenId } =
@@ -38,7 +38,7 @@ export const loadMarketBorrowRates = cache(async function loadMarketRate(
 
     const protocolAdapter = await adapterLoader()
 
-    const rates = await protocolAdapter.getMarketBorrowRates({
+    const rates = await protocolAdapter.getMarketBorrowHistoryRates({
       chainId,
       poolId,
       tokenId,
@@ -58,7 +58,7 @@ export const loadMarketBorrowRates = cache(async function loadMarketRate(
  * @param params - Parameters including timeline, fromTimestamp, and poolId
  * @returns Array of market rates with timestamp and rate
  */
-export const loadMarketLendRates = cache(async function loadMarketRate(
+export const loadMarketLendHistoryRates = cache(async function loadMarketRate(
   params: LoadMarketRateParams
 ): Promise<MarketRate[]> {
   const { chainId, protocolId, interval, fromTimestamp, poolId, tokenId } =
@@ -72,7 +72,7 @@ export const loadMarketLendRates = cache(async function loadMarketRate(
 
     const protocolAdapter = await adapterLoader()
 
-    const rates = await protocolAdapter.getMarketLendRates({
+    const rates = await protocolAdapter.getMarketLendHistoryRates({
       chainId,
       poolId,
       interval,

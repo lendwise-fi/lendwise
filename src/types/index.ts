@@ -105,6 +105,25 @@ export interface LendPosition {
   link?: string
 }
 
+export interface LendMarket {
+  protocol: ProtocolName
+  poolName: string
+  poolAddress: Address
+  poolId: string
+  poolChainId: number
+  poolChainNetwork: string
+  assetAddress: Address
+  assetName: string
+  assetSymbol: string
+  assetDecimals: number
+  assetAmount: bigint
+  assetAmountUsd: number
+  liquidityAmount: bigint
+  liquidityAmountUsd: number
+  apy: number
+  link?: string
+}
+
 export interface BorrowPosition {
   id: string
   protocol: ProtocolName

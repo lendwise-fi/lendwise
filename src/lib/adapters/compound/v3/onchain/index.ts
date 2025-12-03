@@ -55,8 +55,14 @@ export type ChainTransformers = {
     data: unknown,
     protocolId: string
   ) => BorrowPosition[]
-  getMarketBorrowRates?: (data: unknown, protocolId: string) => MarketRate[]
-  getMarketLendRates?: (data: unknown, protocolId: string) => MarketRate[]
+  getMarketBorrowHistoryRates?: (
+    data: unknown,
+    protocolId: string
+  ) => MarketRate[]
+  getMarketLendHistoryRates?: (
+    data: unknown,
+    protocolId: string
+  ) => MarketRate[]
 }
 
 /**
@@ -117,12 +123,12 @@ const CHAIN_NAME_MAPPING: Record<
   { protocolName: string; marketSlug: string; chainId: number }
 > = {
   MAINNET: {
-    protocolName: 'Ethereum',
+    protocolName: 'ethereum',
     marketSlug: 'mainnet',
     chainId: mainnet.id,
   },
   ARBITRUM_ONE: {
-    protocolName: 'Arbitrum',
+    protocolName: 'arbitrum',
     marketSlug: 'arb',
     chainId: arbitrum.id,
   },
@@ -363,7 +369,7 @@ async function getUserBorrowPositions({
   }
 }
 
-async function getMarketBorrowRates({
+async function getMarketBorrowHistoryRates({
   chainId,
   poolId,
   interval,
@@ -431,7 +437,7 @@ async function getMarketBorrowRates({
   }
 }
 
-async function getMarketLendRates({
+async function getMarketLendHistoryRates({
   chainId,
   poolId,
   interval,
@@ -498,6 +504,6 @@ export const compoundV3OnchainAdapter: DataAdapter = {
   dataSourceType: 'onchain',
   getUserLendPositions,
   getUserBorrowPositions,
-  getMarketBorrowRates,
-  getMarketLendRates,
+  getMarketBorrowHistoryRates,
+  getMarketLendHistoryRates,
 }

@@ -13,7 +13,7 @@ import {
 } from 'lucide-react'
 import { Area, AreaChart, CartesianGrid, XAxis, YAxis } from 'recharts'
 
-import { loadMarketBorrowRates } from '@/app/actions/market-rates.actions'
+import { loadMarketBorrowHistoryRates } from '@/app/actions/market-rates.actions'
 import { ChainIcon, ProtocolIcon, TokenIcon } from '@/components/icon'
 import { DataTable, getUniqueColumnValues } from '@/components/table'
 import { Badge } from '@/components/ui/badge'
@@ -283,7 +283,7 @@ function TableCellViewer({ item }: { item: BorrowPosition }) {
       }
 
       try {
-        const rates = await loadMarketBorrowRates({
+        const rates = await loadMarketBorrowHistoryRates({
           protocolId: item.protocol,
           chainId: item.poolChainId,
           poolId: item.poolId,

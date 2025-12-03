@@ -1,12 +1,4 @@
-import {
-  arbitrum,
-  base,
-  katana,
-  mainnet,
-  optimism,
-  polygon,
-  unichain,
-} from 'viem/chains'
+import { arbitrum, base, mainnet, optimism, polygon } from 'viem/chains'
 
 import type { ProtocolConfig } from '@/config/protocols'
 
@@ -59,22 +51,22 @@ export const MORPHO_CONFIG: Record<string, ProtocolConfig> = {
           clientPath: 'optimism',
         },
       },
-      [katana.id]: {
-        ...katana,
-        custom: {
-          // subgraphUrl:
-          //   'https://gateway.thegraph.com/api/subgraphs/id/5y8d3K3vVCR7r5YwANGCjupLc3hUge54XvhYMEq3Jmq1',
-          // clientPath: 'katana',
-        },
-      },
-      [unichain.id]: {
-        ...unichain,
-        custom: {
-          subgraphUrl:
-            'https://gateway.thegraph.com/api/subgraphs/id/ESbNRVHte3nwhcHveux9cK4FFAZK3TTLc5mKQNtpYgmu',
-          clientPath: 'unichain',
-        },
-      },
+      // [katana.id]: {
+      //   ...katana,
+      //   custom: {
+      //     // subgraphUrl:
+      //     //   'https://gateway.thegraph.com/api/subgraphs/id/5y8d3K3vVCR7r5YwANGCjupLc3hUge54XvhYMEq3Jmq1',
+      //     // clientPath: 'katana',
+      //   },
+      // },
+      // [unichain.id]: {
+      //   ...unichain,
+      //   custom: {
+      //     subgraphUrl:
+      //       'https://gateway.thegraph.com/api/subgraphs/id/ESbNRVHte3nwhcHveux9cK4FFAZK3TTLc5mKQNtpYgmu',
+      //     clientPath: 'unichain',
+      //   },
+      // },
     },
   },
 }

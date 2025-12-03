@@ -1,11 +1,7 @@
 'use client'
 
 import { ColumnDef } from '@tanstack/react-table'
-import {
-  ArrowUpDown,
-  TrendingDown,
-  TrendingUp,
-} from 'lucide-react'
+import { ArrowUpDown } from 'lucide-react'
 
 import { ProtocolIcon } from '@/components/icon/ProtocolIcon'
 import { TokenIcon } from '@/components/icon/TokenIcon'
@@ -29,9 +25,6 @@ export function createColumns(
   type: 'lending' | 'borrowing',
   baseCurrency: string
 ): ColumnDef<PositionData>[] {
-  const Icon = type === 'lending' ? TrendingUp : TrendingDown
-  const iconColor = type === 'lending' ? 'text-green-500' : 'text-red-500'
-
   return [
     {
       accessorKey: 'protocol',

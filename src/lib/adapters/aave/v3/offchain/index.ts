@@ -11,8 +11,8 @@ import {
 
 import { AAVE_CONFIG } from '../../config'
 import {
-  MarketBorrowRatesQuery,
-  MarketLendRatesQuery,
+  MarketBorrowHistoryRatesQuery,
+  MarketLendHistoryRatesQuery,
   MarketsQuery,
   TimeWindow,
   UserBorrowPositionsQuery,
@@ -22,8 +22,8 @@ import {
 } from './generated/graphql'
 import {
   ALL_MARKETS,
-  MARKET_BORROW_RATES,
-  MARKET_LEND_RATES,
+  MARKET_BORROW_HISTORY_RATES,
+  MARKET_LEND_HISTORY_RATES,
   USER_BORROW_POSITIONS,
   USER_LEND_COLLATERALS,
   USER_LEND_POSITIONS,
@@ -119,7 +119,7 @@ async function getUserLendPositions({
               poolAddress: position.market.address,
               poolId: position.market.address,
               poolChainId: position.market.chain.chainId,
-              poolChainNetwork: position.market.chain.name,
+              poolChainNetwork: position.market.chain.name.toLowerCase(),
               assetAddress: position.currency.address,
               assetName: position.currency.name,
               assetSymbol: position.currency.symbol,
@@ -291,7 +291,7 @@ async function getUserBorrowPositions({
             poolName: position.market.name,
             poolAddress: position.market.address,
             poolChainId: position.market.chain.chainId,
-            poolChainNetwork: position.market.chain.name,
+            poolChainNetwork: position.market.chain.name.toLowerCase(),
             loanAssetAddress: position.currency.address,
             loanAssetName: position.currency.name,
             loanAssetSymbol: position.currency.symbol,
@@ -325,7 +325,7 @@ const TIMEFRAME_MAP: Record<TimeframeLabel, TimeWindow> = {
   Max: TimeWindow.LastYear,
 }
 
-async function getMarketBorrowRates({
+async function getMarketBorrowHistoryRates({
   poolId,
   chainId,
   tokenId,
@@ -337,7 +337,7 @@ async function getMarketBorrowRates({
   interval: TimeframeLabel
 }): Promise<MarketRate[]> {
   const { data, error } = await client
-    .query<MarketBorrowRatesQuery>(MARKET_BORROW_RATES, {
+    .query<MarketBorrowHistoryRatesQuery>(MARKET_BORROW_HISTORY_RATES, {
       request: {
         chainId,
         market: poolId,
@@ -363,7 +363,7 @@ async function getMarketBorrowRates({
   )
 }
 
-async function getMarketLendRates({
+async function getMarketLendHistoryRates({
   poolId,
   chainId,
   tokenId,
@@ -374,9 +374,8 @@ async function getMarketLendRates({
   tokenId: Address
   interval: TimeframeLabel
 }): Promise<MarketRate[]> {
-  console.log('interval', interval)
   const { data, error } = await client
-    .query<MarketLendRatesQuery>(MARKET_LEND_RATES, {
+    .query<MarketLendHistoryRatesQuery>(MARKET_LEND_HISTORY_RATES, {
       request: {
         chainId,
         market: poolId,
@@ -406,6 +405,6 @@ export const aaveV3OffchainAdapter: DataAdapter = {
   dataSourceType: 'offchain',
   getUserLendPositions,
   getUserBorrowPositions,
-  getMarketBorrowRates,
-  getMarketLendRates,
+  getMarketBorrowHistoryRates,
+  getMarketLendHistoryRates,
 }

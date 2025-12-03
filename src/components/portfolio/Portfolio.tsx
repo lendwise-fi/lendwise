@@ -132,58 +132,56 @@ export function Portfolio() {
   }
 
   return (
-    <div>
-      <div className="flex-1 space-y-8 p-8">
-        {/* Header */}
-        <div className="flex items-start justify-between">
-          <div>
-            <h1 className="text-foreground mb-2 text-3xl font-bold">
-              Portfolio Tracker
-            </h1>
-            <p className="text-muted-foreground-400">
-              Monitor all your DeFi positions across protocols and chains
-            </p>
-          </div>
+    <div className="flex-1 space-y-8 p-8">
+      {/* Header */}
+      <div className="flex items-start justify-between">
+        <div>
+          <h1 className="text-foreground mb-2 text-3xl font-bold">
+            Portfolio Tracker
+          </h1>
+          <p className="text-muted-foreground-400">
+            Monitor all your DeFi positions across protocols and chains
+          </p>
         </div>
+      </div>
 
-        {/* Portfolio Summary */}
-        <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
-          {isPending ? (
-            <>
-              <PieChartDonutTextSkeleton />
-              <PieChartDonutTextSkeleton />
-            </>
-          ) : (
-            <>
-              <PieChartDonutText
-                title={lendPieChartDonut.title}
-                description={lendPieChartDonut.description}
-                data={lendPieChartDonut.data}
-                config={lendPieChartDonut.config}
-              />
-              <PieChartDonutText
-                title={borrowPieChartDonut.title}
-                description={borrowPieChartDonut.description}
-                data={borrowPieChartDonut.data}
-                config={borrowPieChartDonut.config}
-              />
-            </>
-          )}
-        </div>
-
-        {/* Detailed Positions Lists */}
-        {isPending || conversionLoading ? (
-          <div className="space-y-8">
-            <DataTableSkeleton />
-            <DataTableSkeleton />
-          </div>
+      {/* Portfolio Summary */}
+      <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
+        {isPending ? (
+          <>
+            <PieChartDonutTextSkeleton />
+            <PieChartDonutTextSkeleton />
+          </>
         ) : (
-          <div className="mt-12 space-y-12">
-            <LendingTable data={Object.values(userPositions.lend).flat()} />
-            <BorrowingTable data={Object.values(userPositions.borrow).flat()} />
-          </div>
+          <>
+            <PieChartDonutText
+              title={lendPieChartDonut.title}
+              description={lendPieChartDonut.description}
+              data={lendPieChartDonut.data}
+              config={lendPieChartDonut.config}
+            />
+            <PieChartDonutText
+              title={borrowPieChartDonut.title}
+              description={borrowPieChartDonut.description}
+              data={borrowPieChartDonut.data}
+              config={borrowPieChartDonut.config}
+            />
+          </>
         )}
       </div>
+
+      {/* Detailed Positions Lists */}
+      {isPending || conversionLoading ? (
+        <div className="space-y-8">
+          <DataTableSkeleton />
+          <DataTableSkeleton />
+        </div>
+      ) : (
+        <div className="mt-12 space-y-12">
+          <LendingTable data={Object.values(userPositions.lend).flat()} />
+          <BorrowingTable data={Object.values(userPositions.borrow).flat()} />
+        </div>
+      )}
     </div>
   )
 }

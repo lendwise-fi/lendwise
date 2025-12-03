@@ -8,7 +8,7 @@ import { ColumnDef } from '@tanstack/react-table'
 import { AlertCircle, ArrowUpRightFromSquare, TrendingUp } from 'lucide-react'
 import { Area, AreaChart, CartesianGrid, XAxis, YAxis } from 'recharts'
 
-import { loadMarketLendRates } from '@/app/actions'
+import { loadMarketLendHistoryRates } from '@/app/actions'
 import { ChainIcon, ProtocolIcon, TokenIcon } from '@/components/icon'
 import { DataTable, getUniqueColumnValues } from '@/components/table'
 import { Badge } from '@/components/ui/badge'
@@ -179,7 +179,7 @@ function TableCellViewer({ item }: { item: LendPosition }) {
       }
 
       try {
-        const rates = await loadMarketLendRates({
+        const rates = await loadMarketLendHistoryRates({
           protocolId: item.protocol,
           chainId: item.poolChainId,
           poolId: item.poolId,

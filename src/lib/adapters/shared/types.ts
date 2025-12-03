@@ -35,6 +35,12 @@ export type BaseChainTransformers = {
     data: unknown,
     protocolId: string
   ) => BorrowPosition[]
-  getMarketBorrowRates?: (data: unknown, protocolId: string) => MarketRate[]
-  getMarketLendRates?: (data: unknown, protocolId: string) => MarketRate[]
+  getMarketBorrowHistoryRates?: (
+    data: unknown,
+    protocolId: string
+  ) => MarketRate[]
+  getMarketLendHistoryRates?: (
+    data: unknown,
+    protocolId: string
+  ) => MarketRate[]
 }

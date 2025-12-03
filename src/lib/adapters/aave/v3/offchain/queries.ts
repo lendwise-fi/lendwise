@@ -123,8 +123,8 @@ export const USER_LEND_COLLATERALS = gql`
     }
   }
 `
-export const MARKET_BORROW_RATES = gql`
-  query MarketBorrowRates($request: BorrowAPYHistoryRequest!) {
+export const MARKET_BORROW_HISTORY_RATES = gql`
+  query MarketBorrowHistoryRates($request: BorrowAPYHistoryRequest!) {
     borrowAPYHistory(request: $request) {
       avgRate {
         value
@@ -133,8 +133,8 @@ export const MARKET_BORROW_RATES = gql`
     }
   }
 `
-export const MARKET_LEND_RATES = gql`
-  query MarketLendRates($request: SupplyAPYHistoryRequest!) {
+export const MARKET_LEND_HISTORY_RATES = gql`
+  query MarketLendHistoryRates($request: SupplyAPYHistoryRequest!) {
     supplyAPYHistory(request: $request) {
       avgRate {
         value

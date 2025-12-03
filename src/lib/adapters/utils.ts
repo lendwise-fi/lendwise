@@ -2,6 +2,7 @@ import type { Address } from 'viem'
 
 import type {
   BorrowPosition,
+  LendMarket,
   LendPosition,
   MarketRate,
   MarketStats,
@@ -145,7 +146,7 @@ export function createProtocolAdapter(
       return statsAdapter.getMarketStats()
     },
 
-    async getMarketBorrowRates(
+    async getMarketBorrowHistoryRates(
       params: {
         chainId: number
         poolId: string
@@ -165,17 +166,17 @@ export function createProtocolAdapter(
         return []
       }
 
-      if (!ratesAdapter.getMarketBorrowRates) {
+      if (!ratesAdapter.getMarketBorrowHistoryRates) {
         console.warn(
-          `Rates adapter for ${this.protocol} ${versionAdapter.version} does not implement getMarketBorrowRates`
+          `Rates adapter for ${this.protocol} ${versionAdapter.version} does not implement getMarketBorrowHistoryRates`
         )
         return []
       }
 
-      return ratesAdapter.getMarketBorrowRates(params)
+      return ratesAdapter.getMarketBorrowHistoryRates(params)
     },
 
-    async getMarketLendRates(
+    async getMarketLendHistoryRates(
       params: {
         chainId: number
         poolId: string
@@ -195,14 +196,39 @@ export function createProtocolAdapter(
         return []
       }
 
-      if (!ratesAdapter.getMarketLendRates) {
+      if (!ratesAdapter.getMarketLendHistoryRates) {
         console.warn(
-          `Rates adapter for ${this.protocol} ${versionAdapter.version} does not implement getMarketLendRates`
+          `Rates adapter for ${this.protocol} ${versionAdapter.version} does not implement getMarketLendHistoryRates`
         )
         return []
       }
 
-      return ratesAdapter.getMarketLendRates(params)
+      return ratesAdapter.getMarketLendHistoryRates(params)
+    },
+
+    async getLendingMarkets(version?: string): Promise<LendMarket[]> {
+      const versionAdapter = this.getVersion(version)
+      // Try positions adapter first, then rates, then stats
+      const adapter =
+        versionAdapter.dataSources.positions ||
+        versionAdapter.dataSources.rates ||
+        versionAdapter.dataSources.stats
+
+      if (!adapter) {
+        console.warn(
+          `No data source configured for ${this.protocol} ${versionAdapter.version}`
+        )
+        return []
+      }
+
+      if (!adapter.getLendingMarkets) {
+        console.warn(
+          `Adapter for ${this.protocol} ${versionAdapter.version} does not implement getLendingMarkets`
+        )
+        return []
+      }
+
+      return adapter.getLendingMarkets()
     },
   }
 }

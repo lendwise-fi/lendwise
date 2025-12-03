@@ -2,6 +2,7 @@ import type { Address } from 'viem'
 
 import {
   BorrowPosition,
+  LendMarket,
   LendPosition,
   MarketRate,
   MarketStats,
@@ -71,7 +72,7 @@ export interface DataAdapter {
    * @param params.fromTimestamp The starting timestamp for historical data.
    * @returns A promise that resolves to an array of market rates.
    */
-  getMarketBorrowRates?(params: {
+  getMarketBorrowHistoryRates?(params: {
     poolId: string
     interval: TimeframeLabel
     fromTimestamp: number
@@ -88,13 +89,20 @@ export interface DataAdapter {
    * @param params.fromTimestamp The starting timestamp for historical data.
    * @returns A promise that resolves to an array of market rates.
    */
-  getMarketLendRates?(params: {
+  getMarketLendHistoryRates?(params: {
     poolId: string
     interval: TimeframeLabel
     fromTimestamp: number
     chainId: number
     tokenId: Address
   }): Promise<MarketRate[]>
+
+  /**
+   * Fetches market rates (supply rates, borrow rates, etc.).
+   * Can be provided by either GraphQL or Subgraph depending on availability.
+   * @returns A promise that resolves to an array of market rates.
+   */
+  getLendingMarkets?(): Promise<LendMarket[]>
 }
 
 // ============================================================================
@@ -108,7 +116,7 @@ export interface DataAdapter {
  * Each adapter exposes only the methods supported by its underlying data source:
  * - positions: Typically a GraphQL adapter with getUserLendPositions/getUserBorrowPositions
  * - stats: Typically a Subgraph adapter with getMarketStats
- * - rates: Either GraphQL or Subgraph adapter with getMarketBorrowRates/getMarketLendRates
+ * - rates: Either GraphQL or Subgraph adapter with getMarketBorrowHistoryRates/getMarketLendHistoryRates
  *
  * @example
  * ```typescript
@@ -133,7 +141,7 @@ export interface DataSourceConfig {
 
   /**
    * Adapter for historical rate data.
-   * Should implement getMarketBorrowRates/getMarketLend Rates.
+   * Should implement getMarketBorrowHistoryRates/getMarketLend Rates.
    */
   rates?: DataAdapter
 }
