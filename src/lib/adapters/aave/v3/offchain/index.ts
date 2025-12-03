@@ -446,7 +446,7 @@ async function getLendingMarkets(): Promise<LendMarket[]> {
           liquidityAmount: BigInt(reserve.supplyInfo.supplyCap.amount.raw),
           liquidityAmountUsd: reserve.supplyInfo.supplyCap.usd,
           collaterals: [],
-          apy: reserve.supplyInfo.apy.formatted,
+          apy: reserve.supplyInfo.apy.value,
           link: `https://app.aave.com/reserve-overview/?underlyingAsset=${reserve.underlyingToken.address.toLowerCase()}&marketName=proto_${market.chain.name.toLowerCase()}_v3`,
         }))
       )
