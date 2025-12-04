@@ -1,11 +1,22 @@
 'use client'
 
-import { ColumnDef } from '@tanstack/react-table'
-import { ArrowUpRightFromSquare, Link } from 'lucide-react'
+import Link from 'next/link'
 
+import { useQuery } from '@tanstack/react-query'
+import { ColumnDef } from '@tanstack/react-table'
+import { ArrowUpRightFromSquare } from 'lucide-react'
+
+import { loadLendingMarkets } from '@/app/actions/markets.actions'
+import { ChainBadge } from '@/components/badge/ChainBadge'
+import { ProtocolBadge } from '@/components/badge/ProtocolBadge'
 import { ChainIcon, ProtocolIcon, TokenIcon } from '@/components/icon'
-import { DataTable, getUniqueColumnValues } from '@/components/table'
+import {
+  DataTable,
+  SortableHeader,
+  getUniqueColumnValues,
+} from '@/components/table'
 import { Badge } from '@/components/ui/badge'
+import { PieChartMini } from '@/components/ui/pie-chart-mini'
 import { getProtocolVersionNameById } from '@/config/protocols'
 import { useCurrency } from '@/contexts'
 import { formatCompactCurrency } from '@/lib/format-currency'
@@ -18,39 +29,27 @@ const createColumns = (
 ): ColumnDef<LendMarket>[] => [
   {
     accessorKey: 'protocol',
-    header: 'Protocol',
+    header: ({ column }) => (
+      <SortableHeader column={column}>Protocol</SortableHeader>
+    ),
     size: 110,
     minSize: 110,
-    cell: ({ row }) => (
-      <Badge
-        variant="outline"
-        className="flex w-fit items-center gap-2 px-2 py-1.5 whitespace-nowrap"
-      >
-        <ProtocolIcon protocol={row.original.protocol} />
-        <span className="text-muted-foreground text-xs whitespace-nowrap">
-          {getProtocolVersionNameById(row.original.protocol)}
-        </span>
-      </Badge>
-    ),
+    enableSorting: true,
+    cell: ({ row }) => <ProtocolBadge protocol={row.original.protocol} />,
   },
   {
     accessorKey: 'poolChainNetwork',
-    header: 'Chain',
-    cell: ({ row }) => (
-      <Badge
-        variant="outline"
-        className="flex w-fit items-center gap-2 px-2 py-1.5 whitespace-nowrap"
-      >
-        <ChainIcon chainSlug={row.original.poolChainNetwork} />
-        <span className="text-muted-foreground text-xs">
-          {row.original.poolChainNetwork}
-        </span>
-      </Badge>
+    header: ({ column }) => (
+      <SortableHeader column={column}>Chain</SortableHeader>
     ),
+    enableSorting: true,
+    cell: ({ row }) => <ChainBadge chainSlug={row.original.poolChainNetwork} />,
   },
   {
     accessorKey: 'poolName',
-    header: 'Vault / Pool',
+    header: ({ column }) => (
+      <SortableHeader column={column}>Name</SortableHeader>
+    ),
     cell: ({ row }) => (
       <div className="flex w-full items-center gap-2">
         <TokenIcon symbol={row.original.assetSymbol} />
@@ -58,8 +57,10 @@ const createColumns = (
       </div>
     ),
     enableHiding: false,
+    enableSorting: true,
   },
   {
+    accessorKey: 'assetSymbol',
     header: 'Deposits',
     cell: ({ row }) => (
       <div className="flex w-full items-center gap-3">
@@ -91,6 +92,13 @@ const createColumns = (
             currency
           )}
         </Badge>
+        <PieChartMini
+          percentage={
+            (Number(row.original.liquidityAmount) /
+              Number(row.original.assetAmount)) *
+            100
+          }
+        />
       </div>
     ),
 
@@ -98,8 +106,12 @@ const createColumns = (
   },
   {
     accessorKey: 'apy',
-    header: 'Apy',
+    header: ({ column }) => (
+      <SortableHeader column={column}>APY</SortableHeader>
+    ),
     size: 60,
+    enableSorting: true,
+    sortingFn: 'basic',
     cell: ({ row }) => (
       <span>{Number(row.original.apy * 100).toFixed(2)}%</span>
     ),
@@ -122,9 +134,16 @@ const createColumns = (
   },
 ]
 
-export function LendingTable({ data }: { data: LendMarket[] }) {
+export function LendingTableClient() {
   const { baseCurrency, rate } = useCurrency()
   const columns = createColumns(baseCurrency, rate)
+  const { data } = useQuery<LendMarket[]>({
+    queryKey: ['lendingMarkets'],
+    queryFn: loadLendingMarkets,
+    staleTime: 60_000, // 60s - aligned with server revalidate
+    refetchInterval: 60_000, // auto revalidation every 60s
+    gcTime: 5 * 60 * 1000, // 5min
+  })
 
   return (
     <DataTable
@@ -133,20 +152,22 @@ export function LendingTable({ data }: { data: LendMarket[] }) {
         {
           column: 'protocol',
           title: 'Protocol',
-          options: getUniqueColumnValues(data, 'protocol').map((value) => ({
-            value: value as string,
-            label: (
-              <div className="flex items-center gap-2">
-                <ProtocolIcon protocol={value as string} />{' '}
-                {getProtocolVersionNameById(value)}
-              </div>
-            ),
-          })),
+          options: getUniqueColumnValues(data || [], 'protocol').map(
+            (value) => ({
+              value: value as string,
+              label: (
+                <div className="flex items-center gap-2">
+                  <ProtocolIcon protocol={value as string} />{' '}
+                  {getProtocolVersionNameById(value)}
+                </div>
+              ),
+            })
+          ),
         },
         {
           column: 'poolChainNetwork',
           title: 'Chain',
-          options: getUniqueColumnValues(data, 'poolChainNetwork').map(
+          options: getUniqueColumnValues(data || [], 'poolChainNetwork').map(
             (value) => ({
               value: value as string,
               label: (
@@ -158,9 +179,24 @@ export function LendingTable({ data }: { data: LendMarket[] }) {
             })
           ),
         },
+        {
+          column: 'assetSymbol',
+          title: 'Token',
+          multiSelect: false,
+          options: getUniqueColumnValues(data || [], 'assetSymbol').map(
+            (value) => ({
+              value: value as string,
+              label: (
+                <div className="flex items-center gap-2">
+                  <TokenIcon symbol={value as string} /> {value}
+                </div>
+              ),
+            })
+          ),
+        },
       ]}
       columns={columns}
-      data={data}
+      data={data || []}
     />
   )
 }

@@ -15,7 +15,7 @@ export function Web3Provider({ children }: { children: React.ReactNode }) {
   const [config, setConfig] = useState<Config | null>(null)
 
   useEffect(() => {
-    // Charger la config uniquement côté client pour éviter les erreurs SSR
+    // Load the config only on the client side to avoid SSR errors
     import('../config/wagmi').then((mod) => {
       setConfig(mod.config)
       setMounted(true)

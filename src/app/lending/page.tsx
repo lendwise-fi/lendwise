@@ -1,10 +1,10 @@
-// import { LendingMarkets } from '@/components/dashboard/lending'
-import { loadLendingMarkets } from '@/app/actions/markets.actions'
-import { LendingTable } from '@/components/markets/LendingTable'
+import { Suspense } from 'react'
+
+import { LendingTableServer } from '@/components/markets/LendingTableServer'
+import { LendingTableSkeleton } from '@/components/markets/LendingTableSkeleton'
+import { Separator } from '@/components/ui/separator'
 
 export default async function LendingPage() {
-  const lendingMarkets = await loadLendingMarkets()
-
   return (
     <div className="flex-1 space-y-8 p-8">
       <div className="flex items-start justify-between">
@@ -17,10 +17,10 @@ export default async function LendingPage() {
           </p>
         </div>
       </div>
-
-      <div className="">
-        <LendingTable data={Object.values(lendingMarkets).flat()} />
-      </div>
+      <Separator className="my-3" />
+      <Suspense fallback={<LendingTableSkeleton />}>
+        <LendingTableServer />
+      </Suspense>
     </div>
   )
 }

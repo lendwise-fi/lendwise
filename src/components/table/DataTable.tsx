@@ -3,6 +3,7 @@
 import { useState } from 'react'
 
 import {
+  Column,
   ColumnDef,
   ColumnFiltersState,
   SortingState,
@@ -21,6 +22,8 @@ import {
   ChevronRight,
   ChevronsLeft,
   ChevronsRight,
+  SortAsc,
+  SortDesc,
 } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
@@ -43,6 +46,27 @@ import {
 
 import { DataTableToolbar } from './DataTableToolbar'
 
+// Custom filter function for faceted filters (OR logic)
+// Custom filter function for faceted filters (OR logic)
+const arrayFilterFn = <_TData,>(
+  row: { getValue: (columnId: string) => unknown },
+  columnId: string,
+  filterValue: string[] | string
+): boolean => {
+  if (
+    !filterValue ||
+    (Array.isArray(filterValue) && filterValue.length === 0)
+  ) {
+    return true
+  }
+  const value = row.getValue(columnId)
+
+  if (Array.isArray(filterValue)) {
+    return filterValue.includes(String(value))
+  }
+  return String(value) === String(filterValue)
+}
+
 interface DataTableProps<TData, TValue> {
   columns: ColumnDef<TData, TValue>[]
   data: TData[]
@@ -50,6 +74,7 @@ interface DataTableProps<TData, TValue> {
   filterableColumns?: {
     column: string
     title: string
+    multiSelect?: boolean
     options: {
       value: string
       label: string | React.ReactNode
@@ -58,6 +83,7 @@ interface DataTableProps<TData, TValue> {
   }[]
   hiddenColumns?: string[]
   onRowClick?: (row: TData) => void
+  initialSorting?: SortingState
 }
 
 export function DataTable<TData, TValue>({
@@ -67,20 +93,37 @@ export function DataTable<TData, TValue>({
   filterableColumns,
   hiddenColumns: _hiddenColumns = [],
   onRowClick: _onRowClick,
+  initialSorting = [],
 }: DataTableProps<TData, TValue>) {
   // const [data, setData] = useState(() => initialData)
   const [rowSelection, setRowSelection] = useState({})
   const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({})
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([])
-  const [sorting, setSorting] = useState<SortingState>([])
+  const [sorting, setSorting] = useState<SortingState>(initialSorting)
   const [pagination, setPagination] = useState({
     pageIndex: 0,
     pageSize: 10,
   })
 
+  // Configure filter functions for filterable columns
+  const columnDefs = columns.map((col) => {
+    const columnId = 'accessorKey' in col ? col.accessorKey : col.id
+    const isFilterableColumn = filterableColumns?.some(
+      (fc) => fc.column === columnId
+    )
+
+    if (isFilterableColumn) {
+      return {
+        ...col,
+        filterFn: arrayFilterFn,
+      }
+    }
+    return col
+  })
+
   const table = useReactTable({
     data,
-    columns,
+    columns: columnDefs,
     state: {
       sorting,
       columnVisibility,
@@ -115,78 +158,75 @@ export function DataTable<TData, TValue>({
         searchableColumn={searchableColumn}
         filterableColumns={filterableColumns}
       />
-      <div className="overflow-hidden rounded-lg border">
-        <Table>
-          <TableHeader className="bg-muted sticky top-0 z-10">
-            {table.getHeaderGroups().map((headerGroup) => (
-              <TableRow key={headerGroup.id}>
-                {headerGroup.headers.map((header) => {
-                  return (
-                    <TableHead
-                      key={header.id}
-                      colSpan={header.colSpan}
-                      style={{
-                        width: header.getSize(),
-                        minWidth: header.column.columnDef.minSize,
-                      }}
-                    >
-                      {header.isPlaceholder
-                        ? null
-                        : flexRender(
-                            header.column.columnDef.header,
-                            header.getContext()
-                          )}
-                    </TableHead>
-                  )
-                })}
+      <Table className="border-separate border-spacing-y-2 text-xs">
+        <TableHeader className="sticky top-0 z-10">
+          {table.getHeaderGroups().map((headerGroup) => (
+            <TableRow key={headerGroup.id}>
+              {headerGroup.headers.map((header) => {
+                return (
+                  <TableHead
+                    key={header.id}
+                    colSpan={header.colSpan}
+                    style={{
+                      width: header.getSize(),
+                      minWidth: header.column.columnDef.minSize,
+                    }}
+                    className="first:rounded-l-lg last:rounded-r-lg"
+                  >
+                    {header.isPlaceholder
+                      ? null
+                      : flexRender(
+                          header.column.columnDef.header,
+                          header.getContext()
+                        )}
+                  </TableHead>
+                )
+              })}
+            </TableRow>
+          ))}
+        </TableHeader>
+        <TableBody className="**:data-[slot=table-cell]:first:w-8">
+          {table.getRowModel().rows?.length ? (
+            table.getRowModel().rows.map((row) => (
+              <TableRow
+                key={row.id}
+                data-state={row.getIsSelected() && 'selected'}
+                className="bg-muted/50 relative z-0"
+              >
+                {row.getVisibleCells().map((cell) => (
+                  <TableCell
+                    key={cell.id}
+                    style={{
+                      width: cell.column.getSize(),
+                      minWidth: cell.column.columnDef.minSize,
+                    }}
+                    className="first:rounded-l-lg last:rounded-r-lg"
+                  >
+                    {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                  </TableCell>
+                ))}
               </TableRow>
-            ))}
-          </TableHeader>
-          <TableBody className="**:data-[slot=table-cell]:first:w-8">
-            {table.getRowModel().rows?.length ? (
-              table.getRowModel().rows.map((row) => (
-                <TableRow
-                  key={row.id}
-                  data-state={row.getIsSelected() && 'selected'}
-                  className="relative z-0"
-                >
-                  {row.getVisibleCells().map((cell) => (
-                    <TableCell
-                      key={cell.id}
-                      style={{
-                        width: cell.column.getSize(),
-                        minWidth: cell.column.columnDef.minSize,
-                      }}
-                    >
-                      {flexRender(
-                        cell.column.columnDef.cell,
-                        cell.getContext()
-                      )}
-                    </TableCell>
-                  ))}
-                </TableRow>
-              ))
-            ) : (
-              <TableRow>
-                <TableCell
-                  colSpan={columns.length}
-                  className="h-24 text-center"
-                >
-                  No results.
-                </TableCell>
-              </TableRow>
-            )}
-          </TableBody>
-        </Table>
-      </div>
+            ))
+          ) : (
+            <TableRow>
+              <TableCell colSpan={columns.length} className="h-24 text-center">
+                No results.
+              </TableCell>
+            </TableRow>
+          )}
+        </TableBody>
+      </Table>
+
       <div className="flex items-center justify-between px-4">
-        {hasSelectColumn && (
-          <div className="text-muted-foreground hidden flex-1 text-sm lg:flex">
-            {table.getFilteredSelectedRowModel().rows.length} of{' '}
-            {table.getFilteredRowModel().rows.length} row(s) selected.
-          </div>
-        )}
-        <div className="flex w-full items-center gap-8 lg:w-fit">
+        <div className="text-muted-foreground hidden flex-1 text-sm lg:flex">
+          {hasSelectColumn && (
+            <span>
+              {table.getFilteredSelectedRowModel().rows.length} of{' '}
+              {table.getFilteredRowModel().rows.length} row(s) selected.
+            </span>
+          )}
+        </div>
+        <div className="flex w-fit items-center justify-end gap-8">
           <div className="hidden items-center gap-2 lg:flex">
             <Label htmlFor="rows-per-page" className="text-sm font-medium">
               Rows per page
@@ -259,5 +299,27 @@ export function DataTable<TData, TValue>({
         </div>
       </div>
     </div>
+  )
+}
+
+export function SortableHeader<TData>({
+  column,
+  children,
+}: {
+  column: Column<TData, unknown>
+  children: React.ReactNode
+}) {
+  return (
+    <button
+      className="hover:text-foreground flex cursor-pointer items-center gap-1"
+      onClick={() => column.toggleSorting(column.getIsSorted() === 'asc')}
+    >
+      {children}
+      {column.getIsSorted() === 'asc' ? (
+        <SortAsc className="h-3 w-3" />
+      ) : (
+        <SortDesc className="h-3 w-3" />
+      )}
+    </button>
   )
 }

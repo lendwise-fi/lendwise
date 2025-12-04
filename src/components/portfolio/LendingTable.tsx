@@ -9,8 +9,14 @@ import { AlertCircle, ArrowUpRightFromSquare, TrendingUp } from 'lucide-react'
 import { Area, AreaChart, CartesianGrid, XAxis, YAxis } from 'recharts'
 
 import { loadMarketLendHistoryRates } from '@/app/actions'
+import { ChainBadge } from '@/components/badge/ChainBadge'
+import { ProtocolBadge } from '@/components/badge/ProtocolBadge'
 import { ChainIcon, ProtocolIcon, TokenIcon } from '@/components/icon'
-import { DataTable, getUniqueColumnValues } from '@/components/table'
+import {
+  DataTable,
+  SortableHeader,
+  getUniqueColumnValues,
+} from '@/components/table'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
@@ -51,6 +57,8 @@ import {
   TimeframeLabel,
 } from '@/types'
 
+import { AddressBadge } from '../badge/AddressBadge'
+
 const createColumns = (
   currency: string,
   rate: number
@@ -60,42 +68,17 @@ const createColumns = (
     header: 'Protocol',
     size: 110,
     minSize: 110,
-    cell: ({ row }) => (
-      <Badge
-        variant="outline"
-        className="flex w-fit items-center gap-2 px-2 py-1.5 whitespace-nowrap"
-      >
-        <ProtocolIcon protocol={row.original.protocol} />
-        <span className="text-muted-foreground text-xs whitespace-nowrap">
-          {getProtocolVersionNameById(row.original.protocol)}
-        </span>
-      </Badge>
-    ),
+    cell: ({ row }) => <ProtocolBadge protocol={row.original.protocol} />,
   },
   {
     accessorKey: 'poolChainNetwork',
     header: 'Chain',
-    cell: ({ row }) => (
-      <Badge
-        variant="outline"
-        className="flex w-fit items-center gap-2 px-2 py-1.5 whitespace-nowrap"
-      >
-        <ChainIcon chainSlug={row.original.poolChainNetwork} />
-        <span className="text-muted-foreground text-xs">
-          {row.original.poolChainNetwork}
-        </span>
-      </Badge>
-    ),
+    cell: ({ row }) => <ChainBadge chainSlug={row.original.poolChainNetwork} />,
   },
   {
     accessorKey: 'userAddress',
     header: 'Address',
-    cell: ({ row }) => (
-      <div className="flex items-center gap-2">
-        <WalletAvatar address={row.original.userAddress} size={20} />
-        {formatAddress(row.original.userAddress)}
-      </div>
-    ),
+    cell: ({ row }) => <AddressBadge address={row.original.userAddress} />,
 
     enableHiding: false,
   },
@@ -129,10 +112,13 @@ const createColumns = (
   },
   {
     accessorKey: 'apy',
-    header: 'APY',
+    header: ({ column }) => (
+      <SortableHeader column={column}>APY</SortableHeader>
+    ),
     size: 60,
     cell: ({ row }) => <span>{Number(row.original.apy).toFixed(2)}%</span>,
     enableHiding: false,
+    enableSorting: true,
   },
   {
     id: 'actions',
@@ -214,31 +200,9 @@ function TableCellViewer({ item }: { item: LendPosition }) {
           <DrawerTitle>{item.poolName}</DrawerTitle>
           <DrawerDescription asChild>
             <div className="flex flex-wrap gap-2">
-              <Badge
-                variant="outline"
-                className="flex w-fit items-center gap-2 px-2 py-1.5 whitespace-nowrap"
-              >
-                <ProtocolIcon protocol={item.protocol} />
-                <span className="text-muted-foreground text-xs">
-                  {getProtocolVersionNameById(item.protocol)}
-                </span>
-              </Badge>
-              <Badge
-                variant="outline"
-                className="flex w-fit items-center gap-2 px-2 py-1.5 whitespace-nowrap"
-              >
-                <ChainIcon chainSlug={item.poolChainNetwork} />
-                <span className="text-muted-foreground text-xs">
-                  {item.poolChainNetwork}
-                </span>
-              </Badge>
-              <Badge
-                variant="outline"
-                className="text-muted-foreground flex items-center gap-2 px-2 py-1.5 whitespace-nowrap"
-              >
-                <WalletAvatar address={item.userAddress} size={20} />
-                {formatAddress(item.userAddress)}
-              </Badge>
+              <ProtocolBadge protocol={item.protocol} />
+              <ChainBadge chainSlug={item.poolChainNetwork} />
+              <AddressBadge address={item.userAddress} noCopy border />
             </div>
           </DrawerDescription>
         </DrawerHeader>
@@ -392,7 +356,10 @@ export function LendingTable({ data }: { data: LendPosition[] }) {
       </h2>
       <Separator className="my-3" />
       <DataTable
+        columns={columns}
+        data={data}
         searchableColumn="poolName"
+        initialSorting={[{ id: 'apy', desc: true }]}
         filterableColumns={[
           {
             column: 'protocol',
@@ -415,7 +382,8 @@ export function LendingTable({ data }: { data: LendPosition[] }) {
                 value: value as string,
                 label: (
                   <div className="flex items-center gap-2">
-                    <ChainIcon chainSlug={value as string} /> {value}
+                    <ChainIcon chainSlug={value as string} />{' '}
+                    {value.charAt(0).toUpperCase() + value.slice(1)}
                   </div>
                 ),
               })
@@ -437,8 +405,6 @@ export function LendingTable({ data }: { data: LendPosition[] }) {
             ),
           },
         ]}
-        columns={columns}
-        data={data}
       />
     </div>
   )

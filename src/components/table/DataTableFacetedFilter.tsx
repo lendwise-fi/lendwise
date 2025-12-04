@@ -32,6 +32,7 @@ interface DataTableFacetedFilter<TData, TValue> {
   column?: Column<TData, TValue>
   title?: string
   options: FilterOption[]
+  multiSelect?: boolean // New prop to enable/disable multi-selection
 }
 
 export function getUniqueColumnValues<TData>(
@@ -47,6 +48,7 @@ export function DataTableFacetedFilter<TData, TValue>({
   column,
   title,
   options,
+  multiSelect = true, // Default to multi-select for backward compatibility
 }: DataTableFacetedFilter<TData, TValue>) {
   const facets = new Map(
     Array.from(column?.getFacetedUniqueValues() ?? []).map(([key, count]) => [
@@ -54,10 +56,17 @@ export function DataTableFacetedFilter<TData, TValue>({
       count,
     ])
   )
-  const selectedValues = new Set<string>(column?.getFilterValue() as string[])
+
+  // Handle both single and multi-select modes
+  const filterValue = column?.getFilterValue()
+  const selectedValues = multiSelect
+    ? new Set<string>(filterValue as string[])
+    : new Set<string>(filterValue ? [filterValue as string] : [])
+
+  const [open, setOpen] = React.useState(false)
 
   return (
-    <Popover>
+    <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
         <Button variant="outline" size="sm" className="h-8 border-dashed">
           <PlusCircle className="mr-2 h-4 w-4" />
@@ -113,15 +122,28 @@ export function DataTableFacetedFilter<TData, TValue>({
                   <CommandItem
                     key={option.value}
                     onSelect={() => {
-                      if (isSelected) {
-                        selectedValues.delete(option.value)
+                      if (multiSelect) {
+                        // Multi-select mode: toggle selection
+                        if (isSelected) {
+                          selectedValues.delete(option.value)
+                        } else {
+                          selectedValues.add(option.value)
+                        }
+                        const filterValues = Array.from(selectedValues)
+                        column?.setFilterValue(
+                          filterValues.length ? filterValues : undefined
+                        )
                       } else {
-                        selectedValues.add(option.value)
+                        // Single-select mode: set only this value
+                        if (isSelected) {
+                          // Clicking selected item clears filter
+                          column?.setFilterValue(undefined)
+                        } else {
+                          // Set single value as string, not array
+                          column?.setFilterValue(option.value)
+                        }
+                        setOpen(false) // Close popover after selection
                       }
-                      const filterValues = Array.from(selectedValues)
-                      column?.setFilterValue(
-                        filterValues.length ? filterValues : undefined
-                      )
                     }}
                   >
                     <div
@@ -151,7 +173,10 @@ export function DataTableFacetedFilter<TData, TValue>({
                 <CommandSeparator />
                 <CommandGroup>
                   <CommandItem
-                    onSelect={() => column?.setFilterValue(undefined)}
+                    onSelect={() => {
+                      column?.setFilterValue(undefined)
+                      if (!multiSelect) setOpen(false)
+                    }}
                     className="justify-center text-center"
                   >
                     Clear filters

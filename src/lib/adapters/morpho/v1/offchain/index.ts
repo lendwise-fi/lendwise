@@ -336,30 +336,30 @@ async function getLendingMarkets(): Promise<LendMarket[]> {
         break
       }
 
-      const markets = data.vaults.items.map((market) => ({
+      const markets = data.vaults.items.map((vault) => ({
         protocol: MORPHO_CONFIG.morpho_v1.id,
-        poolName: market.name,
-        poolId: market.id,
-        poolAddress: market.address,
-        poolChainId: market.asset.chain.id,
-        poolChainNetwork: market.asset.chain.network.toLowerCase(),
-        assetAddress: market.asset.address,
-        assetName: market.asset.name,
-        assetSymbol: market.asset.symbol,
-        assetDecimals: market.asset.decimals,
-        assetAmount: BigInt(market?.state?.totalAssets ?? 0),
-        assetAmountUsd: market?.state?.totalAssetsUsd ?? 0,
-        liquidityAmount: BigInt(market.liquidity?.underlying ?? 0),
-        liquidityAmountUsd: market.liquidity?.usd ?? 0,
-        collaterals: market.state?.allocation?.map((allocation) =>
+        poolName: vault.name,
+        poolId: vault.id,
+        poolAddress: vault.address,
+        poolChainId: vault.asset.chain.id,
+        poolChainNetwork: vault.asset.chain.network.toLowerCase(),
+        assetAddress: vault.asset.address,
+        assetName: vault.asset.name,
+        assetSymbol: vault.asset.symbol,
+        assetDecimals: vault.asset.decimals,
+        assetAmount: BigInt(vault?.state?.totalAssets ?? 0),
+        assetAmountUsd: vault?.state?.totalAssetsUsd ?? 0,
+        liquidityAmount: BigInt(vault.liquidity?.underlying ?? 0),
+        liquidityAmountUsd: vault.liquidity?.usd ?? 0,
+        collaterals: vault.state?.allocation?.map((allocation) =>
           allocation.market.collateralAsset
             ? {
                 symbol: allocation.market.collateralAsset.symbol ?? '',
               }
             : []
         ),
-        apy: market?.state?.avgNetApy ?? 0,
-        link: `https://app.morpho.org/${market.asset.chain.network.toLowerCase()}/market/${market.id}/${generateSlug(market.asset.symbol + '-' + market.asset.symbol)}?subTab=yourPosition`,
+        apy: vault?.state?.avgNetApy ?? 0,
+        link: `https://app.morpho.org/${vault.asset.chain.network.toLowerCase()}/vault/${vault.address}/${generateSlug(vault.name)}`,
       }))
 
       allMarkets.push(...markets)

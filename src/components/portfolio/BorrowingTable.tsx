@@ -15,7 +15,11 @@ import { Area, AreaChart, CartesianGrid, XAxis, YAxis } from 'recharts'
 
 import { loadMarketBorrowHistoryRates } from '@/app/actions/market-rates.actions'
 import { ChainIcon, ProtocolIcon, TokenIcon } from '@/components/icon'
-import { DataTable, getUniqueColumnValues } from '@/components/table'
+import {
+  DataTable,
+  SortableHeader,
+  getUniqueColumnValues,
+} from '@/components/table'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
@@ -47,16 +51,16 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Separator } from '@/components/ui/separator'
-import { CopyButton } from '@/components/ui/shadcn-io/copy-button'
-import { WalletAvatar } from '@/components/wallet/WalletAvatar'
 import { getProtocolVersionNameById } from '@/config'
 import { useCurrency } from '@/contexts'
 import { useIsMobile } from '@/hooks/useMobile'
 import { formatCompactCurrency } from '@/lib/format-currency'
-import { formatAddress } from '@/lib/utils'
 import { TIMEFRAME_OPTIONS, TimeframeLabel } from '@/types'
 import { BorrowPosition, MarketRate } from '@/types'
 
+import { AddressBadge } from '../badge/AddressBadge'
+import { ChainBadge } from '../badge/ChainBadge'
+import { ProtocolBadge } from '../badge/ProtocolBadge'
 import { LiquidationRiskBar } from '../borrowing/LiquidationRiskBar'
 
 const createColumns = (
@@ -66,47 +70,17 @@ const createColumns = (
   {
     accessorKey: 'protocol',
     header: 'Protocol',
-    cell: ({ row }) => (
-      <Badge
-        variant="outline"
-        className="flex w-fit items-center gap-2 px-2 py-1.5 whitespace-nowrap"
-      >
-        <ProtocolIcon protocol={row.original.protocol} />
-        <span className="text-muted-foreground text-xs">
-          {getProtocolVersionNameById(row.original.protocol)}
-        </span>
-      </Badge>
-    ),
+    cell: ({ row }) => <ProtocolBadge protocol={row.original.protocol} />,
   },
   {
     accessorKey: 'poolChainNetwork',
     header: 'Chain',
-    cell: ({ row }) => (
-      <Badge
-        variant="outline"
-        className="flex w-fit items-center gap-2 px-2 py-1.5 whitespace-nowrap"
-      >
-        <ChainIcon chainSlug={row.original.poolChainNetwork} />
-        <span className="text-muted-foreground text-xs">
-          {row.original.poolChainNetwork}
-        </span>
-      </Badge>
-    ),
+    cell: ({ row }) => <ChainBadge chainSlug={row.original.poolChainNetwork} />,
   },
   {
     accessorKey: 'userAddress',
     header: 'Address',
-    cell: ({ row }) => (
-      <div className="hover:bg-accent flex cursor-pointer items-center gap-2 rounded-lg px-2 py-1.5">
-        <WalletAvatar address={row.original.userAddress} size={20} />
-        {formatAddress(row.original.userAddress)}
-        <CopyButton
-          content={row.original.userAddress}
-          variant="outline"
-          size="sm"
-        />
-      </div>
-    ),
+    cell: ({ row }) => <AddressBadge address={row.original.userAddress} />,
     enableHiding: false,
   },
   {
@@ -225,18 +199,23 @@ const createColumns = (
   },
   {
     accessorKey: 'apy',
-    header: 'Rate',
-    size: 60,
+    header: ({ column }) => (
+      <SortableHeader column={column}>Rate</SortableHeader>
+    ),
     cell: ({ row }) => <span>{row.original.apy}%</span>,
+    size: 60,
     enableHiding: false,
+    enableSorting: true,
   },
   {
     accessorKey: 'healthFactor',
-    header: 'Health',
-    size: 60,
-    enableSorting: true,
+    header: ({ column }) => (
+      <SortableHeader column={column}>Health</SortableHeader>
+    ),
     cell: ({ row }) => Number(row.original.healthFactor).toFixed(2),
+    size: 60,
     enableHiding: false,
+    enableSorting: true,
   },
   {
     id: 'actions',
@@ -318,31 +297,9 @@ function TableCellViewer({ item }: { item: BorrowPosition }) {
           <DrawerTitle>{item.poolName}</DrawerTitle>
           <DrawerDescription asChild>
             <div className="flex flex-wrap gap-2">
-              <Badge
-                variant="outline"
-                className="flex w-fit items-center gap-2 px-2 py-1.5 whitespace-nowrap"
-              >
-                <ProtocolIcon protocol={item.protocol} />
-                <span className="text-muted-foreground text-xs">
-                  {getProtocolVersionNameById(item.protocol)}
-                </span>
-              </Badge>
-              <Badge
-                variant="outline"
-                className="flex w-fit items-center gap-2 px-2 py-1.5 whitespace-nowrap"
-              >
-                <ChainIcon chainSlug={item.poolChainNetwork} />
-                <span className="text-muted-foreground text-xs">
-                  {item.poolChainNetwork}
-                </span>
-              </Badge>
-              <Badge
-                variant="outline"
-                className="text-muted-foreground flex items-center gap-2 px-2 py-1.5 whitespace-nowrap"
-              >
-                <WalletAvatar address={item.userAddress} size={20} />
-                {formatAddress(item.userAddress)}
-              </Badge>
+              <ProtocolBadge protocol={item.protocol} />
+              <ChainBadge chainSlug={item.poolChainNetwork} />
+              <AddressBadge address={item.userAddress} noCopy border />
             </div>
           </DrawerDescription>
         </DrawerHeader>
@@ -512,6 +469,7 @@ export function BorrowingTable({ data }: { data: BorrowPosition[] }) {
         columns={columns}
         data={data}
         searchableColumn="poolName"
+        initialSorting={[{ id: 'apy', desc: true }]}
         filterableColumns={[
           {
             column: 'protocol',

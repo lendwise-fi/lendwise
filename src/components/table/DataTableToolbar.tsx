@@ -15,6 +15,7 @@ interface DataTableToolbarProps<TData> {
   filterableColumns?: {
     column: string
     title: string
+    multiSelect?: boolean
     options: {
       value: string
       label: string | React.ReactNode
@@ -56,6 +57,7 @@ export function DataTableToolbar<TData>({
                 column={table.getColumn(col.column)}
                 title={col.title}
                 options={col.options.filter((o) => o.value)}
+                multiSelect={col.multiSelect}
               />
             )
         )}
