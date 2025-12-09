@@ -1,4 +1,7 @@
+// Enable BigInt JSON serialization (must be imported before wagmi/walletconnect)
 import { getDefaultConfig } from '@rainbow-me/rainbowkit'
+
+import '@/lib/polyfills'
 
 import { ALL_CHAINS, CHAIN_TRANSPORTS } from './chains'
 

@@ -2,10 +2,17 @@ import type { NextConfig } from 'next'
 
 const nextConfig: NextConfig = {
   reactStrictMode: true,
-  // Turbopack configuration - ignore markdown files
-  turbopack: {},
+  // Turbopack configuration - stub out Node.js-only packages
+  turbopack: {
+    resolveAlias: {
+      // Use pino's browser build which doesn't require thread-stream
+      pino: 'pino/browser',
+    },
+  },
   // Exclude markdown files from being processed
   pageExtensions: ['tsx', 'ts', 'jsx', 'js'],
+  // Exclude Node.js-only packages from being bundled (works with Turbopack)
+  serverExternalPackages: ['pino-pretty', 'thread-stream'],
   images: {
     remotePatterns: [
       {
@@ -34,11 +41,11 @@ const nextConfig: NextConfig = {
       loader: 'ignore-loader',
     })
 
-    // // 👇 Fix pour MetaMask SDK (ignore async-storage côté Node)
-    // config.resolve.alias = {
-    //   ...(config.resolve.alias || {}),
-    //   '@react-native-async-storage/async-storage': false,
-    // }
+    // Use pino's browser build to avoid Node.js-only dependencies
+    config.resolve.alias = {
+      ...(config.resolve.alias || {}),
+      pino: 'pino/browser',
+    }
 
     return config
   },
