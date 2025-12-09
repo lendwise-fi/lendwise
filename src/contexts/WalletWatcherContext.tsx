@@ -4,10 +4,9 @@ import { useEffect } from 'react'
 
 import { getEnsName } from '@wagmi/core'
 import type { Address } from 'viem'
-import { useAccount } from 'wagmi'
+import { useAccount, useConfig } from 'wagmi'
 import { mainnet } from 'wagmi/chains'
 
-import { config } from '@/config/wagmi'
 import { useMultiWalletManager } from '@/hooks/useMultiWalletManager'
 import { formatAddress } from '@/lib/utils'
 import { type Wallet, useWalletStore } from '@/stores/walletStore'
@@ -21,6 +20,7 @@ export function WalletWatcherProvider({
 }: {
   children: React.ReactNode
 }) {
+  const config = useConfig()
   const { address, isConnected, chain, connector } = useAccount()
   const { addWallets, hasWallet, updateWallet, wallets } = useWalletStore()
   const { addOrUpdateClient } = useMultiWalletManager()

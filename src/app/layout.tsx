@@ -12,6 +12,8 @@ import {
   WalletWatcherProvider,
   Web3Provider,
 } from '@/contexts'
+// BigInt serialization polyfill - must be imported before any code that uses BigInt
+import '@/lib/polyfills'
 
 import './globals.css'
 
