@@ -20,7 +20,13 @@ interface DataTableViewOptionsProps<TData> {
 export function DataTableViewOptions<TData>({
   table,
 }: DataTableViewOptionsProps<TData>) {
-  return (
+  const canHide = table
+    .getAllColumns()
+    .filter(
+      (column) =>
+        typeof column.accessorFn !== 'undefined' && column.getCanHide()
+    )
+  return canHide.length ? (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <Button
@@ -35,25 +41,19 @@ export function DataTableViewOptions<TData>({
       <DropdownMenuContent align="end" className="w-[150px]">
         <DropdownMenuLabel>Toggle columns</DropdownMenuLabel>
         <DropdownMenuSeparator />
-        {table
-          .getAllColumns()
-          .filter(
-            (column) =>
-              typeof column.accessorFn !== 'undefined' && column.getCanHide()
+        {canHide.map((column) => {
+          return (
+            <DropdownMenuCheckboxItem
+              key={column.id}
+              className="capitalize"
+              checked={column.getIsVisible()}
+              onCheckedChange={(value) => column.toggleVisibility(!!value)}
+            >
+              {column.id}
+            </DropdownMenuCheckboxItem>
           )
-          .map((column) => {
-            return (
-              <DropdownMenuCheckboxItem
-                key={column.id}
-                className="capitalize"
-                checked={column.getIsVisible()}
-                onCheckedChange={(value) => column.toggleVisibility(!!value)}
-              >
-                {column.id}
-              </DropdownMenuCheckboxItem>
-            )
-          })}
+        })}
       </DropdownMenuContent>
     </DropdownMenu>
-  )
+  ) : null
 }

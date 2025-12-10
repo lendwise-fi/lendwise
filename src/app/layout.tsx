@@ -6,14 +6,13 @@ import { Toaster } from 'sonner'
 
 import { AppSidebar } from '@/components/app-sidebar'
 import { Navbar } from '@/components/navbar'
+import { SidebarProvider } from '@/components/ui/sidebar'
 import {
   CurrencyProvider,
   ThemeProvider,
   WalletWatcherProvider,
   Web3Provider,
 } from '@/contexts'
-// BigInt serialization polyfill - must be imported before any code that uses BigInt
-import '@/lib/polyfills'
 
 import './globals.css'
 
@@ -41,13 +40,13 @@ export default function RootLayout({
           <Web3Provider>
             <CurrencyProvider defaultCurrency="USD">
               <WalletWatcherProvider>
-                <div className="flex min-h-screen">
+                <SidebarProvider>
                   <AppSidebar />
-                  <main className="flex-1">
+                  <main className="w-full">
                     <Navbar />
                     {children}
                   </main>
-                </div>
+                </SidebarProvider>
                 <Toaster position="top-right" richColors />
               </WalletWatcherProvider>
             </CurrencyProvider>

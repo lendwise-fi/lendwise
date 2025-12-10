@@ -11,6 +11,7 @@
   --popover: oklch(0.98 0.01 238.45);
   --popover-foreground: oklch(0.15 0.02 269.18);
   --primary: oklch(0.71 0.15 239.15);
+  --primary-rgb: 83, 157, 229;
   --primary-foreground: oklch(0.94 0.03 232.39);
   --secondary: oklch(0.91 0.03 229.2);
   --secondary-foreground: oklch(0.15 0.02 269.18);
@@ -81,6 +82,7 @@
   --popover: oklch(0.22 0.02 271.67);
   --popover-foreground: oklch(0.9 0.01 238.47);
   --primary: oklch(0.71 0.15 239.15);
+  --primary-rgb: 83, 157, 229;
   --primary-foreground: oklch(0.94 0.03 232.39);
   --secondary: oklch(0.28 0.03 270.91);
   --secondary-foreground: oklch(0.9 0.01 238.47);
@@ -187,4 +189,154 @@
 /* Custom utility using Tailwind v4 syntax */
 @utility text-balance {
   text-wrap: balance;
+}
+
+/* Glowing border effect - CSS Houdini properties */
+@property --glow-deg {
+  syntax: '<angle>';
+  inherits: true;
+  initial-value: -90deg;
+}
+
+@property --clr-1 {
+  syntax: '<color>';
+  inherits: true;
+  initial-value: oklch(0.7 0.2 260);
+}
+
+@property --clr-2 {
+  syntax: '<color>';
+  inherits: true;
+  initial-value: oklch(0.7 0.2 200);
+}
+
+@property --clr-3 {
+  syntax: '<color>';
+  inherits: true;
+  initial-value: oklch(0.7 0.2 160);
+}
+
+@property --clr-4 {
+  syntax: '<color>';
+  inherits: true;
+  initial-value: oklch(0.7 0.2 100);
+}
+
+@property --clr-5 {
+  syntax: '<color>';
+  inherits: true;
+  initial-value: oklch(0.7 0.2 40);
+}
+
+.glowing-border {
+  --gradient-glow:
+    var(--clr-1), var(--clr-2), var(--clr-3), var(--clr-4), var(--clr-5),
+    var(--clr-1);
+  --surface: var(--card);
+  --border-width: 2px;
+  --glow-size: 0.75rem;
+  --glow-intensity: 0.2;
+
+  border: var(--border-width) solid transparent;
+  border-radius: var(--radius);
+  background:
+    linear-gradient(var(--surface) 0 0) padding-box,
+    conic-gradient(from var(--glow-deg), var(--gradient-glow)) border-box;
+
+  position: relative;
+  isolation: isolate;
+
+  animation: glow 8s infinite linear;
+}
+
+@keyframes glow {
+  100% {
+    --glow-deg: 270deg;
+  }
+}
+
+.glowing-border::before,
+.glowing-border::after {
+  content: '';
+  position: absolute;
+  border-radius: inherit;
+  pointer-events: none;
+}
+
+.glowing-border::before {
+  z-index: -1;
+  background: var(--surface);
+  inset: 0.25rem;
+  filter: blur(calc(var(--glow-size) * 0.5));
+}
+
+.glowing-border::after {
+  z-index: -2;
+  inset: calc(var(--glow-size) * -0.5);
+  background: conic-gradient(from var(--glow-deg), var(--gradient-glow));
+  filter: blur(var(--glow-size));
+  opacity: var(--glow-intensity);
+}
+
+/* Subtle variant - less intense glow */
+.glowing-border-subtle {
+  --glow-intensity: 0.1;
+  --glow-size: 0.5rem;
+  --border-width: 1px;
+}
+
+/* Primary color variant */
+.glowing-border-primary {
+  --clr-1: var(--primary);
+  --clr-2: var(--primary);
+  --clr-3: var(--primary);
+  --clr-4: var(--primary);
+  --clr-5: var(--primary);
+  --glow-intensity: 0.15;
+}
+
+/* Amber/gold variant for featured rows */
+.glowing-border-amber {
+  --clr-1: oklch(87.609% 0.20034 122.671);
+  --clr-2: oklch(0.75 0.18 70);
+  --clr-3: oklch(48.368% 0.25356 270.011);
+  --clr-4: oklch(60.73% 0.24922 29.223);
+  --clr-5: oklch(65.109% 0.25292 339.751);
+  --glow-intensity: 0.2;
+}
+
+/* Table row glow - simplified version without pseudo-elements */
+.table-row-glow {
+  --glow-color: oklch(35.336% 0.07078 89.483);
+  --glow-spread: 2px;
+  margin-inline: var(--glow-spread);
+  box-shadow:
+    0 0 0 1px var(--glow-color),
+    0 0 var(--glow-spread) 0 var(--glow-color),
+    0 0 calc(var(--glow-spread) * 2) -3px var(--glow-color);
+  animation: table-glow-pulse 3s ease-in-out infinite;
+}
+
+.table-row-glow-amber {
+  --glow-color: oklch(0.75 0.18 70);
+}
+
+.table-row-glow-primary {
+  --glow-color: var(--primary);
+}
+
+@keyframes table-glow-pulse {
+  0%,
+  100% {
+    box-shadow:
+      0 0 0 1px var(--glow-color),
+      0 0 var(--glow-spread, 12px) 0 var(--glow-color),
+      0 0 calc(var(--glow-spread, 12px) * 2) -3px var(--glow-color);
+  }
+  50% {
+    box-shadow:
+      0 0 0 1px var(--glow-color),
+      0 0 calc(var(--glow-spread, 12px) * 1.5) 2px var(--glow-color),
+      0 0 calc(var(--glow-spread, 12px) * 2.5) 0 var(--glow-color);
+  }
 }

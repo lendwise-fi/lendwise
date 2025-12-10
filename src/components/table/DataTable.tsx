@@ -84,6 +84,9 @@ interface DataTableProps<TData, TValue> {
   hiddenColumns?: string[]
   onRowClick?: (row: TData) => void
   initialSorting?: SortingState
+  initialColumnFilters?: ColumnFiltersState
+  /** Number of top rows to highlight with featured styling (glow border + extra padding) */
+  featuredRows?: number
 }
 
 export function DataTable<TData, TValue>({
@@ -91,14 +94,24 @@ export function DataTable<TData, TValue>({
   data,
   searchableColumn,
   filterableColumns,
-  hiddenColumns: _hiddenColumns = [],
+  hiddenColumns = [],
   onRowClick: _onRowClick,
   initialSorting = [],
+  initialColumnFilters = [],
+  featuredRows = 0,
 }: DataTableProps<TData, TValue>) {
   // const [data, setData] = useState(() => initialData)
   const [rowSelection, setRowSelection] = useState({})
-  const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({})
-  const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([])
+
+  // Initialize column visibility with hidden columns set to false
+  const initialVisibility = hiddenColumns.reduce(
+    (acc, col) => ({ ...acc, [col]: false }),
+    {} as VisibilityState
+  )
+  const [columnVisibility, setColumnVisibility] =
+    useState<VisibilityState>(initialVisibility)
+  const [columnFilters, setColumnFilters] =
+    useState<ColumnFiltersState>(initialColumnFilters)
   const [sorting, setSorting] = useState<SortingState>(initialSorting)
   const [pagination, setPagination] = useState({
     pageIndex: 0,
@@ -187,26 +200,36 @@ export function DataTable<TData, TValue>({
         </TableHeader>
         <TableBody className="**:data-[slot=table-cell]:first:w-8">
           {table.getRowModel().rows?.length ? (
-            table.getRowModel().rows.map((row) => (
-              <TableRow
-                key={row.id}
-                data-state={row.getIsSelected() && 'selected'}
-                className="bg-muted/50 relative z-0"
-              >
-                {row.getVisibleCells().map((cell) => (
-                  <TableCell
-                    key={cell.id}
-                    style={{
-                      width: cell.column.getSize(),
-                      minWidth: cell.column.columnDef.minSize,
-                    }}
-                    className="first:rounded-l-lg last:rounded-r-lg"
-                  >
-                    {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                  </TableCell>
-                ))}
-              </TableRow>
-            ))
+            table.getRowModel().rows.map((row, rowIndex) => {
+              const isFeatured = featuredRows > 0 && rowIndex < featuredRows
+              return (
+                <TableRow
+                  key={row.id}
+                  data-state={row.getIsSelected() && 'selected'}
+                  className={`relative z-0 ${
+                    isFeatured ? 'table-row-glow bg-muted/70' : 'bg-muted/50'
+                  }`}
+                >
+                  {row.getVisibleCells().map((cell) => (
+                    <TableCell
+                      key={cell.id}
+                      style={{
+                        width: cell.column.getSize(),
+                        minWidth: cell.column.columnDef.minSize,
+                      }}
+                      className={`first:rounded-l-lg last:rounded-r-lg ${
+                        isFeatured ? 'py-4' : ''
+                      }`}
+                    >
+                      {flexRender(
+                        cell.column.columnDef.cell,
+                        cell.getContext()
+                      )}
+                    </TableCell>
+                  ))}
+                </TableRow>
+              )
+            })
           ) : (
             <TableRow>
               <TableCell colSpan={columns.length} className="h-24 text-center">
