@@ -4,7 +4,7 @@ import { useState, useTransition } from 'react'
 
 import Link from 'next/link'
 
-import { ColumnDef } from '@tanstack/table-core'
+import { ColumnDef } from '@tanstack/react-table'
 import { AlertCircle, ArrowUpRightFromSquare, TrendingUp } from 'lucide-react'
 import { Area, AreaChart, CartesianGrid, XAxis, YAxis } from 'recharts'
 

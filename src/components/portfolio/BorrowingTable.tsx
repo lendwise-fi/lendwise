@@ -633,8 +633,11 @@ export function BorrowingTable({ data }: { data: BorrowPosition[] }) {
                   options: uniqueProtocols.map((protocol) => ({
                     label: getProtocolVersionNameById(protocol),
                     value: protocol,
-                    icon: ({ className }) => (
-                      <ProtocolIcon protocol={protocol} className={className} />
+                    icon: (props: { className?: string }) => (
+                      <ProtocolIcon
+                        protocol={protocol}
+                        className={props.className}
+                      />
                     ),
                   })),
                 },
@@ -644,8 +647,11 @@ export function BorrowingTable({ data }: { data: BorrowPosition[] }) {
                   options: uniqueChains.map((chain) => ({
                     label: chain,
                     value: chain,
-                    icon: ({ className }) => (
-                      <ChainIcon chainSlug={chain} className={className} />
+                    icon: (props: { className?: string }) => (
+                      <ChainIcon
+                        chainSlug={chain}
+                        className={props.className}
+                      />
                     ),
                   })),
                 },

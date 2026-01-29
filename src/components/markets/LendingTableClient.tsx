@@ -5,7 +5,7 @@ import { useState } from 'react'
 import Link from 'next/link'
 
 import { useQuery } from '@tanstack/react-query'
-import { ColumnDef } from '@tanstack/table-core'
+import { ColumnDef } from '@tanstack/react-table'
 import { ArrowUpRightFromSquare, Calendar } from 'lucide-react'
 
 import { loadLendingMarkets } from '@/app/actions/markets.actions'
