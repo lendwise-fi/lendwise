@@ -1,11 +1,13 @@
+import { formatUnits } from 'viem'
+
 import { getCurrencyByCode } from '@/config/currencies'
 
 /**
  * Currency formatting and conversion utilities
- * 
+ *
  * For currency conversion, use the useCurrency() hook:
  * const { rate, convertFromUSD, formatValue } = useCurrency()
- * 
+ *
  * For inline conversions in components:
  * const { rate } = useCurrency()
  * const converted = usdValue * rate
@@ -60,6 +62,11 @@ function getSignificantDigitsConfig(amount: number): {
   }
 }
 
+const CURRENCY_SYMBOLS: Record<string, string> = {
+  BTC: '₿',
+  ETH: 'Ξ',
+}
+
 /**
  * Format a number as currency using Intl.NumberFormat
  */
@@ -100,34 +107,44 @@ export function formatCurrency(
 /**
  * Format a compact currency amount (e.g., 1.2K, 3.4M)
  * For crypto currencies, handles very small amounts with appropriate precision
+ * Automatically handles BigInt scaling if decimals are provided
  */
 export function formatCompactCurrency(
-  amount: number,
-  currencyCode: string
+  amount: number | bigint,
+  currencyCode: string,
+  decimals?: number
 ): string {
   const currency = getCurrencyByCode(currencyCode)
-  const absAmount = Math.abs(amount)
+
+  let numAmount: number
+
+  if (typeof amount === 'bigint') {
+    if (decimals === undefined) {
+      console.warn(
+        `formatCompactCurrency: decimals required for BigInt amount (currency: ${currencyCode})`
+      )
+      numAmount = Number(amount) // Fallback, likely incorrect scaling
+    } else {
+      numAmount = Number(formatUnits(amount, decimals))
+    }
+  } else {
+    numAmount = amount
+  }
+
+  const absAmount = Math.abs(numAmount)
 
   // For crypto currencies, handle small amounts differently
   if (currency?.type === 'crypto' || !currency) {
     // Get crypto symbol
-    const symbol = currencyCode === 'BTC' ? '₿' : currencyCode === 'ETH' ? 'Ξ' : currencyCode
-    
+    const symbol = CURRENCY_SYMBOLS[currencyCode] || currencyCode
+
     let formatted: string
-    
+
     // For very small amounts, don't use compact notation and show more decimals
-    if (absAmount > 0 && absAmount < 0.01) {
+    if (absAmount > 0 && absAmount < 1) {
       formatted = new Intl.NumberFormat('en-US', {
-        minimumFractionDigits: 2,
-        maximumFractionDigits: 8, // Show up to 8 decimals for very small crypto amounts
-      }).format(amount)
-    }
-    // For amounts less than 1, show more precision
-    else if (absAmount < 1) {
-      formatted = new Intl.NumberFormat('en-US', {
-        minimumFractionDigits: 2,
-        maximumFractionDigits: 6,
-      }).format(amount)
+        maximumSignificantDigits: 4,
+      }).format(numAmount)
     }
     // For larger amounts, use compact notation
     else {
@@ -135,10 +152,10 @@ export function formatCompactCurrency(
         notation: 'compact',
         minimumFractionDigits: 0,
         maximumFractionDigits: 2,
-      }).format(amount)
+      }).format(numAmount)
     }
-    
-    return `${symbol}${formatted}`
+
+    return `${formatted} ${symbol}`
   }
 
   // For fiat currencies, always use compact notation
@@ -148,5 +165,5 @@ export function formatCompactCurrency(
     notation: 'compact',
     minimumFractionDigits: 0,
     maximumFractionDigits: 2,
-  }).format(amount)
+  }).format(numAmount)
 }

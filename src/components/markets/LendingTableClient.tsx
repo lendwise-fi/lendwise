@@ -5,7 +5,7 @@ import { useState } from 'react'
 import Link from 'next/link'
 
 import { useQuery } from '@tanstack/react-query'
-import { ColumnDef } from '@tanstack/react-table'
+import { ColumnDef } from '@tanstack/table-core'
 import { ArrowUpRightFromSquare, Calendar } from 'lucide-react'
 
 import { loadLendingMarkets } from '@/app/actions/markets.actions'
@@ -30,21 +30,30 @@ import {
 import { getProtocolVersionNameById } from '@/config/protocols'
 import { useCurrency } from '@/contexts'
 import { formatCompactCurrency } from '@/lib/format-currency'
-import { formatToken } from '@/lib/formatters'
 import { LendMarket } from '@/types'
 
-export type Horizon = 'short' | 'medium' | 'long'
+export type Horizon = 'intraday' | 'short' | 'medium' | 'long'
 
-const HORIZON_OPTIONS: { value: Horizon; label: string }[] = [
-  { value: 'short', label: 'Court terme' },
-  { value: 'medium', label: 'Moyen terme' },
-  { value: 'long', label: 'Long terme' },
-]
-
-const HORIZON_APY_COLUMN: Record<Horizon, keyof LendMarket> = {
-  short: 'apy',
-  medium: 'apyQuarter',
-  long: 'apyYear',
+const HORIZON_CONFIG: Record<
+  Horizon,
+  { label: string; apyKey: keyof LendMarket; headerLabel: string }
+> = {
+  intraday: { label: 'Intraday', apyKey: 'apy', headerLabel: 'APY' },
+  short: {
+    label: 'Short term',
+    apyKey: 'apyDaily',
+    headerLabel: 'APY (daily)',
+  },
+  medium: {
+    label: 'Medium term',
+    apyKey: 'apyMonthly',
+    headerLabel: 'APY (monthly)',
+  },
+  long: {
+    label: 'Long term',
+    apyKey: 'apyYearly',
+    headerLabel: 'APY (yearly)',
+  },
 }
 
 const createColumns = (
@@ -91,10 +100,10 @@ const createColumns = (
     header: 'Deposits',
     cell: ({ row }) => (
       <div className="flex w-full items-center gap-3">
-        {formatToken(
+        {formatCompactCurrency(
           row.original.assetAmount,
-          row.original.assetDecimals,
-          row.original.assetSymbol
+          row.original.assetSymbol,
+          row.original.assetDecimals
         )}
         <Badge variant="secondary">
           {formatCompactCurrency(row.original.assetAmountUsd * rate, currency)}
@@ -108,10 +117,10 @@ const createColumns = (
     header: 'Liquidity',
     cell: ({ row }) => (
       <div className="flex w-full items-center gap-3">
-        {formatToken(
+        {formatCompactCurrency(
           row.original.liquidityAmount,
-          row.original.assetDecimals,
-          row.original.assetSymbol
+          row.original.assetSymbol,
+          row.original.assetDecimals
         )}
         <Badge variant="secondary">
           {formatCompactCurrency(
@@ -121,9 +130,10 @@ const createColumns = (
         </Badge>
         <PieChartMini
           percentage={
-            (Number(row.original.liquidityAmount) /
-              Number(row.original.assetAmount)) *
-            100
+            Number(
+              (BigInt(row.original.liquidityAmount) * 10000n) /
+                BigInt(row.original.assetAmount)
+            ) / 100
           }
         />
       </div>
@@ -132,16 +142,17 @@ const createColumns = (
     enableHiding: false,
   },
   {
-    accessorKey: HORIZON_APY_COLUMN[horizon],
-    id: 'apyDisplay',
+    accessorKey: HORIZON_CONFIG[horizon].apyKey,
     header: ({ column }) => (
-      <SortableHeader column={column}>APY</SortableHeader>
+      <SortableHeader column={column}>
+        {HORIZON_CONFIG[horizon].headerLabel}
+      </SortableHeader>
     ),
     size: 60,
     enableSorting: true,
     sortingFn: 'basic',
     cell: ({ row }) => {
-      const apyValue = row.original[HORIZON_APY_COLUMN[horizon]] as
+      const apyValue = row.original[HORIZON_CONFIG[horizon].apyKey] as
         | number
         | undefined
       return (
@@ -152,24 +163,17 @@ const createColumns = (
     },
     enableHiding: false,
   },
-  // Hidden APY columns for sorting
   {
-    accessorKey: 'apy',
-    id: 'apy',
-    enableHiding: false,
-    enableSorting: true,
-  },
-  {
-    accessorKey: 'apyQuarter',
-    id: 'apyQuarter',
-    enableHiding: false,
-    enableSorting: true,
-  },
-  {
-    accessorKey: 'apyYear',
-    id: 'apyYear',
-    enableHiding: false,
-    enableSorting: true,
+    id: 'debug-apy',
+    header: 'DEBUG APY',
+    cell: ({ row }) => (
+      <div className="flex flex-col text-[10px] leading-tight text-gray-500">
+        <div>Day: {row.original.apyDaily}</div>
+        <div>Mth: {row.original.apyMonthly}</div>
+        <div>Yr: {row.original.apyYearly}</div>
+        <div>Intra: {row.original.apy}</div>
+      </div>
+    ),
   },
   {
     id: 'actions',
@@ -201,7 +205,7 @@ export function LendingTableClient() {
   })
 
   // Get the correct APY column to sort by based on horizon
-  const sortColumn = HORIZON_APY_COLUMN[horizon] as string
+  const sortColumn = HORIZON_CONFIG[horizon].apyKey as string
 
   return (
     <div className="space-y-4">
@@ -219,9 +223,9 @@ export function LendingTableClient() {
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            {HORIZON_OPTIONS.map((option) => (
-              <SelectItem key={option.value} value={option.value}>
-                {option.label}
+            {Object.entries(HORIZON_CONFIG).map(([value, config]) => (
+              <SelectItem key={value} value={value}>
+                {config.label}
               </SelectItem>
             ))}
           </SelectContent>
@@ -229,6 +233,7 @@ export function LendingTableClient() {
       </div>
 
       <DataTable
+        key={horizon}
         searchableColumn="poolName"
         filterableColumns={[
           {
@@ -281,7 +286,6 @@ export function LendingTableClient() {
         data={data || []}
         initialSorting={[{ id: sortColumn, desc: true }]}
         initialColumnFilters={[{ id: 'assetSymbol', value: 'USDC' }]}
-        hiddenColumns={['apy', 'apyQuarter', 'apyYear']}
         featuredRows={3}
       />
     </div>

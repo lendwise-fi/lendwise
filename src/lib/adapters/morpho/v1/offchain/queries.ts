@@ -31,6 +31,9 @@ export const USER_LEND_POSITIONS = gql`
           }
           state {
             avgNetApy
+            dailyNetApy
+            monthlyNetApy
+            yearlyNetApy
           }
         }
         state {
@@ -205,6 +208,9 @@ export const LIST_LENDING_MARKETS = gql`
         }
         state {
           avgNetApy
+          dailyNetApy
+          monthlyNetApy
+          yearlyNetApy
           totalAssetsUsd
           totalAssets
           allocation {

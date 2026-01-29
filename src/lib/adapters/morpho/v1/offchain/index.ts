@@ -20,6 +20,7 @@ import {
   UserBorrowPositionsQuery,
   UserLendPositionsQuery,
   VaultFilters,
+  VaultState,
 } from './generated/graphql'
 import {
   LIST_LENDING_MARKETS,
@@ -358,7 +359,19 @@ async function getLendingMarkets(): Promise<LendMarket[]> {
               }
             : []
         ),
-        apy: vault?.state?.avgNetApy ?? 0,
+        apy: (vault?.state as VaultState)?.avgNetApy ?? 0,
+        apyDaily:
+          (vault?.state as VaultState)?.dailyNetApy ??
+          (vault?.state as VaultState)?.avgNetApy ??
+          0,
+        apyMonthly:
+          (vault?.state as VaultState)?.monthlyNetApy ??
+          (vault?.state as VaultState)?.avgNetApy ??
+          0,
+        apyYearly:
+          (vault?.state as VaultState)?.yearlyNetApy ??
+          (vault?.state as VaultState)?.avgNetApy ??
+          0,
         link: `https://app.morpho.org/${vault.asset.chain.network.toLowerCase()}/vault/${vault.address}/${generateSlug(vault.name)}`,
       }))
 

@@ -97,6 +97,7 @@ export const USER_MARKET_HEALTH_FACTOR = gql`
 export const USER_LEND_COLLATERALS = gql`
   query UserLendCollaterals($request: UserSuppliesRequest!) {
     userSupplies(request: $request) {
+      isCollateral
       balance {
         amount {
           raw

@@ -22,3 +22,41 @@ export function serializeBigInt<T>(obj: T): T {
     )
   )
 }
+
+// ============================================================================
+// APR/APY Conversion Functions
+// ============================================================================
+
+const SECONDS_PER_YEAR = 365 * 24 * 60 * 60
+
+/**
+ * AAVE: Compounding every second
+ * APY = (1 + APR/seconds_per_year)^seconds_per_year - 1
+ */
+export function aprToApyAave(apr: number): number {
+  return Math.pow(1 + apr / SECONDS_PER_YEAR, SECONDS_PER_YEAR) - 1
+}
+
+/**
+ * AAVE: Compounding every second (inverse)
+ * APR = seconds_per_year * ((1 + APY)^(1/seconds_per_year) - 1)
+ */
+export function apyToAprAave(apy: number): number {
+  return SECONDS_PER_YEAR * (Math.pow(1 + apy, 1 / SECONDS_PER_YEAR) - 1)
+}
+
+/**
+ * MORPHO: Continuous compounding
+ * APY = e^APR - 1
+ */
+export function aprToApyMorpho(apr: number): number {
+  return Math.exp(apr) - 1
+}
+
+/**
+ * MORPHO: Continuous compounding (inverse)
+ * APR = ln(1 + APY)
+ */
+export function apyToAprMorpho(apy: number): number {
+  return Math.log(1 + apy)
+}

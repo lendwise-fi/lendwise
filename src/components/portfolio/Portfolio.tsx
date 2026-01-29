@@ -132,21 +132,21 @@ export function Portfolio() {
   }
 
   return (
-    <div className="flex-1 space-y-8 p-8">
+    <div className="flex-1 space-y-8 p-4 md:p-8">
       {/* Header */}
       <div className="flex items-start justify-between">
-        <div>
-          <h1 className="text-foreground mb-2 text-3xl font-bold">
+        <div className="min-w-0 flex-1">
+          <h1 className="text-foreground mb-2 text-2xl md:text-3xl font-bold">
             Portfolio Tracker
           </h1>
-          <p className="text-muted-foreground-400">
+          <p className="text-muted-foreground-400 text-sm md:text-base">
             Monitor all your DeFi positions across protocols and chains
           </p>
         </div>
       </div>
 
       {/* Portfolio Summary */}
-      <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
+      <div className="grid grid-cols-1 gap-4 md:gap-6 md:grid-cols-2">
         {isPending ? (
           <>
             <PieChartDonutTextSkeleton />
@@ -172,12 +172,12 @@ export function Portfolio() {
 
       {/* Detailed Positions Lists */}
       {isPending || conversionLoading ? (
-        <div className="space-y-8">
+        <div className="space-y-6 md:space-y-8">
           <DataTableSkeleton />
           <DataTableSkeleton />
         </div>
       ) : (
-        <div className="mt-12 space-y-12">
+        <div className="mt-8 md:mt-12 space-y-8 md:space-y-12">
           <LendingTable data={Object.values(userPositions.lend).flat()} />
           <BorrowingTable data={Object.values(userPositions.borrow).flat()} />
         </div>

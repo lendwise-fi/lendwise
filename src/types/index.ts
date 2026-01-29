@@ -121,8 +121,9 @@ export interface LendMarket {
   liquidityAmount: bigint
   liquidityAmountUsd: number
   apy: number
-  apyQuarter?: number
-  apyYear?: number
+  apyDaily?: number
+  apyMonthly?: number
+  apyYearly?: number
   link?: string
 }
 

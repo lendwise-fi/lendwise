@@ -43,6 +43,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
+import { cn } from '@/lib/utils'
 
 import { DataTableToolbar } from './DataTableToolbar'
 
@@ -206,9 +207,9 @@ export function DataTable<TData, TValue>({
                 <TableRow
                   key={row.id}
                   data-state={row.getIsSelected() && 'selected'}
-                  className={`relative z-0 ${
-                    isFeatured ? 'table-row-glow bg-muted/70' : 'bg-muted/50'
-                  }`}
+                  className={cn('bg-muted/50 relative z-0', {
+                    'bg-blue-950/50': isFeatured,
+                  })}
                 >
                   {row.getVisibleCells().map((cell) => (
                     <TableCell
@@ -217,9 +218,7 @@ export function DataTable<TData, TValue>({
                         width: cell.column.getSize(),
                         minWidth: cell.column.columnDef.minSize,
                       }}
-                      className={`first:rounded-l-lg last:rounded-r-lg ${
-                        isFeatured ? 'py-4' : ''
-                      }`}
+                      className={'first:rounded-l-lg last:rounded-r-lg'}
                     >
                       {flexRender(
                         cell.column.columnDef.cell,

@@ -28,6 +28,9 @@ const _formatLendingMarkets = cache(
         liquidityAmountUsd: reserve.supplyInfo.supplyCap.usd,
         collaterals: [],
         apy: reserve.supplyInfo.apy.value,
+        apyDaily: reserve.supplyInfo.apy.value,
+        apyMonthly: reserve.supplyInfo.apy.value,
+        apyYearly: reserve.supplyInfo.apy.value,
         link: `https://app.aave.com/reserve-overview/?underlyingAsset=${reserve.underlyingToken.address.toLowerCase()}&marketName=proto_${market.chain.name.toLowerCase()}_v3`,
       }))
     )

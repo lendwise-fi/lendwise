@@ -251,19 +251,26 @@ async function getUserBorrowPositions({
           string,
           BorrowPosition['collaterals']
         > = {}
+        const seen_collaterals = new Set<string>()
+
         collateralsData?.userSupplies?.forEach((position) => {
-          if (
-            !markets_collaterals[
-              `${position.market.chain.chainId}-${position.market.address}`
-            ]
-          ) {
-            markets_collaterals[
-              `${position.market.chain.chainId}-${position.market.address}`
-            ] = []
+          const marketKey = `${position.market.chain.chainId}-${position.market.address}`
+          const collateralKey = `${marketKey}-${position.currency.address}-${position.currency.symbol}`
+
+          if (!position.isCollateral) {
+            return
           }
-          markets_collaterals[
-            `${position.market.chain.chainId}-${position.market.address}`
-          ].push({
+
+          if (seen_collaterals.has(collateralKey)) {
+            return
+          }
+          seen_collaterals.add(collateralKey)
+
+          if (!markets_collaterals[marketKey]) {
+            markets_collaterals[marketKey] = []
+          }
+
+          markets_collaterals[marketKey].push({
             address: position.currency.address,
             name: position.currency.name,
             symbol: position.currency.symbol,

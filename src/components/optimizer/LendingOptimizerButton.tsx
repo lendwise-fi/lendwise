@@ -1,8 +1,12 @@
 'use client'
 
-import { useForm } from '@tanstack/react-form'
-import { Bot, Sparkles } from 'lucide-react'
+import { useMemo, useState } from 'react'
 
+import { useForm } from '@tanstack/react-form'
+import { useQuery } from '@tanstack/react-query'
+import { Bot, Loader2, Sparkles } from 'lucide-react'
+
+import { loadLendingMarkets } from '@/app/actions/markets.actions'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -21,31 +25,95 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Separator } from '@/components/ui/separator'
+import {
+  type VaultAllocationResponse,
+  optimizeVaults,
+  riskLevelToDiversification,
+} from '@/lib/api/optimizer'
+import type { LendMarket } from '@/types'
 
-// Mock data for selects
-const TOKENS = ['USDC', 'USDT', 'DAI', 'ETH', 'WBTC']
-const RISK_LEVELS = ['Conservative', 'Moderate', 'Aggressive']
+type RiskLevel = 'Conservative' | 'Moderate' | 'Aggressive'
 
-// Mock results
-const MOCK_RESULTS = [
-  {
-    protocol: 'Morpho',
-    vault: 'Steakhouse USDC',
-    apy: '12.5%',
-    allocation: '40%',
-  },
-  { protocol: 'AAVE', vault: 'USDC Supply', apy: '8.2%', allocation: '35%' },
-  { protocol: 'Compound', vault: 'cUSDC', apy: '6.8%', allocation: '25%' },
-]
+const RISK_LEVELS: RiskLevel[] = ['Conservative', 'Moderate', 'Aggressive']
+
+interface OptimizationResult {
+  vault: LendMarket
+  allocation: number
+  allocationPercent: number
+}
 
 export function LendingOptimizerButton() {
+  const [results, setResults] = useState<OptimizationResult[] | null>(null)
+  const [isOptimizing, setIsOptimizing] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [resultingDiversification, setResultingDiversification] = useState<
+    number | null
+  >(null)
+
+  // Use the same query as LendingTableClient
+  const { data: markets = [] } = useQuery<LendMarket[]>({
+    queryKey: ['lendingMarkets'],
+    queryFn: loadLendingMarkets,
+    staleTime: 60_000,
+  })
+
+  // Extract unique tokens from markets
+  const availableTokens = useMemo(() => {
+    const tokens = new Set(markets.map((m) => m.assetSymbol))
+    return Array.from(tokens).sort()
+  }, [markets])
+
   const form = useForm({
     defaultValues: {
       token: 'USDC',
-      riskLevel: 'Moderate',
+      riskLevel: 'Moderate' as RiskLevel,
     },
     onSubmit: async ({ value }) => {
-      console.log('Optimization params:', value)
+      setError(null)
+      setIsOptimizing(true)
+
+      try {
+        // Filter markets by selected token
+        const filteredMarkets = markets.filter(
+          (m) => m.assetSymbol === value.token
+        )
+
+        if (filteredMarkets.length === 0) {
+          throw new Error(`No markets found for ${value.token}`)
+        }
+
+        // Extract APYs (use current apy, convert to decimal if needed)
+        const apys = filteredMarkets.map((m) => m.apy)
+        const diversification = riskLevelToDiversification(value.riskLevel)
+
+        // Call API
+        const response: VaultAllocationResponse = await optimizeVaults({
+          apy: apys,
+          diversification,
+        })
+
+        if (!response.success) {
+          throw new Error('Optimization failed')
+        }
+
+        // Map results back to vaults
+        const optimizationResults: OptimizationResult[] = response.allocations
+          .filter((a) => a.allocation > 0.001) // Filter out negligible allocations
+          .map((a) => ({
+            vault: filteredMarkets[a.vault_index],
+            allocation: a.allocation,
+            allocationPercent: a.allocation_percent,
+          }))
+          .sort((a, b) => b.allocationPercent - a.allocationPercent)
+
+        setResults(optimizationResults)
+        setResultingDiversification(response.resulting_diversification)
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Optimization failed')
+        setResults(null)
+      } finally {
+        setIsOptimizing(false)
+      }
     },
   })
 
@@ -96,7 +164,7 @@ export function LendingOptimizerButton() {
                         <SelectValue placeholder="Select token" />
                       </SelectTrigger>
                       <SelectContent>
-                        {TOKENS.map((token) => (
+                        {availableTokens.map((token) => (
                           <SelectItem key={token} value={token}>
                             {token}
                           </SelectItem>
@@ -114,7 +182,9 @@ export function LendingOptimizerButton() {
                     <Label htmlFor="riskLevel">Risk Level</Label>
                     <Select
                       value={field.state.value}
-                      onValueChange={(value) => field.handleChange(value)}
+                      onValueChange={(value) =>
+                        field.handleChange(value as RiskLevel)
+                      }
                     >
                       <SelectTrigger id="riskLevel" className="w-full">
                         <SelectValue placeholder="Select risk level" />
@@ -131,9 +201,17 @@ export function LendingOptimizerButton() {
                 )}
               </form.Field>
 
-              <Button type="submit" className="mt-auto w-full">
-                <Sparkles className="mr-2 h-4 w-4" />
-                Run Optimization
+              <Button
+                type="submit"
+                className="mt-auto w-full"
+                disabled={isOptimizing}
+              >
+                {isOptimizing ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : (
+                  <Sparkles className="mr-2 h-4 w-4" />
+                )}
+                {isOptimizing ? 'Optimizing...' : 'Run Optimization'}
               </Button>
             </form>
           </div>
@@ -147,41 +225,91 @@ export function LendingOptimizerButton() {
               Recommended Allocations
             </h3>
 
-            <div className="space-y-3">
-              {MOCK_RESULTS.map((result, index) => (
-                <div
-                  key={index}
-                  className="bg-muted/50 hover:bg-muted rounded-lg border p-4 transition-colors"
-                >
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="font-medium">{result.vault}</p>
-                      <p className="text-muted-foreground text-sm">
-                        {result.protocol}
-                      </p>
-                    </div>
-                    <div className="text-right">
-                      <p className="font-semibold text-green-500">
-                        {result.apy}
-                      </p>
-                      <p className="text-muted-foreground text-sm">
-                        {result.allocation}
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-
-            {/* Summary */}
-            <div className="border-primary/20 bg-primary/5 rounded-lg border p-4">
-              <div className="flex items-center justify-between">
-                <span className="text-sm font-medium">
-                  Weighted Average APY
-                </span>
-                <span className="text-primary text-lg font-bold">9.45%</span>
+            {/* Error State */}
+            {error && (
+              <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-red-700 dark:border-red-800 dark:bg-red-950 dark:text-red-300">
+                {error}
               </div>
-            </div>
+            )}
+
+            {/* Empty State */}
+            {!results && !error && !isOptimizing && (
+              <div className="text-muted-foreground flex h-48 items-center justify-center rounded-lg border border-dashed">
+                <p className="text-center text-sm">
+                  Configure parameters and run optimization
+                  <br />
+                  to see recommended allocations
+                </p>
+              </div>
+            )}
+
+            {/* Loading State */}
+            {isOptimizing && (
+              <div className="text-muted-foreground flex h-48 items-center justify-center rounded-lg border border-dashed">
+                <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                <p className="text-sm">Computing optimal allocation...</p>
+              </div>
+            )}
+
+            {/* Results */}
+            {results && results.length > 0 && (
+              <>
+                <div className="space-y-3">
+                  {results.map((result, index) => (
+                    <div
+                      key={index}
+                      className="bg-muted/50 hover:bg-muted rounded-lg border p-4 transition-colors"
+                    >
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="font-medium">{result.vault.poolName}</p>
+                          <p className="text-muted-foreground text-sm">
+                            {result.vault.protocol}
+                          </p>
+                        </div>
+                        <div className="text-right">
+                          <p className="font-semibold text-green-500">
+                            {(result.vault.apy * 100).toFixed(2)}%
+                          </p>
+                          <p className="text-muted-foreground text-sm">
+                            {result.allocationPercent.toFixed(1)}%
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Summary */}
+                <div className="border-primary/20 bg-primary/5 rounded-lg border p-4">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm font-medium">
+                      Weighted Average APY
+                    </span>
+                    <span className="text-primary text-lg font-bold">
+                      {(
+                        results.reduce(
+                          (acc, r) =>
+                            acc + r.vault.apy * (r.allocationPercent / 100),
+                          0
+                        ) * 100
+                      ).toFixed(2)}
+                      %
+                    </span>
+                  </div>
+                  {resultingDiversification !== null && (
+                    <div className="mt-2 flex items-center justify-between border-t pt-2">
+                      <span className="text-muted-foreground text-sm">
+                        Diversification Score
+                      </span>
+                      <span className="text-muted-foreground text-sm">
+                        {resultingDiversification.toFixed(0)}%
+                      </span>
+                    </div>
+                  )}
+                </div>
+              </>
+            )}
           </div>
         </div>
       </DialogContent>
