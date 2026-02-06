@@ -2,7 +2,6 @@ import { Suspense } from 'react'
 
 import { LendingTableServer } from '@/components/markets/LendingTableServer'
 import { LendingTableSkeleton } from '@/components/markets/LendingTableSkeleton'
-import { LendingOptimizerButton } from '@/components/optimizer/LendingOptimizerButton'
 import { Separator } from '@/components/ui/separator'
 
 export default async function LendingPage() {
@@ -17,7 +16,6 @@ export default async function LendingPage() {
             All available lending pools across protocols and chains
           </p>
         </div>
-        <LendingOptimizerButton />
       </div>
       <Separator className="my-3" />
       <Suspense fallback={<LendingTableSkeleton />}>

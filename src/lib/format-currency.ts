@@ -128,7 +128,8 @@ export function formatCompactCurrency(
       numAmount = Number(formatUnits(amount, decimals))
     }
   } else {
-    numAmount = amount
+    // If decimals provided for a number, assume it's in raw token units and scale it
+    numAmount = decimals !== undefined ? amount / 10 ** decimals : amount
   }
 
   const absAmount = Math.abs(numAmount)

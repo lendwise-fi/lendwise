@@ -60,23 +60,6 @@ export const DIVERSIFICATION_LEVELS = {
 
 export type DiversificationLevel = keyof typeof DIVERSIFICATION_LEVELS
 
-/**
- * Maps user-friendly risk level to diversification score
- * Conservative = High diversification (80)
- * Moderate = Moderate diversification (60)
- * Aggressive = Low diversification (40)
- */
-export function riskLevelToDiversification(
-  riskLevel: 'Conservative' | 'Moderate' | 'Aggressive'
-): number {
-  const mapping = {
-    Conservative: DIVERSIFICATION_LEVELS.HIGH,
-    Moderate: DIVERSIFICATION_LEVELS.MODERATE,
-    Aggressive: DIVERSIFICATION_LEVELS.LOW,
-  }
-  return mapping[riskLevel]
-}
-
 // ============================================================================
 // Generic API Client
 // ============================================================================

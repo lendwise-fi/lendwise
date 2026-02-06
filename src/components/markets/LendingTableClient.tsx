@@ -1,23 +1,34 @@
 'use client'
 
-import { useState } from 'react'
+import { useCallback, useState } from 'react'
 
 import Link from 'next/link'
 
 import { useQuery } from '@tanstack/react-query'
 import { ColumnDef } from '@tanstack/react-table'
-import { ArrowUpRightFromSquare, Calendar } from 'lucide-react'
+import { ArrowUpRightFromSquare, Calendar, Eye } from 'lucide-react'
 
 import { loadLendingMarkets } from '@/app/actions/markets.actions'
 import { ChainBadge } from '@/components/badge/ChainBadge'
 import { ProtocolBadge } from '@/components/badge/ProtocolBadge'
 import { ChainIcon, ProtocolIcon, TokenIcon } from '@/components/icon'
+import { LendingOptimizerView } from '@/components/optimizer/LendingOptimizerButton'
 import {
   DataTable,
   SortableHeader,
   getUniqueColumnValues,
 } from '@/components/table'
 import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
+import { Checkbox } from '@/components/ui/checkbox'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from '@/components/ui/dialog'
 import { Label } from '@/components/ui/label'
 import { PieChartMini } from '@/components/ui/pie-chart-mini'
 import {
@@ -34,7 +45,7 @@ import { LendMarket } from '@/types'
 
 export type Horizon = 'intraday' | 'short' | 'medium' | 'long'
 
-const HORIZON_CONFIG: Record<
+export const HORIZON_CONFIG: Record<
   Horizon,
   { label: string; apyKey: keyof LendMarket; headerLabel: string }
 > = {
@@ -59,8 +70,24 @@ const HORIZON_CONFIG: Record<
 const createColumns = (
   currency: string,
   rate: number,
-  horizon: Horizon
+  horizon: Horizon,
+  selectedCount: number
 ): ColumnDef<LendMarket>[] => [
+  {
+    id: 'select',
+    size: 40,
+    header: '',
+    cell: ({ row }) => (
+      <Checkbox
+        checked={row.getIsSelected()}
+        onCheckedChange={(value) => row.toggleSelected(!!value)}
+        aria-label="Select row"
+        disabled={!row.getIsSelected() && selectedCount >= 10}
+      />
+    ),
+    enableSorting: false,
+    enableHiding: false,
+  },
   {
     accessorKey: 'protocol',
     header: ({ column }) => (
@@ -163,18 +190,18 @@ const createColumns = (
     },
     enableHiding: false,
   },
-  {
-    id: 'debug-apy',
-    header: 'DEBUG APY',
-    cell: ({ row }) => (
-      <div className="flex flex-col text-[10px] leading-tight text-gray-500">
-        <div>Day: {row.original.apyDaily}</div>
-        <div>Mth: {row.original.apyMonthly}</div>
-        <div>Yr: {row.original.apyYearly}</div>
-        <div>Intra: {row.original.apy}</div>
-      </div>
-    ),
-  },
+  // {
+  //   id: 'debug-apy',
+  //   header: 'DEBUG APY',
+  //   cell: ({ row }) => (
+  //     <div className="flex flex-col text-[10px] leading-tight text-gray-500">
+  //       <div>Day: {row.original.apyDaily}</div>
+  //       <div>Mth: {row.original.apyMonthly}</div>
+  //       <div>Yr: {row.original.apyYearly}</div>
+  //       <div>Intra: {row.original.apy}</div>
+  //     </div>
+  //   ),
+  // },
   {
     id: 'actions',
     size: 80,
@@ -195,7 +222,17 @@ const createColumns = (
 export function LendingTableClient() {
   const { baseCurrency, rate } = useCurrency()
   const [horizon, setHorizon] = useState<Horizon>('short')
-  const columns = createColumns(baseCurrency, rate, horizon)
+  const [rowSelection, setRowSelection] = useState<Record<string, boolean>>({})
+  const [isModalOpen, setIsModalOpen] = useState(false)
+  const [modalStep, setModalStep] = useState(1)
+  const [snapshotMarkets, setSnapshotMarkets] = useState<LendMarket[]>([])
+
+  const columns = createColumns(
+    baseCurrency,
+    rate,
+    horizon,
+    Object.keys(rowSelection).length
+  )
   const { data } = useQuery<LendMarket[]>({
     queryKey: ['lendingMarkets'],
     queryFn: loadLendingMarkets,
@@ -206,6 +243,14 @@ export function LendingTableClient() {
 
   // Get the correct APY column to sort by based on horizon
   const sortColumn = HORIZON_CONFIG[horizon].apyKey as string
+
+  // Unique ID for rows to maintain selection state across filters
+  const getRowId = useCallback(
+    (row: LendMarket) => `${row.protocol}-${row.poolChainId}-${row.poolId}`,
+    []
+  )
+
+  const selectedData = (data || []).filter((row) => rowSelection[getRowId(row)])
 
   return (
     <div className="space-y-4">
@@ -230,10 +275,137 @@ export function LendingTableClient() {
             ))}
           </SelectContent>
         </Select>
+
+        {Object.keys(rowSelection).length > 0 && (
+          <Dialog
+            open={isModalOpen}
+            onOpenChange={(open) => {
+              setIsModalOpen(open)
+              if (!open) {
+                setModalStep(1)
+                setSnapshotMarkets([])
+              }
+            }}
+          >
+            <DialogTrigger asChild>
+              <Button variant="outline" size="sm" className="ml-auto">
+                <Eye className="mr-2 h-4 w-4" />
+                Optimize Selection ({Object.keys(rowSelection).length})
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="max-w-7xl min-w-[80vw]">
+              <DialogHeader>
+                <DialogTitle>Selection Review</DialogTitle>
+                <DialogDescription>
+                  {modalStep === 1
+                    ? 'Review your selected pools before optimizing.'
+                    : 'Configure your optimization parameters.'}
+                </DialogDescription>
+              </DialogHeader>
+
+              {/* Stepper */}
+              <div className="mb-6 flex items-center justify-center gap-4">
+                <div className="flex flex-col items-center gap-2">
+                  <div
+                    className={`flex h-8 w-8 items-center justify-center rounded-full text-sm font-medium transition-colors ${
+                      modalStep >= 1
+                        ? 'bg-primary text-primary-foreground'
+                        : 'bg-muted text-muted-foreground'
+                    }`}
+                  >
+                    1
+                  </div>
+                  <span
+                    className={`text-xs font-medium ${
+                      modalStep >= 1 ? 'text-primary' : 'text-muted-foreground'
+                    }`}
+                  >
+                    Selection
+                  </span>
+                </div>
+                <div
+                  className={`h-px w-12 transition-colors ${
+                    modalStep >= 2 ? 'bg-primary' : 'bg-muted'
+                  }`}
+                />
+                <div className="flex flex-col items-center gap-2">
+                  <div
+                    className={`flex h-8 w-8 items-center justify-center rounded-full text-sm font-medium transition-colors ${
+                      modalStep >= 2
+                        ? 'bg-primary text-primary-foreground'
+                        : 'bg-muted text-muted-foreground'
+                    }`}
+                  >
+                    2
+                  </div>
+                  <span
+                    className={`text-xs font-medium ${
+                      modalStep >= 2 ? 'text-primary' : 'text-muted-foreground'
+                    }`}
+                  >
+                    Optimizer
+                  </span>
+                </div>
+              </div>
+
+              {modalStep === 1 ? (
+                <div className="space-y-4">
+                  <div className="max-h-[60vh] overflow-x-auto">
+                    <DataTable
+                      columns={columns.filter(
+                        (col) =>
+                          // Protocol column
+                          ('accessorKey' in col &&
+                            col.accessorKey === 'protocol') ||
+                          // Chain column
+                          ('accessorKey' in col &&
+                            col.accessorKey === 'poolChainNetwork') ||
+                          // Name column
+                          ('accessorKey' in col &&
+                            col.accessorKey === 'poolName') ||
+                          // Deposits column
+                          ('header' in col && col.header === 'Deposits') ||
+                          // Liquidity column
+                          ('header' in col && col.header === 'Liquidity') ||
+                          // APY column
+                          ('accessorKey' in col &&
+                            col.accessorKey === HORIZON_CONFIG[horizon].apyKey)
+                      )}
+                      data={selectedData}
+                      getRowId={getRowId}
+                      hideHeader={true}
+                      hidePagination={true}
+                      rowSelection={rowSelection}
+                      onRowSelectionChange={setRowSelection}
+                      initialSorting={[{ id: sortColumn, desc: true }]}
+                    />
+                  </div>
+                  <div className="flex justify-end">
+                    <Button
+                      onClick={() => {
+                        setSnapshotMarkets(selectedData)
+                        setModalStep(2)
+                      }}
+                    >
+                      Next: Optimize Portfolio
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                <LendingOptimizerView
+                  markets={snapshotMarkets}
+                  onBack={() => setModalStep(1)}
+                />
+              )}
+            </DialogContent>
+          </Dialog>
+        )}
       </div>
 
       <DataTable
         key={horizon}
+        rowSelection={rowSelection}
+        onRowSelectionChange={setRowSelection}
         searchableColumn="poolName"
         filterableColumns={[
           {
@@ -285,8 +457,8 @@ export function LendingTableClient() {
         columns={columns}
         data={data || []}
         initialSorting={[{ id: sortColumn, desc: true }]}
+        getRowId={getRowId}
         initialColumnFilters={[{ id: 'assetSymbol', value: 'USDC' }]}
-        featuredRows={3}
       />
     </div>
   )

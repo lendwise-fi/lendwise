@@ -277,7 +277,6 @@ async function getMarketLendHistoryRates({
   interval: TimeframeLabel
   fromTimestamp: number
 }): Promise<MarketRate[]> {
-  console.log('lend', poolId)
   const { data, error } = await client
     .query<MarketLendHistoryRatesQuery>(MARKET_LEND_HISTORY_RATES, {
       marketId: poolId,
@@ -317,10 +316,11 @@ async function getLendingMarkets(): Promise<LendMarket[]> {
           first: 100,
           skip,
           where: {
-            totalAssetsUsd_gte: 1000,
+            totalAssetsUsd_gte: 100000,
             chainId_in: Object.keys(MORPHO_CONFIG.morpho_v1.chains).map((key) =>
               Number(key)
             ),
+            listed: true,
           } as VaultFilters,
         })
         .toPromise()

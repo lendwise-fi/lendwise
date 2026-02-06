@@ -61,12 +61,6 @@ export default function Risk() {
     { name: 'Others', value: 5, color: 'var(--color-chart-4)' },
   ]
 
-  const currentPrices: Record<string, number> = {
-    ETH: 2500,
-    USDT: 1.0,
-    USDC: 1.0,
-  }
-
   const getRiskZone = (healthFactor: number) => {
     if (healthFactor >= 2.0)
       return { zone: 'safe', label: 'Safe Zone', color: 'green' }
