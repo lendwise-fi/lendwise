@@ -8,10 +8,13 @@ import { Db, MongoClient, ServerApiVersion } from 'mongodb'
 
 const uri = process.env.MONGODB_URI
 const options = {
+  tls: true,
+  connectTimeoutMS: 10000,
+  socketTimeoutMS: 45000,
   serverApi: {
     version: ServerApiVersion.v1,
-    strict: true,
-    deprecationErrors: true,
+    strict: false,
+    deprecationErrors: false,
   },
 }
 
