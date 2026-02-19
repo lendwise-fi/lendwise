@@ -2,7 +2,11 @@ import { NextRequest, NextResponse } from 'next/server'
 
 import { verifySignatureAppRouter } from '@upstash/qstash/nextjs'
 
-import { getDb } from '@/lib/db/mongodb'
+import {
+  MONGODB_COLLECTION_HOURLY,
+  MONGODB_COLLECTION_SPOT,
+  getDb,
+} from '@/lib/db/mongodb'
 import { ApyTimeSeriesDocument } from '@/lib/db/types'
 
 /**
@@ -15,8 +19,10 @@ import { ApyTimeSeriesDocument } from '@/lib/db/types'
  */
 export const POST = verifySignatureAppRouter(async (_req: NextRequest) => {
   try {
-    const db = await getDb('apy')
-    const spotCollection = db.collection<ApyTimeSeriesDocument>('spot')
+    const db = await getDb()
+    const spotCollection = db.collection<ApyTimeSeriesDocument>(
+      MONGODB_COLLECTION_SPOT
+    )
 
     // Determine the hour to aggregate. If triggered at 09:10, target is 09:00.
     const now = new Date()
@@ -94,7 +100,7 @@ export const POST = verifySignatureAppRouter(async (_req: NextRequest) => {
       },
       {
         $merge: {
-          into: 'hourly',
+          into: MONGODB_COLLECTION_HOURLY,
           // Merge based on the unique combination of timestamp and metadata identifiers
           on: [
             'timestamp',

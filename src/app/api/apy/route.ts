@@ -4,7 +4,7 @@ import { Filter } from 'mongodb'
 
 import { ALL_CHAINS } from '@/config/chains'
 import { getProtocolIds } from '@/config/protocols'
-import { getDb } from '@/lib/db/mongodb'
+import { MONGODB_COLLECTION_SPOT, getDb } from '@/lib/db/mongodb'
 
 /**
  * API endpoint for querying APY history from MongoDB.
@@ -55,7 +55,7 @@ export async function GET(req: NextRequest) {
 
   try {
     const db = await getDb()
-    const collection = db.collection('spot')
+    const collection = db.collection(MONGODB_COLLECTION_SPOT)
 
     // Build query object
     const query: Filter<Record<string, unknown>> = {}

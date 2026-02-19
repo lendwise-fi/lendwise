@@ -38,11 +38,25 @@ if (process.env.NODE_ENV === 'development') {
   clientPromise = client.connect()
 }
 
+export const MONGODB_DB_NAME = process.env.MONGODB_DB_NAME || 'apy'
+export const MONGODB_COLLECTION_SPOT =
+  process.env.MONGODB_COLLECTION_SPOT || 'spot'
+export const MONGODB_COLLECTION_HOURLY =
+  process.env.MONGODB_COLLECTION_HOURLY || 'hourly'
+export const MONGODB_COLLECTION_DAILY =
+  process.env.MONGODB_COLLECTION_DAILY || 'daily'
+export const MONGODB_COLLECTION_WEEKLY =
+  process.env.MONGODB_COLLECTION_WEEKLY || 'weekly'
+export const MONGODB_COLLECTION_MONTHLY =
+  process.env.MONGODB_COLLECTION_MONTHLY || 'monthly'
+export const MONGODB_COLLECTION_YEARLY =
+  process.env.MONGODB_COLLECTION_YEARLY || 'yearly'
+
 /**
  * Convenience function to get the database instance.
  * Automatically attaches the database pool for Vercel functions performance.
  */
-export async function getDb(dbName?: string): Promise<Db> {
+export async function getDb(dbName: string = MONGODB_DB_NAME): Promise<Db> {
   const client = await clientPromise
   attachDatabasePool(client)
   return client.db(dbName)

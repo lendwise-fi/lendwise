@@ -2,7 +2,11 @@ import { NextRequest, NextResponse } from 'next/server'
 
 import { verifySignatureAppRouter } from '@upstash/qstash/nextjs'
 
-import { getDb } from '@/lib/db/mongodb'
+import {
+  MONGODB_COLLECTION_DAILY,
+  MONGODB_COLLECTION_HOURLY,
+  getDb,
+} from '@/lib/db/mongodb'
 import { ApyTimeSeriesDocument } from '@/lib/db/types'
 
 /**
@@ -13,8 +17,10 @@ import { ApyTimeSeriesDocument } from '@/lib/db/types'
  */
 export const POST = verifySignatureAppRouter(async (_req: NextRequest) => {
   try {
-    const db = await getDb('apy')
-    const sourceCollection = db.collection<ApyTimeSeriesDocument>('hourly')
+    const db = await getDb()
+    const sourceCollection = db.collection<ApyTimeSeriesDocument>(
+      MONGODB_COLLECTION_HOURLY
+    )
 
     const now = new Date()
 
@@ -93,7 +99,7 @@ export const POST = verifySignatureAppRouter(async (_req: NextRequest) => {
       },
       {
         $merge: {
-          into: 'daily',
+          into: MONGODB_COLLECTION_DAILY,
           on: [
             'timestamp',
             'metadata.protocol',

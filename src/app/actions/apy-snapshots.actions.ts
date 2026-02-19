@@ -19,7 +19,7 @@ export async function writeApySnapshots(
 ): Promise<void> {
   if (snapshots.length === 0) return
 
-  const db = await getDb('apy')
+  const db = await getDb()
   const collection = db.collection<ApyTimeSeriesDocument>(collectionName)
 
   const documents: ApyTimeSeriesDocument[] = snapshots
