@@ -1,5 +1,5 @@
 import { ProtocolName } from '@/config/protocols'
-import { writeApySnapshots } from '@/lib/db/mongodb-apy'
+import { writeApySpotSnapshots } from '@/lib/db/apy-spot-snapshots'
 import type { ApyTimeSeriesDocument } from '@/lib/db/types'
 
 import {
@@ -88,7 +88,7 @@ export async function collectApy(
   // Write all snapshots to MongoDB
   if (allSnapshots.length > 0) {
     try {
-      await writeApySnapshots(allSnapshots)
+      await writeApySpotSnapshots(allSnapshots)
       console.log(
         `[cron:collect-apy] Wrote ${allSnapshots.length} snapshots to MongoDB${
           protocol ? ` for protocol ${protocol}` : ''

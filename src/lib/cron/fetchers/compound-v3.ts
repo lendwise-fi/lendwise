@@ -109,17 +109,18 @@ export async function fetchCompoundV3Apy(
           timestamp,
           metadata: {
             protocol: config.id,
-            market: {
-              name: market.name || '',
-              address: '',
-              chain: {
-                name: chain,
-                id: 0,
-              },
-              vault: {
-                symbol: '',
-                name: '',
+            chain: {
+              id: 0,
+              name: chain,
+              market: {
+                name: market.name || '',
                 address: '',
+
+                vault: {
+                  symbol: '',
+                  name: '',
+                  address: '',
+                },
               },
             },
           },

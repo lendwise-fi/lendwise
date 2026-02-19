@@ -7,12 +7,12 @@ import { ApyTimeSeriesDocument } from './types'
  * MongoDB Atlas Time Series collections automatically handle efficient storage
  * based on the 'timestamp' and 'metadata' (protocol, market, chain).
  */
-export async function writeApySnapshots(
+export async function writeApySpotSnapshots(
   snapshots: ApyTimeSeriesDocument[]
 ): Promise<void> {
   if (snapshots.length === 0) return
 
-  const db = await getDb()
+  const db = await getDb('apy')
   const collection = db.collection<ApyTimeSeriesDocument>('spot')
 
   const documents: ApyTimeSeriesDocument[] = snapshots

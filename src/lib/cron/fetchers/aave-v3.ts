@@ -259,17 +259,18 @@ export async function fetchAaveV3Apy(
         timestamp,
         metadata: {
           protocol: config.id,
-          market: {
-            name: market.name,
-            address: market.address,
-            chain: {
-              name: chain,
-              id: market.chain.chainId,
-            },
-            vault: {
-              symbol: reserve.underlyingToken.symbol,
-              name: reserve.underlyingToken.name,
-              address: reserve.underlyingToken.address,
+          chain: {
+            id: market.chain.chainId,
+            name: chain,
+            market: {
+              name: market.name,
+              address: market.address,
+
+              vault: {
+                symbol: reserve.underlyingToken.symbol,
+                name: reserve.underlyingToken.name,
+                address: reserve.underlyingToken.address,
+              },
             },
           },
         },

@@ -1,4 +1,5 @@
-import { Db, MongoClient, ServerApiVersion } from 'mongodb'
+import { attachDatabasePool } from '@vercel/functions'
+import { Db, MongoClient, MongoClientOptions } from 'mongodb'
 
 /**
  * Singleton MongoDB client.
@@ -7,15 +8,17 @@ import { Db, MongoClient, ServerApiVersion } from 'mongodb'
  */
 
 const uri = process.env.MONGODB_URI
-const options = {
-  tls: true,
-  connectTimeoutMS: 10000,
-  socketTimeoutMS: 45000,
-  serverApi: {
-    version: ServerApiVersion.v1,
-    strict: false,
-    deprecationErrors: false,
-  },
+const options: MongoClientOptions = {
+  appName: 'optimizer',
+  maxIdleTimeMS: 5000,
+  // tls: true,
+  // connectTimeoutMS: 10000,
+  // socketTimeoutMS: 45000,
+  // serverApi: {
+  //   version: ServerApiVersion.v1,
+  //   strict: false,
+  //   deprecationErrors: false,
+  // },
 }
 
 let client: MongoClient
@@ -52,5 +55,6 @@ export default clientPromise
  */
 export async function getDb(dbName?: string): Promise<Db> {
   const client = await clientPromise
+  attachDatabasePool(client)
   return client.db(dbName)
 }

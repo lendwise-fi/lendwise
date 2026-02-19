@@ -107,17 +107,18 @@ export async function fetchMorphoV1Apy(
         timestamp,
         metadata: {
           protocol: config.id,
-          market: {
-            name: marketLabel,
-            address: '',
-            chain: {
-              name: chain,
-              id: 0,
-            },
-            vault: {
-              symbol: '',
-              name: '',
+          chain: {
+            id: 0,
+            name: chain,
+            market: {
+              name: marketLabel,
               address: '',
+
+              vault: {
+                symbol: '',
+                name: '',
+                address: '',
+              },
             },
           },
         },

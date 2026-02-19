@@ -6,17 +6,17 @@ export interface ApyTimeSeriesDocument {
   timestamp: Date
   metadata: {
     protocol: string
-    market: {
+    chain: {
+      id: number
       name: string
-      address: string
-      chain: {
-        name: string
-        id: number
-      }
-      vault: {
-        symbol: string
+      market: {
         name: string
         address: string
+        vault: {
+          symbol: string
+          name: string
+          address: string
+        }
       }
     }
   }
