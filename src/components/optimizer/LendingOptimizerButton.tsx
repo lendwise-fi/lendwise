@@ -214,7 +214,7 @@ export function LendingOptimizerView({
                   <SelectContent>
                     {DIVERSIFICATION_OPTIONS.map((opt) => (
                       <SelectItem key={opt.value} value={String(opt.value)}>
-                        {opt.label} ({opt.value}%)
+                        {opt.label}
                       </SelectItem>
                     ))}
                   </SelectContent>

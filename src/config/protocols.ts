@@ -84,8 +84,9 @@ export const PROTOCOL_REGISTRY = {
  * This creates a union type of all version-specific protocol IDs.
  * Example: 'morpho_v1' | 'aave_v3' | 'compound_v3'
  */
-export type ProtocolName =
-  keyof (typeof PROTOCOL_REGISTRY)[keyof typeof PROTOCOL_REGISTRY]['config']
+export type ProtocolName = {
+  [K in keyof typeof PROTOCOL_REGISTRY]: keyof (typeof PROTOCOL_REGISTRY)[K]['config']
+}[keyof typeof PROTOCOL_REGISTRY]
 
 // ============================================================================
 // HELPER FUNCTIONS

@@ -35,5 +35,6 @@
   "cSpell.words": [
     "intraday"
   ],
-  "biome.enabled": false
+  "biome.enabled": false,
+  "typescript.tsdk": "node_modules/typescript/lib"
 }

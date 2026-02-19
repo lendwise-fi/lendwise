@@ -156,6 +156,151 @@ export const ALL_MARKETS = gql`
   }
 `
 
+export const MARKETS_APY = gql`
+  query MarketsApy($request: MarketsRequest!) {
+    markets(request: $request) {
+      name
+      address
+      chain {
+        name
+        chainId
+      }
+      reserves {
+        underlyingToken {
+          symbol
+          name
+          address
+        }
+        usdExchangeRate
+        supplyInfo {
+          total {
+            value
+          }
+          supplyCap {
+            usd
+            amount {
+              value
+            }
+          }
+          maxLTV {
+            value
+          }
+          apy {
+            value
+          }
+        }
+        borrowInfo {
+          variableRateSlope1 {
+            value
+          }
+          variableRateSlope2 {
+            value
+          }
+          optimalUsageRate {
+            value
+          }
+          baseVariableBorrowRate {
+            value
+          }
+          availableLiquidity {
+            usd
+          }
+          apy {
+            value
+          }
+          total {
+            amount {
+              value
+            }
+            usd
+          }
+        }
+        size {
+          amount {
+            value
+          }
+          usd
+        }
+        incentives {
+          ... on AaveSupplyIncentive {
+            rewardTokenAddress
+            rewardTokenSymbol
+            extraSupplyApr {
+              value
+            }
+          }
+          ... on AaveBorrowIncentive {
+            rewardTokenAddress
+            rewardTokenSymbol
+            borrowAprDiscount {
+              value
+            }
+          }
+          ... on MeritSupplyIncentive {
+            extraSupplyApr {
+              value
+            }
+          }
+          ... on MeritBorrowIncentive {
+            borrowAprDiscount {
+              value
+            }
+          }
+          ... on MeritBorrowAndSupplyIncentiveCondition {
+            borrowToken {
+              symbol
+            }
+            supplyToken {
+              symbol
+            }
+            extraApr {
+              value
+            }
+          }
+        }
+      }
+    }
+  }
+`
+
+export const MARKETS_WITH_TOKENS = gql`
+  query MarketsWithTokens($request: MarketsRequest!) {
+    markets(request: $request) {
+      address
+      chain {
+        name
+        chainId
+      }
+      reserves {
+        underlyingToken {
+          address
+          symbol
+        }
+      }
+    }
+  }
+`
+
+export const APY_HISTORY = gql`
+  query ApyHistory(
+    $supplyRequest: SupplyAPYHistoryRequest!
+    $borrowRequest: BorrowAPYHistoryRequest!
+  ) {
+    supplyAPYHistory(request: $supplyRequest) {
+      date
+      avgRate {
+        value
+      }
+    }
+    borrowAPYHistory(request: $borrowRequest) {
+      date
+      avgRate {
+        value
+      }
+    }
+  }
+`
+
 export const LIST_LENDING_MARKETS = gql`
   query ListLendingMarkets($request: MarketsRequest!) {
     markets(request: $request) {

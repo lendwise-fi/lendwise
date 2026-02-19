@@ -169,6 +169,36 @@ export const MARKET_LEND_HISTORY_RATES = gql`
   }
 `
 
+export const MARKETS_APY = gql`
+  query MarketsApy($first: Int, $skip: Int, $where: MarketFilters) {
+    markets(first: $first, skip: $skip, where: $where) {
+      items {
+        uniqueKey
+        loanAsset {
+          symbol
+          chain {
+            id
+            network
+          }
+        }
+        collateralAsset {
+          symbol
+        }
+        state {
+          borrowApy
+          netBorrowApy
+          supplyApy
+          netSupplyApy
+        }
+      }
+      pageInfo {
+        countTotal
+        count
+      }
+    }
+  }
+`
+
 export const LIST_LENDING_MARKETS = gql`
   query ListLendingMarkets(
     $first: Int

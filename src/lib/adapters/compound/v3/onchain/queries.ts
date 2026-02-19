@@ -83,6 +83,26 @@ export const USER_BORROW_POSITIONS = gql`
     }
   }
 `
+export const MARKETS_APY = gql`
+  query MarketsApy {
+    markets {
+      id
+      name
+      relation
+      inputToken {
+        symbol
+      }
+      protocol {
+        network
+      }
+      rates {
+        rate
+        side
+      }
+    }
+  }
+`
+
 export const MARKET_HOURLY_BORROW_RATES = gql`
   query MarketHourlyBorrowRates($where: MarketHourlySnapshot_filter) {
     marketHourlySnapshots(where: $where) {
