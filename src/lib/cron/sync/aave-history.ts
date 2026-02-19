@@ -149,17 +149,17 @@ export async function syncAaveHistory(): Promise<{
           timestamp: new Date(date),
           metadata: {
             protocol: config.id,
-            market: {
+            chain: {
+              id: 0,
               name: '',
-              address: '',
-              chain: {
-                name: '',
-                id: 0,
-              },
-              vault: {
-                symbol: '',
+              market: {
                 name: '',
                 address: '',
+                vault: {
+                  symbol: '',
+                  name: '',
+                  address: '',
+                },
               },
             },
           },
