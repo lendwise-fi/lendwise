@@ -9,15 +9,15 @@ export interface ApyTimeSeriesDocument {
     chain: {
       id: number
       name: string
-      market: {
-        name: string
-        address: string
-        vault: {
-          symbol: string
-          name: string
-          address: string
-        }
-      }
+    }
+    market: {
+      name: string
+      address: string
+    }
+    vault: {
+      symbol: string
+      name: string
+      address: string
     }
   }
   supplyApy: number

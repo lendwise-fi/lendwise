@@ -60,9 +60,14 @@ export async function GET(req: NextRequest) {
     // Build query object
     const query: Filter<Record<string, unknown>> = {}
 
-    if (protocol) query['metaField.protocol'] = protocol
-    if (market) query['metaField.market'] = market
-    if (chain) query['metaField.chain'] = chain
+    if (protocol) query['metadata.protocol'] = protocol
+    if (chain) query['metadata.chain.name'] = chain
+    if (market) {
+      query.$or = [
+        { 'metadata.vault.symbol': market },
+        { 'metadata.market.name': market },
+      ]
+    }
 
     // 4. Handle time range
     const timeFilter: { $gte?: Date; $lte?: Date } = {}

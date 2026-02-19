@@ -152,15 +152,15 @@ export async function syncAaveHistory(): Promise<{
             chain: {
               id: 0,
               name: '',
-              market: {
-                name: '',
-                address: '',
-                vault: {
-                  symbol: '',
-                  name: '',
-                  address: '',
-                },
-              },
+            },
+            market: {
+              name: '',
+              address: '',
+            },
+            vault: {
+              symbol: '',
+              name: '',
+              address: '',
             },
           },
           supplyApy,

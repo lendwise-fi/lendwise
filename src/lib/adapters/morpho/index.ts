@@ -32,3 +32,4 @@ export const MorphoAdapter = createProtocolAdapter(
 // Re-exports
 // ============================================================================
 export { MORPHO_CONFIG } from './config'
+export { fetchMorphoV1Apy } from './v1/apy-spot'

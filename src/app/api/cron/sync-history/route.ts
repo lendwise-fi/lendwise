@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 
-import { syncAaveHistory } from '@/lib/cron/sync'
+import { syncAaveHistory } from '@/lib/adapters/aave'
 
 /**
  * One-time historical APY sync endpoint.

@@ -112,16 +112,15 @@ export async function fetchCompoundV3Apy(
             chain: {
               id: 0,
               name: chain,
-              market: {
-                name: market.name || '',
-                address: '',
-
-                vault: {
-                  symbol: '',
-                  name: '',
-                  address: '',
-                },
-              },
+            },
+            market: {
+              name: market.name || '',
+              address: '',
+            },
+            vault: {
+              symbol: '',
+              name: '',
+              address: '',
             },
           },
           supplyApy,

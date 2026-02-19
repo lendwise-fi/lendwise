@@ -110,16 +110,15 @@ export async function fetchMorphoV1Apy(
           chain: {
             id: 0,
             name: chain,
-            market: {
-              name: marketLabel,
-              address: '',
-
-              vault: {
-                symbol: '',
-                name: '',
-                address: '',
-              },
-            },
+          },
+          market: {
+            name: marketLabel,
+            address: '',
+          },
+          vault: {
+            symbol: '',
+            name: '',
+            address: '',
           },
         },
         supplyApy,

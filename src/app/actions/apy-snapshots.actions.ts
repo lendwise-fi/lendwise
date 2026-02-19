@@ -1,14 +1,38 @@
+'use server'
+
 import { ProtocolName } from '@/config/protocols'
-import { writeApySpotSnapshots } from '@/lib/db/apy-spot-snapshots'
+import { fetchAaveV3Apy } from '@/lib/adapters/aave'
+import { fetchCompoundV3Apy } from '@/lib/adapters/compound'
+import { fetchMorphoV1Apy } from '@/lib/adapters/morpho'
+import { getDb } from '@/lib/db/mongodb'
 import type { ApyTimeSeriesDocument } from '@/lib/db/types'
 
-import {
-  fetchAaveV3Apy,
-  fetchCompoundV3Apy,
-  fetchMorphoV1Apy,
-} from './fetchers'
+/**
+ * Write multiple APY snapshots to MongoDB 'spot' time-series collection.
+ *
+ * MongoDB Atlas Time Series collections automatically handle efficient storage
+ * based on the 'timestamp' and 'metadata' (protocol, market, chain).
+ */
+export async function writeApySnapshots(
+  collectionName: string,
+  snapshots: ApyTimeSeriesDocument[]
+): Promise<void> {
+  if (snapshots.length === 0) return
 
-export type CollectApyResult = {
+  const db = await getDb('apy')
+  const collection = db.collection<ApyTimeSeriesDocument>(collectionName)
+
+  const documents: ApyTimeSeriesDocument[] = snapshots
+
+  try {
+    await collection.insertMany(documents, { ordered: false })
+  } catch (error) {
+    console.error('[db:mongodb-apy] Failed to write snapshots:', error)
+    throw error
+  }
+}
+
+export type CollectApySpotResult = {
   success: boolean
   counts: Partial<Record<ProtocolName, number>> & {
     total: number
@@ -23,9 +47,9 @@ export type CollectApyResult = {
  *
  * @param protocol - Optional protocol ID to filter by (e.g. 'aave_v3'). If omitted, runs all.
  */
-export async function collectApy(
+export async function collectApySpot(
   protocol?: ProtocolName
-): Promise<CollectApyResult> {
+): Promise<CollectApySpotResult> {
   const start = Date.now()
   const errors: string[] = []
   const allSnapshots: ApyTimeSeriesDocument[] = []
@@ -88,7 +112,7 @@ export async function collectApy(
   // Write all snapshots to MongoDB
   if (allSnapshots.length > 0) {
     try {
-      await writeApySpotSnapshots(allSnapshots)
+      await writeApySnapshots('spot', allSnapshots)
       console.log(
         `[cron:collect-apy] Wrote ${allSnapshots.length} snapshots to MongoDB${
           protocol ? ` for protocol ${protocol}` : ''
@@ -98,6 +122,7 @@ export async function collectApy(
       const msg = err instanceof Error ? err.message : String(err)
       errors.push(`mongodb write: ${msg}`)
       console.error('[cron:collect-apy] Failed to write to MongoDB:', msg)
+      throw err
     }
   }
 

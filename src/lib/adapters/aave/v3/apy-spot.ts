@@ -262,16 +262,15 @@ export async function fetchAaveV3Apy(
           chain: {
             id: market.chain.chainId,
             name: chain,
-            market: {
-              name: market.name,
-              address: market.address,
-
-              vault: {
-                symbol: reserve.underlyingToken.symbol,
-                name: reserve.underlyingToken.name,
-                address: reserve.underlyingToken.address,
-              },
-            },
+          },
+          market: {
+            name: market.name,
+            address: market.address,
+          },
+          vault: {
+            symbol: reserve.underlyingToken.symbol,
+            name: reserve.underlyingToken.name,
+            address: reserve.underlyingToken.address,
           },
         },
         supplyApy,

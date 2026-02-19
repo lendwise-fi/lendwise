@@ -17,22 +17,33 @@ async function testMongoQuery() {
     const testData = [
       {
         timestamp: new Date(now.getTime() - 24 * 60 * 60 * 1000), // 1 day ago
-        metaField: { chain: 'arbitrum', market: 'USDC', protocol: 'aave_v3' },
+        metadata: {
+          protocol: 'aave_v3',
+          chain: { id: 42161, name: 'arbitrum' },
+          market: { name: 'Aave V3 Arbitrum', address: '0x123' },
+          vault: { symbol: 'USDC', name: 'USDC', address: '0x456' },
+        },
         supplyApy: 5.0,
         borrowApy: 4.0,
       },
       {
         timestamp: new Date(now.getTime() - 2 * 24 * 60 * 60 * 1000), // 2 days ago
-        metaField: { chain: 'arbitrum', market: 'USDC', protocol: 'aave_v3' },
+        metadata: {
+          protocol: 'aave_v3',
+          chain: { id: 42161, name: 'arbitrum' },
+          market: { name: 'Aave V3 Arbitrum', address: '0x123' },
+          vault: { symbol: 'USDC', name: 'USDC', address: '0x456' },
+        },
         supplyApy: 4.5,
         borrowApy: 3.5,
       },
       {
         timestamp: new Date(now.getTime() - 10 * 24 * 60 * 60 * 1000), // 10 days ago
-        metaField: {
-          chain: 'ethereum',
-          market: 'WETH',
+        metadata: {
           protocol: 'compound_v3',
+          chain: { id: 1, name: 'ethereum' },
+          market: { name: 'Compound V3 USDC', address: '0xabc' },
+          vault: { symbol: 'WETH', name: 'WETH', address: '0xdef' },
         },
         supplyApy: 2.0,
         borrowApy: 1.0,
@@ -46,8 +57,11 @@ async function testMongoQuery() {
     console.log('\nQuerying by protocol (aave_v3) and market (USDC)...')
     const results1 = await collection
       .find({
-        'metaField.protocol': 'aave_v3',
-        'metaField.market': 'USDC',
+        'metadata.protocol': 'aave_v3',
+        $or: [
+          { 'metadata.vault.symbol': 'USDC' },
+          { 'metadata.market.name': 'USDC' },
+        ],
       })
       .toArray()
     console.log(`Found ${results1.length} results. Expected: 2.`)
@@ -70,7 +84,7 @@ async function testMongoQuery() {
     console.log('\nQuerying by chain (ethereum)...')
     const results3 = await collection
       .find({
-        'metaField.chain': 'ethereum',
+        'metadata.chain.name': 'ethereum',
       })
       .toArray()
     console.log(`Found ${results3.length} results. Expected: 1.`)
@@ -78,7 +92,7 @@ async function testMongoQuery() {
     // Clean up
     console.log('\nCleaning up test data...')
     await collection.deleteMany({
-      'metaField.protocol': { $in: ['aave_v3', 'compound_v3'] },
+      'metadata.protocol': { $in: ['aave_v3', 'compound_v3'] },
       timestamp: { $gte: new Date(now.getTime() - 11 * 24 * 60 * 60 * 1000) },
     })
     console.log('Clean up complete.')

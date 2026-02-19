@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 
+import { verifySignatureAppRouter } from '@upstash/qstash/nextjs'
+
+import { collectApySpot } from '@/app/actions/apy-snapshots.actions'
 import { ProtocolName, getProtocolIds } from '@/config/protocols'
-import { collectApy } from '@/lib/cron/collect-apy'
 
 /**
  * APY collection endpoint.
@@ -10,15 +12,8 @@ import { collectApy } from '@/lib/cron/collect-apy'
  * - protocol (required): The protocol to collect APY for (e.g. 'aave_v3', 'morpho_v1')
  *
  * Triggered by QStash or Vercel cron.
- * Protected by CRON_SECRET.
  */
-export async function POST(req: NextRequest) {
-  // Verify cron secret to prevent unauthorized access
-  // const authHeader = req.headers.get('authorization')
-  // if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
-  //   return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  // }
-
+export const POST = verifySignatureAppRouter(async (req: NextRequest) => {
   const body = await req.json().catch(() => ({}))
   const protocol = body.protocol as string | undefined
 
@@ -43,7 +38,7 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const result = await collectApy(protocol as ProtocolName)
+    const result = await collectApySpot(protocol as ProtocolName)
 
     return NextResponse.json(result, {
       status: result.success ? 200 : 207,
@@ -60,4 +55,4 @@ export async function POST(req: NextRequest) {
       { status: 500 }
     )
   }
-}
+})
