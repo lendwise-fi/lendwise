@@ -38,7 +38,7 @@ export type Protocol = 'aave' | 'compound' | 'morpho' | 'newprotocol'
 
 ### Step 2: Create the Adapter
 
-Create `src/lib/adapters/newprotocol/index.ts`:
+Create `src/lib/protocols/newprotocol/index.ts`:
 
 ```typescript
 import { LendingPosition } from '@/types/lending'
@@ -65,7 +65,7 @@ export const SUPPORTED_PROTOCOLS: ProtocolRegistryEntry[] = [
   {
     name: 'newprotocol',
     adapter: async () => {
-      const { NewProtocolAdapter } = await import('@/lib/adapters/newprotocol')
+      const { NewProtocolAdapter } = await import('@/lib/protocols/newprotocol')
       return NewProtocolAdapter
     },
   },
@@ -149,7 +149,7 @@ export const SUPPORTED_PROTOCOLS: ProtocolRegistryEntry[] = [
   {
     name: 'morpho',
     adapter: async () => {
-      const { MorphoAdapter } = await import('@/lib/adapters/morpho')
+      const { MorphoAdapter } = await import('@/lib/protocols/morpho')
       return MorphoAdapter
     },
   },
@@ -157,14 +157,14 @@ export const SUPPORTED_PROTOCOLS: ProtocolRegistryEntry[] = [
   // {
   //   name: 'aave',
   //   adapter: async () => {
-  //     const { AaveAdapter } = await import('@/lib/adapters/aave')
+  //     const { AaveAdapter } = await import('@/lib/protocols/aave')
   //     return AaveAdapter
   //   },
   // },
   {
     name: 'compound',
     adapter: async () => {
-      const { CompoundAdapter } = await import('@/lib/adapters/compound')
+      const { CompoundAdapter } = await import('@/lib/protocols/compound')
       return CompoundAdapter
     },
   },

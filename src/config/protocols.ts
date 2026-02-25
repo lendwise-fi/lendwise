@@ -1,9 +1,9 @@
 import type { Assign, Chain, Prettify } from 'viem'
 
-import { AAVE_CONFIG } from '@/lib/adapters/aave'
-import { COMPOUND_CONFIG } from '@/lib/adapters/compound'
-import { MORPHO_CONFIG } from '@/lib/adapters/morpho'
-import type { ProtocolAdapter } from '@/lib/adapters/types'
+import { AAVE_CONFIG } from '@/lib/protocols/aave'
+import { COMPOUND_CONFIG } from '@/lib/protocols/compound'
+import { MORPHO_CONFIG } from '@/lib/protocols/morpho'
+import type { ProtocolAdapter } from '@/lib/protocols/types'
 
 // ============================================================================
 // PROTOCOL CONFIG INTERFACE
@@ -43,7 +43,7 @@ export interface ProtocolConfig {
 // This registry is the ONLY place you need to modify to enable/disable protocols.
 //
 // HOW TO ADD A NEW PROTOCOL:
-// 1. Create adapter folder in @/lib/adapters/[protocol] with config and adapter
+// 1. Create adapter folder in @/lib/protocols/[protocol] with config and adapter
 // 2. Import the config at the top of this file
 // 3. Add entry to PROTOCOL_REGISTRY below
 //
@@ -59,18 +59,18 @@ export const PROTOCOL_REGISTRY = {
   aave: {
     displayName: 'Aave',
     config: AAVE_CONFIG,
-    adapter: () => import('@/lib/adapters/aave').then((m) => m.AaveAdapter),
+    adapter: () => import('@/lib/protocols/aave').then((m) => m.AaveAdapter),
   },
   morpho: {
     displayName: 'Morpho',
     config: MORPHO_CONFIG,
-    adapter: () => import('@/lib/adapters/morpho').then((m) => m.MorphoAdapter),
+    adapter: () => import('@/lib/protocols/morpho').then((m) => m.MorphoAdapter),
   },
   compound: {
     displayName: 'Compound',
     config: COMPOUND_CONFIG,
     adapter: () =>
-      import('@/lib/adapters/compound').then((m) => m.CompoundAdapter),
+      import('@/lib/protocols/compound').then((m) => m.CompoundAdapter),
   },
 } as const
 

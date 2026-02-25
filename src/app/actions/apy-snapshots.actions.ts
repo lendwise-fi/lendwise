@@ -1,11 +1,11 @@
 'use server'
 
 import { ProtocolName } from '@/config/protocols'
-import { fetchAaveV3Apy } from '@/lib/adapters/aave'
-import { fetchCompoundV3Apy } from '@/lib/adapters/compound'
-import { fetchMorphoV1Apy } from '@/lib/adapters/morpho'
 import { getDb } from '@/lib/db/mongodb'
 import type { ApyTimeSeriesDocument } from '@/lib/db/types'
+import { fetchAaveV3Apy } from '@/lib/protocols/aave'
+import { fetchCompoundV3Apy } from '@/lib/protocols/compound'
+import { fetchMorphoV1Apy } from '@/lib/protocols/morpho'
 
 /**
  * Write multiple APY snapshots to MongoDB 'spot' time-series collection.
@@ -100,7 +100,7 @@ export async function collectApySpot(
       const snapshots = result.value
       if (snapshots.length > 0) {
         // Identify source by first item's protocol field or inference
-        const proto = snapshots[0].metadata.protocol as ProtocolName
+        const proto = snapshots[0].metadata.protocol.name as ProtocolName
         protoCount[proto] = snapshots.length
         allSnapshots.push(...snapshots)
       }

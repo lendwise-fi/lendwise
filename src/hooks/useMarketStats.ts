@@ -1,6 +1,6 @@
-import { AaveAdapter } from '@/lib/adapters/aave'
-import { CompoundAdapter } from '@/lib/adapters/compound'
-import { MorphoAdapter } from '@/lib/adapters/morpho'
+import { AaveAdapter } from '@/lib/protocols/aave'
+import { CompoundAdapter } from '@/lib/protocols/compound'
+import { MorphoAdapter } from '@/lib/protocols/morpho'
 import { MarketStats } from '@/types'
 
 export async function getMarketStats(): Promise<MarketStats[]> {
