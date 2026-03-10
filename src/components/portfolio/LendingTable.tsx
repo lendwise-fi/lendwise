@@ -9,9 +9,9 @@ import { AlertCircle, ArrowUpRightFromSquare, TrendingUp } from 'lucide-react'
 import { Area, AreaChart, CartesianGrid, XAxis, YAxis } from 'recharts'
 
 import { loadMarketLendHistoryRates } from '@/app/actions'
-import { ChainBadge } from '@/components/badge/ChainBadge'
+import { NetworkBadge } from '@/components/badge/NetworkBadge'
 import { ProtocolBadge } from '@/components/badge/ProtocolBadge'
-import { ChainIcon, ProtocolIcon, TokenIcon } from '@/components/icon'
+import { NetworkIcon, ProtocolIcon, TokenIcon } from '@/components/icon'
 import {
   DataTable,
   SortableHeader,
@@ -76,7 +76,7 @@ const createColumns = (
   {
     accessorKey: 'poolChainNetwork',
     header: 'Chain',
-    cell: ({ row }) => <ChainBadge chainSlug={row.original.poolChainNetwork} />,
+    cell: ({ row }) => <NetworkBadge networkSlug={row.original.network} />,
     meta: {
       isMobileHidden: true,
     },
@@ -210,7 +210,7 @@ function TableCellViewer({ item }: { item: LendPosition }) {
           <DrawerDescription asChild>
             <div className="flex flex-wrap gap-2">
               <ProtocolBadge protocol={item.protocol} />
-              <ChainBadge chainSlug={item.poolChainNetwork} />
+              <NetworkBadge networkSlug={item.network} />
               <AddressBadge address={item.userAddress} noCopy border />
             </div>
           </DrawerDescription>
@@ -519,12 +519,12 @@ export function LendingTable({ data }: { data: LendPosition[] }) {
                 {
                   column: 'poolChainNetwork',
                   title: 'Chain',
-                  options: getUniqueColumnValues(data, 'poolChainNetwork').map(
+                  options: getUniqueColumnValues(data, 'network').map(
                     (value) => ({
                       value: value as string,
                       label: (
                         <div className="flex items-center gap-2">
-                          <ChainIcon chainSlug={value as string} />{' '}
+                          <NetworkIcon networkSlug={value as string} />{' '}
                           {value.charAt(0).toUpperCase() + value.slice(1)}
                         </div>
                       ),

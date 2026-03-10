@@ -14,7 +14,7 @@ import {
 import { Area, AreaChart, CartesianGrid, XAxis, YAxis } from 'recharts'
 
 import { loadMarketBorrowHistoryRates } from '@/app/actions/market-rates.actions'
-import { ChainIcon, ProtocolIcon, TokenIcon } from '@/components/icon'
+import { NetworkIcon, ProtocolIcon, TokenIcon } from '@/components/icon'
 import {
   DataTable,
   SortableHeader,
@@ -59,7 +59,7 @@ import { TIMEFRAME_OPTIONS, TimeframeLabel } from '@/types'
 import { BorrowPosition, MarketRate } from '@/types'
 
 import { AddressBadge } from '../badge/AddressBadge'
-import { ChainBadge } from '../badge/ChainBadge'
+import { NetworkBadge } from '../badge/NetworkBadge'
 import { ProtocolBadge } from '../badge/ProtocolBadge'
 import { LiquidationRiskBar } from '../borrowing/LiquidationRiskBar'
 
@@ -77,9 +77,9 @@ const createColumns = (
     },
   },
   {
-    accessorKey: 'poolChainNetwork',
+    accessorKey: 'network',
     header: 'Chain',
-    cell: ({ row }) => <ChainBadge chainSlug={row.original.poolChainNetwork} />,
+    cell: ({ row }) => <NetworkBadge networkSlug={row.original.network} />,
     meta: {
       isMobileHidden: true,
     },
@@ -311,7 +311,7 @@ function TableCellViewer({ item }: { item: BorrowPosition }) {
           <DrawerDescription asChild>
             <div className="flex flex-wrap gap-2">
               <ProtocolBadge protocol={item.protocol} />
-              <ChainBadge chainSlug={item.poolChainNetwork} />
+              <NetworkBadge networkSlug={item.network} />
               <AddressBadge address={item.userAddress} noCopy border />
             </div>
           </DrawerDescription>
@@ -610,7 +610,7 @@ export function BorrowingTable({ data }: { data: BorrowPosition[] }) {
     (column) => !isMobile || !column.meta?.isMobileHidden
   )
   const uniqueProtocols = getUniqueColumnValues(data, 'protocol')
-  const uniqueChains = getUniqueColumnValues(data, 'poolChainNetwork')
+  const uniqueChains = getUniqueColumnValues(data, 'network')
 
   return (
     <div>
@@ -642,14 +642,14 @@ export function BorrowingTable({ data }: { data: BorrowPosition[] }) {
                   })),
                 },
                 {
-                  column: 'poolChainNetwork',
+                  column: 'network',
                   title: 'Chain',
-                  options: uniqueChains.map((chain) => ({
-                    label: chain,
-                    value: chain,
+                  options: uniqueChains.map((network) => ({
+                    label: network,
+                    value: network,
                     icon: (props: { className?: string }) => (
-                      <ChainIcon
-                        chainSlug={chain}
+                      <NetworkIcon
+                        networkSlug={network}
                         className={props.className}
                       />
                     ),

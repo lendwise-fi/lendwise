@@ -85,12 +85,12 @@ async function getUserLendPositions({
           (position): LendPosition => ({
             id: position.id,
             protocol: MORPHO_CONFIG.morpho_v1.id,
+            network: position.vault.chain.network.toLowerCase(),
             userAddress: position.user.address.toLowerCase(),
             poolName: position.vault.name,
             poolAddress: position.vault.address,
             poolId: position.vault.id,
             poolChainId: Number(position.vault.chain.id),
-            poolChainNetwork: position.vault.chain.network.toLowerCase(),
             assetAddress: position.vault.asset.address,
             assetName: position.vault.asset.name,
             assetSymbol: position.vault.asset.symbol,
@@ -170,14 +170,14 @@ async function getUserBorrowPositions({
         (position): BorrowPosition => ({
           id: position.id,
           protocol: MORPHO_CONFIG.morpho_v1.id,
+          network:
+            position.market.morphoBlue.chain.network.toLowerCase(),
           healthFactor: Number(position.healthFactor),
           userAddress: position.user.address,
           poolId: position.market.id,
           poolName: `${position.market.collateralAsset?.symbol}/${position.market.loanAsset?.symbol}`,
           poolAddress: position.market.uniqueKey,
           poolChainId: position.market.morphoBlue.chain.id,
-          poolChainNetwork:
-            position.market.morphoBlue.chain.network.toLowerCase(),
           loanAssetAddress: position.market.loanAsset.address,
           loanAssetName: position.market.loanAsset.name,
           loanAssetSymbol: position.market.loanAsset.symbol,
@@ -339,11 +339,11 @@ async function getLendingMarkets(): Promise<LendMarket[]> {
 
       const markets = data.vaults.items.map((vault) => ({
         protocol: MORPHO_CONFIG.morpho_v1.id,
+        network: vault.asset.chain.network.toLowerCase(),
         poolName: vault.name,
         poolId: vault.id,
         poolAddress: vault.address,
         poolChainId: vault.asset.chain.id,
-        poolChainNetwork: vault.asset.chain.network.toLowerCase(),
         assetAddress: vault.asset.address,
         assetName: vault.asset.name,
         assetSymbol: vault.asset.symbol,

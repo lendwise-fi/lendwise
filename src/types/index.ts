@@ -89,12 +89,12 @@ export interface TokenPrice {
 export interface LendPosition {
   id: string
   protocol: ProtocolName
+  network: string
   userAddress: Address
   poolName: string
   poolAddress: Address
   poolId: string
   poolChainId: number
-  poolChainNetwork: string
   assetAddress: Address
   assetName: string
   assetSymbol: string
@@ -107,11 +107,11 @@ export interface LendPosition {
 
 export interface LendMarket {
   protocol: ProtocolName
+  network: string
   poolName: string
   poolAddress: Address
   poolId: string
   poolChainId: number
-  poolChainNetwork: string
   assetAddress: Address
   assetName: string
   assetSymbol: string
@@ -130,13 +130,13 @@ export interface LendMarket {
 export interface BorrowPosition {
   id: string
   protocol: ProtocolName
+  network: string
   healthFactor: number
   userAddress: Address
   poolId: string
   poolName: string
   poolAddress: Address
   poolChainId: number
-  poolChainNetwork: string
   loanAssetAddress: Address
   loanAssetName: string
   loanAssetSymbol: string

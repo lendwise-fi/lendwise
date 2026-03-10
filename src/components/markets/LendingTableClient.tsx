@@ -9,9 +9,9 @@ import { ColumnDef } from '@tanstack/react-table'
 import { ArrowUpRightFromSquare, Calendar, Eye } from 'lucide-react'
 
 import { loadLendingMarkets } from '@/app/actions/markets.actions'
-import { ChainBadge } from '@/components/badge/ChainBadge'
+import { NetworkBadge } from '@/components/badge/NetworkBadge'
 import { ProtocolBadge } from '@/components/badge/ProtocolBadge'
-import { ChainIcon, ProtocolIcon, TokenIcon } from '@/components/icon'
+import { NetworkIcon, ProtocolIcon, TokenIcon } from '@/components/icon'
 import { LendingOptimizerView } from '@/components/optimizer/LendingOptimizerButton'
 import {
   DataTable,
@@ -100,13 +100,13 @@ const createColumns = (
     cell: ({ row }) => <ProtocolBadge protocol={row.original.protocol} />,
   },
   {
-    accessorKey: 'poolChainNetwork',
+    accessorKey: 'network',
     header: ({ column }) => (
       <SortableHeader column={column}>Chain</SortableHeader>
     ),
     enableHiding: false,
     enableSorting: true,
-    cell: ({ row }) => <ChainBadge chainSlug={row.original.poolChainNetwork} />,
+    cell: ({ row }) => <NetworkBadge networkSlug={row.original.network} />,
   },
   {
     accessorKey: 'poolName',
@@ -426,12 +426,12 @@ export function LendingTableClient() {
           {
             column: 'poolChainNetwork',
             title: 'Chain',
-            options: getUniqueColumnValues(data || [], 'poolChainNetwork').map(
+            options: getUniqueColumnValues(data || [], 'network').map(
               (value) => ({
                 value: value as string,
                 label: (
                   <div className="flex items-center gap-2">
-                    <ChainIcon chainSlug={value as string} />{' '}
+                    <NetworkIcon networkSlug={value as string} />{' '}
                     {value.charAt(0).toUpperCase() + value.slice(1)}
                   </div>
                 ),

@@ -4,30 +4,30 @@ import { useState } from 'react'
 
 import Image from 'next/image'
 
-type ChainIconProps = {
-  chainSlug: string
+type NetworkIconProps = {
+  networkSlug: string
   size?: number
   className?: string
 }
 
 /**
- * ChainIcon component
- * Displays chain logos from /public/icons/chain/
+ * NetworkIcon component
+ * Displays network logos from /public/icons/network/
  *
  * Usage:
- * <ChainIcon chainSlug="ethereum" size={32} />
- * <ChainIcon chainSlug="polygon" size={24} />
+ * <NetworkIcon networkSlug="ethereum" size={32} />
+ * <NetworkIcon networkSlug="polygon" size={24} />
  */
-export const ChainIcon = ({
-  chainSlug,
+export const NetworkIcon = ({
+  networkSlug,
   size = 18,
   className = '',
-}: ChainIconProps) => {
+}: NetworkIconProps) => {
   const [error, setError] = useState(false)
 
   // Normalize protocol name to lowercase for file matching
-  const normalizedChainSlug = chainSlug.toLowerCase()
-  const iconPath = `/icons/chain/${normalizedChainSlug}.svg`
+  const normalizedNetworkSlug = networkSlug.toLowerCase()
+  const iconPath = `/icons/network/${normalizedNetworkSlug}.svg`
 
   const handleError = () => {
     setError(true)
@@ -39,13 +39,13 @@ export const ChainIcon = ({
       <div
         className={`bg-muted flex items-center justify-center rounded-full ${className}`}
         style={{ width: size, height: size }}
-        title={chainSlug}
+        title={networkSlug}
       >
         <span
           className="text-muted-foreground font-bold uppercase"
           style={{ fontSize: size * 0.35 }}
         >
-          {chainSlug.slice(0, 2)}
+          {networkSlug.slice(0, 2)}
         </span>
       </div>
     )
@@ -54,13 +54,13 @@ export const ChainIcon = ({
   // Success state - show chain logo
   return (
     <div
-      className={`relative rounded-full overflow-hidden ${className}`}
+      className={`relative overflow-hidden rounded-full ${className}`}
       style={{ width: size, height: size }}
-      title={chainSlug}
+      title={networkSlug}
     >
       <Image
         src={iconPath}
-        alt={`${chainSlug} logo`}
+        alt={`${networkSlug} logo`}
         fill
         onError={handleError}
         className="object-cover"

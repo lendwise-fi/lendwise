@@ -305,6 +305,7 @@ export const LIST_LENDING_MARKETS = gql`
   query ListLendingMarkets($request: MarketsRequest!) {
     markets(request: $request) {
       address
+      name
       chain {
         name
         chainId
