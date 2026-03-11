@@ -4,18 +4,9 @@ import { LendMarket } from '@/types'
 
 import { client } from '.'
 import { AAVE_CONFIG } from '../../config'
+import { getNetworkName } from '../utils'
 import { ListLendingMarketsQuery } from './generated/graphql'
 import { LIST_LENDING_MARKETS } from './queries'
-
-function getNetworkName(chainName: string): string {
-  if (chainName === 'Ethereum') {
-    return chainName.replace('AaveV3Ethereum', '').toLowerCase()
-  } else if (chainName === 'BSC') {
-    return 'bsc'
-  } else {
-    return chainName.replace('AaveV3', '').toLowerCase()
-  }
-}
 
 // CPU-heavy transformation memoized
 const _formatLendingMarkets = cache(
@@ -28,7 +19,6 @@ const _formatLendingMarkets = cache(
         poolId: market.address,
         poolAddress: market.address,
         poolChainId: market.chain.chainId,
-        poolChainNetwork: market.chain.name.toLowerCase(),
         assetAddress: reserve.underlyingToken.address,
         assetName: reserve.underlyingToken.name,
         assetSymbol: reserve.underlyingToken.symbol,

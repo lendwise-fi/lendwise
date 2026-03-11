@@ -359,7 +359,7 @@ export function LendingTableClient() {
                             col.accessorKey === 'protocol') ||
                           // Chain column
                           ('accessorKey' in col &&
-                            col.accessorKey === 'poolChainNetwork') ||
+                            col.accessorKey === 'network') ||
                           // Name column
                           ('accessorKey' in col &&
                             col.accessorKey === 'poolName') ||
@@ -424,7 +424,7 @@ export function LendingTableClient() {
             ),
           },
           {
-            column: 'poolChainNetwork',
+            column: 'network',
             title: 'Chain',
             options: getUniqueColumnValues(data || [], 'network').map(
               (value) => ({

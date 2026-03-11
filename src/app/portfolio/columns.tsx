@@ -10,8 +10,8 @@ import { formatCurrency } from '@/lib/format-currency'
 
 export type PositionData = {
   protocol: string
+  network: string
   poolName: string
-  poolChainNetwork: string
   assetSymbol: string
   amount: number
   valueInBaseCurrency: number

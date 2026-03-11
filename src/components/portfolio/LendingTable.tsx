@@ -74,7 +74,7 @@ const createColumns = (
     },
   },
   {
-    accessorKey: 'poolChainNetwork',
+    accessorKey: 'network',
     header: 'Chain',
     cell: ({ row }) => <NetworkBadge networkSlug={row.original.network} />,
     meta: {
@@ -517,7 +517,7 @@ export function LendingTable({ data }: { data: LendPosition[] }) {
                   ),
                 },
                 {
-                  column: 'poolChainNetwork',
+                  column: 'network',
                   title: 'Chain',
                   options: getUniqueColumnValues(data, 'network').map(
                     (value) => ({

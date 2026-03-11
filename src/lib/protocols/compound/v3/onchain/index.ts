@@ -210,7 +210,7 @@ async function getUserLendPositions({
                   poolChainId:
                     CHAIN_NAME_MAPPING[position.market.protocol.network]
                       ?.chainId ?? 1,
-                  poolChainNetwork:
+                  network:
                     CHAIN_NAME_MAPPING[position.market.protocol.network]
                       ?.protocolName ?? position.market.protocol.network,
                   assetAddress: position.asset.id as Address,
@@ -334,7 +334,7 @@ async function getUserBorrowPositions({
                   poolName: borrow.asset.symbol,
                   poolAddress: borrow.market.relation,
                   poolChainId: mappingName?.chainId,
-                  poolChainNetwork:
+                  network:
                     mappingName?.protocolName ?? borrow.market.protocol.network,
                   loanAssetAddress: borrow.market.inputToken.id,
                   loanAssetName: borrow.asset.name,

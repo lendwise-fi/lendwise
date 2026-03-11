@@ -5,6 +5,7 @@ import type { DataAdapter } from '@/lib/protocols/types'
 import { BorrowPosition, LendPosition } from '@/types'
 
 import { AAVE_CONFIG } from '../../config'
+import { getNetworkName } from '../utils'
 import {
   MarketsQuery,
   UserBorrowPositionsQuery,
@@ -109,12 +110,12 @@ async function getUserLendPositions({
             (position): LendPosition => ({
               id: address,
               protocol: AAVE_CONFIG.aave_v3.id,
+              network: position.market.chain.name.toLowerCase(),
               userAddress: address.toLowerCase() as Address,
               poolName: position.market.name,
               poolAddress: position.market.address,
               poolId: position.market.address,
               poolChainId: position.market.chain.chainId,
-              poolChainNetwork: position.market.chain.name.toLowerCase(),
               assetAddress: position.currency.address,
               assetName: position.currency.name,
               assetSymbol: position.currency.symbol,
@@ -284,6 +285,7 @@ async function getUserBorrowPositions({
           (position): BorrowPosition => ({
             id: address,
             protocol: AAVE_CONFIG.aave_v3.id,
+            network: getNetworkName(position.market.chain.name),
             healthFactor:
               healthFactorMapParams.get(
                 `${address}-${position.market.address}-${position.market.chain.chainId}`
@@ -293,7 +295,6 @@ async function getUserBorrowPositions({
             poolName: position.market.name,
             poolAddress: position.market.address,
             poolChainId: position.market.chain.chainId,
-            poolChainNetwork: position.market.chain.name.toLowerCase(),
             loanAssetAddress: position.currency.address,
             loanAssetName: position.currency.name,
             loanAssetSymbol: position.currency.symbol,
