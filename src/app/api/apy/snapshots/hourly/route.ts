@@ -9,11 +9,10 @@ import {
 } from '@/lib/db/mongodb'
 import { ApyTimeSeriesDocument } from '@/lib/db/types'
 
+const MIN_SPOT_POINTS_PER_HOUR = 5
+
 /**
  * APY collection endpoint.
- *
- * Body (JSON):
- * - protocol (required): The protocol to collect APY for (e.g. 'aave_v3', 'morpho_v1')
  *
  * Triggered by QStash or Vercel cron.
  */
@@ -36,6 +35,28 @@ export const POST = verifySignatureAppRouter(async (_req: NextRequest) => {
     // The end of the window we are aggregating (e.g. 08:59:59.999)
     const periodEnd = new Date(targetTimestamp)
     periodEnd.setMilliseconds(-1)
+
+    const pointsCount = await spotCollection.countDocuments({
+      timestamp: {
+        $gte: periodStart,
+        $lte: periodEnd,
+      },
+    })
+
+    if (pointsCount < MIN_SPOT_POINTS_PER_HOUR) {
+      console.warn(
+        `[cron:apy-hourly] Skipping aggregation for ${targetTimestamp.toISOString()} — only ${pointsCount} spot points (< ${MIN_SPOT_POINTS_PER_HOUR})`
+      )
+      return NextResponse.json(
+        {
+          success: false,
+          skipped: true,
+          reason: 'not enough spot datapoints for hourly aggregation',
+          pointsCount,
+        },
+        { status: 200 }
+      )
+    }
 
     const pipeline = [
       {

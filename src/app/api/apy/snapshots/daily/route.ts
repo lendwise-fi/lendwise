@@ -9,6 +9,8 @@ import {
 } from '@/lib/db/mongodb'
 import { ApyTimeSeriesDocument } from '@/lib/db/types'
 
+const MIN_HOURLY_POINTS_PER_DAY = 18
+
 /**
  * Daily APY aggregation endpoint.
  *
@@ -35,6 +37,28 @@ export const POST = verifySignatureAppRouter(async (_req: NextRequest) => {
     // The end of the window: 23:59:59.999 of the previous day
     const periodEnd = new Date(targetTimestamp)
     periodEnd.setHours(23, 59, 59, 999)
+
+    const pointsCount = await sourceCollection.countDocuments({
+      timestamp: {
+        $gte: periodStart,
+        $lte: periodEnd,
+      },
+    })
+
+    if (pointsCount < MIN_HOURLY_POINTS_PER_DAY) {
+      console.warn(
+        `[cron:apy-daily] Skipping aggregation for ${targetTimestamp.toISOString()} — only ${pointsCount} hourly points (< ${MIN_HOURLY_POINTS_PER_DAY})`
+      )
+      return NextResponse.json(
+        {
+          success: false,
+          skipped: true,
+          reason: 'not enough hourly datapoints for daily aggregation',
+          pointsCount,
+        },
+        { status: 200 }
+      )
+    }
 
     const pipeline = [
       {
