@@ -53,24 +53,18 @@ const TIMEFRAME_TO_COLLECTION: Record<string, string> = {
   YEARLY: MONGODB_COLLECTION_YEARLY,
 }
 
-export const resolvers = {
-  DateTime,
-  Query: {
-    apy: async (
-      _: unknown,
-      args: {
-        timeframe: string
-        protocol?: string
-        market?: string
-        chain?: string
-        range?: string
-        from?: string
-        to?: string
-        kind?: 'VAULT' | 'MARKET'
-      }
-    ) => {
-      const { timeframe, protocol, market, chain, range, from, to, kind } =
-        args
+type ApyArgs = {
+  timeframe: string
+  protocol?: string
+  market?: string
+  chain?: string
+  range?: string
+  from?: string
+  to?: string
+}
+
+async function resolveApy(kind: 'lend' | 'borrow', args: ApyArgs) {
+  const { timeframe, protocol, market, chain, range, from, to } = args
 
       // 1. Validate Protocol (if provided)
       if (protocol) {
@@ -96,74 +90,78 @@ export const resolvers = {
         }
       }
 
-      const collectionName = TIMEFRAME_TO_COLLECTION[timeframe]
-      if (!collectionName) {
-        throw new Error(`Invalid timeframe: ${timeframe}`)
-      }
+  const collectionName = TIMEFRAME_TO_COLLECTION[timeframe]
+  if (!collectionName) {
+    throw new Error(`Invalid timeframe: ${timeframe}`)
+  }
 
-      const db = await getDb()
-      const collection = db.collection<ApyDocument>(collectionName)
+  const db = await getDb()
+  const collection = db.collection<ApyDocument>(collectionName)
 
-      const query: Filter<ApyDocument> = {}
+  const query: Filter<ApyDocument> = {}
 
-      if (protocol) query['metadata.protocol.name'] = protocol
-      if (chain) query['metadata.chain.name'] = chain
+  if (protocol) query['metadata.protocol.name'] = protocol
+  if (chain) query['metadata.chain.name'] = chain
 
-      // same document shape across all timeframes (spot/hourly/daily/...)
-      if (kind === 'VAULT') query.kind = 'vault'
-      else if (kind === 'MARKET') query.kind = 'market'
+  query.kind = kind
 
-      if (market) {
-        query.$or = [
-          { 'metadata.vault.loan_asset.symbol': market },
-          { 'metadata.market.loan_asset.symbol': market },
-        ]
-      }
+  if (market) {
+    query.$or = [
+      { 'metadata.vault.loan_asset.symbol': market },
+      { 'metadata.market.loan_asset.symbol': market },
+    ]
+  }
 
-      // Time range
-      const timeFilter: { $gte?: Date; $lte?: Date } = {}
-      const effectiveRange = range || (!from ? '24h' : null)
+  // Time range
+  const timeFilter: { $gte?: Date; $lte?: Date } = {}
+  const effectiveRange = range || (!from ? '24h' : null)
 
-      if (from) {
-        timeFilter.$gte = new Date(from)
-      } else if (effectiveRange) {
-        const rangeMap: Record<string, number> = {
-          '1h': 1 / 24,
-          '24h': 1,
-          '7d': 7,
-          '30d': 30,
-          '3m': 90,
-          '6m': 180,
-          '9m': 270,
-          '1y': 365,
-        }
+  if (from) {
+    timeFilter.$gte = new Date(from)
+  } else if (effectiveRange) {
+    const rangeMap: Record<string, number> = {
+      '1h': 1 / 24,
+      '24h': 1,
+      '7d': 7,
+      '30d': 30,
+      '3m': 90,
+      '6m': 180,
+      '9m': 270,
+      '1y': 365,
+    }
 
-        const days = rangeMap[effectiveRange.toLowerCase()]
+    const days = rangeMap[effectiveRange.toLowerCase()]
 
-        if (days === undefined) {
-          throw new Error(
-            `Invalid range: ${effectiveRange}. Allowed values: ${Object.keys(
-              rangeMap
-            ).join(', ')}.`
-          )
-        }
+    if (days === undefined) {
+      throw new Error(
+        `Invalid range: ${effectiveRange}. Allowed values: ${Object.keys(
+          rangeMap
+        ).join(', ')}.`
+      )
+    }
 
-        const start = new Date()
-        start.setTime(start.getTime() - days * 24 * 60 * 60 * 1000)
-        timeFilter.$gte = start
-      }
+    const start = new Date()
+    start.setTime(start.getTime() - days * 24 * 60 * 60 * 1000)
+    timeFilter.$gte = start
+  }
 
-      if (to) {
-        timeFilter.$lte = new Date(to)
-      }
+  if (to) {
+    timeFilter.$lte = new Date(to)
+  }
 
-      if (Object.keys(timeFilter).length > 0) {
-        query.timestamp = timeFilter
-      }
+  if (Object.keys(timeFilter).length > 0) {
+    query.timestamp = timeFilter
+  }
 
-      const data = await collection.find(query).sort({ timestamp: 1 }).toArray()
+  const data = await collection.find(query).sort({ timestamp: 1 }).toArray()
 
-      return data
-    },
+  return data
+}
+
+export const resolvers = {
+  DateTime,
+  Query: {
+    lendApy: async (_: unknown, args: ApyArgs) => resolveApy('lend', args),
+    borrowApy: async (_: unknown, args: ApyArgs) => resolveApy('borrow', args),
   },
 }

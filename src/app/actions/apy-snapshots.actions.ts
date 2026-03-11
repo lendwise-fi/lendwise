@@ -1,7 +1,7 @@
 'use server'
 
 import { ProtocolName } from '@/config/protocols'
-import { apySnapshotToVaultAndMarket } from '@/lib/db/apy-transform'
+import { apySnapshotToLendAndBorrow } from '@/lib/db/apy-transform'
 import { getDb, MONGODB_COLLECTION_SPOT } from '@/lib/db/mongodb'
 import type { ApyTimeSeriesDocument, ApyDocument } from '@/lib/db/types'
 import { fetchAaveV3Apy } from '@/lib/protocols/aave'
@@ -11,7 +11,7 @@ import { fetchMorphoV1Apy } from '@/lib/protocols/morpho'
 /**
  * Write multiple APY snapshots to the given time-series or classic collection.
  *
- * For spot: use MONGODB_COLLECTION_SPOT ('spot'). Documents include kind: 'vault' | 'market'.
+ * For spot: use MONGODB_COLLECTION_SPOT ('spot'). Documents include kind: 'lend' | 'borrow'.
  * Atlas time-series collections use 'timestamp' and 'metadata' for efficient storage.
  */
 export async function writeApySnapshots(
@@ -112,18 +112,16 @@ export async function collectApySpot(
     const docs: ApyDocument[] = []
 
     for (const doc of allSnapshots) {
-      const { vault, market } = apySnapshotToVaultAndMarket(doc)
-      docs.push(vault, market)
+      const { lend, borrow } = apySnapshotToLendAndBorrow(doc)
+      docs.push(lend, borrow)
     }
 
-    try {
-      await writeApySnapshots(MONGODB_COLLECTION_SPOT, docs)
-      console.log(
-        `[cron:collect-apy] Wrote ${docs.length} docs (${docs.filter((d) => d.kind === 'vault').length} vaults, ${docs.filter((d) => d.kind === 'market').length} markets) → ${MONGODB_COLLECTION_SPOT}${
-          protocol ? ` for protocol ${protocol}` : ''
-        }`
-      )
-    } catch (err) {
+      try {
+        await writeApySnapshots(MONGODB_COLLECTION_SPOT, docs)
+        console.log(
+          `[cron:collect-apy] Wrote ${docs.length} docs (${docs.filter((d) => d.kind === 'lend').length} lend docs, ${docs.filter((d) => d.kind === 'borrow').length} borrow docs) → ${MONGODB_COLLECTION_SPOT}${protocol ? ` for protocol ${protocol}` : ''}`
+        )
+      } catch (err) {
       const msg = err instanceof Error ? err.message : String(err)
       errors.push(`mongodb write: ${msg}`)
       console.error('[cron:collect-apy] Failed to write to MongoDB:', msg)

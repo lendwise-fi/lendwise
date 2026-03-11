@@ -14,12 +14,6 @@ export const typeDefs = /* GraphQL */ `
     YEARLY
   }
 
-  "Vault = lenders; Market = borrowers (Morpho terminology). Only applies to SPOT (apy collection)."
-  enum ApyKind {
-    VAULT
-    MARKET
-  }
-
   type ChainMetadata {
     id: Int!
     name: String!
@@ -65,7 +59,7 @@ export const typeDefs = /* GraphQL */ `
   }
 
   type ApyDocument {
-    "VAULT = lender-only, MARKET = supply + borrow (SPOT collection only)."
+    "lend = lender-only, borrow = supply + borrow."
     kind: String
     timestamp: DateTime!
     metadata: DocumentMetadata!
@@ -81,7 +75,7 @@ export const typeDefs = /* GraphQL */ `
   }
 
   type Query {
-    apy(
+    lendApy(
       timeframe: Timeframe!
       protocol: String
       market: String
@@ -89,8 +83,16 @@ export const typeDefs = /* GraphQL */ `
       range: String
       from: String
       to: String
-      "Filter by VAULT or MARKET (only for timeframe SPOT)."
-      kind: ApyKind
+    ): [ApyDocument!]!
+
+    borrowApy(
+      timeframe: Timeframe!
+      protocol: String
+      market: String
+      chain: String
+      range: String
+      from: String
+      to: String
     ): [ApyDocument!]!
   }
 `

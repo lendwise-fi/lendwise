@@ -7,9 +7,7 @@ import {
   MONGODB_COLLECTION_HOURLY,
   getDb,
 } from '@/lib/db/mongodb'
-import { ApyTimeSeriesDocument } from '@/lib/db/types'
-
-const MIN_HOURLY_POINTS_PER_DAY = 18
+import { ApyDocument } from '@/lib/db/types'
 
 /**
  * Daily APY aggregation endpoint.
@@ -20,7 +18,7 @@ const MIN_HOURLY_POINTS_PER_DAY = 18
 export const POST = verifySignatureAppRouter(async (_req: NextRequest) => {
   try {
     const db = await getDb()
-    const sourceCollection = db.collection<ApyTimeSeriesDocument>(
+    const sourceCollection = db.collection<ApyDocument>(
       MONGODB_COLLECTION_HOURLY
     )
 
@@ -38,28 +36,6 @@ export const POST = verifySignatureAppRouter(async (_req: NextRequest) => {
     const periodEnd = new Date(targetTimestamp)
     periodEnd.setHours(23, 59, 59, 999)
 
-    const pointsCount = await sourceCollection.countDocuments({
-      timestamp: {
-        $gte: periodStart,
-        $lte: periodEnd,
-      },
-    })
-
-    if (pointsCount < MIN_HOURLY_POINTS_PER_DAY) {
-      console.warn(
-        `[cron:apy-daily] Skipping aggregation for ${targetTimestamp.toISOString()} — only ${pointsCount} hourly points (< ${MIN_HOURLY_POINTS_PER_DAY})`
-      )
-      return NextResponse.json(
-        {
-          success: false,
-          skipped: true,
-          reason: 'not enough hourly datapoints for daily aggregation',
-          pointsCount,
-        },
-        { status: 200 }
-      )
-    }
-
     const pipeline = [
       {
         $match: {
@@ -73,6 +49,7 @@ export const POST = verifySignatureAppRouter(async (_req: NextRequest) => {
         $group: {
           _id: {
             protocol: '$metadata.protocol',
+            kind: '$kind',
             chainId: '$metadata.chain.id',
             chainName: '$metadata.chain.name',
             marketName: '$metadata.market.name',
@@ -94,6 +71,7 @@ export const POST = verifySignatureAppRouter(async (_req: NextRequest) => {
       {
         $project: {
           _id: 0,
+          kind: '$_id.kind',
           timestamp: { $literal: targetTimestamp },
           metadata: {
             protocol: '$_id.protocol',
@@ -125,6 +103,7 @@ export const POST = verifySignatureAppRouter(async (_req: NextRequest) => {
         $merge: {
           into: MONGODB_COLLECTION_DAILY,
           on: [
+            'kind',
             'timestamp',
             'metadata.protocol',
             'metadata.chain.name',

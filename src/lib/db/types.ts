@@ -42,11 +42,11 @@ export interface SupplyBorrowApyStandard {
 }
 
 /**
- * Vault timeseries document (lender side only).
- * "Vault" = place where lenders lend their crypto (Morpho terminology).
+ * Lend (lender) timeseries document.
+ * kind: 'lend' — supply APY and amounts only.
  */
-export interface VaultApyTimeSeriesDocument {
-  kind: 'vault'
+export interface LendApyTimeSeriesDocument {
+  kind: 'lend'
   timestamp: Date
   metadata: {
     chain: {
@@ -68,11 +68,11 @@ export interface VaultApyTimeSeriesDocument {
 }
 
 /**
- * Market timeseries document (lenders + borrowers).
- * "Market" = place where borrowers borrow crypto (Morpho terminology).
+ * Borrow (borrower) timeseries document.
+ * kind: 'borrow' — supply + borrow APY and amounts, optional collateral.
  */
-export interface MarketApyTimeSeriesDocument {
-  kind: 'market'
+export interface BorrowApyTimeSeriesDocument {
+  kind: 'borrow'
   timestamp: Date
   metadata: {
     chain: {
@@ -101,16 +101,16 @@ export interface MarketApyTimeSeriesDocument {
 }
 
 /**
- * Union of all APY documents stored in the single "apy" collection.
- * Use the top-level kind field to filter vaults vs markets in queries.
+ * Union of all APY documents (lend or borrow) stored per timeframe collection.
+ * Use the top-level kind field ('lend' | 'borrow') to filter in queries.
  */
 export type ApyDocument =
-  | VaultApyTimeSeriesDocument
-  | MarketApyTimeSeriesDocument
+  | LendApyTimeSeriesDocument
+  | BorrowApyTimeSeriesDocument
 
 /**
  * Legacy unified document shape returned by protocol fetchers.
- * Converted into Vault + Market docs before writing to MongoDB.
+ * Converted into Lend + Borrow docs before writing to MongoDB.
  */
 export interface ApyTimeSeriesDocument {
   timestamp: Date

@@ -1,21 +1,21 @@
 import type {
   ApyTimeSeriesDocument,
-  MarketApyTimeSeriesDocument,
-  VaultApyTimeSeriesDocument,
+  BorrowApyTimeSeriesDocument,
+  LendApyTimeSeriesDocument,
 } from '@/lib/db/types'
 
 /**
  * Converts a legacy ApyTimeSeriesDocument (from protocol fetchers) into the
- * standardized vault and market documents for storage in the "apy" collection.
+ * standardized lend and borrow documents for storage.
  *
- * - Vault doc: lender-only view (supply APY + supply amounts), kind: 'vault'.
- * - Market doc: full view (supply + borrow APY and amounts), kind: 'market'.
+ * - Lend doc: lender-only (supply APY + amounts), kind: 'lend'.
+ * - Borrow doc: supply + borrow APY and amounts, kind: 'borrow'.
  */
-export function apySnapshotToVaultAndMarket(
+export function apySnapshotToLendAndBorrow(
   doc: ApyTimeSeriesDocument
 ): {
-  vault: VaultApyTimeSeriesDocument
-  market: MarketApyTimeSeriesDocument
+  lend: LendApyTimeSeriesDocument
+  borrow: BorrowApyTimeSeriesDocument
 } {
   const { metadata, supplyApy, borrowApy, supplyAssets, supplyAssetsUsd, borrowAssets, borrowAssetsUsd, collateralAssets, collateralAssetsUsd } = doc
 
@@ -45,8 +45,8 @@ export function apySnapshotToVaultAndMarket(
     rateData: borrowApy.protocolData,
   }
 
-  const vault: VaultApyTimeSeriesDocument = {
-    kind: 'vault',
+  const lend: LendApyTimeSeriesDocument = {
+    kind: 'lend',
     timestamp: doc.timestamp,
     metadata: {
       chain: metadata.chain,
@@ -61,8 +61,8 @@ export function apySnapshotToVaultAndMarket(
     supplyAssetsUsd,
   }
 
-  const market: MarketApyTimeSeriesDocument = {
-    kind: 'market',
+  const borrow: BorrowApyTimeSeriesDocument = {
+    kind: 'borrow',
     timestamp: doc.timestamp,
     metadata: {
       chain: metadata.chain,
@@ -81,13 +81,13 @@ export function apySnapshotToVaultAndMarket(
   }
 
   if (collateralAssets !== undefined && collateralAssetsUsd !== undefined) {
-    market.collateralAssets = collateralAssets
-    market.collateralAssetsUsd = collateralAssetsUsd
+    borrow.collateralAssets = collateralAssets
+    borrow.collateralAssetsUsd = collateralAssetsUsd
     if (collateralAssets > 0 && supplyAssets > 0) {
-      market.price_collateral_in_loan_asset =
+      borrow.price_collateral_in_loan_asset =
         (collateralAssetsUsd / collateralAssets) / (supplyAssetsUsd / supplyAssets)
     }
   }
 
-  return { vault, market }
+  return { lend, borrow }
 }
