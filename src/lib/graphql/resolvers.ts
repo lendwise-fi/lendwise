@@ -3,6 +3,7 @@ import { Filter } from 'mongodb'
 
 import { ALL_CHAINS } from '@/config/chains'
 import { getProtocolIds } from '@/config/protocols'
+import type { ApyDocument } from '@/lib/db/types'
 import {
   MONGODB_COLLECTION_DAILY,
   MONGODB_COLLECTION_HOURLY,
@@ -12,6 +13,8 @@ import {
   MONGODB_COLLECTION_YEARLY,
   getDb,
 } from '@/lib/db/mongodb'
+
+type ApyDocumentOrLegacy = ApyDocument | Record<string, unknown>
 
 const DateTime = new GraphQLScalarType({
   name: 'DateTime',
@@ -42,7 +45,7 @@ const DateTime = new GraphQLScalarType({
   },
 })
 
-// timeframe enum mapping to collections
+// One collection per timeframe: SPOT = time-series, HOURLY/DAILY/etc = classic (aggregated).
 const TIMEFRAME_TO_COLLECTION: Record<string, string> = {
   SPOT: MONGODB_COLLECTION_SPOT,
   HOURLY: MONGODB_COLLECTION_HOURLY,
@@ -65,9 +68,11 @@ export const resolvers = {
         range?: string
         from?: string
         to?: string
+        kind?: 'VAULT' | 'MARKET'
       }
     ) => {
-      const { timeframe, protocol, market, chain, range, from, to } = args
+      const { timeframe, protocol, market, chain, range, from, to, kind } =
+        args
 
       // 1. Validate Protocol (if provided)
       if (protocol) {
@@ -99,21 +104,34 @@ export const resolvers = {
       }
 
       const db = await getDb()
-      const collection = db.collection(collectionName)
+      const collection = db.collection<ApyDocumentOrLegacy>(collectionName)
 
-      // Build query object
-      const query: Filter<Record<string, unknown>> = {}
+      const query: Filter<ApyDocument> = {}
 
-      if (protocol) query['metadata.protocol'] = protocol
+      if (protocol) query['metadata.protocol.name'] = protocol
       if (chain) query['metadata.chain.name'] = chain
-      if (market) {
-        query.$or = [
-          { 'metadata.vault.symbol': market },
-          { 'metadata.market.name': market },
-        ]
+
+      // SPOT (spot collection): filter by kind and/or market (loan_asset.symbol)
+      if (timeframe === 'SPOT') {
+        if (kind === 'VAULT') query.kind = 'vault'
+        else if (kind === 'MARKET') query.kind = 'market'
+        if (market) {
+          query.$or = [
+            { 'metadata.vault.loan_asset.symbol': market },
+            { 'metadata.market.loan_asset.symbol': market },
+          ]
+        }
+      } else {
+        // Legacy collections (hourly, daily, etc.): old metadata shape
+        if (market) {
+          query.$or = [
+            { 'metadata.vault.symbol': market },
+            { 'metadata.market.loan_asset.symbol': market },
+          ]
+        }
       }
 
-      // 4. Handle time range
+      // Time range
       const timeFilter: { $gte?: Date; $lte?: Date } = {}
       const effectiveRange = range || (!from ? '24h' : null)
 
@@ -156,7 +174,71 @@ export const resolvers = {
 
       const data = await collection.find(query).sort({ timestamp: 1 }).toArray()
 
-      return data
+      // Normalize for GraphQL: ensure metadata.vault / metadata.market and supplyApy.net
+      return data.map((doc: Record<string, unknown>) => {
+        const meta = doc.metadata as Record<string, unknown>
+        if (doc.kind === 'vault') {
+          return {
+            ...doc,
+            metadata: {
+              ...meta,
+              vault: meta.vault ?? null,
+              market: null,
+            },
+            supplyApy: {
+              ...(doc.supplyApy as object),
+              net: (doc.supplyApy as { net?: number; total?: number })?.net ?? (doc.supplyApy as { total?: number })?.total ?? 0,
+            },
+          }
+        }
+        if (doc.kind === 'market') {
+          return {
+            ...doc,
+            metadata: {
+              ...meta,
+              vault: null,
+              market: meta.market ?? null,
+            },
+            supplyApy: {
+              ...(doc.supplyApy as object),
+              net: (doc.supplyApy as { net?: number; total?: number })?.net ?? (doc.supplyApy as { total?: number })?.total ?? 0,
+            },
+            borrowApy: doc.borrowApy
+              ? {
+                  ...(doc.borrowApy as object),
+                  net: (doc.borrowApy as { net?: number; total?: number })?.net ?? (doc.borrowApy as { total?: number })?.total ?? 0,
+                }
+              : null,
+          }
+        }
+        // Legacy doc (hourly/daily etc.): map old shape to new (vault with loan_asset, net from total)
+        const vault = meta.vault as { symbol?: string; name?: string; address?: string; loan_asset?: unknown } | undefined
+        const vaultNormalized =
+          vault && !vault.loan_asset
+            ? {
+                loan_asset: {
+                  symbol: vault.symbol ?? '',
+                  name: vault.name ?? '',
+                  address: vault.address ?? '',
+                  price_in_dollars: 0,
+                },
+              }
+            : vault ?? null
+        const supplyApy = doc.supplyApy as { native?: number; rewards?: number; fees?: number; total?: number; net?: number }
+        const borrowApy = doc.borrowApy as { native?: number; rewards?: number; fees?: number; total?: number; net?: number } | undefined
+        return {
+          ...doc,
+          kind: null,
+          metadata: { ...meta, vault: vaultNormalized, market: null },
+          supplyApy: {
+            ...supplyApy,
+            net: supplyApy?.net ?? supplyApy?.total ?? 0,
+          },
+          borrowApy: borrowApy
+            ? { ...borrowApy, net: borrowApy?.net ?? borrowApy?.total ?? 0 }
+            : null,
+        }
+      })
     },
   },
 }

@@ -1,31 +1,30 @@
 'use server'
 
 import { ProtocolName } from '@/config/protocols'
-import { getDb } from '@/lib/db/mongodb'
-import type { ApyTimeSeriesDocument } from '@/lib/db/types'
+import { apySnapshotToVaultAndMarket } from '@/lib/db/apy-transform'
+import { getDb, MONGODB_COLLECTION_SPOT } from '@/lib/db/mongodb'
+import type { ApyTimeSeriesDocument, ApyDocument } from '@/lib/db/types'
 import { fetchAaveV3Apy } from '@/lib/protocols/aave'
 import { fetchCompoundV3Apy } from '@/lib/protocols/compound'
 import { fetchMorphoV1Apy } from '@/lib/protocols/morpho'
 
 /**
- * Write multiple APY snapshots to MongoDB 'spot' time-series collection.
+ * Write multiple APY snapshots to the given time-series or classic collection.
  *
- * MongoDB Atlas Time Series collections automatically handle efficient storage
- * based on the 'timestamp' and 'metadata' (protocol, market, chain).
+ * For spot: use MONGODB_COLLECTION_SPOT ('spot'). Documents include kind: 'vault' | 'market'.
+ * Atlas time-series collections use 'timestamp' and 'metadata' for efficient storage.
  */
 export async function writeApySnapshots(
   collectionName: string,
-  snapshots: ApyTimeSeriesDocument[]
+  snapshots: ApyDocument[]
 ): Promise<void> {
   if (snapshots.length === 0) return
 
   const db = await getDb()
-  const collection = db.collection<ApyTimeSeriesDocument>(collectionName)
-
-  const documents: ApyTimeSeriesDocument[] = snapshots
+  const collection = db.collection(collectionName)
 
   try {
-    await collection.insertMany(documents, { ordered: false })
+    await collection.insertMany(snapshots as Parameters<typeof collection.insertMany>[0], { ordered: false })
   } catch (error) {
     console.error('[db:mongodb-apy] Failed to write snapshots:', error)
     throw error
@@ -94,12 +93,11 @@ export async function collectApySpot(
 
   const protoCount: Partial<Record<ProtocolName, number>> = {}
 
-  // Count results based on protocol
+  // Count results and collect snapshots
   for (const result of results) {
     if (result.status === 'fulfilled') {
       const snapshots = result.value
       if (snapshots.length > 0) {
-        // Identify source by first item's protocol field or inference
         const proto = snapshots[0].metadata.protocol.name as ProtocolName
         protoCount[proto] = snapshots.length
         allSnapshots.push(...snapshots)
@@ -109,12 +107,19 @@ export async function collectApySpot(
     }
   }
 
-  // Write all snapshots to MongoDB
+  // Transform each snapshot into standardized vault + market docs and write to single "apy" collection
   if (allSnapshots.length > 0) {
+    const docs: ApyDocument[] = []
+
+    for (const doc of allSnapshots) {
+      const { vault, market } = apySnapshotToVaultAndMarket(doc)
+      docs.push(vault, market)
+    }
+
     try {
-      await writeApySnapshots('spot', allSnapshots)
+      await writeApySnapshots(MONGODB_COLLECTION_SPOT, docs)
       console.log(
-        `[cron:collect-apy] Wrote ${allSnapshots.length} snapshots to MongoDB${
+        `[cron:collect-apy] Wrote ${docs.length} docs (${docs.filter((d) => d.kind === 'vault').length} vaults, ${docs.filter((d) => d.kind === 'market').length} markets) → ${MONGODB_COLLECTION_SPOT}${
           protocol ? ` for protocol ${protocol}` : ''
         }`
       )

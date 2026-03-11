@@ -39,6 +39,8 @@ if (process.env.NODE_ENV === 'development') {
 }
 
 export const MONGODB_DB_NAME = process.env.MONGODB_DB_NAME || 'apy'
+
+/** One collection per timeframe. Spot = time-series (QStash ~5min); others = classic (aggregated). */
 export const MONGODB_COLLECTION_SPOT =
   process.env.MONGODB_COLLECTION_SPOT || 'spot'
 export const MONGODB_COLLECTION_HOURLY =
