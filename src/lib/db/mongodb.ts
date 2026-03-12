@@ -1,5 +1,5 @@
 import { attachDatabasePool } from '@vercel/functions'
-import type { Collection } from 'mongodb'
+import type { Collection, Document } from 'mongodb'
 import { Db, MongoClient, MongoClientOptions, ServerApiVersion } from 'mongodb'
 
 if (!process.env.MONGODB_URI) {
@@ -71,7 +71,7 @@ export const APY_MERGE_INDEX_SPEC = {
  * Ensures the target collection has a unique index on the APY merge key.
  * Call before running an aggregation that uses $merge into this collection.
  */
-export async function ensureApyMergeIndex<T = unknown>(
+export async function ensureApyMergeIndex<T extends Document = Document>(
   collection: Collection<T>
 ): Promise<void> {
   const indexName = 'apy_merge_key_unique'
