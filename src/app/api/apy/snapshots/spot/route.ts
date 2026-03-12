@@ -4,12 +4,20 @@ import { verifySignatureAppRouter } from '@upstash/qstash/nextjs'
 
 import { collectApySpot } from '@/app/actions/apy-snapshots.actions'
 import { ProtocolName, getProtocolIds } from '@/config/protocols'
+import type {
+  BorrowApyTimeSeriesDocument,
+  LendApyTimeSeriesDocument,
+} from '@/lib/db/types'
 
 /**
- * APY collection endpoint.
+ * Spot APY snapshot endpoint.
+ *
+ * Persists two document shapes into the same Atlas MongoDB collection (spot):
+ * - Lend: LendApyTimeSeriesDocument (kind='lend') — metadata.vault, supplyApy, supplyAssets; no borrowApy.
+ * - Borrow: BorrowApyTimeSeriesDocument (kind='borrow') — metadata.market, supplyApy, borrowApy, supply/borrow/collateral amounts.
  *
  * Body (JSON):
- * - protocol (required): The protocol to collect APY for (e.g. 'aave_v3', 'morpho_v1')
+ * - protocol (required): e.g. 'aave_v3', 'morpho_v1', 'compound_v3'
  *
  * Triggered by QStash or Vercel cron.
  */

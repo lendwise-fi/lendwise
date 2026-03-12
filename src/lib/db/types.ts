@@ -1,5 +1,7 @@
 /**
  * Shared types for the APY data layer (MongoDB).
+ * All APY documents live in the same collection per timeframe (e.g. spot);
+ * the `kind` field discriminates lend vs borrow.
  */
 
 export interface ProtocolDataAave {
@@ -15,7 +17,6 @@ export interface ProtocolDataMorpho {
 }
 
 export interface ProtocolDataCompound {
-  // Add Compound-specific extras here as needed
   reserveFactor?: number
 }
 
@@ -24,7 +25,7 @@ export type ProtocolData =
   | ProtocolDataMorpho
   | ProtocolDataCompound
 
-/** Asset descriptor with optional USD price (used in vault and market standards). */
+/** Asset descriptor with USD price (vault and market). */
 export interface LoanAsset {
   symbol: string
   name: string
@@ -32,8 +33,8 @@ export interface LoanAsset {
   price_in_dollars: number
 }
 
-/** APY breakdown: native rate, rewards, fees, net (standardized across protocols). */
-export interface SupplyBorrowApyStandard {
+/** APY breakdown: native, rewards, fees, net; optional rateData (protocol-specific). */
+export interface ApyRateData {
   native: number
   rewards: number
   fees: number
@@ -42,55 +43,43 @@ export interface SupplyBorrowApyStandard {
 }
 
 /**
- * Lend (lender) timeseries document.
- * kind: 'lend' — supply APY and amounts only.
+ * Canonical shape for lend APY documents (kind = 'lend').
+ * Stored in the same collection as borrow docs (e.g. spot); no borrowApy.
  */
 export interface LendApyTimeSeriesDocument {
   kind: 'lend'
   timestamp: Date
   metadata: {
-    chain: {
-      id: number
-      name: string
-    }
-    protocol: {
-      name: string
-      address: string
-    }
+    chain: { id: number; name: string }
+    protocol: { name: string; address: string }
     vault: {
       loan_asset: LoanAsset
       vaultData?: ProtocolData
     }
   }
-  supplyApy: SupplyBorrowApyStandard
+  supplyApy: ApyRateData
   supplyAssets: number
   supplyAssetsUsd: number
 }
 
 /**
- * Borrow (borrower) timeseries document.
- * kind: 'borrow' — supply + borrow APY and amounts, optional collateral.
+ * Canonical shape for borrow APY documents (kind = 'borrow').
+ * Stored in the same collection as lend docs (e.g. spot); includes borrowApy and optional collateral.
  */
 export interface BorrowApyTimeSeriesDocument {
   kind: 'borrow'
   timestamp: Date
   metadata: {
-    chain: {
-      id: number
-      name: string
-    }
-    protocol: {
-      name: string
-      address: string
-    }
+    chain: { id: number; name: string }
+    protocol: { name: string; address: string }
     market: {
       loan_asset: LoanAsset
       collateral_asset?: LoanAsset
       marketData?: ProtocolData
     }
   }
-  supplyApy: SupplyBorrowApyStandard
-  borrowApy: SupplyBorrowApyStandard
+  supplyApy: ApyRateData
+  borrowApy: ApyRateData
   supplyAssets: number
   supplyAssetsUsd: number
   borrowAssets: number
