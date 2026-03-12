@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { verifySignatureAppRouter } from '@upstash/qstash/nextjs'
 
 import {
+  ensureApyMergeIndex,
   MONGODB_COLLECTION_HOURLY,
   MONGODB_COLLECTION_SPOT,
   getDb,
@@ -31,6 +32,9 @@ export const POST = verifySignatureAppRouter(async (_req: NextRequest) => {
     // The end of the window we are aggregating (e.g. 08:59:59.999)
     const periodEnd = new Date(targetTimestamp)
     periodEnd.setMilliseconds(-1)
+
+    const hourlyCollection = db.collection(MONGODB_COLLECTION_HOURLY)
+    await ensureApyMergeIndex(hourlyCollection as Parameters<typeof ensureApyMergeIndex>[0])
 
     const pipeline = [
       {

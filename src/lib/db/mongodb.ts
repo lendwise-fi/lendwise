@@ -1,4 +1,5 @@
 import { attachDatabasePool } from '@vercel/functions'
+import type { Collection } from 'mongodb'
 import { Db, MongoClient, MongoClientOptions, ServerApiVersion } from 'mongodb'
 
 if (!process.env.MONGODB_URI) {
@@ -53,6 +54,36 @@ export const MONGODB_COLLECTION_MONTHLY =
   process.env.MONGODB_COLLECTION_MONTHLY || 'monthly'
 export const MONGODB_COLLECTION_YEARLY =
   process.env.MONGODB_COLLECTION_YEARLY || 'yearly'
+
+/**
+ * Unique index used by $merge in APY aggregation pipelines (hourly, daily, etc.).
+ * Must match the `on` array in the $merge stage.
+ */
+export const APY_MERGE_INDEX_SPEC = {
+  kind: 1 as const,
+  timestamp: 1 as const,
+  'metadata.protocol.name': 1 as const,
+  'metadata.chain.name': 1 as const,
+  loanAssetSymbol: 1 as const,
+}
+
+/**
+ * Ensures the target collection has a unique index on the APY merge key.
+ * Call before running an aggregation that uses $merge into this collection.
+ */
+export async function ensureApyMergeIndex<T = unknown>(
+  collection: Collection<T>
+): Promise<void> {
+  const indexName = 'apy_merge_key_unique'
+  const exists = await collection
+    .indexExists(indexName)
+    .catch(() => false)
+  if (exists) return
+  await collection.createIndex(APY_MERGE_INDEX_SPEC, {
+    unique: true,
+    name: indexName,
+  })
+}
 
 /**
  * Convenience function to get the database instance.
