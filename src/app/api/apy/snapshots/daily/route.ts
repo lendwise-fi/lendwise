@@ -48,16 +48,32 @@ export const POST = verifySignatureAppRouter(async (_req: NextRequest) => {
       {
         $group: {
           _id: {
-            protocol: '$metadata.protocol',
             kind: '$kind',
+            protocol: '$metadata.protocol',
             chainId: '$metadata.chain.id',
             chainName: '$metadata.chain.name',
-            marketName: '$metadata.market.name',
-            marketAddress: '$metadata.market.address',
-            vaultSymbol: '$metadata.vault.symbol',
-            vaultName: '$metadata.vault.name',
-            vaultAddress: '$metadata.vault.address',
+            loanAssetSymbol: {
+              $ifNull: [
+                '$metadata.vault.loan_asset.symbol',
+                '$metadata.market.loan_asset.symbol',
+                '$loanAssetSymbol',
+              ],
+            },
+            loanAssetName: {
+              $ifNull: [
+                '$metadata.vault.loan_asset.name',
+                '$metadata.market.loan_asset.name',
+              ],
+            },
+            loanAssetAddress: {
+              $ifNull: [
+                '$metadata.vault.loan_asset.address',
+                '$metadata.market.loan_asset.address',
+              ],
+            },
           },
+          vault: { $first: '$metadata.vault' },
+          market: { $first: '$metadata.market' },
           supplyApy: { $avg: '$supplyApy' },
           borrowApy: { $avg: '$borrowApy' },
           supplyAssets: { $avg: '$supplyAssets' },
@@ -73,21 +89,15 @@ export const POST = verifySignatureAppRouter(async (_req: NextRequest) => {
           _id: 0,
           kind: '$_id.kind',
           timestamp: { $literal: targetTimestamp },
+          loanAssetSymbol: '$_id.loanAssetSymbol',
           metadata: {
             protocol: '$_id.protocol',
             chain: {
               id: '$_id.chainId',
               name: '$_id.chainName',
             },
-            market: {
-              name: '$_id.marketName',
-              address: '$_id.marketAddress',
-            },
-            vault: {
-              symbol: '$_id.vaultSymbol',
-              name: '$_id.vaultName',
-              address: '$_id.vaultAddress',
-            },
+            vault: '$vault',
+            market: '$market',
           },
           supplyApy: 1,
           borrowApy: 1,
@@ -105,10 +115,9 @@ export const POST = verifySignatureAppRouter(async (_req: NextRequest) => {
           on: [
             'kind',
             'timestamp',
-            'metadata.protocol',
+            'metadata.protocol.name',
             'metadata.chain.name',
-            'metadata.market.name',
-            'metadata.vault.symbol',
+            'loanAssetSymbol',
           ],
           whenMatched: 'replace',
           whenNotMatched: 'insert',
