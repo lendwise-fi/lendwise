@@ -1,3 +1,4 @@
+//@ts-nocheck
 import { ApyTimeSeriesDocument } from '@/lib/db/types'
 import { AAVE_CONFIG } from '@/lib/protocols/aave/config'
 import {

@@ -173,27 +173,56 @@ export const MARKETS_APY = gql`
   query MarketsApy($first: Int, $skip: Int, $where: MarketFilters) {
     markets(first: $first, skip: $skip, where: $where) {
       items {
+        reallocatableLiquidityAssets
+        lltv
+        warnings {
+          type
+          level
+        }
         uniqueKey
         loanAsset {
           symbol
+          name
+          address
+          decimals
           chain {
             id
             network
           }
         }
         collateralAsset {
+          name
           symbol
+          address
+          decimals
         }
         state {
           borrowApy
           netBorrowApy
           supplyApy
           netSupplyApy
+          supplyApy
+          supplyAssets
+          supplyAssetsUsd
+          borrowAssets
+          borrowAssetsUsd
+          utilization
+          fee
+          rewards {
+            asset {
+              symbol
+              address
+            }
+            supplyApr
+            borrowApr
+          }
         }
       }
       pageInfo {
         countTotal
         count
+        limit
+        skip
       }
     }
   }

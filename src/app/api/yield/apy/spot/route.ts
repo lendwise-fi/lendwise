@@ -3,23 +3,18 @@ import { NextRequest, NextResponse } from 'next/server'
 import { verifySignatureAppRouter } from '@upstash/qstash/nextjs'
 
 import { collectApySpot } from '@/app/actions/apy-snapshots.actions'
-import { ProtocolName, getProtocolIds } from '@/config/protocols'
-import type {
-  BorrowApyTimeSeriesDocument,
-  LendApyTimeSeriesDocument,
-} from '@/lib/db/types'
+import { type ProtocolName, getProtocolIds } from '@/config/protocols'
 
 /**
  * Spot APY snapshot endpoint.
  *
- * Persists two document shapes into the same Atlas MongoDB collection (spot):
- * - Lend: LendApyTimeSeriesDocument (kind='lend') — metadata.vault, supplyApy, supplyAssets; no borrowApy.
- * - Borrow: BorrowApyTimeSeriesDocument (kind='borrow') — metadata.market, supplyApy, borrowApy, supply/borrow/collateral amounts.
+ * Collects APY snapshots from the requested protocol and writes
+ * LendApySpot + BorrowApySpot documents to the apy.spot Time Series collection.
  *
  * Body (JSON):
- * - protocol (required): e.g. 'aave_v3', 'morpho_v1', 'compound_v3'
+ *   protocol (required): 'aave_v3' | 'morpho_v1' | 'compound_v3'
  *
- * Triggered by QStash or Vercel cron.
+ * Triggered by QStash every 10 minutes — one request per protocol.
  */
 export const POST = verifySignatureAppRouter(async (req: NextRequest) => {
   const body = await req.json().catch(() => ({}))
@@ -32,14 +27,11 @@ export const POST = verifySignatureAppRouter(async (req: NextRequest) => {
     )
   }
 
-  // Validate protocol
-  // Strict matching only (e.g. 'aave_v3')
   const validIds = getProtocolIds() as string[]
-
   if (!validIds.includes(protocol)) {
     return NextResponse.json(
       {
-        error: `Invalid protocol: ${protocol}. Supported: ${validIds.join(', ')}`,
+        error: `Invalid protocol: "${protocol}". Supported: ${validIds.join(', ')}`,
       },
       { status: 400 }
     )
@@ -54,7 +46,7 @@ export const POST = verifySignatureAppRouter(async (req: NextRequest) => {
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err)
     console.error(
-      `[cron:collect-apy] Unhandled error for protocol ${protocol}:`,
+      `[cron:spot] Unhandled error for protocol ${protocol}:`,
       message
     )
 

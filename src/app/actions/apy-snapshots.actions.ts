@@ -1,127 +1,192 @@
 'use server'
 
 import { ProtocolName } from '@/config/protocols'
-import { apySnapshotToLendAndBorrow } from '@/lib/db/apy-transform'
-import { getDb, MONGODB_COLLECTION_SPOT } from '@/lib/db/mongodb'
-import type { ApyTimeSeriesDocument, ApyDocument } from '@/lib/db/types'
+import { MONGODB_COLLECTION_SPOT, getDb } from '@/lib/db/mongodb'
+import type { ApySpot, BorrowApySpot, LendApySpot } from '@/lib/db/types'
 import { fetchAaveV3Apy } from '@/lib/protocols/aave'
 import { fetchCompoundV3Apy } from '@/lib/protocols/compound'
 import { fetchMorphoV1Apy } from '@/lib/protocols/morpho'
 
+// ─── Write ────────────────────────────────────────────────────────────────────
+
 /**
- * Write multiple APY snapshots to the given time-series or classic collection.
+ * Upsert APY spot documents into the Time Series collection.
  *
- * For spot: use MONGODB_COLLECTION_SPOT ('spot'). Documents include kind: 'lend' | 'borrow'.
- * Atlas time-series collections use 'timestamp' and 'metadata' for efficient storage.
+ * MongoDB Time Series does not support native upserts — idempotency is
+ * achieved by checking existence on (meta.poolId, timestamp) before inserting.
+ * Any number of QStash retries on the same slot produces exactly one document.
  */
-export async function writeApySnapshots(
-  collectionName: string,
-  snapshots: ApyDocument[]
-): Promise<void> {
-  if (snapshots.length === 0) return
+export async function writeApySpots(spots: ApySpot[]): Promise<void> {
+  if (spots.length === 0) return
 
   const db = await getDb()
-  const collection = db.collection(collectionName)
+  const collection = db.collection<ApySpot>(MONGODB_COLLECTION_SPOT)
+
+  // Deduplicate in memory first — in case the fetcher produced duplicates
+  const seen = new Set<string>()
+  const deduped: ApySpot[] = []
+
+  for (const spot of spots) {
+    const key = `${spot.meta.poolId}::${spot.timestamp.toISOString()}`
+    if (!seen.has(key)) {
+      seen.add(key)
+      deduped.push(spot)
+    }
+  }
+
+  // Check which (poolId, timestamp) pairs already exist in the collection
+  const keys = deduped.map((s) => ({
+    poolId: s.meta.poolId,
+    timestamp: s.timestamp,
+  }))
+
+  const existing = await collection
+    .find(
+      {
+        $or: keys.map((k) => ({
+          'meta.poolId': k.poolId,
+          timestamp: k.timestamp,
+        })),
+      },
+      { projection: { 'meta.poolId': 1, timestamp: 1 } }
+    )
+    .toArray()
+
+  const existingKeys = new Set(
+    existing.map((d) => `${d.meta.poolId}::${d.timestamp.toISOString()}`)
+  )
+
+  // Only insert documents that don't already exist for this slot
+  const toInsert = deduped.filter((s) => {
+    const key = `${s.meta.poolId}::${s.timestamp.toISOString()}`
+    return !existingKeys.has(key)
+  })
+
+  if (toInsert.length === 0) {
+    console.log(
+      `[db:spot] All ${deduped.length} slots already exist — skipping insert`
+    )
+    return
+  }
 
   try {
-    await collection.insertMany(snapshots as Parameters<typeof collection.insertMany>[0], { ordered: false })
+    await collection.insertMany(
+      toInsert as Parameters<typeof collection.insertMany>[0],
+      { ordered: false }
+    )
+    console.log(
+      `[db:spot] Inserted ${toInsert.length} new spots` +
+        (deduped.length - toInsert.length > 0
+          ? ` (${deduped.length - toInsert.length} already existed)`
+          : '')
+    )
   } catch (error) {
-    console.error('[db:mongodb-apy] Failed to write snapshots:', error)
+    console.error('[db:spot] Failed to write spots:', error)
     throw error
   }
 }
 
+// ─── Result type ──────────────────────────────────────────────────────────────
+
 export type CollectApySpotResult = {
   success: boolean
-  counts: Partial<Record<ProtocolName, number>> & {
-    total: number
-  }
+  counts: Partial<Record<ProtocolName, number>> & { total: number }
   errors: string[]
   durationMs: number
 }
 
+// ─── Protocol tasks ───────────────────────────────────────────────────────────
+
+const PROTOCOL_TASKS: Partial<
+  Record<ProtocolName, () => Promise<(LendApySpot | BorrowApySpot)[]>>
+> = {
+  aave_v3: fetchAaveV3Apy,
+  morpho_v1: fetchMorphoV1Apy,
+  compound_v3: fetchCompoundV3Apy,
+}
+
+// ─── Orchestrator ─────────────────────────────────────────────────────────────
+
 /**
- * Orchestrates the hourly APY collection across all protocols.
- * Fetches from AAVE, Morpho, and Compound in parallel, then writes to MongoDB.
+ * Orchestrates APY spot collection across all protocols (or a single one).
+ * Fetchers run in parallel. Results are written to apy.spot with slot-based
+ * deduplication — safe to retry any number of times via QStash.
  *
- * @param protocol - Optional protocol ID to filter by (e.g. 'aave_v3'). If omitted, runs all.
+ * Each fetcher now returns ApySpot documents directly —
+ * no intermediate format or transform step.
+ *
+ * @param protocol - Optional protocol ID to run a single fetcher.
+ *                   If omitted, all fetchers run in parallel.
  */
 export async function collectApySpot(
   protocol?: ProtocolName
 ): Promise<CollectApySpotResult> {
   const start = Date.now()
   const errors: string[] = []
-  const allSnapshots: ApyTimeSeriesDocument[] = []
 
-  // Define tasks mapping
-  // We map specific protocol IDs to their corresponding fetcher functions.
-  // If 'protocol' is undefined, we run ALL of them.
-  // If 'protocol' is defined, we ONLY run the matching one.
+  // Build task list
+  const tasks: [
+    ProtocolName,
+    () => Promise<(LendApySpot | BorrowApySpot)[]>,
+  ][] = protocol
+    ? PROTOCOL_TASKS[protocol]
+      ? [[protocol, PROTOCOL_TASKS[protocol]!]]
+      : []
+    : (Object.entries(PROTOCOL_TASKS) as [
+        ProtocolName,
+        () => Promise<(LendApySpot | BorrowApySpot)[]>,
+      ][])
 
-  const tasks: Partial<
-    Record<ProtocolName, () => Promise<ApyTimeSeriesDocument[]>>
-  > = {
-    aave_v3: fetchAaveV3Apy,
-    morpho_v1: fetchMorphoV1Apy,
-    compound_v3: fetchCompoundV3Apy,
-  }
-
-  const promises: Promise<ApyTimeSeriesDocument[]>[] = []
-
-  if (protocol) {
-    const task = tasks[protocol]
-    if (task) {
-      promises.push(task())
-    } else {
-      errors.push(`Unknown protocol ID: ${protocol}`)
-      return {
-        success: false,
-        counts: { total: 0 },
-        errors,
-        durationMs: 0,
-      }
+  if (tasks.length === 0) {
+    return {
+      success: false,
+      counts: { total: 0 },
+      errors: [`Unknown protocol: ${protocol}`],
+      durationMs: 0,
     }
-  } else {
-    // Run all
-    Object.values(tasks).forEach((task) => {
-      if (task) promises.push(task())
-    })
   }
 
-  // Execute selected tasks
-  const results = await Promise.allSettled(promises)
+  // Run all fetchers in parallel
+  const results = await Promise.allSettled(tasks.map(([, fetch]) => fetch()))
 
+  const allSpots: ApySpot[] = []
   const protoCount: Partial<Record<ProtocolName, number>> = {}
 
-  // Count results and collect snapshots
-  for (const result of results) {
+  for (let i = 0; i < results.length; i++) {
+    const result = results[i]
+    const protoId = tasks[i][0]
+
     if (result.status === 'fulfilled') {
-      const snapshots = result.value
-      if (snapshots.length > 0) {
-        const proto = snapshots[0].metadata.protocol.name as ProtocolName
-        protoCount[proto] = snapshots.length
-        allSnapshots.push(...snapshots)
-      }
+      const spots = result.value
+      // Each fetcher returns lend + borrow pairs — divide by 2 for market count
+      protoCount[protoId] = spots.length
+      allSpots.push(...spots)
     } else {
-      errors.push(`fetch error: ${result.reason}`)
+      const msg =
+        result.reason instanceof Error
+          ? result.reason.message
+          : String(result.reason)
+      errors.push(`[${protoId}] fetch error: ${msg}`)
+      console.error(`[cron:collect-apy] ${protoId} failed:`, msg)
     }
   }
 
-  // Transform each snapshot into standardized vault + market docs and write to single "apy" collection
-  if (allSnapshots.length > 0) {
-    const docs: ApyDocument[] = []
+  // Write to MongoDB
+  if (allSpots.length > 0) {
+    try {
+      await writeApySpots(allSpots)
 
-    for (const doc of allSnapshots) {
-      const { lend, borrow } = apySnapshotToLendAndBorrow(doc)
-      docs.push(lend, borrow)
-    }
-
-      try {
-        await writeApySnapshots(MONGODB_COLLECTION_SPOT, docs)
-        console.log(
-          `[cron:collect-apy] Wrote ${docs.length} docs (${docs.filter((d) => d.kind === 'lend').length} lend docs, ${docs.filter((d) => d.kind === 'borrow').length} borrow docs) → ${MONGODB_COLLECTION_SPOT}${protocol ? ` for protocol ${protocol}` : ''}`
-        )
-      } catch (err) {
+      const lendCount = allSpots.filter((s) => s.meta.kind === 'lend').length
+      const borrowCount = allSpots.filter(
+        (s) => s.meta.kind === 'borrow'
+      ).length
+      console.log(
+        `[cron:collect-apy] Wrote ${allSpots.length} docs` +
+          ` (${lendCount} lend, ${borrowCount} borrow)` +
+          ` → ${MONGODB_COLLECTION_SPOT}` +
+          (protocol ? ` for protocol ${protocol}` : '')
+      )
+    } catch (err) {
       const msg = err instanceof Error ? err.message : String(err)
       errors.push(`mongodb write: ${msg}`)
       console.error('[cron:collect-apy] Failed to write to MongoDB:', msg)
@@ -131,20 +196,17 @@ export async function collectApySpot(
 
   const durationMs = Date.now() - start
 
-  const countDetails = Object.entries(protoCount)
+  const countSummary = Object.entries(protoCount)
     .map(([k, v]) => `${k}:${v}`)
     .join(' ')
 
   console.log(
-    `[cron:collect-apy] Completed in ${durationMs}ms — ${countDetails} total:${allSnapshots.length}`
+    `[cron:collect-apy] Completed in ${durationMs}ms — ${countSummary} total:${allSpots.length}`
   )
 
   return {
     success: errors.length === 0,
-    counts: {
-      ...protoCount,
-      total: allSnapshots.length,
-    },
+    counts: { ...protoCount, total: allSpots.length },
     errors,
     durationMs,
   }

@@ -9,6 +9,7 @@
   },
   "scripts": {
     "preinstall": "pnpx only-allow pnpm",
+    "db:init": "tsx scripts/db-init.ts",
     "dev": "next dev",
     "build": "pnpm codegen && next build",
     "start": "next start",

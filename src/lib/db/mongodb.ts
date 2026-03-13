@@ -41,19 +41,12 @@ if (process.env.NODE_ENV === 'development') {
 
 export const MONGODB_DB_NAME = process.env.MONGODB_DB_NAME || 'apy'
 
-/** One collection per timeframe. Spot = time-series (QStash ~5min); others = classic (aggregated). */
+export const MONGODB_COLLECTION_POOLS =
+  process.env.MONGODB_COLLECTION_POOLS || 'pools'
 export const MONGODB_COLLECTION_SPOT =
   process.env.MONGODB_COLLECTION_SPOT || 'spot'
-export const MONGODB_COLLECTION_HOURLY =
-  process.env.MONGODB_COLLECTION_HOURLY || 'hourly'
 export const MONGODB_COLLECTION_DAILY =
   process.env.MONGODB_COLLECTION_DAILY || 'daily'
-export const MONGODB_COLLECTION_WEEKLY =
-  process.env.MONGODB_COLLECTION_WEEKLY || 'weekly'
-export const MONGODB_COLLECTION_MONTHLY =
-  process.env.MONGODB_COLLECTION_MONTHLY || 'monthly'
-export const MONGODB_COLLECTION_YEARLY =
-  process.env.MONGODB_COLLECTION_YEARLY || 'yearly'
 
 /**
  * Unique index used by $merge in APY aggregation pipelines (hourly, daily, etc.).
@@ -75,9 +68,7 @@ export async function ensureApyMergeIndex<T extends Document = Document>(
   collection: Collection<T>
 ): Promise<void> {
   const indexName = 'apy_merge_key_unique'
-  const exists = await collection
-    .indexExists(indexName)
-    .catch(() => false)
+  const exists = await collection.indexExists(indexName).catch(() => false)
   if (exists) return
   await collection.createIndex(APY_MERGE_INDEX_SPEC, {
     unique: true,

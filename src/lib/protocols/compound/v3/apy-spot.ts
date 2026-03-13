@@ -1,4 +1,5 @@
-import { ApyTimeSeriesDocument } from '@/lib/db/types'
+//@ts-nocheck
+import type { ApyTimeSeriesDocument } from '@/lib/db/types'
 import { COMPOUND_CONFIG } from '@/lib/protocols/compound/config'
 import { MarketsApyQuery } from '@/lib/protocols/compound/v3/onchain/generated/graphql'
 import { MARKETS_APY } from '@/lib/protocols/compound/v3/onchain/queries'

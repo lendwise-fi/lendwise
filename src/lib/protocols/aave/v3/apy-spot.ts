@@ -1,12 +1,16 @@
-import { ApyTimeSeriesDocument } from '@/lib/db/types'
+import type { BorrowApySpot, LendApySpot, RewardItem } from '@/lib/db/types'
 import { AAVE_CONFIG } from '@/lib/protocols/aave/config'
-import { MarketsApyQuery } from '@/lib/protocols/aave/v3/offchain/generated/graphql'
+import type { MarketsApyQuery } from '@/lib/protocols/aave/v3/offchain/generated/graphql'
 import { MARKETS_APY } from '@/lib/protocols/aave/v3/offchain/queries'
 import { createGraphQLClient } from '@/lib/protocols/shared'
+import {
+  aprToApyAave,
+  aprToApyDaily,
+  normalizeSlotTimestamp,
+} from '@/lib/utils'
 
-/**
- * Shape of a single opportunity returned by the Merkl API.
- */
+// ─── Merkl types ──────────────────────────────────────────────────────────────
+
 type MerklOpportunity = {
   chainId: number
   status: string
@@ -16,24 +20,36 @@ type MerklOpportunity = {
   tokens: { address: string }[]
 }
 
+type MerklIncentiveMap = Map<string, { apr: number; apy: number }>
+
 type MerklIncentives = {
-  supply: Map<string, number>
-  borrow: Map<string, number>
+  supply: MerklIncentiveMap
+  borrow: MerklIncentiveMap
 }
 
-/**
- * Convert a percentage APR (e.g. 1 = 1%) to a raw APY decimal (e.g. 0.01005…)
- * using daily compounding: APY = (1 + APR/365)^365 - 1
- */
-function aprPercentToApy(aprPercent: number): number {
-  const aprDecimal = aprPercent / 100
-  return Math.pow(1 + aprDecimal / 365, 365) - 1
-}
+// ─── Merkl helpers ────────────────────────────────────────────────────────────
 
 /**
- * Extract `marketName` and `underlyingAsset` query params from a Merkl depositUrl.
- * e.g. "https://app.aave.com/reserve-overview/?underlyingAsset=0x6c3e...&marketName=proto_mainnet_v3"
+ * Map Aave GraphQL market names to Merkl depositUrl slugs.
  */
+const AAVE_MARKET_TO_MERKL_SLUG: Record<string, string> = {
+  AaveV3Ethereum: 'proto_mainnet_v3',
+  AaveV3EthereumLido: 'proto_lido_v3',
+  AaveV3EthereumEtherFi: 'proto_etherfi_v3',
+  AaveV3EthereumHorizon: 'proto_horizon_v3',
+  AaveV3Polygon: 'proto_polygon_v3',
+  AaveV3Arbitrum: 'proto_arbitrum_v3',
+  AaveV3Optimism: 'proto_optimism_v3',
+  AaveV3Base: 'proto_base_v3',
+  AaveV3Avalanche: 'proto_avalanche_v3',
+  AaveV3BNB: 'proto_bnb_v3',
+  AaveV3Linea: 'proto_linea_v3',
+  AaveV3Gnosis: 'proto_gnosis_v3',
+  AaveV3Scroll: 'proto_scroll_v3',
+  AaveV3Metis: 'proto_metis_v3',
+  AaveV3ZkSync: 'proto_zksync_v3',
+}
+
 function extractDepositUrlParams(depositUrl?: string): {
   marketName: string | null
   underlyingAsset: string | null
@@ -50,19 +66,15 @@ function extractDepositUrlParams(depositUrl?: string): {
   }
 }
 
-/**
- * Build a composite key for the incentive map: `marketName:tokenAddress` (lowercased).
- * If marketName is null, falls back to just `tokenAddress` for broader matching.
- */
 function incentiveKey(marketName: string | null, tokenAddress: string): string {
   const addr = tokenAddress.toLowerCase()
   return marketName ? `${marketName}:${addr}` : addr
 }
 
 /**
- * Fetch Merkl incentive APR for Aave opportunities (LEND + BORROW).
- * Returns maps of composite key (marketName:tokenAddress) → incentive APY (raw decimal).
- * Merkl values are converted from percentage APR to raw APY to match Aave's format.
+ * Fetch Merkl incentive APRs for AAVE opportunities (LEND + BORROW).
+ * Returns maps of composite key (marketName:tokenAddress) → { apr, apy }.
+ * Merkl APR values are raw percentage (e.g. 1.5 = 1.5%) — converted to decimal APY.
  */
 async function fetchMerklIncentives(
   chainIds: number[]
@@ -78,7 +90,7 @@ async function fetchMerklIncentives(
 
     if (!response.ok) {
       console.warn(
-        `[cron:aave:merkl] Merkl API returned ${response.status}: ${response.statusText}`
+        `[cron:aave:merkl] API returned ${response.status}: ${response.statusText}`
       )
       return incentives
     }
@@ -97,22 +109,23 @@ async function fetchMerklIncentives(
 
       if (!targetMap) continue
 
-      // Convert Merkl's percentage APR to raw APY decimal
-      const incentiveApy = aprPercentToApy(opp.apr)
+      // Merkl returns APR as a percentage — convert to decimal APY
+      const aprDecimal = opp.apr / 100
+      const apy = aprToApyDaily(aprDecimal)
+
       const { marketName, underlyingAsset } = extractDepositUrlParams(
         opp.depositUrl
       )
-
-      // Collect all token addresses to key: tokens array + underlyingAsset from URL
       const addresses = new Set(opp.tokens.map((t) => t.address.toLowerCase()))
-      if (underlyingAsset) {
-        addresses.add(underlyingAsset.toLowerCase())
-      }
+      if (underlyingAsset) addresses.add(underlyingAsset.toLowerCase())
 
       for (const addr of addresses) {
         const key = incentiveKey(marketName, addr)
-        // Accumulate if multiple incentive programs target the same token+market
-        targetMap.set(key, (targetMap.get(key) ?? 0) + incentiveApy)
+        const current = targetMap.get(key)
+        targetMap.set(key, {
+          apr: (current?.apr ?? 0) + aprDecimal,
+          apy: (current?.apy ?? 0) + apy,
+        })
       }
     }
   } catch (err) {
@@ -125,95 +138,65 @@ async function fetchMerklIncentives(
   return incentives
 }
 
-/**
- * Map Aave GraphQL market.name to Merkl marketName slugs.
- *
- * Aave GraphQL returns programmatic names like "AaveV3Ethereum", "AaveV3EthereumLido", etc.
- * Merkl depositUrl uses slugs like "proto_mainnet_v3", "proto_lido_v3", etc.
- */
-const AAVE_MARKET_TO_MERKL_SLUG: Record<string, string> = {
-  // Ethereum markets
-  AaveV3Ethereum: 'proto_mainnet_v3',
-  AaveV3EthereumLido: 'proto_lido_v3',
-  AaveV3EthereumEtherFi: 'proto_etherfi_v3',
-  AaveV3EthereumHorizon: 'proto_horizon_v3',
-  // L2 markets
-  AaveV3Polygon: 'proto_polygon_v3',
-  AaveV3Arbitrum: 'proto_arbitrum_v3',
-  AaveV3Optimism: 'proto_optimism_v3',
-  AaveV3Base: 'proto_base_v3',
-  AaveV3Avalanche: 'proto_avalanche_v3',
-  AaveV3BNB: 'proto_bnb_v3',
-  AaveV3Linea: 'proto_linea_v3',
-  AaveV3Gnosis: 'proto_gnosis_v3',
-  AaveV3Scroll: 'proto_scroll_v3',
-  AaveV3Metis: 'proto_metis_v3',
-  AaveV3ZkSync: 'proto_zksync_v3',
-}
-
-/**
- * Resolve the Merkl marketName slug from an Aave market name.
- */
-function resolveMarketSlug(aaveMarketName: string): string | null {
-  return AAVE_MARKET_TO_MERKL_SLUG[aaveMarketName] ?? null
-}
-
-/**
- * Look up Merkl incentive APY for a given token in a specific market.
- * First tries the market-scoped key (marketName:tokenAddress),
- * then falls back to a token-only key (tokenAddress) for broader incentives.
- */
-function lookupIncentive(
-  map: Map<string, number>,
+function lookupMerklIncentive(
+  map: MerklIncentiveMap,
   marketSlug: string | null,
   tokenAddress: string
-): number {
+): { apr: number; apy: number } | null {
   const addr = tokenAddress.toLowerCase()
-  // Try market-scoped lookup first
   if (marketSlug) {
     const scoped = map.get(`${marketSlug}:${addr}`)
-    if (scoped !== undefined) return scoped
+    if (scoped) return scoped
   }
-  // Fallback: token-only key (for incentives without a depositUrl/marketName)
-  return map.get(addr) ?? 0
+  return map.get(addr) ?? null
 }
 
+// ─── Pool ID builder ──────────────────────────────────────────────────────────
+
+function buildPoolId(
+  marketName: string,
+  assetSymbol: string,
+  kind: 'lend' | 'borrow'
+): string {
+  return `aave-${marketName}-${assetSymbol.toLowerCase()}-${kind}`
+}
+
+// ─── Fetcher ──────────────────────────────────────────────────────────────────
+
 /**
- * Fetch current supply and borrow APY for all AAVE v3 markets.
- * Enriches APY with Merkl incentive programs, scoped to specific markets.
- * Optionally filter by chain to reduce payload size.
+ * Fetch current APY snapshots for all active AAVE v3 markets.
+ * Returns LendApySpot and BorrowApySpot documents ready for MongoDB upsert.
+ * Enriches base APY with AAVE native incentives and Merkl campaigns.
+ *
+ * One reserve → two documents (lend + borrow).
  */
 export async function fetchAaveV3Apy(
   chainFilter?: string
-): Promise<ApyTimeSeriesDocument[]> {
+): Promise<(LendApySpot | BorrowApySpot)[]> {
   const config = AAVE_CONFIG.aave_v3
   const client = createGraphQLClient(config.offchainApiUrl!)
+  const timestamp = normalizeSlotTimestamp()
+  const fetchedAt = new Date()
 
   let chainIds = Object.keys(config.chains).map(Number)
 
-  // Filter chainIds if a specific chain is requested
   if (chainFilter) {
-    const chainId = Object.entries(config.chains).find(
-      ([, chainConfig]) =>
-        chainConfig.name.toLowerCase() === chainFilter.toLowerCase()
-    )?.[0]
-
-    if (chainId) {
-      chainIds = [Number(chainId)]
-    } else {
+    const found = Object.entries(config.chains).find(
+      ([, c]) => c.name.toLowerCase() === chainFilter.toLowerCase()
+    )
+    if (!found) {
       console.warn(
         `[cron:aave] Chain filter '${chainFilter}' not found in config`
       )
       return []
     }
+    chainIds = [Number(found[0])]
   }
 
-  // Fetch Aave APY and Merkl incentives in parallel
+  // Fetch AAVE GraphQL and Merkl in parallel
   const [graphqlResult, merklIncentives] = await Promise.all([
     client
-      .query<MarketsApyQuery>(MARKETS_APY, {
-        request: { chainIds },
-      })
+      .query<MarketsApyQuery>(MARKETS_APY, { request: { chainIds } })
       .toPromise(),
     fetchMerklIncentives(chainIds),
   ])
@@ -225,143 +208,270 @@ export async function fetchAaveV3Apy(
     return []
   }
 
-  if (!data?.markets) {
-    return []
-  }
+  if (!data?.markets) return []
 
-  const snapshots: ApyTimeSeriesDocument[] = []
-  const timestamp = new Date()
+  const spots: (LendApySpot | BorrowApySpot)[] = []
 
   for (const market of data.markets) {
-    const chain = market.chain.name.toLowerCase()
-    const marketSlug = resolveMarketSlug(market.name)
+    const chain = {
+      id: market.chain.chainId,
+      name: market.chain.name.toLowerCase(),
+    }
+    const marketSlug = AAVE_MARKET_TO_MERKL_SLUG[market.name] ?? null
 
     for (const reserve of market.reserves) {
-      // Base rates directly from Aave protocol
+      const tokenAddress = reserve.underlyingToken.address
+      const tokenSymbol = reserve.underlyingToken.symbol
+
+      // ─── Base rates ────────────────────────────────────────────────────────
+      // supplyInfo.apy.value is already net of reserveFactor — fees = 0 on lend
+      // borrowInfo.apy.value is the gross borrow rate — reserveFactor is informational
       const baseSupplyApy = Number(reserve.supplyInfo?.apy.value ?? 0)
       const baseBorrowApy = Number(reserve.borrowInfo?.apy.value ?? 0)
+      const reserveFactor = Number(
+        reserve.borrowInfo?.reserveFactor?.value ?? 0
+      )
 
-      // Calculate extra rewards (Native Aave Incentives + Merkl Incentives)
-      let nativeSupplyRewards = 0
-      let nativeBorrowRewards = 0
+      // ─── Native AAVE / Merit incentives ────────────────────────────────────
+      const supplyRewardItems: RewardItem[] = []
+      const borrowRewardItems: RewardItem[] = []
 
-      // Extract native Aave incentives from the GraphQL response
       if (reserve.incentives) {
         for (const inc of reserve.incentives) {
-          // Aave/Merit Supply Incentives
+          // AaveSupplyIncentive — has rewardTokenAddress + rewardTokenSymbol
           if ('extraSupplyApr' in inc && inc.extraSupplyApr) {
-            nativeSupplyRewards += aprPercentToApy(
-              Number(inc.extraSupplyApr.value) * 100
-            )
-          } else if (
-            'extraApr' in inc &&
-            inc.extraApr &&
-            'supplyToken' in inc
-          ) {
-            // MeritBorrowAndSupplyIncentiveCondition (Supply side)
-            nativeSupplyRewards += aprPercentToApy(
-              Number(inc.extraApr.value) * 100
-            )
+            const apr = Number(inc.extraSupplyApr.value)
+            supplyRewardItems.push({
+              token: {
+                symbol:
+                  'rewardTokenSymbol' in inc
+                    ? (inc.rewardTokenSymbol ?? '')
+                    : '',
+                address:
+                  'rewardTokenAddress' in inc
+                    ? (inc.rewardTokenAddress ?? '')
+                    : '',
+              },
+              apr,
+              apy: aprToApyAave(apr),
+              source: 'protocol',
+              program: null,
+            })
           }
 
-          // Aave/Merit Borrow Incentives (Discounts)
+          // AaveBorrowIncentive
           if ('borrowAprDiscount' in inc && inc.borrowAprDiscount) {
-            nativeBorrowRewards += aprPercentToApy(
-              Number(inc.borrowAprDiscount.value) * 100
-            )
-          } else if (
-            'extraApr' in inc &&
-            inc.extraApr &&
-            'borrowToken' in inc
+            const apr = Number(inc.borrowAprDiscount.value)
+            borrowRewardItems.push({
+              token: {
+                symbol:
+                  'rewardTokenSymbol' in inc
+                    ? (inc.rewardTokenSymbol ?? '')
+                    : '',
+                address:
+                  'rewardTokenAddress' in inc
+                    ? (inc.rewardTokenAddress ?? '')
+                    : '',
+              },
+              apr,
+              apy: aprToApyAave(apr),
+              source: 'protocol',
+              program: null,
+            })
+          }
+
+          // MeritSupplyIncentive
+          if (
+            'extraSupplyApr' in inc &&
+            inc.extraSupplyApr &&
+            !('rewardTokenAddress' in inc)
           ) {
-            // MeritBorrowAndSupplyIncentiveCondition (Borrow side)
-            nativeBorrowRewards += aprPercentToApy(
-              Number(inc.extraApr.value) * 100
-            )
+            const apr = Number(inc.extraSupplyApr.value)
+            supplyRewardItems.push({
+              token: { symbol: 'MERIT', address: '' },
+              apr,
+              apy: aprToApyDaily(apr),
+              source: 'merit',
+              program: 'aave-merit',
+            })
+          }
+
+          // MeritBorrowIncentive
+          if (
+            'borrowAprDiscount' in inc &&
+            inc.borrowAprDiscount &&
+            !('rewardTokenAddress' in inc)
+          ) {
+            const apr = Number(inc.borrowAprDiscount.value)
+            borrowRewardItems.push({
+              token: { symbol: 'MERIT', address: '' },
+              apr,
+              apy: aprToApyDaily(apr),
+              source: 'merit',
+              program: 'aave-merit',
+            })
+          }
+
+          // MeritBorrowAndSupplyIncentiveCondition
+          if ('extraApr' in inc && inc.extraApr) {
+            const apr = Number(inc.extraApr.value)
+            if ('supplyToken' in inc) {
+              supplyRewardItems.push({
+                token: { symbol: 'MERIT', address: '' },
+                apr,
+                apy: aprToApyDaily(apr),
+                source: 'merit',
+                program: 'aave-merit-conditional',
+              })
+            }
+            if ('borrowToken' in inc) {
+              borrowRewardItems.push({
+                token: { symbol: 'MERIT', address: '' },
+                apr,
+                apy: aprToApyDaily(apr),
+                source: 'merit',
+                program: 'aave-merit-conditional',
+              })
+            }
           }
         }
       }
 
-      const tokenAddress = reserve.underlyingToken.address
-      const merklSupplyRewards = lookupIncentive(
+      // ─── Merkl incentives ──────────────────────────────────────────────────
+      const merklSupply = lookupMerklIncentive(
         merklIncentives.supply,
         marketSlug,
         tokenAddress
       )
-      const merklBorrowRewards = lookupIncentive(
+      const merklBorrow = lookupMerklIncentive(
         merklIncentives.borrow,
         marketSlug,
         tokenAddress
       )
 
-      const totalSupplyRewards = nativeSupplyRewards + merklSupplyRewards
-      const totalBorrowRewards = nativeBorrowRewards + merklBorrowRewards
+      if (merklSupply) {
+        supplyRewardItems.push({
+          token: { symbol: tokenSymbol, address: tokenAddress },
+          apr: merklSupply.apr,
+          apy: merklSupply.apy,
+          source: 'merkl',
+          program: `merkl-aave-${marketSlug ?? market.name.toLowerCase()}`,
+        })
+      }
 
-      // Total Supply APY: Base + Rewards
-      const totalSupplyApy = baseSupplyApy + totalSupplyRewards
+      if (merklBorrow) {
+        borrowRewardItems.push({
+          token: { symbol: tokenSymbol, address: tokenAddress },
+          apr: merklBorrow.apr,
+          apy: merklBorrow.apy,
+          source: 'merkl',
+          program: `merkl-aave-${marketSlug ?? market.name.toLowerCase()}`,
+        })
+      }
 
-      // Total Borrow APY: Base - Rewards (because rewards reduce your borrow cost)
-      // Cap at 0 so a highly incentivized market doesn't look like negative total borrow cost
-      const totalBorrowApy = Math.max(0, baseBorrowApy - totalBorrowRewards)
+      // ─── Reward totals ─────────────────────────────────────────────────────
+      const totalSupplyRewards = supplyRewardItems.reduce(
+        (s, r) => s + r.apy,
+        0
+      )
+      const totalBorrowRewards = borrowRewardItems.reduce(
+        (s, r) => s + r.apy,
+        0
+      )
 
-      const borrowAssets = Number(reserve.borrowInfo?.total.amount.value ?? 0)
-      const borrowAssetsUsd = Number(reserve.borrowInfo?.total.usd ?? 0)
-      const supplyAssets = Number(reserve.size.amount.value ?? 0)
+      // ─── Market state ──────────────────────────────────────────────────────
       const supplyAssetsUsd = Number(reserve.size.usd ?? 0)
-      const collateralAssets = 0
-      const collateralAssetsUsd = 0
+      const borrowAssetsUsd = Number(reserve.borrowInfo?.total.usd ?? 0)
+      const availableLiquidity = Number(
+        reserve.borrowInfo?.availableLiquidity.usd ?? 0
+      )
+      const utilizationRate =
+        supplyAssetsUsd > 0 ? borrowAssetsUsd / supplyAssetsUsd : 0
+      const assetPriceUsd = Number(reserve.usdExchangeRate ?? 0)
 
-      snapshots.push({
+      const asset = {
+        symbol: tokenSymbol,
+        name: reserve.underlyingToken.name,
+        address: tokenAddress,
+        decimals: 0, // not in current query — enrich from pools if needed
+      }
+
+      // ─── Lend document ─────────────────────────────────────────────────────
+      const lendPoolId = buildPoolId(market.name, tokenSymbol, 'lend')
+
+      const lendSpot: LendApySpot = {
         timestamp,
-        metadata: {
-          protocol: {
-            name: market.name,
-            address: market.address,
-          },
-          chain: {
-            id: market.chain.chainId,
-            name: chain,
-          },
-          vault: {
-            symbol: reserve.underlyingToken.symbol,
-            name: reserve.underlyingToken.name,
-            address: reserve.underlyingToken.address,
-          },
+        meta: {
+          poolId: lendPoolId,
+          kind: 'lend',
+          protocol: 'aave',
+          chain,
+          asset,
         },
-        supplyApy: {
-          native: baseSupplyApy,
+        apy: {
+          base: baseSupplyApy,
           rewards: totalSupplyRewards,
-          fees: 0, // AAVE does not have additional static supply fees beyond the reserve factor which is already subtracted from baseSupplyApy
-          total: totalSupplyApy,
+          // supplyInfo.apy already nets the reserveFactor — fees = 0 on lend
+          fees: 0,
+          net: baseSupplyApy + totalSupplyRewards,
+          rewardItems: supplyRewardItems,
         },
-        borrowApy: {
-          native: baseBorrowApy,
+        market: {
+          supplyAssetsUsd,
+          availableLiquidity,
+          utilizationRate,
+          assetPriceUsd,
+        },
+        quality: {
+          status: 'ok',
+          fetchedAt,
+          revision: 1,
+        },
+      }
+
+      // ─── Borrow document ───────────────────────────────────────────────────
+      const borrowPoolId = buildPoolId(market.name, tokenSymbol, 'borrow')
+
+      const borrowSpot: BorrowApySpot = {
+        timestamp,
+        meta: {
+          poolId: borrowPoolId,
+          kind: 'borrow',
+          protocol: 'aave',
+          chain,
+          asset,
+        },
+        apy: {
+          base: baseBorrowApy,
           rewards: totalBorrowRewards,
-          fees: 0, // AAVE has no separate borrower interest fees, the base rate is the full cost
-          total: totalBorrowApy,
-          protocolData: {
-            variableRateSlope1: Number(
-              reserve.borrowInfo?.variableRateSlope1.value ?? 0
-            ),
-            variableRateSlope2: Number(
-              reserve.borrowInfo?.variableRateSlope2.value ?? 0
-            ),
-            optimalUsageRate: Number(
-              reserve.borrowInfo?.optimalUsageRate.value ?? 0
-            ),
-            baseVariableBorrowRate: Number(
-              reserve.borrowInfo?.baseVariableBorrowRate.value ?? 0
-            ),
-          },
+          // reserveFactor is informational — already included in baseBorrowApy
+          fees: reserveFactor,
+          net: Math.max(0, baseBorrowApy - totalBorrowRewards),
+          rewardItems: borrowRewardItems,
         },
-        supplyAssets,
-        supplyAssetsUsd,
-        borrowAssets,
-        borrowAssetsUsd,
-        collateralAssets,
-        collateralAssetsUsd,
-      })
+        market: {
+          supplyAssetsUsd,
+          borrowAssetsUsd,
+          availableLiquidity,
+          utilizationRate,
+          assetPriceUsd,
+          // AAVE is multi-collateral — no single collateral value or price ratio
+          collateralAssetsUsd: null,
+          priceCollateralInLoanAsset: null,
+        },
+        quality: {
+          status: 'ok',
+          fetchedAt,
+          revision: 1,
+        },
+      }
+
+      spots.push(lendSpot, borrowSpot)
     }
   }
-  return snapshots
+
+  console.log(
+    `[cron:aave] Fetched ${spots.length} spot documents (${spots.length / 2} reserves)`
+  )
+  return spots
 }

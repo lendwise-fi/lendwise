@@ -171,8 +171,21 @@ export const MARKETS_APY = gql`
           name
           address
         }
+        vToken {
+          name
+          symbol
+          address
+          decimals
+        }
+        aToken {
+          name
+          symbol
+          address
+          decimals
+        }
         usdExchangeRate
         supplyInfo {
+          canBeCollateral
           total {
             value
           }
@@ -183,6 +196,9 @@ export const MARKETS_APY = gql`
             }
           }
           maxLTV {
+            value
+          }
+          liquidationThreshold {
             value
           }
           apy {
@@ -213,6 +229,9 @@ export const MARKETS_APY = gql`
               value
             }
             usd
+          }
+          reserveFactor {
+            value
           }
         }
         size {
