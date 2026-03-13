@@ -16,7 +16,7 @@ async function main(): Promise<void> {
   const protoIdx = args.indexOf('--protocol')
   const protocol = protoIdx !== -1 ? (args[protoIdx + 1] as ProtocolName) : undefined
 
-  console.log('\n🔄 Kompo — Pools sync\n')
+  console.log('\n🔄 Pools sync\n')
   if (protocol) {
     console.log(`  Protocol: ${protocol}\n`)
   } else {

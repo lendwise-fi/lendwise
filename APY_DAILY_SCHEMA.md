@@ -37,7 +37,7 @@ The daily job queries the explicit window `[D-1 00:00:00Z, D 00:00:00Z[` — nev
 ### 4. Two-pass aggregation from `apy.spot`
 
 APY fields and `utilizationRate` use the **daily average** — a single outlier slot does not distort the day's value.
-Volume fields (`supplyAssetsUsd`, `borrowAssetsUsd`, `availableLiquidity`) use the **last known value** of the day — they are stocks, not flows, and closing value is more comparable across days.
+Volume fields (`supplyAssetsUsd`, `borrowAssetsUsd`) use the **last known value** of the day — they are stocks, not flows, and closing value is more comparable across days.
 
 ### 5. `apy` stores full statistical distribution, not just the average
 
@@ -106,8 +106,6 @@ export interface DailyMarketState {
    */
   supplyAssetsUsd: number
   borrowAssetsUsd: number
-  availableLiquidity: number
-
   /**
    * Average across all spot slots — ratios and rates are averaged.
    */
@@ -290,7 +288,6 @@ const [closing] = await db
       $project: {
         supplyAssetsUsd: '$market.supplyAssetsUsd',
         borrowAssetsUsd: '$market.borrowAssetsUsd',
-        availableLiquidity: '$market.availableLiquidity',
       },
     },
   ])
@@ -360,7 +357,6 @@ db['apy.daily'].createIndex({ 'quality.status': 1, date: -1 })
   "market": {
     "supplyAssetsUsd": 45200000,
     "borrowAssetsUsd": 32100000,
-    "availableLiquidity": 13100000,
     "utilizationRate": {
       "avg": 0.71,
       "min": 0.692,

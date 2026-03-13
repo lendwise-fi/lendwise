@@ -1,46 +1,171 @@
-/**
- * @file scripts/pools-sync.ts
- * Manual trigger for the pools sync job.
- *
- * Usage:
- *   bun run --env-file=.env pools:sync
- *   bun run --env-file=.env pools:sync -- --protocol aave_v3
- *   bun run --env-file=.env pools:sync -- --protocol morpho_v1
- */
+import type { BorrowPool, Collateral, LendPool } from '@/lib/db/types'
+import { AAVE_CONFIG } from '@/lib/protocols/aave/config'
+import type { MarketsApyQuery } from '@/lib/protocols/aave/v3/offchain/generated/graphql'
+import { MARKETS_APY } from '@/lib/protocols/aave/v3/offchain/queries'
+import { createGraphQLClient } from '@/lib/protocols/shared'
 
-import { syncPools } from '@/app/actions/pools-sync.actions'
-import type { ProtocolName } from '@/config/protocols'
+// ─── Pool ID builder ──────────────────────────────────────────────────────────
 
-async function main(): Promise<void> {
-  const args     = process.argv.slice(2)
-  const protoIdx = args.indexOf('--protocol')
-  const protocol = protoIdx !== -1 ? (args[protoIdx + 1] as ProtocolName) : undefined
-
-  console.log('\n🔄 Kompo — Pools sync\n')
-  if (protocol) {
-    console.log(`  Protocol: ${protocol}\n`)
-  } else {
-    console.log('  Protocol: all\n')
-  }
-
-  const result = await syncPools(protocol)
-
-  console.log('\n📊 Result:')
-  console.log(`  Success:  ${result.success}`)
-  console.log(`  Total:    ${result.counts.total}`)
-  console.log(`  Duration: ${result.durationMs}ms`)
-
-  if (result.errors.length > 0) {
-    console.log('\n❌ Errors:')
-    result.errors.forEach((e) => console.log(`  ${e}`))
-    process.exit(1)
-  }
-
-  console.log('\n✅ Done\n')
-  process.exit(0)
+function buildPoolId(
+  marketName: string,
+  assetSymbol: string,
+  kind: 'lend' | 'borrow'
+): string {
+  return `aave-${marketName}-${assetSymbol.toLowerCase()}-${kind}`
 }
 
-main().catch((err) => {
-  console.error('❌ Unexpected error:', err)
-  process.exit(1)
-})
+// ─── Fetcher ──────────────────────────────────────────────────────────────────
+
+/**
+ * Fetch static pool metadata for all active AAVE v3 markets.
+ * Returns LendPool and BorrowPool documents ready for MongoDB upsert.
+ *
+ * One reserve → two documents (lend + borrow).
+ * Borrow pool collaterals are built from all reserves in the same market
+ * where canBeCollateral = true.
+ *
+ * Reuses MARKETS_APY query — aToken/vToken fields must be present.
+ */
+export async function fetchAaveV3Pools(
+  chainFilter?: string
+): Promise<(LendPool | BorrowPool)[]> {
+  const config = AAVE_CONFIG.aave_v3
+  const client = createGraphQLClient(config.offchainApiUrl!)
+
+  let chainIds = Object.keys(config.chains).map(Number)
+
+  if (chainFilter) {
+    const found = Object.entries(config.chains).find(
+      ([, c]) => c.name.toLowerCase() === chainFilter.toLowerCase()
+    )
+    if (!found) {
+      console.warn(
+        `[pools:aave] Chain filter '${chainFilter}' not found in config`
+      )
+      return []
+    }
+    chainIds = [Number(found[0])]
+  }
+
+  const { data, error } = await client
+    .query<MarketsApyQuery>(MARKETS_APY, { request: { chainIds } })
+    .toPromise()
+
+  if (error) {
+    console.error('[pools:aave] Failed to fetch markets:', error.message)
+    return []
+  }
+
+  if (!data?.markets) return []
+
+  const pools: (LendPool | BorrowPool)[] = []
+  const now = new Date()
+
+  for (const market of data.markets) {
+    const chain = {
+      id: market.chain.chainId,
+      name: market.chain.name.toLowerCase(),
+    }
+
+    // ─── Build collateral list for this market ──────────────────────────────
+    // All reserves that can be used as collateral across this market.
+    // Each borrow pool gets this full list — AAVE is multi-collateral.
+    const marketCollaterals: Collateral[] = market.reserves
+      .filter((r) => r.supplyInfo?.canBeCollateral === true)
+      .map((r) => ({
+        symbol: r.underlyingToken.symbol,
+        name: r.underlyingToken.name,
+        address: r.underlyingToken.address,
+        decimals: 0, // not in current query — enrich if needed
+        ltv: Number(r.supplyInfo?.maxLTV?.value ?? 0),
+        lltv: Number(r.supplyInfo?.liquidationThreshold?.value ?? 0),
+        canBeCollateral: true,
+      }))
+
+    for (const reserve of market.reserves) {
+      const asset = {
+        symbol: reserve.underlyingToken.symbol,
+        name: reserve.underlyingToken.name,
+        address: reserve.underlyingToken.address,
+        decimals: 0, // not in current query
+      }
+
+      const lendId = buildPoolId(market.name, asset.symbol, 'lend')
+      const borrowId = buildPoolId(market.name, asset.symbol, 'borrow')
+
+      // ─── Lend pool ──────────────────────────────────────────────────────────
+
+      const lendPool: LendPool = {
+        _id: lendId,
+        kind: 'lend',
+        protocol: {
+          name: 'aave',
+          market: market.name,
+          chain,
+          address: market.address,
+        },
+        native: {
+          type: 'reserve',
+          // market prefix prevents collision — same token can exist on multiple AAVE markets
+          // on the same chain (e.g. AaveV3Ethereum + AaveV3EthereumLido both have USDC on chain 1)
+          id: `${market.name}-${reserve.underlyingToken.address}-${chain.id}-lend`,
+        },
+        asset,
+        protocolMeta: {
+          aTokenSymbol:         reserve.aToken?.symbol ?? '',
+          maxLTV:               Number(reserve.supplyInfo?.maxLTV?.value ?? 0),
+          liquidationThreshold: Number(reserve.supplyInfo?.liquidationThreshold?.value ?? 0),
+        },
+        subgraphUrl: config.offchainApiUrl!,
+        active: true,
+        createdAt: now,
+        updatedAt: now,
+      }
+
+      // ─── Borrow pool ────────────────────────────────────────────────────────
+
+      const borrowPool: BorrowPool = {
+        _id: borrowId,
+        kind: 'borrow',
+        protocol: {
+          name: 'aave',
+          market: market.name,
+          chain,
+          address: market.address,
+        },
+        native: {
+          type: 'reserve',
+          id: `${market.name}-${reserve.underlyingToken.address}-${chain.id}-borrow`,
+        },
+        asset,
+        collaterals: marketCollaterals,
+        protocolMeta: {
+          variableRateSlope1: Number(
+            reserve.borrowInfo?.variableRateSlope1?.value ?? 0
+          ),
+          variableRateSlope2: Number(
+            reserve.borrowInfo?.variableRateSlope2?.value ?? 0
+          ),
+          optimalUsageRate: Number(
+            reserve.borrowInfo?.optimalUsageRate?.value ?? 0
+          ),
+          baseVariableBorrowRate: Number(
+            reserve.borrowInfo?.baseVariableBorrowRate?.value ?? 0
+          ),
+          vTokenSymbol: reserve.vToken?.symbol ?? '',
+        },
+        subgraphUrl: config.offchainApiUrl!,
+        active: true,
+        createdAt: now,
+        updatedAt: now,
+      }
+
+      pools.push(lendPool, borrowPool)
+    }
+  }
+
+  console.log(
+    `[pools:aave] Fetched ${pools.length} pool documents (${pools.length / 2} reserves)`
+  )
+  return pools
+}

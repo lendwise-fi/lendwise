@@ -29,7 +29,6 @@ interface BorrowingOpportunity {
   borrowRate7d: number
   borrowRate30d: number
   borrowRate90d: number
-  availableLiquidity: number
   ltv: number
   liquidationThreshold: number
   blockchain: string
@@ -62,7 +61,6 @@ export default function Borrowing() {
       borrowRate7d: 3.4,
       borrowRate30d: 3.6,
       borrowRate90d: 3.8,
-      availableLiquidity: 45000000,
       ltv: 85,
       liquidationThreshold: 90,
       blockchain: 'ethereum',
@@ -77,7 +75,6 @@ export default function Borrowing() {
       borrowRate7d: 3.0,
       borrowRate30d: 3.2,
       borrowRate90d: 3.4,
-      availableLiquidity: 120000000,
       ltv: 80,
       liquidationThreshold: 85,
       blockchain: 'ethereum',
@@ -92,7 +89,6 @@ export default function Borrowing() {
       borrowRate7d: 2.7,
       borrowRate30d: 2.9,
       borrowRate90d: 3.1,
-      availableLiquidity: 28000000,
       ltv: 90,
       liquidationThreshold: 94,
       blockchain: 'ethereum',
@@ -107,7 +103,6 @@ export default function Borrowing() {
       borrowRate7d: 4.0,
       borrowRate30d: 3.9,
       borrowRate90d: 3.8,
-      availableLiquidity: 8500000,
       ltv: 75,
       liquidationThreshold: 80,
       blockchain: 'arbitrum',
@@ -351,12 +346,6 @@ export default function Borrowing() {
                           Collateral:{' '}
                           <span className="text-foreground font-medium">
                             {opp.collateralAsset}
-                          </span>
-                        </span>
-                        <span>
-                          Available:{' '}
-                          <span className="text-foreground font-medium">
-                            ${(opp.availableLiquidity / 1000000).toFixed(1)}M
                           </span>
                         </span>
                       </div>

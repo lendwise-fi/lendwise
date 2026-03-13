@@ -165,13 +165,6 @@ export interface MarketState {
   borrowAssetsUsd: number
 
   /**
-   * Available liquidity for withdrawal or borrowing (USD).
-   * = supplyAssetsUsd - borrowAssetsUsd
-   * AAVE also exposes this directly via borrowInfo.availableLiquidity.usd.
-   */
-  availableLiquidity: number
-
-  /**
    * Borrow utilization rate — 0 to 1.
    * = borrowAssetsUsd / supplyAssetsUsd
    * Morpho: state.utilization (direct)
@@ -288,7 +281,6 @@ export interface ApySpot {
 | `rewardItems[].source`      | `"protocol"` (AAVE native) or `"merkl"` or `"merit"`                         |
 | `market.supplyAssetsUsd`    | `supplyInfo.total.value × usdExchangeRate`                                   |
 | `market.borrowAssetsUsd`    | `borrowInfo.total.usd`                                                       |
-| `market.availableLiquidity` | `borrowInfo.availableLiquidity.usd`                                          |
 | `market.utilizationRate`    | computed: `borrowAssetsUsd / supplyAssetsUsd`                                |
 | `market.assetPriceUsd`      | `usdExchangeRate`                                                            |
 
@@ -361,7 +353,6 @@ db['apy.spot'].createIndex({ 'meta.protocol': 1, timestamp: -1 })
   "market": {
     "supplyAssetsUsd": 45200000,
     "borrowAssetsUsd": 32100000,
-    "availableLiquidity": 13100000,
     "utilizationRate": 0.71,
     "assetPriceUsd": 1.0001
   },

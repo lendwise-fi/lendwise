@@ -134,8 +134,9 @@ export async function fetchMorphoV1Apy(
       // ─── Market state ────────────────────────────────────────────────────────
 
       const supplyAssetsUsd = state.supplyAssetsUsd ?? 0
+      const supplyAssets = state.supplyAssets
       const borrowAssetsUsd = state.borrowAssetsUsd ?? 0
-      const availableLiquidity = supplyAssetsUsd - borrowAssetsUsd
+      const borrowAssets = state.borrowAssets
       const utilizationRate = state.utilization ?? 0
       const supplyAssetsRaw = Number(state.supplyAssets ?? 0)
 
@@ -170,7 +171,7 @@ export async function fetchMorphoV1Apy(
         },
         market: {
           supplyAssetsUsd,
-          availableLiquidity,
+          supplyAssets,
           utilizationRate,
           assetPriceUsd,
         },
@@ -214,7 +215,8 @@ export async function fetchMorphoV1Apy(
         market: {
           supplyAssetsUsd,
           borrowAssetsUsd,
-          availableLiquidity,
+          supplyAssets,
+          borrowAssets,
           utilizationRate,
           assetPriceUsd,
           collateralAssetsUsd: null, // not exposed in current query

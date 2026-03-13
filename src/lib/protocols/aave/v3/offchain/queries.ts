@@ -218,9 +218,6 @@ export const MARKETS_APY = gql`
           baseVariableBorrowRate {
             value
           }
-          availableLiquidity {
-            usd
-          }
           apy {
             value
           }
