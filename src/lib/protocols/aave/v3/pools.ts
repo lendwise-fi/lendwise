@@ -106,7 +106,7 @@ export async function fetchAaveV3Pools(
         },
         native: {
           type: 'reserve',
-          id: `${reserve.underlyingToken.address}-lend`,
+          id: `${reserve.underlyingToken.address}-${chain.id}-lend`,
         },
         asset,
         protocolMeta: {
@@ -131,7 +131,7 @@ export async function fetchAaveV3Pools(
         },
         native: {
           type: 'reserve',
-          id: `${reserve.underlyingToken.address}-borrow`,
+          id: `${reserve.underlyingToken.address}-${chain.id}-borrow`,
         },
         asset,
         collaterals: marketCollaterals,
