@@ -10,6 +10,7 @@
   "scripts": {
     "preinstall": "pnpx only-allow pnpm",
     "db:init": "tsx scripts/db-init.ts",
+    "pools:sync": "tsx scripts/pools-sync.ts",
     "dev": "next dev",
     "build": "pnpm codegen && next build",
     "start": "next start",

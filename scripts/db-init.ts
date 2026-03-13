@@ -10,21 +10,22 @@
  *   npx tsx scripts/db-init.ts
  *   bun run scripts/db-init.ts
  */
+
 import { Db, MongoClient } from 'mongodb'
 
 import {
+  MONGODB_COLLECTION_SPOT,
   MONGODB_COLLECTION_DAILY,
   MONGODB_COLLECTION_POOLS,
-  MONGODB_COLLECTION_SPOT,
 } from '@/lib/db/mongodb'
 
 // ─── Config ───────────────────────────────────────────────────────────────────
 
 const MONGODB_URI = process.env.MONGODB_URI
-const MONGODB_DB_NAME = process.env.MONGODB_DB_NAME
+const MONGODB_DB_NAME  = process.env.MONGODB_DB_NAME
 
 if (!MONGODB_URI) throw new Error('Missing env: MONGODB_URI')
-if (!MONGODB_DB_NAME) throw new Error('Missing env: MONGODB_DB_NAME')
+if (!MONGODB_DB_NAME)  throw new Error('Missing env: MONGODB_DB_NAME')
 
 /** TTL for apy.spot documents — 90 days in seconds */
 const SPOT_TTL_SECONDS = 90 * 24 * 60 * 60
@@ -51,21 +52,17 @@ async function collectionExists(db: Db, name: string): Promise<boolean> {
  */
 async function createSpotCollection(db: Db): Promise<void> {
   if (await collectionExists(db, MONGODB_COLLECTION_SPOT)) {
-    console.log(
-      `  ⚠️  ${MONGODB_COLLECTION_SPOT} already exists — skipping creation`
-    )
+    console.log(`  ⚠️  ${MONGODB_COLLECTION_SPOT} already exists — skipping creation`)
   } else {
     await db.createCollection(MONGODB_COLLECTION_SPOT, {
       timeseries: {
-        timeField: 'timestamp',
-        metaField: 'meta',
+        timeField:   'timestamp',
+        metaField:   'meta',
         granularity: 'minutes',
       },
       expireAfterSeconds: SPOT_TTL_SECONDS,
     })
-    console.log(
-      `  ✅ Created Time Series collection: ${MONGODB_COLLECTION_SPOT}`
-    )
+    console.log(`  ✅ Created Time Series collection: ${MONGODB_COLLECTION_SPOT}`)
   }
 
   const col = db.collection(MONGODB_COLLECTION_SPOT)
@@ -78,12 +75,7 @@ async function createSpotCollection(db: Db): Promise<void> {
 
   // Cross-pool query — "all lend USDC pools on Ethereum over last 7 days"
   await col.createIndex(
-    {
-      'meta.asset.symbol': 1,
-      'meta.kind': 1,
-      'meta.chain.id': 1,
-      timestamp: -1,
-    },
+    { 'meta.asset.symbol': 1, 'meta.kind': 1, 'meta.chain.id': 1, timestamp: -1 },
     { name: 'spot_asset_kind_chain_timestamp' }
   )
 
@@ -103,9 +95,7 @@ async function createSpotCollection(db: Db): Promise<void> {
  */
 async function createDailyCollection(db: Db): Promise<void> {
   if (await collectionExists(db, MONGODB_COLLECTION_DAILY)) {
-    console.log(
-      `  ⚠️  ${MONGODB_COLLECTION_DAILY} already exists — skipping creation`
-    )
+    console.log(`  ⚠️  ${MONGODB_COLLECTION_DAILY} already exists — skipping creation`)
   } else {
     await db.createCollection(MONGODB_COLLECTION_DAILY)
     console.log(`  ✅ Created collection: ${MONGODB_COLLECTION_DAILY}`)
@@ -147,9 +137,7 @@ async function createDailyCollection(db: Db): Promise<void> {
  */
 async function createPoolsCollection(db: Db): Promise<void> {
   if (await collectionExists(db, MONGODB_COLLECTION_POOLS)) {
-    console.log(
-      `  ⚠️  ${MONGODB_COLLECTION_POOLS} already exists — skipping creation`
-    )
+    console.log(`  ⚠️  ${MONGODB_COLLECTION_POOLS} already exists — skipping creation`)
   } else {
     await db.createCollection(MONGODB_COLLECTION_POOLS)
     console.log(`  ✅ Created collection: ${MONGODB_COLLECTION_POOLS}`)
@@ -164,8 +152,9 @@ async function createPoolsCollection(db: Db): Promise<void> {
   )
 
   // Native ID uniqueness — prevents duplicate pools from the same protocol
+  // kind is required — lend and borrow share the same native.id on AAVE
   await col.createIndex(
-    { 'native.id': 1, 'protocol.name': 1 },
+    { 'native.id': 1, 'protocol.name': 1, kind: 1 },
     { unique: true, name: 'pools_native_id_protocol' }
   )
 
@@ -201,8 +190,10 @@ async function main(): Promise<void> {
     await createPoolsCollection(db)
 
     console.log('\n✅ Initialization complete\n')
+    process.exit(0)
   } catch (err) {
     console.error('\n❌ Initialization failed:', err)
+    await client.close()
     process.exit(1)
   } finally {
     await client.close()

@@ -37,7 +37,6 @@ async function main(): Promise<void> {
   }
 
   console.log('\n✅ Done\n')
-  process.exit(0)
 }
 
 main().catch((err) => {
