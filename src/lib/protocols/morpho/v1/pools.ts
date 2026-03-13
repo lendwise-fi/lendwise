@@ -66,6 +66,7 @@ export async function fetchMorphoV1Pools(
         where: {
           chainId_in: chainIds,
           borrowAssetsUsd_gte: 10000,
+          listed: true,
         },
       })
       .toPromise()

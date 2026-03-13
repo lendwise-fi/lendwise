@@ -29,16 +29,19 @@ async function writePoolDocs(pools: Pool[]): Promise<void> {
   const db = await getDb()
   const collection = db.collection<Pool>(MONGODB_COLLECTION_POOLS)
 
-  const ops = pools.map((pool) => ({
-    updateOne: {
-      filter: { _id: pool._id },
-      update: {
-        $set: { ...pool, updatedAt: new Date() },
-        $setOnInsert: { createdAt: new Date() },
+  const ops = pools.map((pool) => {
+    const { createdAt, updatedAt, ...poolData } = pool
+    return {
+      updateOne: {
+        filter: { _id: pool._id },
+        update: {
+          $set: { ...poolData, updatedAt: new Date() },
+          $setOnInsert: { createdAt: pool.createdAt || new Date() },
+        },
+        upsert: true,
       },
-      upsert: true,
-    },
-  }))
+    }
+  })
 
   const result = await collection.bulkWrite(ops, { ordered: false })
 
