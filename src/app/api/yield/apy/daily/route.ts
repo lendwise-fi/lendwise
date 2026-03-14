@@ -200,9 +200,13 @@ export const POST = verifySignatureAppRouter(async (_req: NextRequest) => {
 
     // Discover all poolIds active in this window
     const hourlyCollection = db.collection<ApySlot>(MONGODB_COLLECTION_HOURLY)
-    const poolIds: string[] = await hourlyCollection.distinct('meta.poolId', {
-      hour: { $gte: windowStart, $lt: windowEnd },
-    })
+    const poolIds: string[] = await hourlyCollection
+      .aggregate<{ _id: string }>([
+        { $match: { hour: { $gte: windowStart, $lt: windowEnd } } },
+        { $group: { _id: '$meta.poolId' } },
+      ])
+      .map((d) => d._id)
+      .toArray()
 
     if (poolIds.length === 0) {
       return NextResponse.json(

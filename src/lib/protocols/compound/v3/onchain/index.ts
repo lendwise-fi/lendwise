@@ -506,4 +506,5 @@ export const compoundV3OnchainAdapter: DataAdapter = {
   getUserBorrowPositions,
   getMarketBorrowHistoryRates,
   getMarketLendHistoryRates,
+  getLendingMarkets: async () => [],
 }
