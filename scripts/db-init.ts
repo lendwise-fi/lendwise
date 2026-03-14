@@ -14,7 +14,7 @@
 import { Db, MongoClient } from 'mongodb'
 
 import {
-  MONGODB_COLLECTION_SPOT,
+  MONGODB_COLLECTION_HOURLY,
   MONGODB_COLLECTION_DAILY,
   MONGODB_COLLECTION_POOLS,
 } from '@/lib/db/mongodb'
@@ -26,9 +26,6 @@ const MONGODB_DB_NAME  = process.env.MONGODB_DB_NAME
 
 if (!MONGODB_URI) throw new Error('Missing env: MONGODB_URI')
 if (!MONGODB_DB_NAME)  throw new Error('Missing env: MONGODB_DB_NAME')
-
-/** TTL for apy.spot documents — 90 days in seconds */
-const SPOT_TTL_SECONDS = 90 * 24 * 60 * 60
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -42,50 +39,47 @@ async function collectionExists(db: Db, name: string): Promise<boolean> {
 // ─── Collection setup ─────────────────────────────────────────────────────────
 
 /**
- * apy.spot — MongoDB Time Series collection.
+ * apy.hourly — Classic MongoDB collection.
  *
- * Configuration:
- *   timeField:   "timestamp" — 10-minute slot boundary (UTC)
- *   metaField:   "meta"      — bucketing key (poolId, kind, protocol, chain, asset)
- *   granularity: "minutes"   — optimizes bucket size for 10-min ingestion
- *   TTL:         90 days     — spot data beyond 90 days is dropped automatically
+ * Stores rolling average APY across all 10-min slots within each hour.
+ * Upserted every 10 minutes — no Time Series constraints.
+ * TTL: 180 days — longer retention than the old apy.spot (90 days).
  */
-async function createSpotCollection(db: Db): Promise<void> {
-  if (await collectionExists(db, MONGODB_COLLECTION_SPOT)) {
-    console.log(`  ⚠️  ${MONGODB_COLLECTION_SPOT} already exists — skipping creation`)
+async function createHourlyCollection(db: Db): Promise<void> {
+  if (await collectionExists(db, MONGODB_COLLECTION_HOURLY)) {
+    console.log(`  ⚠️  ${MONGODB_COLLECTION_HOURLY} already exists — skipping creation`)
   } else {
-    await db.createCollection(MONGODB_COLLECTION_SPOT, {
-      timeseries: {
-        timeField:   'timestamp',
-        metaField:   'meta',
-        granularity: 'minutes',
-      },
-      expireAfterSeconds: SPOT_TTL_SECONDS,
-    })
-    console.log(`  ✅ Created Time Series collection: ${MONGODB_COLLECTION_SPOT}`)
+    await db.createCollection(MONGODB_COLLECTION_HOURLY)
+    console.log(`  ✅ Created collection: ${MONGODB_COLLECTION_HOURLY}`)
   }
 
-  const col = db.collection(MONGODB_COLLECTION_SPOT)
+  const col = db.collection(MONGODB_COLLECTION_HOURLY)
 
-  // Latest spot for a single pool — primary UI query
+  // Primary upsert key — unique constraint enforces one doc per (poolId, hour)
   await col.createIndex(
-    { 'meta.poolId': 1, timestamp: -1 },
-    { name: 'spot_poolId_timestamp' }
+    { 'meta.poolId': 1, hour: -1 },
+    { unique: true, name: 'hourly_poolId_hour' }
   )
 
   // Cross-pool query — "all lend USDC pools on Ethereum over last 7 days"
   await col.createIndex(
-    { 'meta.asset.symbol': 1, 'meta.kind': 1, 'meta.chain.id': 1, timestamp: -1 },
-    { name: 'spot_asset_kind_chain_timestamp' }
+    { 'meta.asset': 1, 'meta.kind': 1, 'meta.chainId': 1, hour: -1 },
+    { name: 'hourly_asset_kind_chain_hour' }
   )
 
-  // Daily job — aggregate all spots for a protocol in a time window
+  // Daily job — aggregate all hourly docs for a protocol in a time window
   await col.createIndex(
-    { 'meta.protocol': 1, timestamp: -1 },
-    { name: 'spot_protocol_timestamp' }
+    { 'meta.protocol': 1, hour: -1 },
+    { name: 'hourly_protocol_hour' }
   )
 
-  console.log(`  ✅ Indexes created on: ${MONGODB_COLLECTION_SPOT}`)
+  // TTL — 180 days
+  await col.createIndex(
+    { hour: 1 },
+    { expireAfterSeconds: 180 * 24 * 60 * 60, name: 'hourly_ttl' }
+  )
+
+  console.log(`  ✅ Indexes created on: ${MONGODB_COLLECTION_HOURLY}`)
 }
 
 /**
@@ -180,8 +174,8 @@ async function main(): Promise<void> {
     await client.connect()
     const db = client.db(MONGODB_DB_NAME)
 
-    console.log(`📦 ${MONGODB_COLLECTION_SPOT}`)
-    await createSpotCollection(db)
+    console.log(`📦 ${MONGODB_COLLECTION_HOURLY}`)
+    await createHourlyCollection(db)
 
     console.log(`\n📦 ${MONGODB_COLLECTION_DAILY}`)
     await createDailyCollection(db)

@@ -76,7 +76,7 @@ export async function fetchAaveV3Pools(
         symbol: r.underlyingToken.symbol,
         name: r.underlyingToken.name,
         address: r.underlyingToken.address,
-        decimals: 0, // not in current query — enrich if needed
+        decimals: r.underlyingToken.decimals,
         ltv: Number(r.supplyInfo?.maxLTV?.value ?? 0),
         lltv: Number(r.supplyInfo?.liquidationThreshold?.value ?? 0),
         canBeCollateral: true,
@@ -87,7 +87,7 @@ export async function fetchAaveV3Pools(
         symbol: reserve.underlyingToken.symbol,
         name: reserve.underlyingToken.name,
         address: reserve.underlyingToken.address,
-        decimals: 0, // not in current query
+        decimals: reserve.underlyingToken.decimals,
       }
 
       const lendId = buildPoolId(market.name, asset.symbol, 'lend')

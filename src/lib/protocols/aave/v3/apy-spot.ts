@@ -1,4 +1,4 @@
-import type { BorrowApySpot, LendApySpot, RewardItem } from '@/lib/db/types'
+import type { RewardItem, SpotPayload, LendMarketState, BorrowMarketState } from '@/lib/db/types'
 import { AAVE_CONFIG } from '@/lib/protocols/aave/config'
 import type { MarketsApyQuery } from '@/lib/protocols/aave/v3/offchain/generated/graphql'
 import { MARKETS_APY } from '@/lib/protocols/aave/v3/offchain/queries'
@@ -164,9 +164,9 @@ function buildPoolId(
  *
  * One reserve → two documents (lend + borrow).
  */
-export async function fetchAaveV3Apy(
+export async function fetchAaveV3ApySpot(
   chainFilter?: string
-): Promise<(LendApySpot | BorrowApySpot)[]> {
+): Promise<SpotPayload[]> {
   const config    = AAVE_CONFIG.aave_v3
   const client    = createGraphQLClient(config.offchainApiUrl!)
   const timestamp = normalizeSlotTimestamp()
@@ -200,7 +200,7 @@ export async function fetchAaveV3Apy(
 
   if (!data?.markets) return []
 
-  const spots: (LendApySpot | BorrowApySpot)[] = []
+  const spots: SpotPayload[] = []
 
   for (const market of data.markets) {
     const chain = {
@@ -343,21 +343,18 @@ export async function fetchAaveV3Apy(
         symbol:   tokenSymbol,
         name:     reserve.underlyingToken.name,
         address:  tokenAddress,
-        decimals: 0,   // not in current query — enrich from pools if needed
+        decimals: reserve.underlyingToken.decimals,
       }
 
       // ─── Lend document ─────────────────────────────────────────────────────
       const lendPoolId = buildPoolId(market.name, tokenSymbol, 'lend')
 
-      const lendSpot: LendApySpot = {
-        timestamp,
-        meta: {
-          poolId:   lendPoolId,
-          kind:     'lend',
-          protocol: 'aave',
-          chain,
-          asset,
-        },
+      const lendSpot: SpotPayload = {
+        poolId:   lendPoolId,
+        kind:     'lend',
+        protocol: 'aave',
+        chainId:  chain.id,
+        asset:    tokenSymbol,
         apy: {
           base:        baseSupplyApy,
           rewards:     totalSupplyRewards,
@@ -371,26 +368,18 @@ export async function fetchAaveV3Apy(
           supplyAssetsUsd,
           utilizationRate,
           assetPriceUsd,
-        },
-        quality: {
-          status:    'ok',
-          fetchedAt,
-          revision:  1,
-        },
+        } as LendMarketState,
       }
 
       // ─── Borrow document ───────────────────────────────────────────────────
       const borrowPoolId = buildPoolId(market.name, tokenSymbol, 'borrow')
 
-      const borrowSpot: BorrowApySpot = {
-        timestamp,
-        meta: {
-          poolId:   borrowPoolId,
-          kind:     'borrow',
-          protocol: 'aave',
-          chain,
-          asset,
-        },
+      const borrowSpot: SpotPayload = {
+        poolId:   borrowPoolId,
+        kind:     'borrow',
+        protocol: 'aave',
+        chainId:  chain.id,
+        asset:    tokenSymbol,
         apy: {
           base:    baseBorrowApy,
           rewards: totalBorrowRewards,
@@ -409,12 +398,7 @@ export async function fetchAaveV3Apy(
           // AAVE is multi-collateral — no single collateral value or price ratio
           collateralAssetsUsd:        null,
           priceCollateralInLoanAsset: null,
-        },
-        quality: {
-          status:    'ok',
-          fetchedAt,
-          revision:  1,
-        },
+        } as BorrowMarketState,
       }
 
       spots.push(lendSpot, borrowSpot)

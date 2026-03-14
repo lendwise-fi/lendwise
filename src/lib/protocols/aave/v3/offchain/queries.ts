@@ -170,6 +170,7 @@ export const MARKETS_APY = gql`
           symbol
           name
           address
+          decimals
         }
         vToken {
           name

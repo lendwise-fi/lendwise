@@ -1,11 +1,11 @@
 /**
  * @file types.ts
- * MongoDB document types for the Kompo APY standard.
+ * MongoDB document types for the APY standard.
  *
  * Collections:
  *   pools      — static registry of all lend/borrow pools
- *   apy.spot   — 10-minute APY snapshots (MongoDB Time Series, TTL 90 days)
- *   apy.daily  — daily aggregations computed from apy.spot (classic collection)
+ *   apy.hourly — rolling average APY per hour (classic collection, upserted every 10 min)
+ *   apy.daily  — daily average APY computed from apy.hourly (classic collection)
  */
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -18,8 +18,8 @@ export type NativeType = 'reserve' | 'market' | 'vault' | 'comet'
 
 export type Kind = 'lend' | 'borrow'
 
-export type SpotQualityStatus  = 'ok' | 'partial' | 'stale'
-export type DailyQualityStatus = 'complete' | 'partial' | 'missing'
+export type SlotQualityStatus  = 'building' | 'complete' | 'partial'
+export type DailyQualityStatus = 'complete' | 'partial'  | 'missing'
 
 export interface Chain {
   id:   number   // EVM chain ID — 1 = Ethereum, 8453 = Base, 42161 = Arbitrum
@@ -151,7 +151,7 @@ export interface BorrowPool extends BasePool {
 export type Pool = LendPool | BorrowPool
 
 // ─────────────────────────────────────────────────────────────────────────────
-// apy.spot collection  (MongoDB Time Series)
+// Shared APY types — used by apy.hourly and apy.daily
 // ─────────────────────────────────────────────────────────────────────────────
 
 export interface RewardItem {
@@ -165,11 +165,10 @@ export interface RewardItem {
    * AAVE:    AaveSupplyIncentive.extraSupplyApr / AaveBorrowIncentive.borrowAprDiscount
    * Merkl:   opportunity.apr
    */
-  apr: number
+  apr:     number
   /**
    * APR converted to APY using daily compounding (n=365).
    * APY = (1 + APR / 365)^365 - 1
-   * Use this for all net APY calculations and aggregations.
    */
   apy:     number
   source:  'protocol' | 'merkl' | 'merit'
@@ -177,219 +176,168 @@ export interface RewardItem {
 }
 
 export interface ApyBreakdown {
+  /** Average base APY from the protocol IRM — before fees, without rewards. */
+  base:        number
+  /** Average sum of all reward APYs. */
+  rewards:     number
+  /** Average protocol fee APY. */
+  fees:        number
   /**
-   * Base APY from the protocol IRM — before fees, without rewards.
-   * Morpho: state.supplyApy / state.borrowApy
-   * AAVE:   supplyInfo.apy.value / borrowInfo.apy.value
-   */
-  base:    number
-  /** sum(rewardItems[].apy) — rewards converted from APR */
-  rewards: number
-  /**
-   * Protocol fee as APY.
-   * Morpho Blue:  state.fee
-   * AAVE:         reserveFactor × borrowApy (informational — already included in base lend)
-   * Compound:     reserveFactor from protocolMeta
-   */
-  fees:         number
-  /**
-   * Net APY — effective rate for the user.
+   * Average net APY — effective rate for the user.
    * Lend:   base - fees + rewards
    * Borrow: base + fees - rewards
    */
-  net:          number
-  rewardItems:  RewardItem[]
+  net:         number
+  /**
+   * Reward items from the last slot — not averaged.
+   * Items can appear/disappear between slots.
+   */
+  rewardItems: RewardItem[]
 }
 
 // ─── Market state — split by kind ─────────────────────────────────────────────
 
-export interface LendSpotMarketState {
-  /**
-   * Total amount supplied in native token units.
-   * Morpho: state.supplyAssets
-   * AAVE:   reserve.size.amount.value
-   */
+export interface LendMarketState {
+  /** Average total amount supplied in native token units. */
   supplyAssets:    number
-  /**
-   * Total value supplied to this pool in USD.
-   * Morpho: state.supplyAssetsUsd
-   * AAVE:   reserve.size.usd
-   */
+  /** Average total value supplied in USD. */
   supplyAssetsUsd: number
-  /**
-   * Borrow utilization rate — 0 to 1.
-   * Morpho: state.utilization
-   * AAVE:   computed from supply/borrow totals
-   */
+  /** Average borrow utilization rate — 0 to 1. */
   utilizationRate: number
-  /**
-   * Price of the loan asset in USD at time of snapshot.
-   * Morpho: derived from supplyAssets / supplyAssetsUsd
-   * AAVE:   usdExchangeRate
-   */
+  /** Average loan asset price in USD. */
   assetPriceUsd:   number
 }
 
-export interface BorrowSpotMarketState {
-  /**
-   * Total amount supplied in native token units.
-   * Morpho: state.supplyAssets
-   * AAVE:   reserve.size.amount.value
-   */
+export interface BorrowMarketState {
+  /** Average total amount supplied in native token units. */
   supplyAssets:    number
-  /**
-   * Total value supplied to this pool in USD.
-   * Morpho: state.supplyAssetsUsd
-   * AAVE:   reserve.size.usd
-   */
+  /** Average total value supplied in USD. */
   supplyAssetsUsd: number
-  /**
-   * Total amount borrowed in native token units.
-   * Morpho: state.borrowAssets
-   * AAVE:   reserve.borrowInfo.total.amount.value
-   */
+  /** Average total amount borrowed in native token units. */
   borrowAssets:    number
-  /**
-   * Total value borrowed from this pool in USD.
-   * Morpho: state.borrowAssetsUsd
-   * AAVE:   reserve.borrowInfo.total.usd
-   */
+  /** Average total value borrowed in USD. */
   borrowAssetsUsd: number
-  /**
-   * Borrow utilization rate — 0 to 1.
-   * Morpho: state.utilization
-   * AAVE:   computed
-   */
+  /** Average borrow utilization rate — 0 to 1. */
   utilizationRate: number
-  /**
-   * Price of the loan asset in USD at time of snapshot.
-   * Morpho: derived from supplyAssets / supplyAssetsUsd
-   * AAVE:   usdExchangeRate
-   */
+  /** Average loan asset price in USD. */
   assetPriceUsd:   number
   /**
-   * Total collateral deposited in this market in USD.
-   * null when not available (e.g. AAVE multi-collateral aggregate).
+   * Average total collateral in USD.
+   * null for AAVE/Compound (multi-collateral).
    */
   collateralAssetsUsd:        number | null
   /**
-   * Price of the collateral expressed in loan asset units.
-   * Morpho Blue only — null for AAVE and Compound (multi-collateral).
+   * Average collateral/loan price ratio.
+   * Morpho Blue only — null for AAVE/Compound.
    */
   priceCollateralInLoanAsset: number | null
 }
 
-// ─── Quality ──────────────────────────────────────────────────────────────────
+// ─── Shared meta — lean, filtering fields only ────────────────────────────────
 
-export interface SpotQuality {
-  status:    SpotQualityStatus
-  fetchedAt: Date
-  revision:  number
-}
-
-// ─── Spot meta (shared) ───────────────────────────────────────────────────────
-
-interface SpotMeta {
-  poolId:   string         // FK → pools._id
+/**
+ * Minimal metadata stored on each APY document.
+ * Contains only fields needed for MongoDB filtering — no display data.
+ * Display fields (asset name, address, chain name…) resolved via pools._id.
+ */
+interface ApyMeta {
+  poolId:   string        // FK → pools._id — upsert key
+  kind:     Kind
   protocol: ProtocolName
-  chain:    Chain
-  asset:    Asset          // full asset object — denormalized for resolver mapping
-  // Static protocol metadata (maxLTV, aTokenSymbol…) lives in pools._id — not duplicated here
+  chainId:  number        // EVM chain ID — for filtering
+  asset:    string        // loan asset symbol only — "USDC", "WETH"
 }
-
-// ─── Spot documents — discriminated union ─────────────────────────────────────
-
-export interface LendApySpot {
-  /**
-   * Slot timestamp — normalized to the 10-minute boundary (UTC).
-   * 13:17:42Z → 13:10:00.000Z
-   * Time Series timeField. Upsert key: (meta.poolId, timestamp).
-   */
-  timestamp: Date
-  meta:      SpotMeta & { kind: 'lend' }
-  apy:       ApyBreakdown
-  market:    LendSpotMarketState
-  quality:   SpotQuality
-}
-
-export interface BorrowApySpot {
-  /**
-   * Slot timestamp — normalized to the 10-minute boundary (UTC).
-   * 13:17:42Z → 13:10:00.000Z
-   * Time Series timeField. Upsert key: (meta.poolId, timestamp).
-   */
-  timestamp: Date
-  meta:      SpotMeta & { kind: 'borrow' }
-  apy:       ApyBreakdown
-  market:    BorrowSpotMarketState
-  quality:   SpotQuality
-}
-
-export type ApySpot = LendApySpot | BorrowApySpot
 
 // ─────────────────────────────────────────────────────────────────────────────
-// apy.daily collection  (classic MongoDB collection)
+// apy.hourly collection
 // ─────────────────────────────────────────────────────────────────────────────
 
-export interface Distribution {
-  avg:    number
-  min:    number
-  max:    number
-  p25:    number
-  p75:    number
-  stdDev: number
-}
-
-export interface DailyApyBreakdown {
-  /** Distribution of base APY across all spot slots of the day. */
-  base:    Distribution
-  /** Distribution of net APY — primary field for optimization engine. */
-  net:     Distribution
-  /** Average reward APY across the day. */
-  rewards: number
-  /** Average protocol fee APY across the day. */
-  fees:    number
-}
-
-// ─── Daily market state — split by kind ──────────────────────────────────────
-
-export interface LendDailyMarketState {
-  /** Closing value — last spot slot of the day. */
-  supplyAssets:    number
-  /** Closing value. */
-  supplyAssetsUsd: number
-  /** Daily distribution — rates fluctuate, use avg for comparisons. */
-  utilizationRate: Distribution
-  assetPriceUsd:   Distribution
-}
-
-export interface BorrowDailyMarketState {
-  /** Closing value — last spot slot of the day. */
-  supplyAssets:    number
-  /** Closing value. */
-  supplyAssetsUsd: number
-  /** Closing value. */
-  borrowAssets:    number
-  /** Closing value. */
-  borrowAssetsUsd: number
-  /** Closing value — null for AAVE/Compound. */
-  collateralAssetsUsd:        number | null
-  /** Daily distribution — rates fluctuate, use avg for comparisons. */
-  utilizationRate:            Distribution
-  assetPriceUsd:              Distribution
+export interface SlotQuality {
   /**
-   * Morpho Blue only — null for AAVE/Compound.
+   * Number of 10-min slots that contributed to the rolling average.
+   * Expected: 6 for a complete hour.
    */
-  priceCollateralInLoanAsset: Distribution | null
+  count:         number
+  /** Expected slots per hour — always 6. */
+  expectedCount: 6
+  /** Timestamp of the first slot that contributed to this hour. */
+  firstSlot:     Date
+  /** Timestamp of the most recent slot that contributed. */
+  lastSlot:      Date
+  /**
+   * building — hour in progress, count < 6
+   * complete — count >= 6
+   * partial  — hour is past but count < 6 (gaps detected)
+   */
+  status:        SlotQualityStatus
 }
 
-// ─── Daily quality ────────────────────────────────────────────────────────────
+export interface LendApySlot {
+  /**
+   * Hour boundary UTC — normalized to the top of the hour.
+   * 11:17:42Z → 11:00:00.000Z
+   * Upsert key: (meta.poolId, hour).
+   */
+  hour:    Date
+  meta:    ApyMeta & { kind: 'lend' }
+  apy:     ApyBreakdown
+  market:  LendMarketState
+  quality: SlotQuality
+}
+
+export interface BorrowApySlot {
+  /**
+   * Hour boundary UTC — normalized to the top of the hour.
+   * 11:17:42Z → 11:00:00.000Z
+   * Upsert key: (meta.poolId, hour).
+   */
+  hour:    Date
+  meta:    ApyMeta & { kind: 'borrow' }
+  apy:     ApyBreakdown
+  market:  BorrowMarketState
+  quality: SlotQuality
+}
+
+export type ApySlot = LendApySlot | BorrowApySlot
+
+// ─────────────────────────────────────────────────────────────────────────────
+// SpotPayload — fetcher output, input to the hourly upsert pipeline
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Normalized snapshot returned by each protocol fetcher.
+ * Contains only the data needed to compute the rolling average in apy.hourly.
+ * No timestamp — assigned by the orchestrator at collection time.
+ */
+export type SpotPayload = {
+  poolId:   string
+  kind:     Kind
+  protocol: ProtocolName
+  chainId:  number
+  /** Loan asset symbol — "USDC", "WETH". */
+  asset:    string
+  apy: {
+    base:        number
+    rewards:     number
+    fees:        number
+    net:         number
+    rewardItems: RewardItem[]
+  }
+  market: LendMarketState | BorrowMarketState
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// apy.daily collection
+// ─────────────────────────────────────────────────────────────────────────────
 
 export interface DailyQuality {
-  /** Number of spot documents found in the [D-1 00:00Z, D 00:00Z[ window. */
+  /**
+   * Number of hourly documents found in the [D-1 00:00Z, D 00:00Z[ window.
+   * Expected: 24 for a complete day.
+   */
   actualCount:  number
   /**
-   * actualCount / 144 — 0 to 1.
+   * actualCount / 24 — 0 to 1.
    * < 0.5 → treat as unreliable, exclude from optimization engine.
    */
   completeness: number
@@ -399,27 +347,16 @@ export interface DailyQuality {
   computedAt:   Date
 }
 
-// ─── Daily meta (shared) ──────────────────────────────────────────────────────
-
-interface DailyMeta {
-  protocol: ProtocolName
-  chain:    Chain
-  asset:    Asset          // full asset object — denormalized from spot
-}
-
-// ─── Daily documents — discriminated union ────────────────────────────────────
-
 export interface LendApyDaily {
   /**
    * Midnight UTC of the day covered.
    * 2025-03-12 → 2025-03-12T00:00:00.000Z
-   * Upsert key: (poolId, date).
+   * Upsert key: (meta.poolId, date).
    */
   date:    Date
-  poolId:  string   // FK → pools._id
-  meta:    DailyMeta & { kind: 'lend' }
-  apy:     DailyApyBreakdown
-  market:  LendDailyMarketState
+  meta:    ApyMeta & { kind: 'lend' }
+  apy:     ApyBreakdown
+  market:  LendMarketState
   quality: DailyQuality
 }
 
@@ -427,13 +364,12 @@ export interface BorrowApyDaily {
   /**
    * Midnight UTC of the day covered.
    * 2025-03-12 → 2025-03-12T00:00:00.000Z
-   * Upsert key: (poolId, date).
+   * Upsert key: (meta.poolId, date).
    */
   date:    Date
-  poolId:  string   // FK → pools._id
-  meta:    DailyMeta & { kind: 'borrow' }
-  apy:     DailyApyBreakdown
-  market:  BorrowDailyMarketState
+  meta:    ApyMeta & { kind: 'borrow' }
+  apy:     ApyBreakdown
+  market:  BorrowMarketState
   quality: DailyQuality
 }
 

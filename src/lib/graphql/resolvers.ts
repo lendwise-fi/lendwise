@@ -4,15 +4,16 @@ import { Filter } from 'mongodb'
 import { ALL_CHAINS } from '@/config/chains'
 import { getProtocolIds } from '@/config/protocols'
 import type {
-  ApySpot,
+  ApySlot,
   ApyDaily,
-  LendApySpot,
-  BorrowApySpot,
+  LendApySlot,
+  BorrowApySlot,
   LendApyDaily,
   BorrowApyDaily,
+  BorrowMarketState,
 } from '@/lib/db/types'
 import {
-  MONGODB_COLLECTION_SPOT,
+  MONGODB_COLLECTION_HOURLY,
   MONGODB_COLLECTION_DAILY,
   getDb,
 } from '@/lib/db/mongodb'
@@ -48,7 +49,7 @@ const RANGE_TO_MS: Record<string, number> = {
 
 // ─── Input types ──────────────────────────────────────────────────────────────
 
-type SpotFilters = {
+type HourlyFilters = {
   protocol?: string
   market?:   string
   chainId?:  number
@@ -57,12 +58,12 @@ type SpotFilters = {
   to?:       string
 }
 
-type DailyFilters = SpotFilters & {
+type DailyFilters = HourlyFilters & {
   range?: string
 }
 
-type BorrowSpotFilters  = SpotFilters  & { collateral?: string }
-type BorrowDailyFilters = DailyFilters & { collateral?: string }
+type BorrowHourlyFilters = HourlyFilters & { collateral?: string }
+type BorrowDailyFilters  = DailyFilters  & { collateral?: string }
 
 // ─── Validation ───────────────────────────────────────────────────────────────
 
@@ -95,27 +96,39 @@ function buildTimeFilter(range?: string, from?: string, to?: string): Record<str
   return filter
 }
 
+// ─── Shared reward items mapper ───────────────────────────────────────────────
+
+function mapRewardItems(items: LendApySlot['apy']['rewardItems']) {
+  return items.map((r) => ({
+    token:   r.token,
+    apr:     r.apr,
+    apy:     r.apy,
+    source:  r.source,
+    program: r.program ?? null,
+  }))
+}
+
 // ─── MongoDB → GraphQL mapping ────────────────────────────────────────────────
 
-function mapLendSpot(doc: LendApySpot) {
+/**
+ * ApyMeta is lean — only poolId, kind, protocol, chainId, asset (symbol).
+ * chain (full object) and asset (full object) are resolved via pools lookup.
+ * TODO: DataLoader from pools collection for chain.name, asset.address, asset.decimals
+ */
+
+function mapLendSlot(doc: LendApySlot) {
   return {
-    timestamp: doc.timestamp,
-    poolId:    doc.meta.poolId,
-    protocol:  doc.meta.protocol,
-    chain:     doc.meta.chain,
-    asset:     doc.meta.asset,
+    hour:     doc.hour,
+    poolId:   doc.meta.poolId,
+    protocol: doc.meta.protocol,
+    chainId:  doc.meta.chainId,
+    asset:    doc.meta.asset,
     apy: {
       base:        doc.apy.base,
       rewards:     doc.apy.rewards,
       fees:        doc.apy.fees,
       net:         doc.apy.net,
-      rewardItems: doc.apy.rewardItems.map((r) => ({
-        token:   r.token,
-        apr:     r.apr,
-        apy:     r.apy,
-        source:  r.source,
-        program: r.program ?? null,
-      })),
+      rewardItems: mapRewardItems(doc.apy.rewardItems),
     },
     market: {
       supplyAssets:    doc.market.supplyAssets,
@@ -127,12 +140,13 @@ function mapLendSpot(doc: LendApySpot) {
   }
 }
 
-function mapBorrowSpot(doc: BorrowApySpot) {
+function mapBorrowSlot(doc: BorrowApySlot) {
+  const market = doc.market as BorrowMarketState
   return {
-    timestamp:   doc.timestamp,
+    hour:        doc.hour,
     poolId:      doc.meta.poolId,
     protocol:    doc.meta.protocol,
-    chain:       doc.meta.chain,
+    chainId:     doc.meta.chainId,
     asset:       doc.meta.asset,
     collaterals: [],   // TODO: DataLoader from pools collection
     apy: {
@@ -140,23 +154,17 @@ function mapBorrowSpot(doc: BorrowApySpot) {
       rewards:     doc.apy.rewards,
       fees:        doc.apy.fees,
       net:         doc.apy.net,
-      rewardItems: doc.apy.rewardItems.map((r) => ({
-        token:   r.token,
-        apr:     r.apr,
-        apy:     r.apy,
-        source:  r.source,
-        program: r.program ?? null,
-      })),
+      rewardItems: mapRewardItems(doc.apy.rewardItems),
     },
     market: {
-      supplyAssets:               doc.market.supplyAssets,
-      supplyAssetsUsd:            doc.market.supplyAssetsUsd,
-      borrowAssets:               doc.market.borrowAssets,
-      borrowAssetsUsd:            doc.market.borrowAssetsUsd,
-      utilizationRate:            doc.market.utilizationRate,
-      assetPriceUsd:              doc.market.assetPriceUsd,
-      collateralAssetsUsd:        doc.market.collateralAssetsUsd,
-      priceCollateralInLoanAsset: doc.market.priceCollateralInLoanAsset,
+      supplyAssets:               market.supplyAssets,
+      supplyAssetsUsd:            market.supplyAssetsUsd,
+      borrowAssets:               market.borrowAssets,
+      borrowAssetsUsd:            market.borrowAssetsUsd,
+      utilizationRate:            market.utilizationRate,
+      assetPriceUsd:              market.assetPriceUsd,
+      collateralAssetsUsd:        market.collateralAssetsUsd,
+      priceCollateralInLoanAsset: market.priceCollateralInLoanAsset,
     },
     quality: doc.quality,
   }
@@ -165,11 +173,17 @@ function mapBorrowSpot(doc: BorrowApySpot) {
 function mapLendDaily(doc: LendApyDaily) {
   return {
     date:     doc.date,
-    poolId:   doc.poolId,
+    poolId:   doc.meta.poolId,
     protocol: doc.meta.protocol,
-    chain:    doc.meta.chain,
+    chainId:  doc.meta.chainId,
     asset:    doc.meta.asset,
-    apy:      doc.apy,
+    apy: {
+      base:        doc.apy.base,
+      rewards:     doc.apy.rewards,
+      fees:        doc.apy.fees,
+      net:         doc.apy.net,
+      rewardItems: mapRewardItems(doc.apy.rewardItems),
+    },
     market: {
       supplyAssets:    doc.market.supplyAssets,
       supplyAssetsUsd: doc.market.supplyAssetsUsd,
@@ -181,23 +195,30 @@ function mapLendDaily(doc: LendApyDaily) {
 }
 
 function mapBorrowDaily(doc: BorrowApyDaily) {
+  const market = doc.market as BorrowMarketState
   return {
     date:        doc.date,
-    poolId:      doc.poolId,
+    poolId:      doc.meta.poolId,
     protocol:    doc.meta.protocol,
-    chain:       doc.meta.chain,
+    chainId:     doc.meta.chainId,
     asset:       doc.meta.asset,
     collaterals: [],   // TODO: DataLoader from pools collection
-    apy:         doc.apy,
+    apy: {
+      base:        doc.apy.base,
+      rewards:     doc.apy.rewards,
+      fees:        doc.apy.fees,
+      net:         doc.apy.net,
+      rewardItems: mapRewardItems(doc.apy.rewardItems),
+    },
     market: {
-      supplyAssets:               doc.market.supplyAssets,
-      supplyAssetsUsd:            doc.market.supplyAssetsUsd,
-      borrowAssets:               doc.market.borrowAssets,
-      borrowAssetsUsd:            doc.market.borrowAssetsUsd,
-      collateralAssetsUsd:        doc.market.collateralAssetsUsd,
-      utilizationRate:            doc.market.utilizationRate,
-      assetPriceUsd:              doc.market.assetPriceUsd,
-      priceCollateralInLoanAsset: doc.market.priceCollateralInLoanAsset,
+      supplyAssets:               market.supplyAssets,
+      supplyAssetsUsd:            market.supplyAssetsUsd,
+      borrowAssets:               market.borrowAssets,
+      borrowAssetsUsd:            market.borrowAssetsUsd,
+      utilizationRate:            market.utilizationRate,
+      assetPriceUsd:              market.assetPriceUsd,
+      collateralAssetsUsd:        market.collateralAssetsUsd,
+      priceCollateralInLoanAsset: market.priceCollateralInLoanAsset,
     },
     quality: doc.quality,
   }
@@ -205,25 +226,25 @@ function mapBorrowDaily(doc: BorrowApyDaily) {
 
 // ─── Query builders ───────────────────────────────────────────────────────────
 
-function buildSpotQuery(
-  kind:       'lend' | 'borrow',
-  filters:    SpotFilters & { collateral?: string }
-): Filter<ApySpot> {
+function buildHourlyQuery(
+  kind:    'lend' | 'borrow',
+  filters: HourlyFilters & { collateral?: string }
+): Filter<ApySlot> {
   const { protocol, market, chainId, asset, collateral } = filters
 
   if (protocol) validateProtocol(protocol)
   if (chainId)  validateChainId(chainId)
 
-  const query: Filter<ApySpot> = { 'meta.kind': kind }
-  if (protocol)   query['meta.protocol']    = protocol
-  if (chainId)    query['meta.chain.id']    = chainId
-  if (asset)      query['meta.asset.symbol']= asset.toUpperCase()
-  if (market)     query['meta.poolId']      = { $regex: market,     $options: 'i' }
-  if (collateral) query['meta.poolId']      = { $regex: collateral, $options: 'i' }
+  const query: Filter<ApySlot> = { 'meta.kind': kind }
+  if (protocol)   query['meta.protocol'] = protocol
+  if (chainId)    query['meta.chainId']  = chainId
+  if (asset)      query['meta.asset']    = asset.toUpperCase()
+  if (market)     query['meta.poolId']   = { $regex: market,     $options: 'i' }
+  if (collateral) query['meta.poolId']   = { $regex: collateral, $options: 'i' }
 
   const timeFilter = buildTimeFilter(undefined, filters.from, filters.to)
   if (Object.keys(timeFilter).length > 0) {
-    query.timestamp = timeFilter as Filter<ApySpot>['timestamp']
+    query.hour = timeFilter as Filter<ApySlot>['hour']
   }
 
   return query
@@ -239,11 +260,11 @@ function buildDailyQuery(
   if (chainId)  validateChainId(chainId)
 
   const query: Filter<ApyDaily> = { 'meta.kind': kind }
-  if (protocol)   query['meta.protocol']     = protocol
-  if (chainId)    query['meta.chain.id']     = chainId
-  if (asset)      query['meta.asset.symbol'] = asset.toUpperCase()
-  if (market)     query.poolId               = { $regex: market,     $options: 'i' }
-  if (collateral) query.poolId               = { $regex: collateral, $options: 'i' }
+  if (protocol)   query['meta.protocol'] = protocol
+  if (chainId)    query['meta.chainId']  = chainId
+  if (asset)      query['meta.asset']    = asset.toUpperCase()
+  if (market)     query['meta.poolId']   = { $regex: market,     $options: 'i' }
+  if (collateral) query['meta.poolId']   = { $regex: collateral, $options: 'i' }
 
   const effectiveRange = range ?? (!from ? '30d' : undefined)
   const timeFilter     = buildTimeFilter(effectiveRange, from, to)
@@ -260,15 +281,15 @@ export const resolvers = {
   DateTime,
 
   Query: {
-    async lendApySpot(_: unknown, args: { filters?: SpotFilters }) {
+    async lendApySpot(_: unknown, args: { filters?: HourlyFilters }) {
       const db    = await getDb()
-      const query = buildSpotQuery('lend', args.filters ?? {})
+      const query = buildHourlyQuery('lend', args.filters ?? {})
       const docs  = await db
-        .collection<ApySpot>(MONGODB_COLLECTION_SPOT)
+        .collection<ApySlot>(MONGODB_COLLECTION_HOURLY)
         .find(query)
-        .sort({ timestamp: 1 })
+        .sort({ hour: 1 })
         .toArray()
-      return docs.map((d) => mapLendSpot(d as LendApySpot))
+      return docs.map((d) => mapLendSlot(d as LendApySlot))
     },
 
     async lendApyDaily(_: unknown, args: { filters?: DailyFilters }) {
@@ -282,15 +303,15 @@ export const resolvers = {
       return docs.map((d) => mapLendDaily(d as LendApyDaily))
     },
 
-    async borrowApySpot(_: unknown, args: { filters?: BorrowSpotFilters }) {
+    async borrowApySpot(_: unknown, args: { filters?: BorrowHourlyFilters }) {
       const db    = await getDb()
-      const query = buildSpotQuery('borrow', args.filters ?? {})
+      const query = buildHourlyQuery('borrow', args.filters ?? {})
       const docs  = await db
-        .collection<ApySpot>(MONGODB_COLLECTION_SPOT)
+        .collection<ApySlot>(MONGODB_COLLECTION_HOURLY)
         .find(query)
-        .sort({ timestamp: 1 })
+        .sort({ hour: 1 })
         .toArray()
-      return docs.map((d) => mapBorrowSpot(d as BorrowApySpot))
+      return docs.map((d) => mapBorrowSlot(d as BorrowApySlot))
     },
 
     async borrowApyDaily(_: unknown, args: { filters?: BorrowDailyFilters }) {

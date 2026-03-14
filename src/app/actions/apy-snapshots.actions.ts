@@ -1,212 +1,266 @@
 'use server'
 
-import { ProtocolName } from '@/config/protocols'
-import { MONGODB_COLLECTION_SPOT, getDb } from '@/lib/db/mongodb'
-import type { ApySpot, BorrowApySpot, LendApySpot } from '@/lib/db/types'
-import { fetchAaveV3Apy } from '@/lib/protocols/aave'
-import { fetchCompoundV3Apy } from '@/lib/protocols/compound'
-import { fetchMorphoV1Apy } from '@/lib/protocols/morpho'
+import type { Collection } from 'mongodb'
 
-// ─── Write ────────────────────────────────────────────────────────────────────
-
-/**
- * Upsert APY spot documents into the Time Series collection.
- *
- * MongoDB Time Series does not support native upserts — idempotency is
- * achieved by checking existence on (meta.poolId, timestamp) before inserting.
- * Any number of QStash retries on the same slot produces exactly one document.
- */
-export async function writeApySpots(spots: ApySpot[]): Promise<void> {
-  if (spots.length === 0) return
-
-  const db = await getDb()
-  const collection = db.collection<ApySpot>(MONGODB_COLLECTION_SPOT)
-
-  // Deduplicate in memory first — in case the fetcher produced duplicates
-  const seen = new Set<string>()
-  const deduped: ApySpot[] = []
-
-  for (const spot of spots) {
-    const key = `${spot.meta.poolId}::${spot.timestamp.toISOString()}`
-    if (!seen.has(key)) {
-      seen.add(key)
-      deduped.push(spot)
-    }
-  }
-
-  // Check which (poolId, timestamp) pairs already exist in the collection
-  const keys = deduped.map((s) => ({
-    poolId: s.meta.poolId,
-    timestamp: s.timestamp,
-  }))
-
-  const existing = await collection
-    .find(
-      {
-        $or: keys.map((k) => ({
-          'meta.poolId': k.poolId,
-          timestamp: k.timestamp,
-        })),
-      },
-      { projection: { 'meta.poolId': 1, timestamp: 1 } }
-    )
-    .toArray()
-
-  const existingKeys = new Set(
-    existing.map((d) => `${d.meta.poolId}::${d.timestamp.toISOString()}`)
-  )
-
-  // Only insert documents that don't already exist for this slot
-  const toInsert = deduped.filter((s) => {
-    const key = `${s.meta.poolId}::${s.timestamp.toISOString()}`
-    return !existingKeys.has(key)
-  })
-
-  if (toInsert.length === 0) {
-    console.log(
-      `[db:spot] All ${deduped.length} slots already exist — skipping insert`
-    )
-    return
-  }
-
-  try {
-    await collection.insertMany(
-      toInsert as Parameters<typeof collection.insertMany>[0],
-      { ordered: false }
-    )
-    console.log(
-      `[db:spot] Inserted ${toInsert.length} new spots` +
-        (deduped.length - toInsert.length > 0
-          ? ` (${deduped.length - toInsert.length} already existed)`
-          : '')
-    )
-  } catch (error) {
-    console.error('[db:spot] Failed to write spots:', error)
-    throw error
-  }
-}
-
-// ─── Result type ──────────────────────────────────────────────────────────────
-
-export type CollectApySpotResult = {
-  success: boolean
-  counts: Partial<Record<ProtocolName, number>> & { total: number }
-  errors: string[]
-  durationMs: number
-}
+import type { ProtocolName } from '@/config/protocols'
+import { getDb, MONGODB_COLLECTION_HOURLY } from '@/lib/db/mongodb'
+import type {
+  ApySlot,
+  SpotPayload,
+  LendMarketState,
+  BorrowMarketState,
+} from '@/lib/db/types'
+import { fetchAaveV3ApySpot } from '@/lib/protocols/aave'
+import { fetchMorphoV1ApySpot } from '@/lib/protocols/morpho'
 
 // ─── Protocol tasks ───────────────────────────────────────────────────────────
 
 const PROTOCOL_TASKS: Partial<
-  Record<ProtocolName, () => Promise<(LendApySpot | BorrowApySpot)[]>>
+  Record<ProtocolName, () => Promise<SpotPayload[]>>
 > = {
-  aave_v3: fetchAaveV3Apy,
-  morpho_v1: fetchMorphoV1Apy,
-  compound_v3: fetchCompoundV3Apy,
+  aave_v3:   fetchAaveV3ApySpot,
+  morpho_v1: fetchMorphoV1ApySpot,
+}
+
+// ─── Hour normalization ───────────────────────────────────────────────────────
+
+/**
+ * Normalize a timestamp to the top of the current hour (UTC).
+ * 11:17:42Z → 11:00:00.000Z
+ */
+function normalizeHourTimestamp(date: Date): Date {
+  const d = new Date(date)
+  d.setUTCMinutes(0, 0, 0)
+  return d
+}
+
+// ─── Rolling average helpers ──────────────────────────────────────────────────
+
+/**
+ * Incremental rolling average formula.
+ * new_avg = (prev_avg * count + new_value) / (count + 1)
+ *
+ * Used in MongoDB aggregation pipeline update — reproduced here for clarity.
+ */
+function rollingAvg(prevAvg: number, count: number, newValue: number): number {
+  return (prevAvg * count + newValue) / (count + 1)
+}
+
+
+// ─── MongoDB aggregation pipeline upsert ─────────────────────────────────────
+
+/**
+ * Upsert a single pool's hourly document using a MongoDB aggregation pipeline.
+ *
+ * On INSERT  → sets all fields from the first slot.
+ * On UPDATE  → increments rolling averages for all numeric fields atomically.
+ *              rewardItems is replaced with the latest snapshot.
+ *
+ * Atomic — no read-before-write race condition.
+ */
+async function upsertHourly(
+  collection: Collection<ApySlot>,
+  payload:    SpotPayload,
+  hour:       Date,
+  slotTime:   Date
+): Promise<void> {
+  const { poolId, kind, protocol, chainId, asset, apy, market } = payload
+
+  const isLend   = kind === 'lend'
+  const lendMkt  = market as LendMarketState
+  const borrowMkt= market as BorrowMarketState
+
+  // ─── Build market $set fields ─────────────────────────────────────────────
+  // Uses MongoDB aggregation expressions — evaluated server-side atomically.
+
+  const marketAvgFields = isLend
+    ? {
+        'market.supplyAssets':    { $divide: [{ $add: [{ $multiply: [{ $ifNull: ['$market.supplyAssets',    lendMkt.supplyAssets]    }, { $ifNull: ['$quality.count', 0] }] }, lendMkt.supplyAssets]    }, { $add: [{ $ifNull: ['$quality.count', 0] }, 1] }] },
+        'market.supplyAssetsUsd': { $divide: [{ $add: [{ $multiply: [{ $ifNull: ['$market.supplyAssetsUsd', lendMkt.supplyAssetsUsd] }, { $ifNull: ['$quality.count', 0] }] }, lendMkt.supplyAssetsUsd] }, { $add: [{ $ifNull: ['$quality.count', 0] }, 1] }] },
+        'market.utilizationRate': { $divide: [{ $add: [{ $multiply: [{ $ifNull: ['$market.utilizationRate', lendMkt.utilizationRate] }, { $ifNull: ['$quality.count', 0] }] }, lendMkt.utilizationRate] }, { $add: [{ $ifNull: ['$quality.count', 0] }, 1] }] },
+        'market.assetPriceUsd':   { $divide: [{ $add: [{ $multiply: [{ $ifNull: ['$market.assetPriceUsd',   lendMkt.assetPriceUsd]   }, { $ifNull: ['$quality.count', 0] }] }, lendMkt.assetPriceUsd]   }, { $add: [{ $ifNull: ['$quality.count', 0] }, 1] }] },
+      }
+    : {
+        'market.supplyAssets':    { $divide: [{ $add: [{ $multiply: [{ $ifNull: ['$market.supplyAssets',    borrowMkt.supplyAssets]    }, { $ifNull: ['$quality.count', 0] }] }, borrowMkt.supplyAssets]    }, { $add: [{ $ifNull: ['$quality.count', 0] }, 1] }] },
+        'market.supplyAssetsUsd': { $divide: [{ $add: [{ $multiply: [{ $ifNull: ['$market.supplyAssetsUsd', borrowMkt.supplyAssetsUsd] }, { $ifNull: ['$quality.count', 0] }] }, borrowMkt.supplyAssetsUsd] }, { $add: [{ $ifNull: ['$quality.count', 0] }, 1] }] },
+        'market.borrowAssets':    { $divide: [{ $add: [{ $multiply: [{ $ifNull: ['$market.borrowAssets',    borrowMkt.borrowAssets]    }, { $ifNull: ['$quality.count', 0] }] }, borrowMkt.borrowAssets]    }, { $add: [{ $ifNull: ['$quality.count', 0] }, 1] }] },
+        'market.borrowAssetsUsd': { $divide: [{ $add: [{ $multiply: [{ $ifNull: ['$market.borrowAssetsUsd', borrowMkt.borrowAssetsUsd] }, { $ifNull: ['$quality.count', 0] }] }, borrowMkt.borrowAssetsUsd] }, { $add: [{ $ifNull: ['$quality.count', 0] }, 1] }] },
+        'market.utilizationRate': { $divide: [{ $add: [{ $multiply: [{ $ifNull: ['$market.utilizationRate', borrowMkt.utilizationRate] }, { $ifNull: ['$quality.count', 0] }] }, borrowMkt.utilizationRate] }, { $add: [{ $ifNull: ['$quality.count', 0] }, 1] }] },
+        'market.assetPriceUsd':   { $divide: [{ $add: [{ $multiply: [{ $ifNull: ['$market.assetPriceUsd',   borrowMkt.assetPriceUsd]   }, { $ifNull: ['$quality.count', 0] }] }, borrowMkt.assetPriceUsd]   }, { $add: [{ $ifNull: ['$quality.count', 0] }, 1] }] },
+        // Nullable fields — only average when both prev and new are non-null
+        'market.collateralAssetsUsd': borrowMkt.collateralAssetsUsd != null
+          ? { $cond: {
+              if:   { $ne: [{ $ifNull: ['$market.collateralAssetsUsd', null] }, null] },
+              then: { $divide: [{ $add: [{ $multiply: ['$market.collateralAssetsUsd', { $ifNull: ['$quality.count', 0] }] }, borrowMkt.collateralAssetsUsd] }, { $add: [{ $ifNull: ['$quality.count', 0] }, 1] }] },
+              else: borrowMkt.collateralAssetsUsd,
+            }}
+          : null,
+        'market.priceCollateralInLoanAsset': borrowMkt.priceCollateralInLoanAsset != null
+          ? { $cond: {
+              if:   { $ne: [{ $ifNull: ['$market.priceCollateralInLoanAsset', null] }, null] },
+              then: { $divide: [{ $add: [{ $multiply: ['$market.priceCollateralInLoanAsset', { $ifNull: ['$quality.count', 0] }] }, borrowMkt.priceCollateralInLoanAsset] }, { $add: [{ $ifNull: ['$quality.count', 0] }, 1] }] },
+              else: borrowMkt.priceCollateralInLoanAsset,
+            }}
+          : null,
+      }
+
+  const newCount = { $add: [{ $ifNull: ['$quality.count', 0] }, 1] }
+
+  await collection.updateOne(
+    { 'meta.poolId': poolId, hour },
+    [
+      {
+        $set: {
+          // Meta — set once, never changes within an hour
+          hour,
+          meta: {
+            $ifNull: [
+              '$meta',
+              { poolId, kind, protocol, chainId, asset },
+            ],
+          },
+
+          // APY rolling averages
+          'apy.base':    { $divide: [{ $add: [{ $multiply: [{ $ifNull: ['$apy.base',    apy.base]    }, { $ifNull: ['$quality.count', 0] }] }, apy.base]    }, newCount] },
+          'apy.rewards': { $divide: [{ $add: [{ $multiply: [{ $ifNull: ['$apy.rewards', apy.rewards] }, { $ifNull: ['$quality.count', 0] }] }, apy.rewards] }, newCount] },
+          'apy.fees':    { $divide: [{ $add: [{ $multiply: [{ $ifNull: ['$apy.fees',    apy.fees]    }, { $ifNull: ['$quality.count', 0] }] }, apy.fees]    }, newCount] },
+          'apy.net':     { $divide: [{ $add: [{ $multiply: [{ $ifNull: ['$apy.net',     apy.net]     }, { $ifNull: ['$quality.count', 0] }] }, apy.net]     }, newCount] },
+          // rewardItems — always replace with latest snapshot
+          'apy.rewardItems': apy.rewardItems,
+
+          // Market rolling averages
+          ...marketAvgFields,
+
+          // Quality
+          'quality.count':         newCount,
+          'quality.expectedCount': 6,
+          'quality.firstSlot':     { $ifNull: ['$quality.firstSlot', slotTime] },
+          'quality.lastSlot':      slotTime,
+          'quality.status':        {
+            $switch: {
+              branches: [
+                { case: { $gte: [newCount, 6] }, then: 'complete' },
+                { case: { $lt:  [newCount, 6] }, then: 'building' },
+              ],
+              default: 'partial',
+            },
+          },
+        },
+      },
+    ],
+    { upsert: true }
+  )
+}
+
+// ─── Write hourly docs ────────────────────────────────────────────────────────
+
+async function writeApySlot(payloads: SpotPayload[], slotTime: Date): Promise<number> {
+  if (payloads.length === 0) return 0
+
+  const db         = await getDb()
+  const collection = db.collection<ApySlot>(MONGODB_COLLECTION_HOURLY)
+  const hour       = normalizeHourTimestamp(slotTime)
+
+  const results = await Promise.allSettled(
+    payloads.map((p) => upsertHourly(collection, p, hour, slotTime))
+  )
+
+  const errors = results.filter((r) => r.status === 'rejected')
+  if (errors.length > 0) {
+    errors.forEach((e) => {
+      const msg = (e as PromiseRejectedResult).reason?.message ?? String((e as PromiseRejectedResult).reason)
+      console.error('[db:hourly] Upsert error:', msg)
+    })
+  }
+
+  const written = results.filter((r) => r.status === 'fulfilled').length
+  console.log(`[db:hourly] Upserted ${written}/${payloads.length} hourly docs for hour ${hour.toISOString()}`)
+  return written
+}
+
+// ─── Result type ──────────────────────────────────────────────────────────────
+
+export type CollectApyResult = {
+  success:    boolean
+  counts:     Partial<Record<ProtocolName, number>> & { total: number }
+  errors:     string[]
+  durationMs: number
 }
 
 // ─── Orchestrator ─────────────────────────────────────────────────────────────
 
 /**
- * Orchestrates APY spot collection across all protocols (or a single one).
- * Fetchers run in parallel. Results are written to apy.spot with slot-based
- * deduplication — safe to retry any number of times via QStash.
+ * Collect APY snapshots from all protocols (or a single one) and upsert
+ * rolling averages into apy.hourly.
  *
- * Each fetcher now returns ApySpot documents directly —
- * no intermediate format or transform step.
+ * Called every 10 minutes by QStash.
+ * Each call contributes one slot to the current hour's rolling average.
  *
- * @param protocol - Optional protocol ID to run a single fetcher.
- *                   If omitted, all fetchers run in parallel.
+ * @param protocol - Optional — run a single protocol fetcher only.
  */
 export async function collectApySpot(
   protocol?: ProtocolName
-): Promise<CollectApySpotResult> {
-  const start = Date.now()
+): Promise<CollectApyResult> {
+  const start   = Date.now()
+  const slotTime = new Date()
   const errors: string[] = []
 
-  // Build task list
-  const tasks: [
-    ProtocolName,
-    () => Promise<(LendApySpot | BorrowApySpot)[]>,
-  ][] = protocol
-    ? PROTOCOL_TASKS[protocol]
-      ? [[protocol, PROTOCOL_TASKS[protocol]!]]
-      : []
-    : (Object.entries(PROTOCOL_TASKS) as [
-        ProtocolName,
-        () => Promise<(LendApySpot | BorrowApySpot)[]>,
-      ][])
+  const tasks: [ProtocolName, () => Promise<SpotPayload[]>][] =
+    protocol
+      ? PROTOCOL_TASKS[protocol]
+        ? [[protocol, PROTOCOL_TASKS[protocol]!]]
+        : []
+      : (Object.entries(PROTOCOL_TASKS) as [ProtocolName, () => Promise<SpotPayload[]>][])
 
   if (tasks.length === 0) {
     return {
-      success: false,
-      counts: { total: 0 },
-      errors: [`Unknown protocol: ${protocol}`],
+      success:    false,
+      counts:     { total: 0 },
+      errors:     [`Unknown protocol: ${protocol}`],
       durationMs: 0,
     }
   }
 
-  // Run all fetchers in parallel
-  const results = await Promise.allSettled(tasks.map(([, fetch]) => fetch()))
+  const results = await Promise.allSettled(
+    tasks.map(([, fetch]) => fetch())
+  )
 
-  const allSpots: ApySpot[] = []
-  const protoCount: Partial<Record<ProtocolName, number>> = {}
+  const allPayloads:  SpotPayload[] = []
+  const protoCounts: Partial<Record<ProtocolName, number>> = {}
 
   for (let i = 0; i < results.length; i++) {
-    const result = results[i]
+    const result  = results[i]
     const protoId = tasks[i][0]
 
     if (result.status === 'fulfilled') {
-      const spots = result.value
-      // Each fetcher returns lend + borrow pairs — divide by 2 for market count
-      protoCount[protoId] = spots.length
-      allSpots.push(...spots)
+      protoCounts[protoId] = result.value.length
+      allPayloads.push(...result.value)
+      console.log(`[cron:${protoId}] Fetched ${result.value.length} spot payloads`)
     } else {
-      const msg =
-        result.reason instanceof Error
-          ? result.reason.message
-          : String(result.reason)
-      errors.push(`[${protoId}] fetch error: ${msg}`)
+      const msg = result.reason instanceof Error
+        ? result.reason.message
+        : String(result.reason)
+      errors.push(`[${protoId}] ${msg}`)
       console.error(`[cron:collect-apy] ${protoId} failed:`, msg)
     }
   }
 
-  // Write to MongoDB
-  if (allSpots.length > 0) {
-    try {
-      await writeApySpots(allSpots)
-
-      const lendCount = allSpots.filter((s) => s.meta.kind === 'lend').length
-      const borrowCount = allSpots.filter(
-        (s) => s.meta.kind === 'borrow'
-      ).length
-      console.log(
-        `[cron:collect-apy] Wrote ${allSpots.length} docs` +
-          ` (${lendCount} lend, ${borrowCount} borrow)` +
-          ` → ${MONGODB_COLLECTION_SPOT}` +
-          (protocol ? ` for protocol ${protocol}` : '')
-      )
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err)
-      errors.push(`mongodb write: ${msg}`)
-      console.error('[cron:collect-apy] Failed to write to MongoDB:', msg)
-      throw err
-    }
+  if (allPayloads.length > 0) {
+    await writeApySlot(allPayloads, slotTime)
   }
 
   const durationMs = Date.now() - start
-
-  const countSummary = Object.entries(protoCount)
-    .map(([k, v]) => `${k}:${v}`)
-    .join(' ')
+  const totalCount = allPayloads.length
 
   console.log(
-    `[cron:collect-apy] Completed in ${durationMs}ms — ${countSummary} total:${allSpots.length}`
+    `[cron:collect-apy] Completed in ${durationMs}ms —` +
+    ` ${Object.entries(protoCounts).map(([k, v]) => `${k}:${v}`).join(' ')}` +
+    ` total:${totalCount}`
   )
 
   return {
-    success: errors.length === 0,
-    counts: { ...protoCount, total: allSpots.length },
+    success:    errors.length === 0,
+    counts:     { ...protoCounts, total: totalCount },
     errors,
     durationMs,
   }
