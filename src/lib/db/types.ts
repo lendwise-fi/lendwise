@@ -316,13 +316,7 @@ export type SpotPayload = {
   chainId:  number
   /** Loan asset symbol — "USDC", "WETH". */
   asset:    string
-  apy: {
-    base:        number
-    rewards:     number
-    fees:        number
-    net:         number
-    rewardItems: RewardItem[]
-  }
+  apy: ApyBreakdown
   market: LendMarketState | BorrowMarketState
 }
 
