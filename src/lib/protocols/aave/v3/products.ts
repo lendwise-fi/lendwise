@@ -86,6 +86,8 @@ export async function fetchAaveV3Products(
         protocol: {
           provider: 'aave',
           type: 'reserve',
+          version: 'v3',
+          subgraphUrl: config.offchainApiUrl!,
           name: reserve.market.name,
           chain: {
             id: reserve.market.chain.chainId,
@@ -102,7 +104,6 @@ export async function fetchAaveV3Products(
           },
         },
         asset,
-        subgraphUrl: config.offchainApiUrl!,
         active: true,
         createdAt: now,
         updatedAt: now,
@@ -119,6 +120,8 @@ export async function fetchAaveV3Products(
           protocol: {
             provider: 'aave',
             type: 'reserve',
+            version: 'v3',
+            subgraphUrl: config.offchainApiUrl!,
             name: reserve.market.name,
             chain: {
               id: reserve.market.chain.chainId,
@@ -144,7 +147,6 @@ export async function fetchAaveV3Products(
           },
           asset,
           collaterals: marketCollaterals,
-          subgraphUrl: config.offchainApiUrl!,
           active: true,
           createdAt: now,
           updatedAt: now,

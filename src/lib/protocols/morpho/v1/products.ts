@@ -99,7 +99,9 @@ export async function fetchMorphoV1Products(
         protocol: {
           provider: 'morpho',
           type: 'market',
+          version: 'v1',
           name: borrowId.split(':')[0],
+          subgraphUrl: config.offchainApiUrl!,
           chain,
           address: market.morphoBlue.address,
           meta: {
@@ -121,7 +123,6 @@ export async function fetchMorphoV1Products(
               },
             ]
           : [],
-        subgraphUrl: config.offchainApiUrl!,
         active: true,
         createdAt: now,
         updatedAt: now,
@@ -186,8 +187,10 @@ export async function fetchMorphoV1Products(
         kind: 'supply',
         protocol: {
           provider: 'morpho',
+          version: 'v1',
           type: 'vault',
           name: `MorphoBlueV1${vault.asset.chain.network.replace(' ', '')}`,
+          subgraphUrl: config.offchainApiUrl!,
           chain,
           address: vault.address,
           meta: {
@@ -199,7 +202,6 @@ export async function fetchMorphoV1Products(
           },
         },
         asset,
-        subgraphUrl: config.offchainApiUrl!,
         active: true,
         createdAt: now,
         updatedAt: now,

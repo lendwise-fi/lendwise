@@ -91,7 +91,9 @@ export async function fetchCompoundV3Products(
         protocol: {
           provider: 'compound',
           type: 'market',
+          version: 'v3',
           name,
+          subgraphUrl: chainConfig.custom.subgraphUrl!,
           chain,
           address: market.id,
           meta: {
@@ -100,7 +102,6 @@ export async function fetchCompoundV3Products(
           },
         },
         asset,
-        subgraphUrl: chainConfig.custom.subgraphUrl!,
         active: true,
         createdAt: now,
         updatedAt: now,
@@ -115,7 +116,9 @@ export async function fetchCompoundV3Products(
         protocol: {
           provider: 'compound',
           type: 'market',
+          version: 'v3',
           name,
+          subgraphUrl: chainConfig.custom.subgraphUrl!,
           chain,
           address: market.id,
           meta: {
@@ -133,7 +136,6 @@ export async function fetchCompoundV3Products(
           lltv: Number(r.liquidateCollateralFactor),
           canBeCollateral: true,
         })),
-        subgraphUrl: chainConfig.custom.subgraphUrl!,
         active: true,
         createdAt: now,
         updatedAt: now,

@@ -136,11 +136,13 @@ export interface BaseProduct {
     /** Normalized provider identifier for filtering — "aave" | "morpho" | "compound" */
     provider: ProviderId
     type: ProductType
+    version: string
     /**
      * Native market/deployment name, verbatim from the protocol subgraph.
      * Examples: "AaveV3Ethereum", "AaveV3EthereumLido", "MorphoBlueEthereum"
      */
     name: string
+    subgraphUrl: string
     chain: Chain
     /** Protocol contract address — supplying pool / market factory. */
     address: string
@@ -157,7 +159,6 @@ export interface BaseProduct {
       | ProtocolMetaCompoundBorrow
   }
   asset: Asset
-  subgraphUrl: string
   active: boolean
   createdAt: Date
   updatedAt: Date
