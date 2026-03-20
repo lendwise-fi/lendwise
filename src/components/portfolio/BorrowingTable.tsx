@@ -51,10 +51,12 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Separator } from '@/components/ui/separator'
+import { WalletAvatar } from '@/components/wallet/WalletAvatar'
 import { getProtocolVersionNameById } from '@/config'
 import { useCurrency } from '@/contexts'
 import { useIsMobile } from '@/hooks/useMobile'
 import { formatCompactCurrency } from '@/lib/format-currency'
+import { formatAddress } from '@/lib/utils'
 import { TIMEFRAME_OPTIONS, TimeframeLabel } from '@/types'
 import { BorrowPosition, MarketRate } from '@/types'
 
@@ -65,7 +67,7 @@ import { LiquidationRiskBar } from '../borrowing/LiquidationRiskBar'
 
 const createColumns = (
   currency: string,
-  rate: number,
+  _rate: number,
   _isMobile: boolean
 ): ColumnDef<BorrowPosition>[] => [
   {
@@ -78,7 +80,7 @@ const createColumns = (
   },
   {
     accessorKey: 'network',
-    header: 'Chain',
+    header: 'Network',
     cell: ({ row }) => <NetworkBadge networkSlug={row.original.network} />,
     meta: {
       isMobileHidden: true,
@@ -116,10 +118,7 @@ const createColumns = (
           )}
         </span>
         <span className="text-muted-foreground text-xs">
-          {formatCompactCurrency(
-            row.original.loanAssetAmountUsd * rate,
-            currency
-          )}
+          {formatCompactCurrency(row.original.loanLiveAssetAmountUsd, currency)}
         </span>
       </div>
     ),
@@ -135,7 +134,7 @@ const createColumns = (
       if (!collaterals.length) return '-'
 
       const totalCollateralUsd = collaterals.reduce(
-        (acc, collateral) => acc + collateral.amountUSD,
+        (acc, collateral) => acc + collateral.amountUsd,
         0
       )
 
@@ -189,7 +188,7 @@ const createColumns = (
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
-                    {collateral.amountUSD === 0 && (
+                    {collateral.amountUsd === 0 && (
                       <Badge
                         variant="secondary"
                         className="px-1.5 py-0 text-[10px] uppercase"
@@ -198,7 +197,7 @@ const createColumns = (
                       </Badge>
                     )}
                     <span className="text-xs">
-                      {formatCompactCurrency(collateral.amountUSD, currency)}
+                      {formatCompactCurrency(collateral.amountUsd, currency)}
                     </span>
                   </div>
                 </div>
@@ -643,7 +642,7 @@ export function BorrowingTable({ data }: { data: BorrowPosition[] }) {
                 },
                 {
                   column: 'network',
-                  title: 'Chain',
+                  title: 'Network',
                   options: uniqueChains.map((network) => ({
                     label: network,
                     value: network,
@@ -654,6 +653,21 @@ export function BorrowingTable({ data }: { data: BorrowPosition[] }) {
                       />
                     ),
                   })),
+                },
+                {
+                  column: 'userAddress',
+                  title: 'Address',
+                  options: getUniqueColumnValues(data, 'userAddress').map(
+                    (value) => ({
+                      value: value as string,
+                      label: (
+                        <div className="flex items-center gap-2">
+                          <WalletAvatar address={value as string} size={20} />
+                          {formatAddress(value as string)}
+                        </div>
+                      ),
+                    })
+                  ),
                 },
               ]),
         ]}

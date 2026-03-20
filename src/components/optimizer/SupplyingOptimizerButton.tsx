@@ -6,7 +6,7 @@ import { useForm } from '@tanstack/react-form'
 import { DollarSign, Loader2, Percent, Sparkles } from 'lucide-react'
 import { Pie, PieChart, Label as RechartsLabel } from 'recharts'
 
-import { HORIZON_CONFIG } from '@/components/markets/LendingTableClient'
+import { HORIZON_CONFIG } from '@/components/markets/SupplyingTableClient'
 import { Button } from '@/components/ui/button'
 import {
   type ChartConfig,
@@ -31,7 +31,7 @@ import {
   optimizeVaults,
 } from '@/lib/api/optimizer'
 import { formatCompactCurrency } from '@/lib/format-currency'
-import type { LendMarket } from '@/types'
+import type { SupplyMarket } from '@/types'
 
 const DIVERSIFICATION_OPTIONS = [
   { label: 'High', value: DIVERSIFICATION_LEVELS.HIGH },
@@ -55,20 +55,20 @@ function getDiversificationLabel(value: number): string {
 type DisplayMode = 'percent' | 'value'
 
 interface OptimizationResult {
-  vault: LendMarket
+  vault: SupplyMarket
   allocation: number
   allocationPercent: number
 }
 
-interface LendingOptimizerViewProps {
-  markets: LendMarket[]
+interface SupplyingOptimizerViewProps {
+  markets: SupplyMarket[]
   onBack?: () => void
 }
 
-export function LendingOptimizerView({
+export function SupplyingOptimizerView({
   markets,
   onBack,
-}: LendingOptimizerViewProps) {
+}: SupplyingOptimizerViewProps) {
   const [results, setResults] = useState<OptimizationResult[] | null>(null)
   const [isOptimizing, setIsOptimizing] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -98,7 +98,7 @@ export function LendingOptimizerView({
         const horizonEntry = Object.values(HORIZON_CONFIG).find(
           (h) => h.apyKey === value.horizon
         )
-        const apyKey = (horizonEntry?.apyKey ?? 'apy') as keyof LendMarket
+        const apyKey = (horizonEntry?.apyKey ?? 'apy') as keyof SupplyMarket
 
         // Extract APYs per selected market for the chosen horizon
         const apys = markets.map((m) => {

@@ -37,12 +37,14 @@ export default function DashboardPage() {
       (sum, pos) => sum + (pos.usd_value || 0),
       0
     )
-    const lendPositions = positions.filter((p) => p.position_type === 'lending')
+    const supplyPositions = positions.filter(
+      (p) => p.position_type === 'supplying'
+    )
     const borrowPositions = positions.filter(
       (p) => p.position_type === 'borrowing'
     )
 
-    const totalLending = lendPositions.reduce(
+    const totalSupplying = supplyPositions.reduce(
       (sum, pos) => sum + (pos.usd_value || 0),
       0
     )
@@ -52,9 +54,9 @@ export default function DashboardPage() {
     )
 
     const avgYield =
-      lendPositions.length > 0
-        ? lendPositions.reduce((sum, pos) => sum + (pos.apy || 0), 0) /
-          lendPositions.length
+      supplyPositions.length > 0
+        ? supplyPositions.reduce((sum, pos) => sum + (pos.apy || 0), 0) /
+          supplyPositions.length
         : 0
 
     const avgHealthFactor =
@@ -67,11 +69,11 @@ export default function DashboardPage() {
 
     return {
       totalValue,
-      totalLending,
+      totalSupplying,
       totalBorrowing,
       avgYield,
       avgHealthFactor,
-      netPosition: totalLending - totalBorrowing,
+      netPosition: totalSupplying - totalBorrowing,
     }
   }
 
@@ -98,7 +100,7 @@ export default function DashboardPage() {
             DeFi Portfolio Overview
           </h1>
           <p className="text-muted-foreground">
-            Monitor your lending, borrowing, and yield optimization strategies
+            Monitor your supplying, borrowing, and yield optimization strategies
           </p>
         </div>
       </div>
@@ -120,7 +122,7 @@ export default function DashboardPage() {
           change="+0.8% vs last week"
           changeType="positive"
           icon={TrendingUp}
-          subtitle="APY on lending positions"
+          subtitle="APY on supplying positions"
           badge={{
             text: 'Optimized',
             className: 'bg-green-500/20 text-green-400 border-green-500/30',
@@ -146,10 +148,10 @@ export default function DashboardPage() {
         <MetricCard
           title="Net Position"
           value={`$${Math.abs(metrics.netPosition).toLocaleString()}`}
-          change={metrics.netPosition >= 0 ? 'Net Lender' : 'Net Borrower'}
+          change={metrics.netPosition >= 0 ? 'Net Supplyer' : 'Net Borrower'}
           changeType={metrics.netPosition >= 0 ? 'positive' : 'negative'}
           icon={DollarSign}
-          subtitle="Lending minus borrowing"
+          subtitle="Supplying minus borrowing"
         />
       </div>
 

@@ -10,22 +10,15 @@
  *   npx tsx scripts/db-init.ts
  *   bun run scripts/db-init.ts
  */
-
 import { Db, MongoClient } from 'mongodb'
 
 import {
-  MONGODB_COLLECTION_HOURLY,
   MONGODB_COLLECTION_DAILY,
-  MONGODB_COLLECTION_POOLS,
+  MONGODB_COLLECTION_HOURLY,
+  MONGODB_COLLECTION_PRODUCTS,
+  MONGODB_DB_NAME,
+  MONGODB_URI,
 } from '@/lib/db/mongodb'
-
-// ─── Config ───────────────────────────────────────────────────────────────────
-
-const MONGODB_URI = process.env.MONGODB_URI
-const MONGODB_DB_NAME  = process.env.MONGODB_DB_NAME
-
-if (!MONGODB_URI) throw new Error('Missing env: MONGODB_URI')
-if (!MONGODB_DB_NAME)  throw new Error('Missing env: MONGODB_DB_NAME')
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -47,7 +40,9 @@ async function collectionExists(db: Db, name: string): Promise<boolean> {
  */
 async function createHourlyCollection(db: Db): Promise<void> {
   if (await collectionExists(db, MONGODB_COLLECTION_HOURLY)) {
-    console.log(`  ⚠️  ${MONGODB_COLLECTION_HOURLY} already exists — skipping creation`)
+    console.log(
+      `  ⚠️  ${MONGODB_COLLECTION_HOURLY} already exists — skipping creation`
+    )
   } else {
     await db.createCollection(MONGODB_COLLECTION_HOURLY)
     console.log(`  ✅ Created collection: ${MONGODB_COLLECTION_HOURLY}`)
@@ -55,13 +50,13 @@ async function createHourlyCollection(db: Db): Promise<void> {
 
   const col = db.collection(MONGODB_COLLECTION_HOURLY)
 
-  // Primary upsert key — unique constraint enforces one doc per (poolId, hour)
+  // Primary upsert key — unique constraint enforces one doc per (productId, hour)
   await col.createIndex(
-    { 'meta.poolId': 1, hour: -1 },
-    { unique: true, name: 'hourly_poolId_hour' }
+    { 'meta.productId': 1, hour: -1 },
+    { unique: true, name: 'hourly_productId_hour' }
   )
 
-  // Cross-pool query — "all lend USDC pools on Ethereum over last 7 days"
+  // Cross-products query — "all supply USDC products on Ethereum over last 7 days"
   await col.createIndex(
     { 'meta.asset': 1, 'meta.kind': 1, 'meta.chainId': 1, hour: -1 },
     { name: 'hourly_asset_kind_chain_hour' }
@@ -89,7 +84,9 @@ async function createHourlyCollection(db: Db): Promise<void> {
  */
 async function createDailyCollection(db: Db): Promise<void> {
   if (await collectionExists(db, MONGODB_COLLECTION_DAILY)) {
-    console.log(`  ⚠️  ${MONGODB_COLLECTION_DAILY} already exists — skipping creation`)
+    console.log(
+      `  ⚠️  ${MONGODB_COLLECTION_DAILY} already exists — skipping creation`
+    )
   } else {
     await db.createCollection(MONGODB_COLLECTION_DAILY)
     console.log(`  ✅ Created collection: ${MONGODB_COLLECTION_DAILY}`)
@@ -97,21 +94,21 @@ async function createDailyCollection(db: Db): Promise<void> {
 
   const col = db.collection(MONGODB_COLLECTION_DAILY)
 
-  // Primary upsert key — unique constraint enforces one doc per (poolId, date)
+  // Primary upsert key — unique constraint enforces one doc per (productId, date)
   await col.createIndex(
-    { poolId: 1, date: -1 },
-    { unique: true, name: 'daily_poolId_date' }
+    { 'meta.productId': 1, date: -1 },
+    { unique: true, name: 'daily_productId_date' }
   )
 
-  // UI query — "all lend USDC pools on Ethereum over last 90 days"
+  // UI query — "all supply USDC products on Ethereum over last 90 days"
   await col.createIndex(
-    { 'meta.asset.symbol': 1, 'meta.kind': 1, 'meta.chain.id': 1, date: -1 },
+    { 'meta.asset': 1, 'meta.kind': 1, 'meta.chainId': 1, date: -1 },
     { name: 'daily_asset_kind_chain_date' }
   )
 
   // Optimization engine — cross-protocol comparison for a given asset
   await col.createIndex(
-    { 'meta.protocol': 1, 'meta.asset.symbol': 1, date: -1 },
+    { 'meta.protocol': 1, 'meta.asset': 1, date: -1 },
     { name: 'daily_protocol_asset_date' }
   )
 
@@ -125,40 +122,41 @@ async function createDailyCollection(db: Db): Promise<void> {
 }
 
 /**
- * pools — Static registry of all lend/borrow pools.
+ * products — Static registry of all supply/borrow products.
  *
  * Classic collection. _id is the deterministic slug.
  */
-async function createPoolsCollection(db: Db): Promise<void> {
-  if (await collectionExists(db, MONGODB_COLLECTION_POOLS)) {
-    console.log(`  ⚠️  ${MONGODB_COLLECTION_POOLS} already exists — skipping creation`)
+async function createProductsCollection(db: Db): Promise<void> {
+  if (await collectionExists(db, MONGODB_COLLECTION_PRODUCTS)) {
+    console.log(
+      `  ⚠️  ${MONGODB_COLLECTION_PRODUCTS} already exists — skipping creation`
+    )
   } else {
-    await db.createCollection(MONGODB_COLLECTION_POOLS)
-    console.log(`  ✅ Created collection: ${MONGODB_COLLECTION_POOLS}`)
+    await db.createCollection(MONGODB_COLLECTION_PRODUCTS)
+    console.log(`  ✅ Created collection: ${MONGODB_COLLECTION_PRODUCTS}`)
   }
 
-  const col = db.collection(MONGODB_COLLECTION_POOLS)
+  const col = db.collection(MONGODB_COLLECTION_PRODUCTS)
 
-  // Protocol + asset + kind lookup — primary filter in UI
+  // Provider + asset + kind lookup — primary filter in UI
+  await col.createIndex(
+    { 'protocol.provider': 1, 'asset.symbol': 1, kind: 1 },
+    { name: 'products_provider_asset_kind' }
+  )
+
+  // Protocol name + asset + kind — supports deployment-level filtering (e.g. AaveV3Ethereum)
   await col.createIndex(
     { 'protocol.name': 1, 'asset.symbol': 1, kind: 1 },
-    { name: 'pools_protocol_asset_kind' }
+    { name: 'products_name_asset_kind' }
   )
 
-  // Native ID uniqueness — prevents duplicate pools from the same protocol
-  // kind is required — lend and borrow share the same native.id on AAVE
-  await col.createIndex(
-    { 'native.id': 1, 'protocol.name': 1, kind: 1 },
-    { unique: true, name: 'pools_native_id_protocol' }
-  )
-
-  // Active pool filter by chain
+  // Active product filter by chain
   await col.createIndex(
     { active: 1, 'protocol.chain.id': 1 },
-    { name: 'pools_active_chain' }
+    { name: 'products_active_chain' }
   )
 
-  console.log(`  ✅ Indexes created on: ${MONGODB_COLLECTION_POOLS}`)
+  console.log(`  ✅ Indexes created on: ${MONGODB_COLLECTION_PRODUCTS}`)
 }
 
 // ─── Main ─────────────────────────────────────────────────────────────────────
@@ -180,8 +178,8 @@ async function main(): Promise<void> {
     console.log(`\n📦 ${MONGODB_COLLECTION_DAILY}`)
     await createDailyCollection(db)
 
-    console.log(`\n📦 ${MONGODB_COLLECTION_POOLS}`)
-    await createPoolsCollection(db)
+    console.log(`\n📦 ${MONGODB_COLLECTION_PRODUCTS}`)
+    await createProductsCollection(db)
 
     console.log('\n✅ Initialization complete\n')
     process.exit(0)

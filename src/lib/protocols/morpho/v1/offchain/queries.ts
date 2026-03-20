@@ -1,7 +1,7 @@
 import { gql } from 'urql'
 
 export const USER_LEND_POSITIONS = gql`
-  query UserLendPositions(
+  query UserSupplyPositions(
     $where: VaultPositionFilters
     $first: Int
     $skip: Int
@@ -142,7 +142,7 @@ export const MARKET_BORROW_HISTORY_RATES = gql`
 `
 
 export const MARKET_LEND_HISTORY_RATES = gql`
-  query MarketLendHistoryRates(
+  query MarketSupplyHistoryRates(
     $marketId: String!
     $options: TimeseriesOptions
   ) {
@@ -173,6 +173,14 @@ export const MARKETS_APY = gql`
   query MarketsApy($first: Int, $skip: Int, $where: MarketFilters) {
     markets(first: $first, skip: $skip, where: $where) {
       items {
+        morphoBlue {
+          address
+          id
+          chain {
+            id
+            network
+          }
+        }
         reallocatableLiquidityAssets
         lltv
         warnings {
@@ -228,8 +236,8 @@ export const MARKETS_APY = gql`
   }
 `
 
-export const LIST_LENDING_MARKETS = gql`
-  query ListLendingMarkets(
+export const LIST_SUPPLYING_PRODUCTS = gql`
+  query ListSupplyingProducts(
     $first: Int
     $skip: Int
     $where: VaultFilters
@@ -266,10 +274,10 @@ export const LIST_LENDING_MARKETS = gql`
           }
         }
         state {
-          avgNetApy
-          dailyNetApy
-          monthlyNetApy
-          yearlyNetApy
+          curators {
+            name
+          }
+          avgNetApy(lookback: SIX_HOURS)
           totalAssetsUsd
           totalAssets
           allocation {
@@ -280,9 +288,8 @@ export const LIST_LENDING_MARKETS = gql`
             }
           }
           apy
-          avgApy
           netApy
-          netApyWithoutRewards
+          avgNetApyExcludingRewards(lookback: SIX_HOURS)
         }
         liquidity {
           usd

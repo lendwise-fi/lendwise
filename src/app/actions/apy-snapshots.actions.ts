@@ -3,12 +3,12 @@
 import type { Collection } from 'mongodb'
 
 import type { ProtocolName } from '@/config/protocols'
-import { getDb, MONGODB_COLLECTION_HOURLY } from '@/lib/db/mongodb'
+import { MONGODB_COLLECTION_HOURLY, getDb } from '@/lib/db/mongodb'
 import type {
   ApySlot,
-  SpotPayload,
-  LendMarketState,
   BorrowMarketState,
+  SpotPayload,
+  SupplyMarketState,
 } from '@/lib/db/types'
 import { fetchAaveV3ApySpot } from '@/lib/protocols/aave'
 import { fetchMorphoV1ApySpot } from '@/lib/protocols/morpho'
@@ -18,7 +18,7 @@ import { fetchMorphoV1ApySpot } from '@/lib/protocols/morpho'
 const PROTOCOL_TASKS: Partial<
   Record<ProtocolName, () => Promise<SpotPayload[]>>
 > = {
-  aave_v3:   fetchAaveV3ApySpot,
+  aave_v3: fetchAaveV3ApySpot,
   morpho_v1: fetchMorphoV1ApySpot,
 }
 
@@ -34,19 +34,6 @@ function normalizeHourTimestamp(date: Date): Date {
   return d
 }
 
-// ─── Rolling average helpers ──────────────────────────────────────────────────
-
-/**
- * Incremental rolling average formula.
- * new_avg = (prev_avg * count + new_value) / (count + 1)
- *
- * Used in MongoDB aggregation pipeline update — reproduced here for clarity.
- */
-function rollingAvg(prevAvg: number, count: number, newValue: number): number {
-  return (prevAvg * count + newValue) / (count + 1)
-}
-
-
 // ─── MongoDB aggregation pipeline upsert ─────────────────────────────────────
 
 /**
@@ -60,71 +47,365 @@ function rollingAvg(prevAvg: number, count: number, newValue: number): number {
  */
 async function upsertHourly(
   collection: Collection<ApySlot>,
-  payload:    SpotPayload,
-  hour:       Date,
-  slotTime:   Date
+  payload: SpotPayload,
+  hour: Date,
+  slotTime: Date
 ): Promise<void> {
-  const { poolId, kind, protocol, chainId, asset, apy, market } = payload
+  const { productId, kind, protocol, chainId, asset, apy, market } = payload
 
-  const isLend   = kind === 'lend'
-  const lendMkt  = market as LendMarketState
-  const borrowMkt= market as BorrowMarketState
+  const isSupply = kind === 'supply'
+  const supplyMkt = market as SupplyMarketState
+  const borrowMkt = market as BorrowMarketState
 
   // ─── Build market $set fields ─────────────────────────────────────────────
   // Uses MongoDB aggregation expressions — evaluated server-side atomically.
 
-  const marketAvgFields = isLend
+  const marketAvgFields = isSupply
     ? {
-        'market.supplyAssets':    { $divide: [{ $add: [{ $multiply: [{ $ifNull: ['$market.supplyAssets',    lendMkt.supplyAssets]    }, { $ifNull: ['$quality.count', 0] }] }, lendMkt.supplyAssets]    }, { $add: [{ $ifNull: ['$quality.count', 0] }, 1] }] },
-        'market.supplyAssetsUsd': { $divide: [{ $add: [{ $multiply: [{ $ifNull: ['$market.supplyAssetsUsd', lendMkt.supplyAssetsUsd] }, { $ifNull: ['$quality.count', 0] }] }, lendMkt.supplyAssetsUsd] }, { $add: [{ $ifNull: ['$quality.count', 0] }, 1] }] },
-        'market.utilizationRate': { $divide: [{ $add: [{ $multiply: [{ $ifNull: ['$market.utilizationRate', lendMkt.utilizationRate] }, { $ifNull: ['$quality.count', 0] }] }, lendMkt.utilizationRate] }, { $add: [{ $ifNull: ['$quality.count', 0] }, 1] }] },
-        'market.assetPriceUsd':   { $divide: [{ $add: [{ $multiply: [{ $ifNull: ['$market.assetPriceUsd',   lendMkt.assetPriceUsd]   }, { $ifNull: ['$quality.count', 0] }] }, lendMkt.assetPriceUsd]   }, { $add: [{ $ifNull: ['$quality.count', 0] }, 1] }] },
+        'market.supplyAssets': {
+          $divide: [
+            {
+              $add: [
+                {
+                  $multiply: [
+                    {
+                      $ifNull: ['$market.supplyAssets', supplyMkt.supplyAssets],
+                    },
+                    { $ifNull: ['$quality.count', 0] },
+                  ],
+                },
+                supplyMkt.supplyAssets,
+              ],
+            },
+            { $add: [{ $ifNull: ['$quality.count', 0] }, 1] },
+          ],
+        },
+        'market.supplyAssetsUsd': {
+          $divide: [
+            {
+              $add: [
+                {
+                  $multiply: [
+                    {
+                      $ifNull: [
+                        '$market.supplyAssetsUsd',
+                        supplyMkt.supplyAssetsUsd,
+                      ],
+                    },
+                    { $ifNull: ['$quality.count', 0] },
+                  ],
+                },
+                supplyMkt.supplyAssetsUsd,
+              ],
+            },
+            { $add: [{ $ifNull: ['$quality.count', 0] }, 1] },
+          ],
+        },
+        'market.utilizationRate': {
+          $divide: [
+            {
+              $add: [
+                {
+                  $multiply: [
+                    {
+                      $ifNull: [
+                        '$market.utilizationRate',
+                        supplyMkt.utilizationRate,
+                      ],
+                    },
+                    { $ifNull: ['$quality.count', 0] },
+                  ],
+                },
+                supplyMkt.utilizationRate,
+              ],
+            },
+            { $add: [{ $ifNull: ['$quality.count', 0] }, 1] },
+          ],
+        },
+        'market.assetPriceUsd': {
+          $divide: [
+            {
+              $add: [
+                {
+                  $multiply: [
+                    {
+                      $ifNull: [
+                        '$market.assetPriceUsd',
+                        supplyMkt.assetPriceUsd,
+                      ],
+                    },
+                    { $ifNull: ['$quality.count', 0] },
+                  ],
+                },
+                supplyMkt.assetPriceUsd,
+              ],
+            },
+            { $add: [{ $ifNull: ['$quality.count', 0] }, 1] },
+          ],
+        },
       }
     : {
-        'market.supplyAssets':    { $divide: [{ $add: [{ $multiply: [{ $ifNull: ['$market.supplyAssets',    borrowMkt.supplyAssets]    }, { $ifNull: ['$quality.count', 0] }] }, borrowMkt.supplyAssets]    }, { $add: [{ $ifNull: ['$quality.count', 0] }, 1] }] },
-        'market.supplyAssetsUsd': { $divide: [{ $add: [{ $multiply: [{ $ifNull: ['$market.supplyAssetsUsd', borrowMkt.supplyAssetsUsd] }, { $ifNull: ['$quality.count', 0] }] }, borrowMkt.supplyAssetsUsd] }, { $add: [{ $ifNull: ['$quality.count', 0] }, 1] }] },
-        'market.borrowAssets':    { $divide: [{ $add: [{ $multiply: [{ $ifNull: ['$market.borrowAssets',    borrowMkt.borrowAssets]    }, { $ifNull: ['$quality.count', 0] }] }, borrowMkt.borrowAssets]    }, { $add: [{ $ifNull: ['$quality.count', 0] }, 1] }] },
-        'market.borrowAssetsUsd': { $divide: [{ $add: [{ $multiply: [{ $ifNull: ['$market.borrowAssetsUsd', borrowMkt.borrowAssetsUsd] }, { $ifNull: ['$quality.count', 0] }] }, borrowMkt.borrowAssetsUsd] }, { $add: [{ $ifNull: ['$quality.count', 0] }, 1] }] },
-        'market.utilizationRate': { $divide: [{ $add: [{ $multiply: [{ $ifNull: ['$market.utilizationRate', borrowMkt.utilizationRate] }, { $ifNull: ['$quality.count', 0] }] }, borrowMkt.utilizationRate] }, { $add: [{ $ifNull: ['$quality.count', 0] }, 1] }] },
-        'market.assetPriceUsd':   { $divide: [{ $add: [{ $multiply: [{ $ifNull: ['$market.assetPriceUsd',   borrowMkt.assetPriceUsd]   }, { $ifNull: ['$quality.count', 0] }] }, borrowMkt.assetPriceUsd]   }, { $add: [{ $ifNull: ['$quality.count', 0] }, 1] }] },
+        'market.supplyAssets': {
+          $divide: [
+            {
+              $add: [
+                {
+                  $multiply: [
+                    {
+                      $ifNull: ['$market.supplyAssets', borrowMkt.supplyAssets],
+                    },
+                    { $ifNull: ['$quality.count', 0] },
+                  ],
+                },
+                borrowMkt.supplyAssets,
+              ],
+            },
+            { $add: [{ $ifNull: ['$quality.count', 0] }, 1] },
+          ],
+        },
+        'market.supplyAssetsUsd': {
+          $divide: [
+            {
+              $add: [
+                {
+                  $multiply: [
+                    {
+                      $ifNull: [
+                        '$market.supplyAssetsUsd',
+                        borrowMkt.supplyAssetsUsd,
+                      ],
+                    },
+                    { $ifNull: ['$quality.count', 0] },
+                  ],
+                },
+                borrowMkt.supplyAssetsUsd,
+              ],
+            },
+            { $add: [{ $ifNull: ['$quality.count', 0] }, 1] },
+          ],
+        },
+        'market.borrowAssets': {
+          $divide: [
+            {
+              $add: [
+                {
+                  $multiply: [
+                    {
+                      $ifNull: ['$market.borrowAssets', borrowMkt.borrowAssets],
+                    },
+                    { $ifNull: ['$quality.count', 0] },
+                  ],
+                },
+                borrowMkt.borrowAssets,
+              ],
+            },
+            { $add: [{ $ifNull: ['$quality.count', 0] }, 1] },
+          ],
+        },
+        'market.borrowAssetsUsd': {
+          $divide: [
+            {
+              $add: [
+                {
+                  $multiply: [
+                    {
+                      $ifNull: [
+                        '$market.borrowAssetsUsd',
+                        borrowMkt.borrowAssetsUsd,
+                      ],
+                    },
+                    { $ifNull: ['$quality.count', 0] },
+                  ],
+                },
+                borrowMkt.borrowAssetsUsd,
+              ],
+            },
+            { $add: [{ $ifNull: ['$quality.count', 0] }, 1] },
+          ],
+        },
+        'market.utilizationRate': {
+          $divide: [
+            {
+              $add: [
+                {
+                  $multiply: [
+                    {
+                      $ifNull: [
+                        '$market.utilizationRate',
+                        borrowMkt.utilizationRate,
+                      ],
+                    },
+                    { $ifNull: ['$quality.count', 0] },
+                  ],
+                },
+                borrowMkt.utilizationRate,
+              ],
+            },
+            { $add: [{ $ifNull: ['$quality.count', 0] }, 1] },
+          ],
+        },
+        'market.assetPriceUsd': {
+          $divide: [
+            {
+              $add: [
+                {
+                  $multiply: [
+                    {
+                      $ifNull: [
+                        '$market.assetPriceUsd',
+                        borrowMkt.assetPriceUsd,
+                      ],
+                    },
+                    { $ifNull: ['$quality.count', 0] },
+                  ],
+                },
+                borrowMkt.assetPriceUsd,
+              ],
+            },
+            { $add: [{ $ifNull: ['$quality.count', 0] }, 1] },
+          ],
+        },
         // Nullable fields — only average when both prev and new are non-null
-        'market.collateralAssetsUsd': borrowMkt.collateralAssetsUsd != null
-          ? { $cond: {
-              if:   { $ne: [{ $ifNull: ['$market.collateralAssetsUsd', null] }, null] },
-              then: { $divide: [{ $add: [{ $multiply: ['$market.collateralAssetsUsd', { $ifNull: ['$quality.count', 0] }] }, borrowMkt.collateralAssetsUsd] }, { $add: [{ $ifNull: ['$quality.count', 0] }, 1] }] },
-              else: borrowMkt.collateralAssetsUsd,
-            }}
-          : null,
-        'market.priceCollateralInLoanAsset': borrowMkt.priceCollateralInLoanAsset != null
-          ? { $cond: {
-              if:   { $ne: [{ $ifNull: ['$market.priceCollateralInLoanAsset', null] }, null] },
-              then: { $divide: [{ $add: [{ $multiply: ['$market.priceCollateralInLoanAsset', { $ifNull: ['$quality.count', 0] }] }, borrowMkt.priceCollateralInLoanAsset] }, { $add: [{ $ifNull: ['$quality.count', 0] }, 1] }] },
-              else: borrowMkt.priceCollateralInLoanAsset,
-            }}
-          : null,
+        'market.collateralAssetsUsd':
+          borrowMkt.collateralAssetsUsd != null
+            ? {
+                $cond: {
+                  if: {
+                    $ne: [
+                      { $ifNull: ['$market.collateralAssetsUsd', null] },
+                      null,
+                    ],
+                  },
+                  then: {
+                    $divide: [
+                      {
+                        $add: [
+                          {
+                            $multiply: [
+                              '$market.collateralAssetsUsd',
+                              { $ifNull: ['$quality.count', 0] },
+                            ],
+                          },
+                          borrowMkt.collateralAssetsUsd,
+                        ],
+                      },
+                      { $add: [{ $ifNull: ['$quality.count', 0] }, 1] },
+                    ],
+                  },
+                  else: borrowMkt.collateralAssetsUsd,
+                },
+              }
+            : null,
+        'market.priceCollateralInLoanAsset':
+          borrowMkt.priceCollateralInLoanAsset != null
+            ? {
+                $cond: {
+                  if: {
+                    $ne: [
+                      { $ifNull: ['$market.priceCollateralInLoanAsset', null] },
+                      null,
+                    ],
+                  },
+                  then: {
+                    $divide: [
+                      {
+                        $add: [
+                          {
+                            $multiply: [
+                              '$market.priceCollateralInLoanAsset',
+                              { $ifNull: ['$quality.count', 0] },
+                            ],
+                          },
+                          borrowMkt.priceCollateralInLoanAsset,
+                        ],
+                      },
+                      { $add: [{ $ifNull: ['$quality.count', 0] }, 1] },
+                    ],
+                  },
+                  else: borrowMkt.priceCollateralInLoanAsset,
+                },
+              }
+            : null,
       }
 
   const newCount = { $add: [{ $ifNull: ['$quality.count', 0] }, 1] }
 
   await collection.updateOne(
-    { 'meta.poolId': poolId, hour },
+    { 'meta.productId': productId, hour },
     [
       {
         $set: {
           // Meta — set once, never changes within an hour
           hour,
           meta: {
-            $ifNull: [
-              '$meta',
-              { poolId, kind, protocol, chainId, asset },
-            ],
+            $ifNull: ['$meta', { productId, kind, protocol, chainId, asset }],
           },
 
           // APY rolling averages
-          'apy.base':    { $divide: [{ $add: [{ $multiply: [{ $ifNull: ['$apy.base',    apy.base]    }, { $ifNull: ['$quality.count', 0] }] }, apy.base]    }, newCount] },
-          'apy.rewards': { $divide: [{ $add: [{ $multiply: [{ $ifNull: ['$apy.rewards', apy.rewards] }, { $ifNull: ['$quality.count', 0] }] }, apy.rewards] }, newCount] },
-          'apy.fees':    { $divide: [{ $add: [{ $multiply: [{ $ifNull: ['$apy.fees',    apy.fees]    }, { $ifNull: ['$quality.count', 0] }] }, apy.fees]    }, newCount] },
-          'apy.net':     { $divide: [{ $add: [{ $multiply: [{ $ifNull: ['$apy.net',     apy.net]     }, { $ifNull: ['$quality.count', 0] }] }, apy.net]     }, newCount] },
+          'apy.base': {
+            $divide: [
+              {
+                $add: [
+                  {
+                    $multiply: [
+                      { $ifNull: ['$apy.base', apy.base] },
+                      { $ifNull: ['$quality.count', 0] },
+                    ],
+                  },
+                  apy.base,
+                ],
+              },
+              newCount,
+            ],
+          },
+          'apy.rewards': {
+            $divide: [
+              {
+                $add: [
+                  {
+                    $multiply: [
+                      { $ifNull: ['$apy.rewards', apy.rewards] },
+                      { $ifNull: ['$quality.count', 0] },
+                    ],
+                  },
+                  apy.rewards,
+                ],
+              },
+              newCount,
+            ],
+          },
+          'apy.fees': {
+            $divide: [
+              {
+                $add: [
+                  {
+                    $multiply: [
+                      { $ifNull: ['$apy.fees', apy.fees] },
+                      { $ifNull: ['$quality.count', 0] },
+                    ],
+                  },
+                  apy.fees,
+                ],
+              },
+              newCount,
+            ],
+          },
+          'apy.net': {
+            $divide: [
+              {
+                $add: [
+                  {
+                    $multiply: [
+                      { $ifNull: ['$apy.net', apy.net] },
+                      { $ifNull: ['$quality.count', 0] },
+                    ],
+                  },
+                  apy.net,
+                ],
+              },
+              newCount,
+            ],
+          },
           // rewardItems — always replace with latest snapshot
           'apy.rewardItems': apy.rewardItems,
 
@@ -132,15 +413,15 @@ async function upsertHourly(
           ...marketAvgFields,
 
           // Quality
-          'quality.count':         newCount,
+          'quality.count': newCount,
           'quality.expectedCount': 6,
-          'quality.firstSlot':     { $ifNull: ['$quality.firstSlot', slotTime] },
-          'quality.lastSlot':      slotTime,
-          'quality.status':        {
+          'quality.firstSlot': { $ifNull: ['$quality.firstSlot', slotTime] },
+          'quality.lastSlot': slotTime,
+          'quality.status': {
             $switch: {
               branches: [
                 { case: { $gte: [newCount, 6] }, then: 'complete' },
-                { case: { $lt:  [newCount, 6] }, then: 'building' },
+                { case: { $lt: [newCount, 6] }, then: 'building' },
               ],
               default: 'partial',
             },
@@ -154,12 +435,15 @@ async function upsertHourly(
 
 // ─── Write hourly docs ────────────────────────────────────────────────────────
 
-async function writeApySlot(payloads: SpotPayload[], slotTime: Date): Promise<number> {
+async function writeApySlot(
+  payloads: SpotPayload[],
+  slotTime: Date
+): Promise<number> {
   if (payloads.length === 0) return 0
 
-  const db         = await getDb()
+  const db = await getDb()
   const collection = db.collection<ApySlot>(MONGODB_COLLECTION_HOURLY)
-  const hour       = normalizeHourTimestamp(slotTime)
+  const hour = normalizeHourTimestamp(slotTime)
 
   const results = await Promise.allSettled(
     payloads.map((p) => upsertHourly(collection, p, hour, slotTime))
@@ -168,22 +452,26 @@ async function writeApySlot(payloads: SpotPayload[], slotTime: Date): Promise<nu
   const errors = results.filter((r) => r.status === 'rejected')
   if (errors.length > 0) {
     errors.forEach((e) => {
-      const msg = (e as PromiseRejectedResult).reason?.message ?? String((e as PromiseRejectedResult).reason)
+      const msg =
+        (e as PromiseRejectedResult).reason?.message ??
+        String((e as PromiseRejectedResult).reason)
       console.error('[db:hourly] Upsert error:', msg)
     })
   }
 
   const written = results.filter((r) => r.status === 'fulfilled').length
-  console.log(`[db:hourly] Upserted ${written}/${payloads.length} hourly docs for hour ${hour.toISOString()}`)
+  console.log(
+    `[db:hourly] Upserted ${written}/${payloads.length} hourly docs for hour ${hour.toISOString()}`
+  )
   return written
 }
 
 // ─── Result type ──────────────────────────────────────────────────────────────
 
 export type CollectApyResult = {
-  success:    boolean
-  counts:     Partial<Record<ProtocolName, number>> & { total: number }
-  errors:     string[]
+  success: boolean
+  counts: Partial<Record<ProtocolName, number>> & { total: number }
+  errors: string[]
   durationMs: number
 }
 
@@ -201,45 +489,48 @@ export type CollectApyResult = {
 export async function collectApySpot(
   protocol?: ProtocolName
 ): Promise<CollectApyResult> {
-  const start   = Date.now()
+  const start = Date.now()
   const slotTime = new Date()
   const errors: string[] = []
 
-  const tasks: [ProtocolName, () => Promise<SpotPayload[]>][] =
-    protocol
-      ? PROTOCOL_TASKS[protocol]
-        ? [[protocol, PROTOCOL_TASKS[protocol]!]]
-        : []
-      : (Object.entries(PROTOCOL_TASKS) as [ProtocolName, () => Promise<SpotPayload[]>][])
+  const tasks: [ProtocolName, () => Promise<SpotPayload[]>][] = protocol
+    ? PROTOCOL_TASKS[protocol]
+      ? [[protocol, PROTOCOL_TASKS[protocol]!]]
+      : []
+    : (Object.entries(PROTOCOL_TASKS) as [
+        ProtocolName,
+        () => Promise<SpotPayload[]>,
+      ][])
 
   if (tasks.length === 0) {
     return {
-      success:    false,
-      counts:     { total: 0 },
-      errors:     [`Unknown protocol: ${protocol}`],
+      success: false,
+      counts: { total: 0 },
+      errors: [`Unknown protocol: ${protocol}`],
       durationMs: 0,
     }
   }
 
-  const results = await Promise.allSettled(
-    tasks.map(([, fetch]) => fetch())
-  )
+  const results = await Promise.allSettled(tasks.map(([, fetch]) => fetch()))
 
-  const allPayloads:  SpotPayload[] = []
+  const allPayloads: SpotPayload[] = []
   const protoCounts: Partial<Record<ProtocolName, number>> = {}
 
   for (let i = 0; i < results.length; i++) {
-    const result  = results[i]
+    const result = results[i]
     const protoId = tasks[i][0]
 
     if (result.status === 'fulfilled') {
       protoCounts[protoId] = result.value.length
       allPayloads.push(...result.value)
-      console.log(`[cron:${protoId}] Fetched ${result.value.length} spot payloads`)
+      console.log(
+        `[cron:${protoId}] Fetched ${result.value.length} spot payloads`
+      )
     } else {
-      const msg = result.reason instanceof Error
-        ? result.reason.message
-        : String(result.reason)
+      const msg =
+        result.reason instanceof Error
+          ? result.reason.message
+          : String(result.reason)
       errors.push(`[${protoId}] ${msg}`)
       console.error(`[cron:collect-apy] ${protoId} failed:`, msg)
     }
@@ -254,13 +545,15 @@ export async function collectApySpot(
 
   console.log(
     `[cron:collect-apy] Completed in ${durationMs}ms —` +
-    ` ${Object.entries(protoCounts).map(([k, v]) => `${k}:${v}`).join(' ')}` +
-    ` total:${totalCount}`
+      ` ${Object.entries(protoCounts)
+        .map(([k, v]) => `${k}:${v}`)
+        .join(' ')}` +
+      ` total:${totalCount}`
   )
 
   return {
-    success:    errors.length === 0,
-    counts:     { ...protoCounts, total: totalCount },
+    success: errors.length === 0,
+    counts: { ...protoCounts, total: totalCount },
     errors,
     durationMs,
   }

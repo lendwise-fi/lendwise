@@ -2,7 +2,7 @@
 
 ## Overview
 
-The application now uses a **config-driven approach** for managing lending protocols. All protocol handling is centralized in a single registry, eliminating the need to manually update multiple files when adding or removing protocols.
+The application now uses a **config-driven approach** for managing supplying protocols. All protocol handling is centralized in a single registry, eliminating the need to manually update multiple files when adding or removing protocols.
 
 ## Architecture
 
@@ -10,7 +10,7 @@ The application now uses a **config-driven approach** for managing lending proto
 
 - **`src/config/protocols.ts`**: Contains `SUPPORTED_PROTOCOLS` registry - the single source of truth
 - **`src/app/actions/user-positions.actions.ts`**: Dynamically loads adapters from the registry
-- **`src/types/lending.ts`**: Defines the `Protocol` union type
+- **`src/types/supplying.ts`**: Defines the `Protocol` union type
 
 ### How It Works
 
@@ -24,13 +24,13 @@ The application now uses a **config-driven approach** for managing lending proto
    - Fetches positions from all protocols in parallel using `Promise.allSettled`
    - Handles failures gracefully (returns empty array for failed protocols)
 
-3. **Type Safety**: The return type is automatically generated from the `Protocol` union type using `Record<Protocol, LendingPosition[]>`
+3. **Type Safety**: The return type is automatically generated from the `Protocol` union type using `Record<Protocol, SupplyingPosition[]>`
 
 ## Adding a New Protocol
 
 ### Step 1: Update the Protocol Type
 
-Edit `src/types/lending.ts`:
+Edit `src/types/supplying.ts`:
 
 ```typescript
 export type Protocol = 'aave' | 'compound' | 'morpho' | 'newprotocol'
@@ -41,11 +41,11 @@ export type Protocol = 'aave' | 'compound' | 'morpho' | 'newprotocol'
 Create `src/lib/protocols/newprotocol/index.ts`:
 
 ```typescript
-import { LendingPosition } from '@/types/lending'
+import { SupplyingPosition } from '@/types/supplying'
 
 async function getAccountPositions(
   addresses: `0x${string}`[]
-): Promise<LendingPosition[]> {
+): Promise<SupplyingPosition[]> {
   // Implementation here
   return []
 }
@@ -104,7 +104,7 @@ Remove the entry from `SUPPORTED_PROTOCOLS` in `src/config/protocols.ts`
 
 ### Step 2: Update the Protocol Type
 
-Remove from the union in `src/types/lending.ts`:
+Remove from the union in `src/types/supplying.ts`:
 
 ```typescript
 export type Protocol = 'aave' | 'compound' // removed 'morpho'

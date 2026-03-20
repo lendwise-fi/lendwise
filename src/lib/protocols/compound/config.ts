@@ -1,4 +1,4 @@
-import { arbitrum, mainnet, optimism, polygon } from 'viem/chains'
+import { arbitrum, base, mainnet, optimism, polygon } from 'viem/chains'
 
 import type { ProtocolConfig } from '@/config/protocols'
 
@@ -15,7 +15,8 @@ export const COMPOUND_CONFIG: Record<string, ProtocolConfig> = {
         ...mainnet,
         custom: {
           subgraphUrl:
-            'https://gateway.thegraph.com/api/subgraphs/id/AwoxEZbiWLvv6e3QdvdMZw4WDURdGbvPfHmZRc8Dpfz9',
+            'https://gateway.thegraph.com/api/subgraphs/id/5nwMCSHaTqG3Kd2gHznbTXEnZ9QNWsssQfbHhDqQSQFp',
+          // 'https://gateway.thegraph.com/api/subgraphs/id/AwoxEZbiWLvv6e3QdvdMZw4WDURdGbvPfHmZRc8Dpfz9', # MESSARI SUBGRAPH
           clientPath: 'ethereum',
         },
       },
@@ -23,7 +24,8 @@ export const COMPOUND_CONFIG: Record<string, ProtocolConfig> = {
         ...polygon,
         custom: {
           subgraphUrl:
-            'https://gateway.thegraph.com/api/subgraphs/id/5wfoWBpfYv59b99wDxJmyFiKBu9brXESeqJAzw8WP5Cz',
+            'https://gateway.thegraph.com/api/subgraphs/id/AaFtUWKfFdj2x8nnE3RxTSJkHwGHvawH3VWFBykCGzLs',
+          // 'https://gateway.thegraph.com/api/subgraphs/id/5wfoWBpfYv59b99wDxJmyFiKBu9brXESeqJAzw8WP5Cz', # MESSARI SUBGRAPH
           clientPath: 'polygon',
         },
       },
@@ -31,18 +33,20 @@ export const COMPOUND_CONFIG: Record<string, ProtocolConfig> = {
         ...arbitrum,
         custom: {
           subgraphUrl:
-            'https://gateway.thegraph.com/api/subgraphs/id/5MjRndNWGhqvNX7chUYLQDnvEgc8DaH8eisEkcJt71SR',
+            'https://gateway.thegraph.com/api/subgraphs/id/Ff7ha9ELmpmg81D6nYxy4t8aGP26dPztqD1LDJNPqjLS',
+          // 'https://gateway.thegraph.com/api/subgraphs/id/5MjRndNWGhqvNX7chUYLQDnvEgc8DaH8eisEkcJt71SR', # MESSARI SUBGRAPH
           clientPath: 'arbitrum',
         },
       },
-      // [base.id]: {
-      //   ...base,
-      //   custom: {
-      //     subgraphUrl:
-      //       'https://gateway.thegraph.com/api/subgraphs/id/99XPkR9F1exRDdCNyfXrCfEon4K34YoTDn6dgXKmxC72',
-      //     clientPath: 'base',
-      //   },
-      // },
+      [base.id]: {
+        ...base,
+        custom: {
+          subgraphUrl:
+            'https://gateway.thegraph.com/api/subgraphs/id/2hcXhs36pTBDVUmk5K2Zkr6N4UYGwaHuco2a6jyTsijo',
+          // 'https://gateway.thegraph.com/api/subgraphs/id/99XPkR9F1exRDdCNyfXrCfEon4K34YoTDn6dgXKmxC72', # MESSARI SUBGRAPH
+          clientPath: 'base',
+        },
+      },
       [optimism.id]: {
         ...optimism,
         custom: {

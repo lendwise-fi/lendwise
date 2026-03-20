@@ -39,8 +39,8 @@ const navigationItems = [
     description: 'Overview & Analytics',
   },
   {
-    title: 'Lending',
-    href: '/lending',
+    title: 'Supplying',
+    href: '/supplying',
     icon: TrendingUp,
     description: 'Yield Optimization',
   },

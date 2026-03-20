@@ -1,11 +1,11 @@
-import { type Address, formatUnits } from 'viem'
-import { arbitrum, mainnet } from 'viem/chains'
+import { type Address } from 'viem'
+import { arbitrum, mainnet, optimism } from 'viem/chains'
 
 import type { DataAdapter } from '@/lib/protocols/types'
 import {
   BorrowPosition,
-  LendPosition,
   MarketRate,
+  SupplyPosition,
   TimeframeLabel,
 } from '@/types'
 
@@ -16,20 +16,21 @@ import {
 } from '../../../shared'
 import { COMPOUND_CONFIG } from '../../config'
 import type {
-  MarketDailyBorrowRatesQuery,
-  MarketDailyLendRatesQuery,
-  MarketHourlyBorrowRatesQuery,
-  MarketHourlyLendRatesQuery,
+  Account_Filter,
+  // MarketDailyBorrowRatesQuery,
+  // MarketDailySupplyRatesQuery,
+  // MarketHourlyBorrowRatesQuery,
+  // MarketHourlySupplyRatesQuery,
   UserBorrowPositionsQuery,
-  UserLendPositionsQuery,
+  UserSupplyPositionsQuery,
 } from './generated/graphql'
 import {
-  MARKET_DAILY_BORROW_RATES,
-  MARKET_DAILY_LEND_RATES,
-  MARKET_HOURLY_BORROW_RATES,
-  MARKET_HOURLY_LEND_RATES,
+  // MARKET_DAILY_BORROW_RATES,
+  // MARKET_DAILY_LEND_RATES,
+  // MARKET_HOURLY_BORROW_RATES,
+  // MARKET_HOURLY_LEND_RATES,
   USER_BORROW_POSITIONS,
-  USER_LEND_POSITIONS,
+  USER_SUPPLY_POSITIONS,
 } from './queries'
 
 // ============================================================================
@@ -41,7 +42,7 @@ import {
  * Allows overriding default queries for chains with different schemas.
  */
 export type ChainQueries = {
-  USER_LEND_POSITIONS: typeof USER_LEND_POSITIONS
+  USER_SUPPLY_POSITIONS: typeof USER_SUPPLY_POSITIONS
   USER_BORROW_POSITIONS: typeof USER_BORROW_POSITIONS
 }
 
@@ -50,7 +51,10 @@ export type ChainQueries = {
  * Allows chains with different schemas to provide custom transformation logic.
  */
 export type ChainTransformers = {
-  getUserLendPositions?: (data: unknown, protocolId: string) => LendPosition[]
+  getUserSupplyPositions?: (
+    data: unknown,
+    protocolId: string
+  ) => SupplyPosition[]
   getUserBorrowPositions?: (
     data: unknown,
     protocolId: string
@@ -59,7 +63,7 @@ export type ChainTransformers = {
     data: unknown,
     protocolId: string
   ) => MarketRate[]
-  getMarketLendHistoryRates?: (
+  getMarketSupplyHistoryRates?: (
     data: unknown,
     protocolId: string
   ) => MarketRate[]
@@ -101,7 +105,7 @@ const getChainClients = () => chainRegistry.getChainClients(chainImporter)
 /**
  * Get a specific chain client by chain ID.
  */
-const getChainClient = (chainId: number) =>
+const _getChainClient = (chainId: number) =>
   chainRegistry.getChainClient(chainId, chainImporter)
 
 /**
@@ -120,25 +124,56 @@ export { createGraphQLClient as createChainClient }
  */
 const CHAIN_NAME_MAPPING: Record<
   string,
-  { protocolName: string; marketSlug: string; chainId: number }
+  { protocolName: string; marketSlug: string }
 > = {
-  MAINNET: {
+  [mainnet.id]: {
     protocolName: 'ethereum',
     marketSlug: 'mainnet',
-    chainId: mainnet.id,
   },
-  ARBITRUM_ONE: {
+  [arbitrum.id]: {
     protocolName: 'arbitrum',
     marketSlug: 'arb',
-    chainId: arbitrum.id,
+  },
+  [optimism.id]: {
+    protocolName: 'optimism',
+    marketSlug: 'op',
   },
 }
 
-async function getUserLendPositions({
+const BASE_INDEX_SCALE = 1e15 // Compound V3 constant
+
+function calculateHealthFactor(
+  position: NonNullable<UserBorrowPositionsQuery>['accounts'][number]['positions'][number]
+): number {
+  const borrowBalanceUsd = Math.abs(position.accounting.baseBalanceUsd)
+
+  // AAVE-style calculation: Σ(collateral_balance_usd × liquidationThreshold) / Σ(borrow_balance_usd)
+  const collateralValueUsd =
+    position.accounting.collateralBalances?.reduce(
+      (
+        total: number,
+        collateral: NonNullable<UserBorrowPositionsQuery>['accounts'][number]['positions'][number]['accounting']['collateralBalances'][number]
+      ) => {
+        const collateralBalance = parseFloat(collateral.balanceUsd || '0')
+        // Compound V3 uses liquidationFactor, AAVE uses liquidationThreshold - same concept
+        const liquidationThreshold = parseFloat(
+          collateral.collateralToken.liquidationFactor
+        )
+        return total + collateralBalance * liquidationThreshold
+      },
+      0
+    ) || 0
+
+  if (borrowBalanceUsd === 0) return Infinity // Pas d'emprunt = HF infini
+
+  return collateralValueUsd / borrowBalanceUsd
+}
+
+async function getUserSupplyPositions({
   addresses,
 }: {
   addresses: Address[]
-}): Promise<LendPosition[]> {
+}): Promise<SupplyPosition[]> {
   if (!addresses || addresses.length === 0) {
     return []
   }
@@ -147,85 +182,84 @@ async function getUserLendPositions({
     // Fetch positions from all registered chains in parallel
     const chainClients = await getChainClients()
     const results = await Promise.allSettled(
-      chainClients.map(async ({ client, chainName, queries, transformers }) => {
-        // Use chain-specific query if available, otherwise use default
-        const query = queries?.USER_LEND_POSITIONS || USER_LEND_POSITIONS
+      chainClients.map(
+        async ({ client, chainName, chainId, queries, transformers }) => {
+          // Use chain-specific query if available, otherwise use default
+          const query = queries?.USER_SUPPLY_POSITIONS || USER_SUPPLY_POSITIONS
 
-        const { data, error } = await client
-          .query<UserLendPositionsQuery>(query, {
-            where: { id_in: addresses },
-          })
-          .toPromise()
+          const { data, error } = await client
+            .query<UserSupplyPositionsQuery, { where: Account_Filter }>(query, {
+              where: { address_in: addresses },
+            })
+            .toPromise()
 
-        if (error) {
-          console.error(
-            `Failed to fetch ${chainName} Compound V3 positions:`,
-            error
-          )
-          // Check if it's a timeout error
-          if (error.message?.includes('Time-out') || error.networkError) {
-            console.warn(
-              `${chainName} Compound V3 API timeout - returning empty positions`
+          if (error) {
+            console.error(
+              `Failed to fetch ${chainName} Compound V3 positions:`,
+              error
+            )
+            // Check if it's a timeout error
+            if (error.message?.includes('Time-out') || error.networkError) {
+              console.warn(
+                `${chainName} Compound V3 API timeout - returning empty positions`
+              )
+            }
+            return [] // Return what we have so far
+          }
+
+          // Use custom transformer if provided, otherwise use default logic
+          if (transformers?.getUserSupplyPositions && data) {
+            return transformers.getUserSupplyPositions(
+              data,
+              COMPOUND_CONFIG.compound_v3.id
             )
           }
-          return [] // Return what we have so far
-        }
 
-        // Use custom transformer if provided, otherwise use default logic
-        if (transformers?.getUserLendPositions && data) {
-          return transformers.getUserLendPositions(
-            data,
-            COMPOUND_CONFIG.compound_v3.id
-          )
-        }
-
-        // Default transformation logic (Messari schema)
-        return (
-          data?.accounts?.flatMap((account) => {
-            return account.positions
-              .filter((position) => {
-                // Only include supply positions (positive balance)
-                const balance = BigInt(position.balance)
-                return balance > 0n
-              })
-              .map((position): LendPosition => {
-                // Convert balance from Wei to human-readable format
-                const balanceInTokens = formatUnits(
-                  BigInt(position.balance ?? 0),
-                  position.asset.decimals
-                )
-
-                // Calculate USD value: balance * price
-                const balanceUsd =
-                  parseFloat(balanceInTokens) *
-                  parseFloat(position.asset.lastPriceUSD ?? '0')
+          /**
+           * If we want to calculate the live balance, we need to use the baseSupplyIndex and basePrincipal
+           * from the position and calculate the live balance using the formula:
+           */
+          // Default transformation logic (Spencer Paperclips Labs schema)
+          return (
+            data?.accounts?.flatMap((account) => {
+              if (!account.positions) return []
+              return account.positions.map((position) => {
+                const token = position.market.configuration.baseToken.token
+                const positionAccounting = position.accounting
+                const marketAccounting = position.market.accounting
 
                 return {
-                  id: position.id,
+                  id: positionAccounting.id,
                   protocol: COMPOUND_CONFIG.compound_v3.id,
-                  userAddress: account.id.toLowerCase(),
-                  poolName: position.market.name!,
-                  poolAddress: position.market.relation,
-                  poolId: position.market.relation,
-                  poolChainId:
-                    CHAIN_NAME_MAPPING[position.market.protocol.network]
-                      ?.chainId ?? 1,
                   network:
-                    CHAIN_NAME_MAPPING[position.market.protocol.network]
-                      ?.protocolName ?? position.market.protocol.network,
-                  assetAddress: position.asset.id as Address,
-                  assetName: position.asset.name,
-                  assetSymbol: position.asset.symbol,
-                  assetDecimals: position.asset.decimals,
-                  assetAmount: position.balance ?? 0,
-                  assetAmountUsd: balanceUsd,
-                  apy: position.market?.rates?.[0].rate ?? 0,
-                  link: `https://app.compound.finance/?market=${position.asset.symbol.toLowerCase()}-${position.market.protocol.network.toLowerCase()}`,
+                    CHAIN_NAME_MAPPING[chainId]?.protocolName ||
+                    chainName!.toLowerCase(),
+                  userAddress: account.address.toLowerCase(),
+                  poolName: token.name,
+                  poolAddress: position.market.id,
+                  poolId: position.market.id,
+                  poolChainId: chainId,
+                  assetAddress: token.address as Address,
+                  assetName: token.name,
+                  assetSymbol: token.symbol,
+                  assetDecimals: token.decimals || 18,
+                  assetAmount: positionAccounting.baseBalance ?? 0,
+                  assetAmountUsd: parseFloat(
+                    positionAccounting.baseBalanceUsd ?? '0'
+                  ),
+                  assetLiveAmountUsd:
+                    (Math.abs(positionAccounting.basePrincipal) *
+                      marketAccounting.baseSupplyIndex) /
+                    BASE_INDEX_SCALE /
+                    10 ** (token.decimals || 18),
+                  apy: position.market.accounting.netSupplyApr,
+                  link: `https://app.compound.finance/?market=${token.symbol.toLowerCase()}-${CHAIN_NAME_MAPPING[chainId].marketSlug}`,
                 }
               })
-          }) ?? []
-        )
-      })
+            }) ?? []
+          )
+        }
+      )
     )
 
     // Aggregate results from all chains
@@ -253,108 +287,103 @@ async function getUserBorrowPositions({
     // Fetch positions from all registered chains in parallel
     const chainClients = await getChainClients()
     const results = await Promise.allSettled(
-      chainClients.map(async ({ client, chainName, queries, transformers }) => {
-        // Use chain-specific query if available, otherwise use default
-        const query = queries?.USER_BORROW_POSITIONS || USER_BORROW_POSITIONS
+      chainClients.map(
+        async ({ client, chainName, chainId, queries, transformers }) => {
+          // Use chain-specific query if available, otherwise use default
+          const query = queries?.USER_BORROW_POSITIONS || USER_BORROW_POSITIONS
 
-        const { data, error } = await client
-          .query<UserBorrowPositionsQuery>(query, {
-            where: { id_in: addresses },
-          })
-          .toPromise()
+          const { data, error } = await client
+            .query<UserBorrowPositionsQuery, { where: Account_Filter }>(query, {
+              where: { address_in: addresses },
+            })
+            .toPromise()
 
-        if (error) {
-          console.error(
-            `Failed to fetch ${chainName} Compound V3 positions:`,
-            error
-          )
-          // Check if it's a timeout error
-          if (error.message?.includes('Time-out') || error.networkError) {
-            console.warn(
-              `${chainName} Compound V3 API timeout - returning empty positions`
+          if (error) {
+            console.error(
+              `Failed to fetch ${chainName} Compound V3 positions:`,
+              error
+            )
+            // Check if it's a timeout error
+            if (error.message?.includes('Time-out') || error.networkError) {
+              console.warn(
+                `${chainName} Compound V3 API timeout - returning empty positions`
+              )
+            }
+            return [] // Return what we have so far
+          }
+
+          // Use custom transformer if provided, otherwise use default logic
+          if (transformers?.getUserBorrowPositions && data) {
+            return transformers.getUserBorrowPositions(
+              data,
+              COMPOUND_CONFIG.compound_v3.id
             )
           }
-          return [] // Return what we have so far
-        }
 
-        // Use custom transformer if provided, otherwise use default logic
-        if (transformers?.getUserBorrowPositions && data) {
-          return transformers.getUserBorrowPositions(
-            data,
-            COMPOUND_CONFIG.compound_v3.id
-          )
-        }
+          // Default transformation logic (Messari schema)
+          return (
+            data?.accounts?.flatMap((account) => {
+              if (!account.positions) return []
+              return account.positions.map((position) => {
+                const token = position.market.configuration.baseToken.token
+                const positionAccounting = position.accounting
+                const marketAccounting = position.market.accounting
 
-        // Default transformation logic (Messari schema)
-        return (
-          data?.accounts?.flatMap((account) => {
-            return account.borrows
-              .filter((borrow) => {
-                // Only include supply positions (positive balance)
-                const balance = BigInt(borrow.amount)
-                return balance > 0n
-              })
-              .map((borrow): BorrowPosition => {
-                // Convert balance from Wei to human-readable format
-                const balanceInTokens = Number(
-                  formatUnits(BigInt(borrow.amount ?? 0), borrow.asset.decimals)
-                )
-
-                // Calculate USD value: balance * price
-                const balanceUsd =
-                  balanceInTokens *
-                  (parseFloat(borrow.asset.lastPriceUSD ?? '0') || 0)
-
-                const mappingName =
-                  CHAIN_NAME_MAPPING[borrow.market.protocol.network]
-
-                const collaterals = account.deposits.map((deposit) => {
-                  return {
-                    address: deposit.asset.id,
-                    name: deposit.asset.name,
-                    symbol: deposit.asset.symbol,
-                    decimals: deposit.asset.decimals,
-                    amount: deposit.amount,
-                    amountUSD:
-                      Number(
-                        formatUnits(
-                          BigInt(deposit.amount ?? 0),
-                          deposit.asset.decimals
-                        )
-                      ) * deposit.asset.lastPriceUSD,
-                  }
-                })
+                const collaterals: BorrowPosition['collaterals'] =
+                  positionAccounting.collateralBalances
+                    .map((collateral) => {
+                      if (!Number(collateral.balance)) return null
+                      return {
+                        name: collateral.collateralToken.token.name,
+                        symbol: collateral.collateralToken.token.symbol,
+                        decimals:
+                          collateral.collateralToken.token.decimals || 18,
+                        address: collateral.collateralToken.token.address,
+                        amount: collateral.balance,
+                        amountUsd: collateral.balanceUsd,
+                      }
+                    })
+                    .filter((c) => c !== null)
 
                 return {
-                  id: borrow.id,
+                  id: positionAccounting.id,
                   protocol: COMPOUND_CONFIG.compound_v3.id,
-                  healthFactor: 0, //Number(position.healthFactor),
-                  userAddress: account.id.toLowerCase(),
-                  poolId: borrow.market.id,
-                  poolName: borrow.asset.symbol,
-                  poolAddress: borrow.market.relation,
-                  poolChainId: mappingName?.chainId,
+                  healthFactor: calculateHealthFactor(position),
+                  userAddress: account.address.toLowerCase(),
+                  poolId: position.market.id,
+                  poolName: token.name,
+                  poolAddress: position.market.id,
+                  poolChainId: chainId,
                   network:
-                    mappingName?.protocolName ?? borrow.market.protocol.network,
-                  loanAssetAddress: borrow.market.inputToken.id,
-                  loanAssetName: borrow.asset.name,
-                  loanAssetSymbol: borrow.asset.symbol,
-                  loanAssetDecimals: borrow.asset.decimals,
-                  loanAssetAmount: balanceInTokens,
-                  loanAssetAmountUsd: balanceUsd,
-                  loanTimestamp: borrow.timestamp,
+                    CHAIN_NAME_MAPPING[chainId]?.protocolName ||
+                    chainName!.toLowerCase(),
+                  loanAssetAddress: token.address,
+                  loanAssetName: token.name,
+                  loanAssetSymbol: token.symbol,
+                  loanAssetDecimals: token.decimals || 18,
+                  loanAssetAmount:
+                    Math.abs(positionAccounting.baseBalance) /
+                    10 ** (token.decimals || 18),
+                  loanAssetAmountUsd: Math.abs(
+                    positionAccounting.baseBalanceUsd
+                  ),
+                  loanLiveAssetAmountUsd:
+                    (Math.abs(positionAccounting.basePrincipal) *
+                      marketAccounting.baseBorrowIndex) /
+                    BASE_INDEX_SCALE /
+                    10 ** (token.decimals || 18),
+                  loanTimestamp: position.creationBlockNumber,
                   collaterals,
                   apy: parseFloat(
-                    Number(borrow.market.rates?.[0].rate ?? '0').toFixed(2)
+                    (position.market.accounting.netBorrowApr * 100).toFixed(2)
                   ),
-                  link: mappingName
-                    ? `https://app.compound.finance/?market=${borrow.asset.symbol.toLowerCase()}-${mappingName.marketSlug}`
-                    : 'https://app.compound.finance',
+                  link: `https://app.compound.finance/?market=${token.symbol.toLowerCase()}-${CHAIN_NAME_MAPPING[chainId].marketSlug}`,
                 }
               })
-          }) ?? []
-        )
-      })
+            }) ?? []
+          )
+        }
+      )
     )
 
     // Aggregate results from all chains
@@ -380,54 +409,55 @@ async function getMarketBorrowHistoryRates({
   interval: TimeframeLabel
   fromTimestamp: number
 }): Promise<MarketRate[]> {
-  if (!poolId || !interval || !fromTimestamp) {
+  if (!chainId || !poolId || !interval || !fromTimestamp) {
     return []
   }
 
   try {
-    const chainClient = await getChainClient(chainId)
-    if (!chainClient) {
-      return []
-    }
-    const { chainName, client } = chainClient
+    return []
+    // const chainClient = await getChainClient(chainId)
+    // if (!chainClient) {
+    //   return []
+    // }
+    // const { chainName, client } = chainClient
 
-    const isDaily = true
-    const query = isDaily
-      ? MARKET_DAILY_BORROW_RATES
-      : MARKET_HOURLY_BORROW_RATES
+    // const isDaily = true
+    // const query = isDaily
+    //   ? MARKET_DAILY_BORROW_RATES
+    //   : MARKET_HOURLY_BORROW_RATES
 
-    const { data, error } = await client
-      .query<MarketDailyBorrowRatesQuery | MarketHourlyBorrowRatesQuery>(
-        query,
-        {
-          where: { market: poolId, timestamp_gte: fromTimestamp },
-        }
-      )
-      .toPromise()
+    // const { data, error } = await client
+    //   .query<MarketDailyBorrowRatesQuery | MarketHourlyBorrowRatesQuery>(
+    //     query,
+    //     {
+    //       where: { market: poolId, timestamp_gte: fromTimestamp },
+    //     }
+    //   )
+    //   .toPromise()
 
-    if (error) {
-      console.error(
-        `Failed to fetch ${chainName} Compound V3 ${isDaily ? 'daily' : 'hourly'} borrow rates:`,
-        error
-      )
-      if (error.message?.includes('Time-out') || error.networkError) {
-        console.warn(
-          `${chainName} Compound V3 API timeout - returning empty rates`
-        )
-      }
-      return []
-    }
+    // if (error) {
+    //   console.error(
+    //     `Failed to fetch ${chainName} Compound V3 ${isDaily ? 'daily' : 'hourly'} borrow rates:`,
+    //     error
+    //   )
+    //   if (error.message?.includes('Time-out') || error.networkError) {
+    //     console.warn(
+    //       `${chainName} Compound V3 API timeout - returning empty rates`
+    //     )
+    //   }
+    //   return []
+    // }
 
-    const snapshots = isDaily
-      ? (data as MarketDailyBorrowRatesQuery)?.marketDailySnapshots
-      : (data as MarketHourlyBorrowRatesQuery)?.marketHourlySnapshots
+    // const snapshots = isDaily
+    //   ? (data as MarketDailyBorrowRatesQuery)?.marketDailySnapshots
+    //   : (data as MarketHourlyBorrowRatesQuery)?.marketHourlySnapshots
 
-    return (
-      snapshots?.map((snapshot) => ({
-        timestamp: Number(snapshot.timestamp),
-        rate: Number(snapshot.rates?.[0].rate ?? '0'),
-      })) ?? []
-    )
+    // return (
+    //   snapshots?.map((snapshot) => ({
+    //     timestamp: Number(snapshot.timestamp),
+    //     rate: Number(snapshot.rates?.[0].rate ?? '0'),
+    //   })) ?? []
+    // )
   } catch (err) {
     console.error(
       'Unexpected error fetching Compound V3 market borrow rates:',
@@ -437,7 +467,7 @@ async function getMarketBorrowHistoryRates({
   }
 }
 
-async function getMarketLendHistoryRates({
+async function getMarketSupplyHistoryRates({
   chainId,
   poolId,
   interval,
@@ -448,52 +478,56 @@ async function getMarketLendHistoryRates({
   interval: TimeframeLabel
   fromTimestamp: number
 }): Promise<MarketRate[]> {
-  if (!poolId || !interval || !fromTimestamp) {
+  if (!chainId || !poolId || !interval || !fromTimestamp) {
     return []
   }
 
   try {
-    const chainClient = await getChainClient(chainId)
-    if (!chainClient) {
-      return []
-    }
-    const { chainName, client } = chainClient
+    return []
+    // const chainClient = await getChainClient(chainId)
+    // if (!chainClient) {
+    //   return []
+    // }
+    // const { chainName, client } = chainClient
 
-    const isDaily = true
-    const query = isDaily ? MARKET_DAILY_LEND_RATES : MARKET_HOURLY_LEND_RATES
+    // const isDaily = true
+    // const query = isDaily ? MARKET_DAILY_LEND_RATES : MARKET_HOURLY_LEND_RATES
 
-    const { data, error } = await client
-      .query<MarketDailyLendRatesQuery | MarketHourlyLendRatesQuery>(query, {
-        where: { market: poolId, timestamp_gte: fromTimestamp },
-      })
-      .toPromise()
+    // const { data, error } = await client
+    //   .query<MarketDailySupplyRatesQuery | MarketHourlySupplyRatesQuery>(
+    //     query,
+    //     {
+    //       where: { market: poolId, timestamp_gte: fromTimestamp },
+    //     }
+    //   )
+    //   .toPromise()
 
-    if (error) {
-      console.error(
-        `Failed to fetch ${chainName} Compound V3 ${isDaily ? 'daily' : 'hourly'} lend rates:`,
-        error
-      )
-      if (error.message?.includes('Time-out') || error.networkError) {
-        console.warn(
-          `${chainName} Compound V3 API timeout - returning empty rates`
-        )
-      }
-      return []
-    }
+    // if (error) {
+    //   console.error(
+    //     `Failed to fetch ${chainName} Compound V3 ${isDaily ? 'daily' : 'hourly'} supply rates:`,
+    //     error
+    //   )
+    //   if (error.message?.includes('Time-out') || error.networkError) {
+    //     console.warn(
+    //       `${chainName} Compound V3 API timeout - returning empty rates`
+    //     )
+    //   }
+    //   return []
+    // }
 
-    const snapshots = isDaily
-      ? (data as MarketDailyLendRatesQuery)?.marketDailySnapshots
-      : (data as MarketHourlyLendRatesQuery)?.marketHourlySnapshots
+    // const snapshots = isDaily
+    //   ? (data as MarketDailySupplyRatesQuery)?.marketDailySnapshots
+    //   : (data as MarketHourlySupplyRatesQuery)?.marketHourlySnapshots
 
-    return (
-      snapshots?.map((snapshot) => ({
-        timestamp: Number(snapshot.timestamp),
-        rate: Number(snapshot.rates?.[0].rate ?? '0'),
-      })) ?? []
-    )
+    // return (
+    //   snapshots?.map((snapshot) => ({
+    //     timestamp: Number(snapshot.timestamp),
+    //     rate: Number(snapshot.rates?.[0].rate ?? '0'),
+    //   })) ?? []
+    // )
   } catch (err) {
     console.error(
-      'Unexpected error fetching Compound V3 market lend rates:',
+      'Unexpected error fetching Compound V3 market supply rates:',
       err
     )
     return []
@@ -502,9 +536,9 @@ async function getMarketLendHistoryRates({
 
 export const compoundV3OnchainAdapter: DataAdapter = {
   dataSourceType: 'onchain',
-  getUserLendPositions,
+  getUserSupplyPositions,
   getUserBorrowPositions,
   getMarketBorrowHistoryRates,
-  getMarketLendHistoryRates,
-  getLendingMarkets: async () => [],
+  getMarketSupplyHistoryRates,
+  getSupplyingMarkets: async () => [],
 }

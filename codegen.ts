@@ -129,25 +129,6 @@ const config: CodegenConfig = {
         fragmentMasking: false,
       },
     },
-    'src/lib/protocols/compound/v3/onchain/optimism/generated/': {
-      schema: [
-        {
-          [compoundV3OptimismSubgraphUrl]: {
-            headers: process.env.THEGRAPH_API_KEY
-              ? {
-                  Authorization: `Bearer ${process.env.THEGRAPH_API_KEY}`,
-                }
-              : {},
-          },
-        },
-      ],
-      documents: 'src/lib/protocols/compound/v3/onchain/optimism/queries.ts',
-      preset: 'client',
-      presetConfig: {
-        fragmentMasking: false,
-      },
-    },
-
     // MORPHO V1 - Offchain (GraphQL API)
     // Schema URL is imported from src/lib/protocols/morpho/config.ts
     'src/lib/protocols/morpho/v1/offchain/generated/': {

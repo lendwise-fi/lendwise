@@ -2,10 +2,10 @@ import type { Address } from 'viem'
 
 import {
   BorrowPosition,
-  LendMarket,
-  LendPosition,
   MarketRate,
   MarketStats,
+  SupplyMarket,
+  SupplyPosition,
   TimeframeLabel,
 } from '@/types'
 
@@ -37,14 +37,14 @@ export interface DataAdapter {
   readonly dataSourceType: DataSourceType
 
   /**
-   * Fetches the user's lending positions.
-   * @param params Parameters for fetching lending positions.
+   * Fetches the user's supplying positions.
+   * @param params Parameters for fetching supplying positions.
    * @param params.addresses Array of user addresses to fetch positions for.
-   * @returns A promise that resolves to an array of lending positions.
+   * @returns A promise that resolves to an array of supplying positions.
    */
-  getUserLendPositions?(params: {
+  getUserSupplyPositions?(params: {
     addresses: Address[]
-  }): Promise<LendPosition[]>
+  }): Promise<SupplyPosition[]>
 
   /**
    * Fetches the user's borrowing positions.
@@ -89,7 +89,7 @@ export interface DataAdapter {
    * @param params.fromTimestamp The starting timestamp for historical data.
    * @returns A promise that resolves to an array of market rates.
    */
-  getMarketLendHistoryRates?(params: {
+  getMarketSupplyHistoryRates?(params: {
     poolId: string
     interval: TimeframeLabel
     fromTimestamp: number
@@ -102,7 +102,7 @@ export interface DataAdapter {
    * Can be provided by either GraphQL or Subgraph depending on availability.
    * @returns A promise that resolves to an array of market rates.
    */
-  getLendingMarkets?(): Promise<LendMarket[]>
+  getSupplyingMarkets?(): Promise<SupplyMarket[]>
 }
 
 // ============================================================================
@@ -114,9 +114,9 @@ export interface DataAdapter {
  * Allows using different adapters (GraphQL/Subgraph) for different data types.
  *
  * Each adapter exposes only the methods supported by its underlying data source:
- * - positions: Typically a GraphQL adapter with getUserLendPositions/getUserBorrowPositions
+ * - positions: Typically a GraphQL adapter with getUserSupplyPositions/getUserBorrowPositions
  * - stats: Typically a Subgraph adapter with getMarketStats
- * - rates: Either GraphQL or Subgraph adapter with getMarketBorrowHistoryRates/getMarketLendHistoryRates
+ * - rates: Either GraphQL or Subgraph adapter with getMarketBorrowHistoryRates/getMarketSupplyHistoryRates
  *
  * @example
  * ```typescript
@@ -129,7 +129,7 @@ export interface DataAdapter {
 export interface DataSourceConfig {
   /**
    * Adapter for real-time user position data.
-   * Should implement getUserLendPositions and/or getUserBorrowPositions.
+   * Should implement getUserSupplyPositions and/or getUserBorrowPositions.
    */
   positions?: DataAdapter
 
@@ -141,7 +141,7 @@ export interface DataSourceConfig {
 
   /**
    * Adapter for historical rate data.
-   * Should implement getMarketBorrowHistoryRates/getMarketLend Rates.
+   * Should implement getMarketBorrowHistoryRates/getMarketSupply Rates.
    */
   rates?: DataAdapter
 }

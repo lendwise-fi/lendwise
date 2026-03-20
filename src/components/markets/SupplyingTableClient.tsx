@@ -8,11 +8,11 @@ import { useQuery } from '@tanstack/react-query'
 import { ColumnDef } from '@tanstack/react-table'
 import { ArrowUpRightFromSquare, Calendar, Eye } from 'lucide-react'
 
-import { loadLendingMarkets } from '@/app/actions/markets.actions'
+import { loadSupplyingMarkets } from '@/app/actions/markets.actions'
 import { NetworkBadge } from '@/components/badge/NetworkBadge'
 import { ProtocolBadge } from '@/components/badge/ProtocolBadge'
 import { NetworkIcon, ProtocolIcon, TokenIcon } from '@/components/icon'
-import { LendingOptimizerView } from '@/components/optimizer/LendingOptimizerButton'
+import { SupplyingOptimizerView } from '@/components/optimizer/SupplyingOptimizerButton'
 import {
   DataTable,
   SortableHeader,
@@ -41,13 +41,13 @@ import {
 import { getProtocolVersionNameById } from '@/config/protocols'
 import { useCurrency } from '@/contexts'
 import { formatCompactCurrency } from '@/lib/format-currency'
-import { LendMarket } from '@/types'
+import { SupplyMarket } from '@/types'
 
 export type Horizon = 'intraday' | 'short' | 'medium' | 'long'
 
 export const HORIZON_CONFIG: Record<
   Horizon,
-  { label: string; apyKey: keyof LendMarket; headerLabel: string }
+  { label: string; apyKey: keyof SupplyMarket; headerLabel: string }
 > = {
   intraday: { label: 'Intraday', apyKey: 'apy', headerLabel: 'APY' },
   short: {
@@ -72,7 +72,7 @@ const createColumns = (
   rate: number,
   horizon: Horizon,
   selectedCount: number
-): ColumnDef<LendMarket>[] => [
+): ColumnDef<SupplyMarket>[] => [
   {
     id: 'select',
     size: 40,
@@ -102,7 +102,7 @@ const createColumns = (
   {
     accessorKey: 'network',
     header: ({ column }) => (
-      <SortableHeader column={column}>Chain</SortableHeader>
+      <SortableHeader column={column}>Network</SortableHeader>
     ),
     enableHiding: false,
     enableSorting: true,
@@ -219,13 +219,13 @@ const createColumns = (
   },
 ]
 
-export function LendingTableClient() {
+export function SupplyingTableClient() {
   const { baseCurrency, rate } = useCurrency()
   const [horizon, setHorizon] = useState<Horizon>('short')
   const [rowSelection, setRowSelection] = useState<Record<string, boolean>>({})
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [modalStep, setModalStep] = useState(1)
-  const [snapshotMarkets, setSnapshotMarkets] = useState<LendMarket[]>([])
+  const [snapshotMarkets, setSnapshotMarkets] = useState<SupplyMarket[]>([])
 
   const columns = createColumns(
     baseCurrency,
@@ -233,9 +233,9 @@ export function LendingTableClient() {
     horizon,
     Object.keys(rowSelection).length
   )
-  const { data } = useQuery<LendMarket[]>({
-    queryKey: ['lendingMarkets'],
-    queryFn: loadLendingMarkets,
+  const { data } = useQuery<SupplyMarket[]>({
+    queryKey: ['supplyingMarkets'],
+    queryFn: loadSupplyingMarkets,
     staleTime: 60_000, // 60s - aligned with server revalidate
     refetchInterval: 60_000, // auto revalidation every 60s
     gcTime: 5 * 60 * 1000, // 5min
@@ -246,7 +246,7 @@ export function LendingTableClient() {
 
   // Unique ID for rows to maintain selection state across filters
   const getRowId = useCallback(
-    (row: LendMarket) => `${row.protocol}-${row.poolChainId}-${row.poolId}`,
+    (row: SupplyMarket) => `${row.protocol}-${row.poolChainId}-${row.poolId}`,
     []
   )
 
@@ -357,7 +357,7 @@ export function LendingTableClient() {
                           // Protocol column
                           ('accessorKey' in col &&
                             col.accessorKey === 'protocol') ||
-                          // Chain column
+                          // Network column
                           ('accessorKey' in col &&
                             col.accessorKey === 'network') ||
                           // Name column
@@ -392,7 +392,7 @@ export function LendingTableClient() {
                   </div>
                 </div>
               ) : (
-                <LendingOptimizerView
+                <SupplyingOptimizerView
                   markets={snapshotMarkets}
                   onBack={() => setModalStep(1)}
                 />
@@ -425,7 +425,7 @@ export function LendingTableClient() {
           },
           {
             column: 'network',
-            title: 'Chain',
+            title: 'Network',
             options: getUniqueColumnValues(data || [], 'network').map(
               (value) => ({
                 value: value as string,

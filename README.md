@@ -1,6 +1,6 @@
 # YieldImprove - DeFi Portfolio Optimization Platform
 
-A modern Next.js 15 application for optimizing DeFi lending and borrowing positions across multiple protocols and blockchains.
+A modern Next.js 15 application for optimizing DeFi supplying and borrowing positions across multiple protocols and blockchains.
 
 ![YieldImprove](https://img.shields.io/badge/Next.js-15-black?style=flat-square&logo=next.js)
 ![TypeScript](https://img.shields.io/badge/TypeScript-5.7-blue?style=flat-square&logo=typescript)
@@ -9,7 +9,7 @@ A modern Next.js 15 application for optimizing DeFi lending and borrowing positi
 ## Features
 
 - 📊 **Dashboard**: Real-time portfolio overview with key metrics
-- 💰 **Lending Optimization**: Find the best lending rates across protocols
+- 💰 **Supplying Optimization**: Find the best supplying rates across protocols
 - 💳 **Borrowing Optimization**: Minimize borrowing costs with intelligent protocol selection
 - 📈 **Portfolio Tracker**: Monitor all positions across chains in one place
 - 🛡️ **Risk Monitor**: Track health factors and manage liquidation risks
@@ -69,7 +69,7 @@ yieldimprove/
 │   ├── layout.tsx           # Root layout with sidebar
 │   ├── page.tsx             # Home page (redirects to dashboard)
 │   ├── dashboard/           # Dashboard page
-│   ├── lending/             # Lending optimization page
+│   ├── supplying/             # Supplying optimization page
 │   ├── borrowing/           # Borrowing optimization page
 │   ├── portfolio/           # Portfolio tracker page
 │   ├── risk/                # Risk monitor page
@@ -115,9 +115,9 @@ yieldimprove/
 - Protocol allocation visualization
 - Optimization opportunities and risk alerts
 
-### Lending (`/lending`)
+### Supplying (`/supplying`)
 
-- Best lending rates across protocols
+- Best supplying rates across protocols
 - Filter by blockchain, asset, and investment horizon
 - Sort by APY, TVL, or risk score
 - Current positions summary
@@ -133,7 +133,7 @@ yieldimprove/
 
 ### Portfolio (`/portfolio`)
 
-- All lending and borrowing positions
+- All supplying and borrowing positions
 - Net worth calculation
 - Position details with health factors
 - Blockchain badges and risk indicators

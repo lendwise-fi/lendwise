@@ -3,9 +3,9 @@
 import { unstable_cache } from 'next/cache'
 
 import { getProtocolAdapter, getProtocolIds } from '@/config/protocols'
-import { LendMarket } from '@/types'
+import { SupplyMarket } from '@/types'
 
-async function fetchLendingMarkets(): Promise<LendMarket[]> {
+async function fetchSupplyingMarkets(): Promise<SupplyMarket[]> {
   const protocolIds = getProtocolIds()
 
   const results = await Promise.allSettled(
@@ -14,29 +14,29 @@ async function fetchLendingMarkets(): Promise<LendMarket[]> {
       if (!adapterLoader) throw new Error(`No adapter found for ${protocolId}`)
 
       const protocolAdapter = await adapterLoader()
-      return protocolAdapter.getLendingMarkets()
+      return protocolAdapter.getSupplyingMarkets()
     })
   )
 
-  const allLendingMarkets: LendMarket[] = []
+  const allSupplyingMarkets: SupplyMarket[] = []
 
   results.forEach((result, index) => {
     const protocolId = protocolIds[index]
     if (result.status === 'fulfilled') {
-      allLendingMarkets.push(...result.value)
+      allSupplyingMarkets.push(...result.value)
     } else {
       console.error(`Adapter ${protocolId} failed:`, result.reason)
     }
   })
 
-  return allLendingMarkets.sort((a, b) => b.apy - a.apy)
+  return allSupplyingMarkets.sort((a, b) => b.apy - a.apy)
 }
 
-export const loadLendingMarkets = unstable_cache(
-  fetchLendingMarkets,
-  ['lending-markets'],
+export const loadSupplyingMarkets = unstable_cache(
+  fetchSupplyingMarkets,
+  ['supplying-markets'],
   {
     revalidate: 60,
-    tags: ['lending-markets'],
+    tags: ['supplying-markets'],
   }
 )

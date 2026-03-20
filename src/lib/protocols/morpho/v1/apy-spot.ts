@@ -1,36 +1,21 @@
-import type { SpotPayload, LendMarketState, BorrowMarketState } from '@/lib/db/types'
+import type {
+  BorrowMarketState,
+  SpotPayload,
+  SupplyMarketState,
+} from '@/lib/db/types'
 import { MORPHO_CONFIG } from '@/lib/protocols/morpho/config'
 import type { MarketsApyQuery } from '@/lib/protocols/morpho/v1/offchain/generated/graphql'
 import { MARKETS_APY } from '@/lib/protocols/morpho/v1/offchain/queries'
 import { createGraphQLClient } from '@/lib/protocols/shared'
 import { aprToApyMorpho } from '@/lib/utils'
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
-
-/**
- * Build a deterministic pool _id slug.
- * Format: morpho-{market}-{loanSymbol}-{collateralSymbol?}-{kind}
- */
-function buildPoolId(
-  market:           string,
-  loanSymbol:       string,
-  kind:             'lend' | 'borrow',
-  collateralSymbol?: string
-): string {
-  const base = `morpho-${market}-${loanSymbol.toLowerCase()}`
-  if (kind === 'borrow' && collateralSymbol) {
-    return `${base}-${collateralSymbol.toLowerCase()}-borrow`
-  }
-  return `${base}-${kind}`
-}
-
-// ─── Fetcher ──────────────────────────────────────────────────────────────────
+import { buildProductId } from './utils'
 
 /**
  * Fetch current APY snapshots for all active Morpho Blue markets.
  * Returns SpotPayload documents ready for hourly upsert.
  *
- * One market → two payloads (lend + borrow).
+ * One market → two snapshots (supply + borrow).
  */
 export async function fetchMorphoV1ApySpot(
   chainFilter?: string
@@ -45,15 +30,17 @@ export async function fetchMorphoV1ApySpot(
       ([, c]) => c.name.toLowerCase() === chainFilter.toLowerCase()
     )
     if (!found) {
-      console.warn(`[cron:morpho] Chain filter '${chainFilter}' not found in config`)
+      console.warn(
+        `[cron:morpho] Chain filter '${chainFilter}' not found in config`
+      )
       return []
     }
     chainIds = [Number(found[0])]
   }
 
-  const payloads: SpotPayload[] = []
-  let skip     = 0
-  let hasMore  = true
+  const snapshots: SpotPayload[] = []
+  let skip = 0
+  let hasMore = true
 
   while (hasMore) {
     const { data, error } = await client
@@ -61,7 +48,7 @@ export async function fetchMorphoV1ApySpot(
         first: 100,
         skip,
         where: {
-          chainId_in:          chainIds,
+          chainId_in: chainIds,
           borrowAssetsUsd_gte: 10000,
         },
       })
@@ -78,91 +65,98 @@ export async function fetchMorphoV1ApySpot(
       const state = market.state
       if (!state) continue
 
-      const chainId    = market.loanAsset.chain.id
-      const marketName = `MorphoBlue${market.loanAsset.chain.network}`
+      const chainId = market.loanAsset.chain.id
       const loanSymbol = market.loanAsset.symbol
 
       // ─── Rewards ──────────────────────────────────────────────────────────
 
-      const lendRewardItems = state.rewards
-        .filter((r): r is typeof r & { supplyApr: number } => r.supplyApr != null && r.supplyApr > 0)
+      const supplyRewardItems = state.rewards
+        .filter(
+          (r): r is typeof r & { supplyApr: number } =>
+            r.supplyApr != null && r.supplyApr > 0
+        )
         .map((r) => ({
-          token:   { symbol: r.asset.symbol, address: r.asset.address },
-          apr:     r.supplyApr,
-          apy:     aprToApyMorpho(r.supplyApr),
-          source:  'protocol' as const,
+          token: { symbol: r.asset.symbol, address: r.asset.address },
+          apr: r.supplyApr,
+          apy: aprToApyMorpho(r.supplyApr),
+          source: 'protocol' as const,
           program: null,
         }))
 
       const borrowRewardItems = state.rewards
-        .filter((r): r is typeof r & { borrowApr: number } => r.borrowApr != null && r.borrowApr > 0)
+        .filter(
+          (r): r is typeof r & { borrowApr: number } =>
+            r.borrowApr != null && r.borrowApr > 0
+        )
         .map((r) => ({
-          token:   { symbol: r.asset.symbol, address: r.asset.address },
-          apr:     r.borrowApr,
-          apy:     aprToApyMorpho(r.borrowApr),
-          source:  'protocol' as const,
+          token: { symbol: r.asset.symbol, address: r.asset.address },
+          apr: r.borrowApr,
+          apy: aprToApyMorpho(r.borrowApr),
+          source: 'protocol' as const,
           program: null,
         }))
 
-      const lendRewardsTotal   = lendRewardItems.reduce((s, r) => s + r.apy, 0)
-      const borrowRewardsTotal = borrowRewardItems.reduce((s, r) => s + r.apy, 0)
+      const supplyRewardsTotal = supplyRewardItems.reduce(
+        (s, r) => s + r.apy,
+        0
+      )
+      const borrowRewardsTotal = borrowRewardItems.reduce(
+        (s, r) => s + r.apy,
+        0
+      )
 
       // ─── Market state ──────────────────────────────────────────────────────
 
       const supplyAssetsUsd = state.supplyAssetsUsd ?? 0
-      const supplyAssets    = Number(state.supplyAssets ?? 0)
+      const supplyAssets = Number(state.supplyAssets ?? 0)
       const borrowAssetsUsd = state.borrowAssetsUsd ?? 0
-      const borrowAssets    = Number(state.borrowAssets ?? 0)
+      const borrowAssets = Number(state.borrowAssets ?? 0)
       const utilizationRate = state.utilization ?? 0
-      const assetPriceUsd   = supplyAssets > 0 ? supplyAssetsUsd / supplyAssets : 0
+      const assetPriceUsd =
+        supplyAssets > 0 ? supplyAssetsUsd / supplyAssets : 0
 
-      const fee          = state.fee ?? 0
-      const supplyApy    = state.supplyApy ?? 0
+      const fee = state.fee ?? 0
+      const supplyApy = state.supplyApy ?? 0
       const netSupplyApy = state.netSupplyApy ?? supplyApy
-      const borrowApy    = state.borrowApy ?? 0
+      const borrowApy = state.borrowApy ?? 0
       const netBorrowApy = state.netBorrowApy ?? borrowApy
 
-      // ─── Lend payload ──────────────────────────────────────────────────────
-
-      const lendPoolId = buildPoolId(marketName, loanSymbol, 'lend')
-
-      const lendPayload: SpotPayload = {
-        poolId:   lendPoolId,
-        kind:     'lend',
+      // ─── Supply payload ──────────────────────────────────────────────────────
+      const supplyProductId = buildProductId(market, 'supply')
+      const supplyPayload: SpotPayload = {
+        productId: supplyProductId,
+        kind: 'supply',
         protocol: 'morpho',
         chainId,
-        asset:    loanSymbol,
+        asset: loanSymbol,
         apy: {
-          base:        supplyApy,
-          rewards:     lendRewardsTotal,
-          fees:        fee,
-          net:         netSupplyApy,
-          rewardItems: lendRewardItems,
+          base: supplyApy,
+          rewards: supplyRewardsTotal,
+          fees: fee,
+          net: netSupplyApy,
+          rewardItems: supplyRewardItems,
         },
         market: {
           supplyAssets,
           supplyAssetsUsd,
           utilizationRate,
           assetPriceUsd,
-        } as LendMarketState,
+        } as SupplyMarketState,
       }
 
       // ─── Borrow payload ────────────────────────────────────────────────────
-
-      const collateralSymbol = market.collateralAsset?.symbol
-      const borrowPoolId     = buildPoolId(marketName, loanSymbol, 'borrow', collateralSymbol)
-
+      const borrowProductId = buildProductId(market, 'borrow')
       const borrowPayload: SpotPayload = {
-        poolId:   borrowPoolId,
-        kind:     'borrow',
+        productId: borrowProductId,
+        kind: 'borrow',
         protocol: 'morpho',
         chainId,
-        asset:    loanSymbol,
+        asset: loanSymbol,
         apy: {
-          base:        borrowApy,
-          rewards:     borrowRewardsTotal,
-          fees:        fee,
-          net:         netBorrowApy,
+          base: borrowApy,
+          rewards: borrowRewardsTotal,
+          fees: fee,
+          net: netBorrowApy,
           rewardItems: borrowRewardItems,
         },
         market: {
@@ -172,12 +166,12 @@ export async function fetchMorphoV1ApySpot(
           borrowAssetsUsd,
           utilizationRate,
           assetPriceUsd,
-          collateralAssetsUsd:        null,   // not exposed in current query
-          priceCollateralInLoanAsset: null,   // TODO: derive from collateral state
+          collateralAssetsUsd: null, // not exposed in current query
+          priceCollateralInLoanAsset: null, // TODO: derive from collateral state
         } as BorrowMarketState,
       }
 
-      payloads.push(lendPayload, borrowPayload)
+      snapshots.push(supplyPayload, borrowPayload)
     }
 
     const pageInfo = data.markets.pageInfo
@@ -188,6 +182,8 @@ export async function fetchMorphoV1ApySpot(
     }
   }
 
-  console.log(`[cron:morpho] Fetched ${payloads.length} payloads (${payloads.length / 2} markets)`)
-  return payloads
+  console.log(
+    `[cron:morpho] Fetched ${snapshots.length} snapshots (${snapshots.length / 2} markets)`
+  )
+  return snapshots
 }

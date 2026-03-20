@@ -54,9 +54,9 @@ The `BaseDataAdapter` interface abstracts these differences:
 ```typescript
 interface BaseDataAdapter {
   readonly dataSourceType: 'graphql' | 'subgraph'
-  getUserLendPositions(params: {
+  getUserSupplyPositions(params: {
     addresses: Address[]
-  }): Promise<LendPosition[]>
+  }): Promise<SupplyPosition[]>
   getUserBorrowPositions(params: {
     addresses: Address[]
   }): Promise<BorrowPosition[]>
@@ -86,10 +86,10 @@ interface ProtocolAdapter {
   readonly defaultVersion: string
 
   getVersion(version?: string): VersionAdapter
-  getUserLendPositions(
+  getUserSupplyPositions(
     params: { addresses: Address[] },
     version?: string
-  ): Promise<LendPosition[]>
+  ): Promise<SupplyPosition[]>
   getUserBorrowPositions(
     params: { addresses: Address[] },
     version?: string
@@ -105,7 +105,7 @@ interface ProtocolAdapter {
 import { AaveAdapter } from '@/lib/protocols/aave'
 
 // Uses default version (v3)
-const positions = await AaveAdapter.getUserLendPositions({
+const positions = await AaveAdapter.getUserSupplyPositions({
   addresses: ['0x...'],
 })
 ```
@@ -116,13 +116,13 @@ const positions = await AaveAdapter.getUserLendPositions({
 import { AaveAdapter } from '@/lib/protocols/aave'
 
 // Explicitly use v3
-const v3Positions = await AaveAdapter.getUserLendPositions(
+const v3Positions = await AaveAdapter.getUserSupplyPositions(
   { addresses: ['0x...'] },
   'v3'
 )
 
 // Use v2 (when implemented)
-const v2Positions = await AaveAdapter.getUserLendPositions(
+const v2Positions = await AaveAdapter.getUserSupplyPositions(
   { addresses: ['0x...'] },
   'v2'
 )
@@ -138,7 +138,7 @@ const v3 = AaveAdapter.getVersion('v3')
 console.log(v3.dataAdapter.dataSourceType) // 'graphql'
 
 // Direct access to data protocol
-const positions = await v3.dataAdapter.getUserLendPositions({
+const positions = await v3.dataAdapter.getUserSupplyPositions({
   addresses: ['0x...'],
 })
 ```
@@ -182,7 +182,7 @@ Create `src/lib/protocols/[protocol]/v1/graphql/queries.ts`:
 import { gql } from 'urql'
 
 export const USER_LEND_POSITIONS = gql`
-  query UserLendPositions($address: String!) {
+  query UserSupplyPositions($address: String!) {
     // Your query here
   }
 `
@@ -197,7 +197,7 @@ import type { BaseDataAdapter } from '@/lib/protocols/types'
 
 export const myProtocolV1GraphqlAdapter: BaseDataAdapter = {
   dataSourceType: 'graphql',
-  async getUserLendPositions({ addresses }) {
+  async getUserSupplyPositions({ addresses }) {
     // Implementation
   },
   async getUserBorrowPositions({ addresses }) {
@@ -322,7 +322,7 @@ export const MyProtocolAdapter = createProtocolAdapter(
 
 - **Current Versions**: v1 (default)
 - **Data Source**: GraphQL API (`https://api.morpho.org/graphql`)
-- **Features**: Vault-based lending
+- **Features**: Vault-based supplying
 
 ### Compound
 

@@ -2,15 +2,15 @@
 trigger: always_on
 ---
 
-### Project Context: Strategic DeFi Borrowing and Lending Analytics Dashboard
+### Project Context: Strategic DeFi Borrowing and Supplying Analytics Dashboard
 
 **File Location:** `.windsurf/rules/PROJECT_SUMMARY.md`
 
 #### 1. Project Objective and Scope
 
-This project focuses on producing the specification for an **analytics dashboard** designed to support Decentralized Finance (DeFi) users, both lenders and borrowers, in optimizing their capital allocation strategies. The core goal is to present the range of available options and calculate optimal strategies across lending protocols deployed on a specific blockchain.
+This project focuses on producing the specification for an **analytics dashboard** designed to support Decentralized Finance (DeFi) users, both supplyers and borrowers, in optimizing their capital allocation strategies. The core goal is to present the range of available options and calculate optimal strategies across supplying protocols deployed on a specific blockchain.
 
-The initial strategic perimeter for optimization and monitoring tools includes the leading lending protocols on Ethereum: **AAVE (V3 and V2), Morpho, and Compound (V3 and V2)**. These protocols utilize algorithmic interest rates based on pool utilization.
+The initial strategic perimeter for optimization and monitoring tools includes the leading supplying protocols on Ethereum: **AAVE (V3 and V2), Morpho, and Compound (V3 and V2)**. These protocols utilize algorithmic interest rates based on pool utilization.
 
 The specification includes formal definitions of key decision problems, expressed in a practical format suitable for implementation.
 
@@ -32,9 +32,9 @@ The borrowing framework addresses strategic decisions for securing a loan (e.g.,
 - **Actionable Recommendations:** When a position is At Risk, the dashboard must recommend the required **repay amount** ($\text{Bout}_i$) or **collateral top-up** ($\text{Cin}_i$) to restore the position to the safe $\text{maxLTV}_i$ level.
 - **Market Concentration:** Track the supply concentration (share of deposits held by top users) to monitor structural market vulnerability.
 
-#### 3. Lending Side Framework (Yield Optimization and Diversification)
+#### 3. Supplying Side Framework (Yield Optimization and Diversification)
 
-The lending framework focuses on allocating capital $x = (x_1, \dots, x_n)$ across $n$ lending venues (vaults) to maximize the expected portfolio yield $\sum_{i=1}^{n} x_i s_i$.
+The supplying framework focuses on allocating capital $x = (x_1, \dots, x_n)$ across $n$ supplying venues (vaults) to maximize the expected portfolio yield $\sum_{i=1}^{n} x_i s_i$.
 
 **Optimization Goal:**
 
@@ -71,7 +71,7 @@ The optimization logic must adapt based on the user's selected investment horizo
 
 #### 5. Future Development: Cross-Chain Capabilities
 
-The framework is designed to be extended to support full **cross-chain optimization** for both borrowing and lending.
+The framework is designed to be extended to support full **cross-chain optimization** for both borrowing and supplying.
 
 - **Cross-Chain Logic:** Users can deploy capital or collateral across multiple networks simultaneously.
 - **Bridging Costs:** Inter-chain friction (bridging costs, denoted $\gamma_j$) must be explicitly integrated into the objective function to ensure that recommendations for cross-chain reallocation are only made when the expected benefit outweighs the cost.

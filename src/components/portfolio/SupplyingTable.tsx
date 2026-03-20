@@ -8,7 +8,7 @@ import { ColumnDef } from '@tanstack/react-table'
 import { AlertCircle, ArrowUpRightFromSquare, TrendingUp } from 'lucide-react'
 import { Area, AreaChart, CartesianGrid, XAxis, YAxis } from 'recharts'
 
-import { loadMarketLendHistoryRates } from '@/app/actions'
+import { loadMarketSupplyHistoryRates } from '@/app/actions'
 import { NetworkBadge } from '@/components/badge/NetworkBadge'
 import { ProtocolBadge } from '@/components/badge/ProtocolBadge'
 import { NetworkIcon, ProtocolIcon, TokenIcon } from '@/components/icon'
@@ -50,8 +50,8 @@ import { useIsMobile } from '@/hooks/useMobile'
 import { formatCompactCurrency } from '@/lib/format-currency'
 import { formatAddress } from '@/lib/utils'
 import {
-  LendPosition,
   MarketRate,
+  SupplyPosition,
   TIMEFRAME_OPTIONS,
   TimeframeLabel,
 } from '@/types'
@@ -62,7 +62,7 @@ const createColumns = (
   currency: string,
   rate: number,
   _isMobile: boolean
-): ColumnDef<LendPosition>[] => [
+): ColumnDef<SupplyPosition>[] => [
   {
     accessorKey: 'protocol',
     header: 'Protocol',
@@ -75,7 +75,7 @@ const createColumns = (
   },
   {
     accessorKey: 'network',
-    header: 'Chain',
+    header: 'Network',
     cell: ({ row }) => <NetworkBadge networkSlug={row.original.network} />,
     meta: {
       isMobileHidden: true,
@@ -153,7 +153,7 @@ const chartConfig = {
   },
 } satisfies ChartConfig
 
-function TableCellViewer({ item }: { item: LendPosition }) {
+function TableCellViewer({ item }: { item: SupplyPosition }) {
   const isMobile = useIsMobile()
   const [rates, setRates] = useState<MarketRate[]>([])
   const [selectedTimeframe, setSelectedTimeframe] =
@@ -174,7 +174,7 @@ function TableCellViewer({ item }: { item: LendPosition }) {
       }
 
       try {
-        const rates = await loadMarketLendHistoryRates({
+        const rates = await loadMarketSupplyHistoryRates({
           protocolId: item.protocol,
           chainId: item.poolChainId,
           poolId: item.poolId,
@@ -479,7 +479,7 @@ function TableCellViewer({ item }: { item: LendPosition }) {
   )
 }
 
-export function LendingTable({ data }: { data: LendPosition[] }) {
+export function SupplyingTable({ data }: { data: SupplyPosition[] }) {
   const { baseCurrency, rate } = useCurrency()
   const isMobile = useIsMobile()
   const columns = createColumns(baseCurrency, rate, isMobile).filter(
@@ -489,7 +489,7 @@ export function LendingTable({ data }: { data: LendPosition[] }) {
   return (
     <div>
       <h2 className="text-foreground text-2xl font-semibold">
-        Lending positions
+        Supplying positions
       </h2>
       <Separator className="my-3" />
       <DataTable
@@ -518,7 +518,7 @@ export function LendingTable({ data }: { data: LendPosition[] }) {
                 },
                 {
                   column: 'network',
-                  title: 'Chain',
+                  title: 'Network',
                   options: getUniqueColumnValues(data, 'network').map(
                     (value) => ({
                       value: value as string,

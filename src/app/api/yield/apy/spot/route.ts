@@ -9,7 +9,7 @@ import { type ProtocolName, getProtocolIds } from '@/config/protocols'
  * Spot APY snapshot endpoint.
  *
  * Collects APY snapshots from the requested protocol and writes
- * LendApySpot + BorrowApySpot documents to the apy.spot Time Series collection.
+ * SupplyApySpot + BorrowApySpot documents to the apy.spot Time Series collection.
  *
  * Body (JSON):
  *   protocol (required): 'aave_v3' | 'morpho_v1' | 'compound_v3'

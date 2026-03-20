@@ -125,7 +125,7 @@ Some chains may have different subgraph schemas. You can override queries per ch
    ```typescript
    // base/queries.ts
    export const USER_LEND_POSITIONS_BASE = gql`
-     query UserLendPositionsBase($where: AccountFilters) {
+     query UserSupplyPositionsBase($where: AccountFilters) {
        accounts(where: $where) {
          # Different schema for Base
        }
@@ -183,7 +183,7 @@ THEGRAPH_API_KEY=your_api_key_here
 
 ## TODO
 
-- [ ] Implement actual query logic in `getUserLendPositions`
+- [ ] Implement actual query logic in `getUserSupplyPositions`
 - [ ] Implement `getUserBorrowPositions`
 - [ ] Add Base subgraph URL
 - [ ] Add Polygon subgraph URL

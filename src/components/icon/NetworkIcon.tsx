@@ -26,7 +26,7 @@ export const NetworkIcon = ({
   const [error, setError] = useState(false)
 
   // Normalize protocol name to lowercase for file matching
-  const normalizedNetworkSlug = networkSlug.toLowerCase()
+  const normalizedNetworkSlug = networkSlug.toLowerCase().replaceAll(' ', '-')
   const iconPath = `/icons/network/${normalizedNetworkSlug}.svg`
 
   const handleError = () => {

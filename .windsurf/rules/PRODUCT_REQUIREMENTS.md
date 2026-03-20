@@ -2,11 +2,11 @@
 trigger: manual
 ---
 
-# Lending Analytics Platform
+# Supplying Analytics Platform
 
 ## What it does
 
-This specification details an analytics dashboard designed to support DeFi users (lenders and borrowers) in optimizing strategic crypto-asset lending and borrowing decisions across major protocols. The dashboard formally defines and solves optimization problems to maximize borrowing capacity or lending yield while adhering to predefined risk limits and diversification requirements. It incorporates comprehensive risk monitoring, including Health Factor and market concentration, and extends the analysis to support cross-chain allocation decisions, explicitly integrating bridging costs.
+This specification details an analytics dashboard designed to support DeFi users (supplyers and borrowers) in optimizing strategic crypto-asset supplying and borrowing decisions across major protocols. The dashboard formally defines and solves optimization problems to maximize borrowing capacity or supplying yield while adhering to predefined risk limits and diversification requirements. It incorporates comprehensive risk monitoring, including Health Factor and market concentration, and extends the analysis to support cross-chain allocation decisions, explicitly integrating bridging costs.
 
 ## Core features
 

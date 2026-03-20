@@ -25,7 +25,7 @@ async function main() {
     for (const reserve of market.reserves) {
       if (reserve.incentives && reserve.incentives.length > 0) {
         console.log(
-          `\nMarket: ${market.name} - ${reserve.underlyingToken.symbol}`
+          `\nMarket: ${reserve.market.name} - ${reserve.underlyingToken.symbol}`
         )
         console.dir(reserve.incentives, { depth: null })
       }

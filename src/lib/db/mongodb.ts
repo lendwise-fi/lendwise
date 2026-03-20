@@ -8,14 +8,20 @@ if (!process.env.MONGODB_URI) {
 if (!process.env.MONGODB_DB_NAME) {
   throw new Error('Invalid/Missing environment variable: "MONGODB_DB_NAME"')
 }
-if (!process.env.MONGODB_COLLECTION_POOLS) {
-  throw new Error('Invalid/Missing environment variable: "MONGODB_COLLECTION_POOLS"')
+if (!process.env.MONGODB_COLLECTION_PRODUCTS) {
+  throw new Error(
+    'Invalid/Missing environment variable: "MONGODB_COLLECTION_PRODUCTS"'
+  )
 }
 if (!process.env.MONGODB_COLLECTION_HOURLY) {
-  throw new Error('Invalid/Missing environment variable: "MONGODB_COLLECTION_HOURLY"')
+  throw new Error(
+    'Invalid/Missing environment variable: "MONGODB_COLLECTION_HOURLY"'
+  )
 }
 if (!process.env.MONGODB_COLLECTION_DAILY) {
-  throw new Error('Invalid/Missing environment variable: "MONGODB_COLLECTION_DAILY"')
+  throw new Error(
+    'Invalid/Missing environment variable: "MONGODB_COLLECTION_DAILY"'
+  )
 }
 
 const uri = process.env.MONGODB_URI
@@ -51,11 +57,12 @@ if (process.env.NODE_ENV === 'development') {
   clientPromise = client.connect()
 }
 
+export const MONGODB_URI = process.env.MONGODB_URI
 export const MONGODB_DB_NAME = process.env.MONGODB_DB_NAME
-export const MONGODB_COLLECTION_POOLS = process.env.MONGODB_COLLECTION_POOLS
+export const MONGODB_COLLECTION_PRODUCTS =
+  process.env.MONGODB_COLLECTION_PRODUCTS
 export const MONGODB_COLLECTION_HOURLY = process.env.MONGODB_COLLECTION_HOURLY
 export const MONGODB_COLLECTION_DAILY = process.env.MONGODB_COLLECTION_DAILY
-
 
 /**
  * Unique index used by $merge in APY aggregation pipelines (hourly, daily, etc.).

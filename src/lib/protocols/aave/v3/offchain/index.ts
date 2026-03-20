@@ -2,21 +2,20 @@ import type { Address } from 'viem'
 
 import { createGraphQLClient } from '@/lib/protocols/shared'
 import type { DataAdapter } from '@/lib/protocols/types'
-import { BorrowPosition, LendPosition } from '@/types'
+import { BorrowPosition, SupplyPosition } from '@/types'
 
 import { AAVE_CONFIG } from '../../config'
 import { getNetworkName } from '../utils'
 import {
   MarketsQuery,
   UserBorrowPositionsQuery,
-  UserLendCollateralsQuery,
-  UserLendPositionsQuery,
   UserMarketHealthFactorQuery,
+  UserSupplyCollateralsQuery,
+  UserSupplyPositionsQuery,
 } from './generated/graphql'
-import { getLendingMarkets } from './lending-markets'
 import {
   getMarketBorrowHistoryRates,
-  getMarketLendHistoryRates,
+  getMarketSupplyHistoryRates,
 } from './market-rates'
 import {
   ALL_MARKETS,
@@ -25,6 +24,7 @@ import {
   USER_LEND_POSITIONS,
   USER_MARKET_HEALTH_FACTOR,
 } from './queries'
+import { getSupplyingMarkets } from './supplying-markets'
 
 export const client = createGraphQLClient(AAVE_CONFIG.aave_v3.offchainApiUrl!)
 
@@ -61,21 +61,21 @@ async function getAllAvailableMarkets(chainIds?: string[]) {
   return data.markets
 }
 
-async function getUserLendPositions({
+async function getUserSupplyPositions({
   addresses,
 }: {
   addresses: Address[]
-}): Promise<LendPosition[]> {
+}): Promise<SupplyPosition[]> {
   if (!addresses || addresses.length === 0) {
     return []
   }
 
   try {
     const marketsParams = await getMarketsParams()
-    const lendingPositionsResults = await Promise.all(
+    const supplyingPositionsResults = await Promise.all(
       addresses.map(async (address) => {
         const { data, error } = await client
-          .query<UserLendPositionsQuery>(USER_LEND_POSITIONS, {
+          .query<UserSupplyPositionsQuery>(USER_LEND_POSITIONS, {
             request: {
               collateralsOnly: false,
               user: address,
@@ -107,7 +107,7 @@ async function getUserLendPositions({
             return balance > 0n
           })
           .map(
-            (position): LendPosition => ({
+            (position): SupplyPosition => ({
               id: address,
               protocol: AAVE_CONFIG.aave_v3.id,
               network: position.market.chain.name.toLowerCase(),
@@ -122,6 +122,7 @@ async function getUserLendPositions({
               assetDecimals: position.currency.decimals,
               assetAmount: position.balance.amount.raw,
               assetAmountUsd: position.balance.usd,
+              assetLiveAmountUsd: position.balance.usd,
               apy: position.apy.formatted,
               link: `https://app.aave.com/reserve-overview/?underlyingAsset=${position.currency.address.toLowerCase()}&marketName=proto_${position.market.chain.name.toLowerCase()}_v3`,
             })
@@ -129,7 +130,7 @@ async function getUserLendPositions({
       })
     )
 
-    return lendingPositionsResults.flat()
+    return supplyingPositionsResults.flat()
   } catch (err) {
     console.error('Unexpected error fetching Aave V3 positions:', err)
     return []
@@ -218,7 +219,7 @@ async function getUserBorrowPositions({
         )
 
         const { data: collateralsData, error: collateralsError } = await client
-          .query<UserLendCollateralsQuery>(USER_LEND_COLLATERALS, {
+          .query<UserSupplyCollateralsQuery>(USER_LEND_COLLATERALS, {
             request: {
               collateralsOnly: true,
               user: address,
@@ -277,7 +278,7 @@ async function getUserBorrowPositions({
             symbol: position.currency.symbol,
             decimals: position.currency.decimals,
             amount: Number(position.balance.amount.value),
-            amountUSD: Number(position.balance.usd),
+            amountUsd: Number(position.balance.usd),
           })
         })
 
@@ -290,7 +291,7 @@ async function getUserBorrowPositions({
               healthFactorMapParams.get(
                 `${address}-${position.market.address}-${position.market.chain.chainId}`
               ) ?? 0,
-            userAddress: address,
+            userAddress: address.toLowerCase() as Address,
             poolId: position.market.address,
             poolName: position.market.name,
             poolAddress: position.market.address,
@@ -301,6 +302,7 @@ async function getUserBorrowPositions({
             loanAssetDecimals: position.currency.decimals,
             loanAssetAmount: position.debt.amount.value,
             loanAssetAmountUsd: position.debt.usd,
+            loanLiveAssetAmountUsd: position.debt.usd,
             loanTimestamp: 0,
             collaterals:
               markets_collaterals[
@@ -321,9 +323,9 @@ async function getUserBorrowPositions({
 
 export const aaveV3OffchainAdapter: DataAdapter = {
   dataSourceType: 'offchain',
-  getUserLendPositions,
+  getUserSupplyPositions,
   getUserBorrowPositions,
   getMarketBorrowHistoryRates,
-  getMarketLendHistoryRates,
-  getLendingMarkets,
+  getMarketSupplyHistoryRates,
+  getSupplyingMarkets,
 }

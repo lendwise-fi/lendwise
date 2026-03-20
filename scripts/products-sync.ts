@@ -1,29 +1,29 @@
 /**
- * @file scripts/pools-sync.ts
- * Manual trigger for the pools sync job.
+ * @file scripts/products-sync.ts
+ * Manual trigger for the products sync job.
  *
  * Usage:
- *   bun run --env-file=.env pools:sync
- *   bun run --env-file=.env pools:sync -- --protocol aave_v3
- *   bun run --env-file=.env pools:sync -- --protocol morpho_v1
+ *   bun run --env-file=.env products:sync
+ *   bun run --env-file=.env products:sync -- --protocol aave_v3
+ *   bun run --env-file=.env products:sync -- --protocol morpho_v1
  */
-
-import { syncPools } from '@/app/actions/pools-sync.actions'
+import { syncProducts } from '@/app/actions/products-sync.actions'
 import type { ProtocolName } from '@/config/protocols'
 
 async function main(): Promise<void> {
-  const args     = process.argv.slice(2)
+  const args = process.argv.slice(2)
   const protoIdx = args.indexOf('--protocol')
-  const protocol = protoIdx !== -1 ? (args[protoIdx + 1] as ProtocolName) : undefined
+  const protocol =
+    protoIdx !== -1 ? (args[protoIdx + 1] as ProtocolName) : undefined
 
-  console.log('\n🔄 Pools sync\n')
+  console.log('\n🔄 products sync\n')
   if (protocol) {
     console.log(`  Protocol: ${protocol}\n`)
   } else {
     console.log('  Protocol: all\n')
   }
 
-  const result = await syncPools(protocol)
+  const result = await syncProducts(protocol)
 
   console.log('\n📊 Result:')
   console.log(`  Success:  ${result.success}`)
@@ -37,6 +37,7 @@ async function main(): Promise<void> {
   }
 
   console.log('\n✅ Done\n')
+  process.exit(0)
 }
 
 main().catch((err) => {

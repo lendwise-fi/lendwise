@@ -14,8 +14,8 @@ import type {
   BorrowApyDaily,
   BorrowApySlot,
   BorrowMarketState,
-  LendApyDaily,
-  LendApySlot,
+  SupplyApyDaily,
+  SupplyApySlot,
 } from '@/lib/db/types'
 
 // ─── Scalar ───────────────────────────────────────────────────────────────────
@@ -108,7 +108,7 @@ function buildTimeFilter(
 
 // ─── Shared reward items mapper ───────────────────────────────────────────────
 
-function mapRewardItems(items: LendApySlot['apy']['rewardItems']) {
+function mapRewardItems(items: SupplyApySlot['apy']['rewardItems']) {
   return items.map((r) => ({
     token: r.token,
     apr: r.apr,
@@ -121,15 +121,15 @@ function mapRewardItems(items: LendApySlot['apy']['rewardItems']) {
 // ─── MongoDB → GraphQL mapping ────────────────────────────────────────────────
 
 /**
- * ApyMeta is lean — only poolId, kind, protocol, chainId, asset (symbol).
+ * ApyMeta is lean — only productId, kind, protocol, chainId, asset (symbol).
  * chain (full object) and asset (full object) are resolved via pools lookup.
  * TODO: DataLoader from pools collection for chain.name, asset.address, asset.decimals
  */
 
-function mapLendSlot(doc: LendApySlot) {
+function mapSupplySlot(doc: SupplyApySlot) {
   return {
     hour: doc.hour,
-    poolId: doc.meta.poolId,
+    productId: doc.meta.productId,
     protocol: doc.meta.protocol,
     chainId: doc.meta.chainId,
     asset: doc.meta.asset,
@@ -154,7 +154,7 @@ function mapBorrowSlot(doc: BorrowApySlot) {
   const market = doc.market as BorrowMarketState
   return {
     hour: doc.hour,
-    poolId: doc.meta.poolId,
+    productId: doc.meta.productId,
     protocol: doc.meta.protocol,
     chainId: doc.meta.chainId,
     asset: doc.meta.asset,
@@ -180,10 +180,10 @@ function mapBorrowSlot(doc: BorrowApySlot) {
   }
 }
 
-function mapLendDaily(doc: LendApyDaily) {
+function mapSupplyDaily(doc: SupplyApyDaily) {
   return {
     date: doc.date,
-    poolId: doc.meta.poolId,
+    productId: doc.meta.productId,
     protocol: doc.meta.protocol,
     chainId: doc.meta.chainId,
     asset: doc.meta.asset,
@@ -208,7 +208,7 @@ function mapBorrowDaily(doc: BorrowApyDaily) {
   const market = doc.market as BorrowMarketState
   return {
     date: doc.date,
-    poolId: doc.meta.poolId,
+    productId: doc.meta.productId,
     protocol: doc.meta.protocol,
     chainId: doc.meta.chainId,
     asset: doc.meta.asset,
@@ -237,7 +237,7 @@ function mapBorrowDaily(doc: BorrowApyDaily) {
 // ─── Query builders ───────────────────────────────────────────────────────────
 
 function buildHourlyQuery(
-  kind: 'lend' | 'borrow',
+  kind: 'supply' | 'borrow',
   filters: HourlyFilters & { collateral?: string }
 ): Filter<ApySlot> {
   const { protocol, market, chainId, asset, collateral } = filters
@@ -249,8 +249,9 @@ function buildHourlyQuery(
   if (protocol) query['meta.protocol'] = protocol
   if (chainId) query['meta.chainId'] = chainId
   if (asset) query['meta.asset'] = asset.toUpperCase()
-  if (market) query['meta.poolId'] = { $regex: market, $options: 'i' }
-  if (collateral) query['meta.poolId'] = { $regex: collateral, $options: 'i' }
+  if (market) query['meta.productId'] = { $regex: market, $options: 'i' }
+  if (collateral)
+    query['meta.productId'] = { $regex: collateral, $options: 'i' }
 
   const timeFilter = buildTimeFilter(undefined, filters.from, filters.to)
   if (Object.keys(timeFilter).length > 0) {
@@ -261,7 +262,7 @@ function buildHourlyQuery(
 }
 
 function buildDailyQuery(
-  kind: 'lend' | 'borrow',
+  kind: 'supply' | 'borrow',
   filters: DailyFilters & { collateral?: string }
 ): Filter<ApyDaily> {
   const { protocol, market, chainId, asset, collateral, range, from, to } =
@@ -274,8 +275,9 @@ function buildDailyQuery(
   if (protocol) query['meta.protocol'] = protocol
   if (chainId) query['meta.chainId'] = chainId
   if (asset) query['meta.asset'] = asset.toUpperCase()
-  if (market) query['meta.poolId'] = { $regex: market, $options: 'i' }
-  if (collateral) query['meta.poolId'] = { $regex: collateral, $options: 'i' }
+  if (market) query['meta.productId'] = { $regex: market, $options: 'i' }
+  if (collateral)
+    query['meta.productId'] = { $regex: collateral, $options: 'i' }
 
   const effectiveRange = range ?? (!from ? '30d' : undefined)
   const timeFilter = buildTimeFilter(effectiveRange, from, to)
@@ -292,26 +294,26 @@ export const resolvers = {
   DateTime,
 
   Query: {
-    async lendApyHourly(_: unknown, args: { filters?: HourlyFilters }) {
+    async supplyApyHourly(_: unknown, args: { filters?: HourlyFilters }) {
       const db = await getDb()
-      const query = buildHourlyQuery('lend', args.filters ?? {})
+      const query = buildHourlyQuery('supply', args.filters ?? {})
       const docs = await db
         .collection<ApySlot>(MONGODB_COLLECTION_HOURLY)
         .find(query)
         .sort({ hour: 1 })
         .toArray()
-      return docs.map((d) => mapLendSlot(d as LendApySlot))
+      return docs.map((d) => mapSupplySlot(d as SupplyApySlot))
     },
 
-    async lendApyDaily(_: unknown, args: { filters?: DailyFilters }) {
+    async supplyApyDaily(_: unknown, args: { filters?: DailyFilters }) {
       const db = await getDb()
-      const query = buildDailyQuery('lend', args.filters ?? {})
+      const query = buildDailyQuery('supply', args.filters ?? {})
       const docs = await db
         .collection<ApyDaily>(MONGODB_COLLECTION_DAILY)
         .find(query)
         .sort({ date: 1 })
         .toArray()
-      return docs.map((d) => mapLendDaily(d as LendApyDaily))
+      return docs.map((d) => mapSupplyDaily(d as SupplyApyDaily))
     },
 
     async borrowApyHourly(_: unknown, args: { filters?: BorrowHourlyFilters }) {

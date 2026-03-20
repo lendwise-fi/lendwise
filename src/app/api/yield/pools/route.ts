@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 
 import { verifySignatureAppRouter } from '@upstash/qstash/nextjs'
 
-import { syncPools } from '@/app/actions/pools-sync.actions'
+import { syncProducts } from '@/app/actions/products-sync.actions'
 import { type ProtocolName, getProtocolIds } from '@/config/protocols'
 
 /**
@@ -35,7 +35,7 @@ export const POST = verifySignatureAppRouter(async (req: NextRequest) => {
   }
 
   try {
-    const result = await syncPools(protocol as ProtocolName | undefined)
+    const result = await syncProducts(protocol as ProtocolName | undefined)
 
     return NextResponse.json(result, {
       status: result.success ? 200 : 207,

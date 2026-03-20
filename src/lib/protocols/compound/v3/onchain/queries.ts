@@ -6,33 +6,43 @@ import { gql } from 'urql'
  * For chains with different schemas (like Base), use chain-specific queries.
  */
 
-export const USER_LEND_POSITIONS = gql`
-  query UserLendPositions($where: Account_filter) {
+export const USER_SUPPLY_POSITIONS = gql`
+  query UserSupplyPositions($where: Account_filter) {
     accounts(where: $where) {
-      id
-      positions(where: { side: COLLATERAL }) {
-        id
-        side
-        isCollateral
-        isIsolated
-        balance
-        asset {
-          id
-          name
-          symbol
-          decimals
-          lastPriceUSD
-        }
+      address
+      positions(where: { accounting_: { baseBalance_gt: 0 } }) {
         market {
           id
-          name
-          relation
-          protocol {
-            network
+          configuration {
+            name
+            symbol
+            baseToken {
+              token {
+                symbol
+                name
+                decimals
+                address
+              }
+            }
           }
-          rates(where: { side: LENDER }) {
-            rate
+          accounting {
+            baseSupplyIndex
+            supplyApr
+            netSupplyApr
+            totalBaseSupply
+            rewardSupplyApr
+            totalBaseSupplyUsd
+            trackingSupplyIndex
+            totalBasePrincipalSupply
           }
+        }
+        accounting {
+          id
+          lastUpdatedBlockNumber
+          baseBalance
+          baseBalanceUsd
+          basePrincipal
+          baseTrackingAccrued
         }
       }
     }
@@ -42,42 +52,54 @@ export const USER_LEND_POSITIONS = gql`
 export const USER_BORROW_POSITIONS = gql`
   query UserBorrowPositions($where: Account_filter) {
     accounts(where: $where) {
-      id
-      borrows {
-        id
-        amount
-        timestamp
-        asset {
-          id
-          name
-          symbol
-          decimals
-          lastPriceUSD
-        }
+      address
+      positions(where: { accounting_: { baseBalance_lt: 0 } }) {
+        creationBlockNumber
         market {
           id
-          name
-          inputToken {
-            id
+          configuration {
+            name
+            symbol
+            baseToken {
+              token {
+                symbol
+                name
+                decimals
+                address
+              }
+            }
           }
-          relation
-          protocol {
-            network
-          }
-          rates {
-            rate
+          accounting {
+            baseBorrowIndex
+            borrowApr
+            netBorrowApr
+            totalBaseBorrow
+            rewardBorrowApr
+            totalBaseBorrowUsd
+            trackingBorrowIndex
+            totalBasePrincipalBorrow
           }
         }
-      }
-      deposits {
-        id
-        amount
-        asset {
+        accounting {
           id
-          name
-          symbol
-          decimals
-          lastPriceUSD
+          baseBalance
+          baseBalanceUsd
+          basePrincipal
+          baseTrackingAccrued
+          collateralBalances {
+            balance
+            balanceUsd
+            collateralToken {
+              borrowCollateralFactor
+              liquidationFactor
+              token {
+                name
+                symbol
+                decimals
+                address
+              }
+            }
+          }
         }
       }
     }
@@ -87,62 +109,106 @@ export const MARKETS_APY = gql`
   query MarketsApy {
     markets {
       id
-      name
-      relation
-      inputToken {
+      configuration {
         symbol
+        baseToken {
+          lastPriceUsd
+        }
       }
-      protocol {
-        network
-      }
-      rates {
-        rate
-        side
+      accounting {
+        supplyApr
+        netSupplyApr
+        rewardSupplyApr
+        baseSupplyIndex
+        totalBaseSupply
+        totalBasePrincipalSupply
+        totalBaseSupplyUsd
+        trackingSupplyIndex
+        borrowApr
+        netBorrowApr
+        rewardBorrowApr
+        baseBorrowIndex
+        totalBaseBorrow
+        totalBaseBorrowUsd
+        trackingBorrowIndex
+        totalBasePrincipalBorrow
+        utilization
+        collateralBalanceUsd
+        collateralReservesBalanceUsd
       }
     }
   }
 `
 
-export const MARKET_HOURLY_BORROW_RATES = gql`
-  query MarketHourlyBorrowRates($where: MarketHourlySnapshot_filter) {
-    marketHourlySnapshots(where: $where) {
-      rates(where: { side: BORROWER }) {
-        rate
+export const MARKETS_ALL = gql`
+  query MarketsAll {
+    markets {
+      id
+      configuration {
+        baseToken {
+          token {
+            symbol
+            name
+            decimals
+            address
+          }
+        }
+        collateralTokens {
+          borrowCollateralFactor
+          liquidationFactor
+          liquidateCollateralFactor
+          token {
+            address
+            decimals
+            name
+            symbol
+          }
+        }
       }
-      timestamp
     }
   }
 `
 
-export const MARKET_HOURLY_LEND_RATES = gql`
-  query MarketHourlyLendRates($where: MarketHourlySnapshot_filter) {
-    marketHourlySnapshots(where: $where) {
-      rates(where: { side: LENDER }) {
-        rate
-      }
-      timestamp
-    }
-  }
-`
+// export const MARKET_HOURLY_BORROW_RATES = gql`
+//   query MarketHourlyBorrowRates($where: MarketHourlySnapshot_filter) {
+//     marketHourlySnapshots(where: $where) {
+//       rates(where: { side: BORROWER }) {
+//         rate
+//       }
+//       timestamp
+//     }
+//   }
+// `
 
-export const MARKET_DAILY_BORROW_RATES = gql`
-  query MarketDailyBorrowRates($where: MarketDailySnapshot_filter) {
-    marketDailySnapshots(where: $where) {
-      rates(where: { side: BORROWER }) {
-        rate
-      }
-      timestamp
-    }
-  }
-`
+// export const MARKET_HOURLY_LEND_RATES = gql`
+//   query MarketHourlySupplyRates($where: MarketHourlySnapshot_filter) {
+//     marketHourlySnapshots(where: $where) {
+//       rates(where: { side: LENDER }) {
+//         rate
+//       }
+//       timestamp
+//     }
+//   }
+// `
 
-export const MARKET_DAILY_LEND_RATES = gql`
-  query MarketDailyLendRates($where: MarketDailySnapshot_filter) {
-    marketDailySnapshots(where: $where) {
-      rates(where: { side: LENDER }) {
-        rate
-      }
-      timestamp
-    }
-  }
-`
+// export const MARKET_DAILY_BORROW_RATES = gql`
+//   query MarketDailyBorrowRates($where: MarketDailySnapshot_filter) {
+//     marketDailySnapshots(where: $where) {
+//       rates(where: { side: BORROWER }) {
+//         rate
+//       }
+//       timestamp
+//     }
+//   }
+// `
+
+// export const MARKET_DAILY_LEND_RATES = gql`
+//   query MarketDailySupplyRates($where: MarketDailySnapshot_filter) {
+//     marketDailySnapshots(where: $where) {
+//       rates(where: { side: LENDER }) {
+//         rate
+//       }
+//       timestamp
+//     }
+//   }
+// `

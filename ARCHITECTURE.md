@@ -2,7 +2,7 @@
 
 ## Overview
 
-YieldOptimizer is a professional DeFi yield optimization platform that aggregates positions from multiple lending protocols (Aave, Compound, Morpho) and provides actionable insights for maximizing returns.
+YieldOptimizer is a professional DeFi yield optimization platform that aggregates positions from multiple supplying protocols (Aave, Compound, Morpho) and provides actionable insights for maximizing returns.
 
 ## Project Structure
 
@@ -29,7 +29,7 @@ src/
 │   └── ui/                        # Reusable UI components
 └── app/
     ├── dashboard/                  # Dashboard page
-    ├── lending/                    # Lending page
+    ├── supplying/                    # Supplying page
     └── borrowing/                  # Borrowing page
 ```
 
@@ -39,7 +39,7 @@ src/
 
 Defines all TypeScript interfaces and types used throughout the application:
 
-- `Position`: Individual lending/borrowing position
+- `Position`: Individual supplying/borrowing position
 - `Market`: Protocol market data
 - `UserPositionSummary`: Aggregated user portfolio data
 - `ProtocolConfig`: Protocol configuration structure
@@ -120,7 +120,7 @@ Smart Contracts (via viem PublicClient)
 ### Morpho Blue
 
 - **Chains:** Ethereum, Base
-- **Features:** Isolated lending markets
+- **Features:** Isolated supplying markets
 - **Data Source:** Subgraph + on-chain fallback
 
 ## Key Features
@@ -224,7 +224,7 @@ NEXT_PUBLIC_ENABLE_TESTNETS=false
 
 ## Adding a New Protocol
 
-To add support for a new lending protocol:
+To add support for a new supplying protocol:
 
 1. **Add Type Definitions** (if needed)
 

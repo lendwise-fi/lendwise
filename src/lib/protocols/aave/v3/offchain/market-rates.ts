@@ -7,7 +7,7 @@ import { MarketRate, TimeframeLabel } from '@/types'
 import { client } from '.'
 import {
   MarketBorrowHistoryRatesQuery,
-  MarketLendHistoryRatesQuery,
+  MarketSupplyHistoryRatesQuery,
   TimeWindow,
 } from './generated/graphql'
 import {
@@ -68,15 +68,15 @@ export async function getMarketBorrowHistoryRates({
     : []
 }
 
-const _formatMarketLendHistoryRates = cache(
-  (data: MarketLendHistoryRatesQuery['supplyAPYHistory']): MarketRate[] =>
+const _formatMarketSupplyHistoryRates = cache(
+  (data: MarketSupplyHistoryRatesQuery['supplyAPYHistory']): MarketRate[] =>
     data.reverse().map((item) => ({
       timestamp: Math.floor(new Date(item.date).getTime() / 1000),
       rate: item.avgRate.value,
     }))
 )
 
-export async function getMarketLendHistoryRates({
+export async function getMarketSupplyHistoryRates({
   poolId,
   chainId,
   tokenId,
@@ -88,7 +88,7 @@ export async function getMarketLendHistoryRates({
   interval: TimeframeLabel
 }): Promise<MarketRate[]> {
   const { data, error } = await client
-    .query<MarketLendHistoryRatesQuery>(MARKET_LEND_HISTORY_RATES, {
+    .query<MarketSupplyHistoryRatesQuery>(MARKET_LEND_HISTORY_RATES, {
       request: {
         chainId,
         market: poolId,
@@ -107,6 +107,6 @@ export async function getMarketLendHistoryRates({
   }
 
   return data?.supplyAPYHistory
-    ? _formatMarketLendHistoryRates(data.supplyAPYHistory)
+    ? _formatMarketSupplyHistoryRates(data.supplyAPYHistory)
     : []
 }

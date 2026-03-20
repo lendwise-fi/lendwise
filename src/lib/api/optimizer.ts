@@ -96,7 +96,7 @@ export function healthCheck(): Promise<Record<string, unknown>> {
   return callOptimizer(OPTIMIZER_ENDPOINTS.HEALTH)
 }
 
-/** Optimize vault allocation for lending */
+/** Optimize vault allocation for supplying */
 export function optimizeVaults(
   request: VaultAllocationRequest
 ): Promise<VaultAllocationResponse> {

@@ -1,16 +1,16 @@
 import { cache } from 'react'
 
-import { LendMarket } from '@/types'
+import { SupplyMarket } from '@/types'
 
 import { client } from '.'
 import { AAVE_CONFIG } from '../../config'
 import { getNetworkName } from '../utils'
-import { ListLendingMarketsQuery } from './generated/graphql'
-import { LIST_LENDING_MARKETS } from './queries'
+import { ListSupplyingProductsQuery } from './generated/graphql'
+import { LIST_SUPPLYING_PRODUCTS } from './queries'
 
 // CPU-heavy transformation memoized
-const _formatLendingMarkets = cache(
-  (markets: ListLendingMarketsQuery['markets']): LendMarket[] =>
+const _formatSupplyingMarkets = cache(
+  (markets: ListSupplyingProductsQuery['markets']): SupplyMarket[] =>
     markets.flatMap((market) =>
       market.reserves.map((reserve) => ({
         protocol: AAVE_CONFIG.aave_v3.id,
@@ -37,9 +37,9 @@ const _formatLendingMarkets = cache(
     )
 )
 
-export async function getLendingMarkets(): Promise<LendMarket[]> {
+export async function getSupplyingMarkets(): Promise<SupplyMarket[]> {
   const { data, error } = await client
-    .query<ListLendingMarketsQuery>(LIST_LENDING_MARKETS, {
+    .query<ListSupplyingProductsQuery>(LIST_SUPPLYING_PRODUCTS, {
       request: {
         chainIds: Object.keys(AAVE_CONFIG.aave_v3.chains).map(Number),
       },
@@ -55,5 +55,5 @@ export async function getLendingMarkets(): Promise<LendMarket[]> {
     throw error
   }
 
-  return data?.markets ? _formatLendingMarkets(data.markets) : []
+  return data?.markets ? _formatSupplyingMarkets(data.markets) : []
 }

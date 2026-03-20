@@ -20,7 +20,7 @@ import {
 export type { ProtocolName, ProtocolConfig, ProtocolChain }
 export { getProtocolAdapter, getProtocolConfig, getProtocolIds }
 
-export type PositionType = 'lend' | 'borrow'
+export type PositionType = 'supply' | 'borrow'
 export type AssetType = 'stable' | 'volatile' | 'liquid-staking'
 
 export interface Token {
@@ -56,7 +56,7 @@ export interface Position {
   market: Market
   type: PositionType
   amount: bigint
-  amountUSD: number
+  amountUsd: number
   apy: number
   healthFactor?: number
   collateralEnabled: boolean
@@ -86,7 +86,7 @@ export interface TokenPrice {
   timestamp: number
 }
 
-export interface LendPosition {
+export interface SupplyPosition {
   id: string
   protocol: ProtocolName
   network: string
@@ -101,11 +101,12 @@ export interface LendPosition {
   assetDecimals: number
   assetAmount: bigint
   assetAmountUsd: number
+  assetLiveAmountUsd: number
   apy: number
   link?: string
 }
 
-export interface LendMarket {
+export interface SupplyMarket {
   protocol: ProtocolName
   network: string
   poolName: string
@@ -143,14 +144,15 @@ export interface BorrowPosition {
   loanAssetDecimals: number
   loanAssetAmount: number
   loanAssetAmountUsd: number
+  loanLiveAssetAmountUsd: number
   loanTimestamp: number
-  collaterals: (Token & { amount: number; amountUSD: number })[]
+  collaterals: (Token & { amount: number; amountUsd: number })[]
   apy: number
   link?: string
 }
 
 export interface UserPosition {
-  lend: { [protocol: string]: LendPosition[] }
+  supply: { [protocol: string]: SupplyPosition[] }
   borrow: { [protocol: string]: BorrowPosition[] }
 }
 

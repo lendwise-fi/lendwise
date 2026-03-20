@@ -22,7 +22,7 @@ export type PositionData = {
 }
 
 export function createColumns(
-  type: 'lending' | 'borrowing',
+  type: 'supplying' | 'borrowing',
   baseCurrency: string
 ): ColumnDef<PositionData>[] {
   return [
@@ -90,7 +90,7 @@ export function createColumns(
             onClick={() => column.toggleSorting(column.getIsSorted() === 'asc')}
             className="h-8 px-2"
           >
-            {type === 'lending' ? 'APY' : 'APR'}
+            {type === 'supplying' ? 'APY' : 'APR'}
             <ArrowUpDown className="ml-2 h-4 w-4" />
           </Button>
         )
@@ -101,7 +101,7 @@ export function createColumns(
         return (
           <span
             className={`ml-2 font-medium ${
-              type === 'lending' ? 'text-green-500' : 'text-red-500'
+              type === 'supplying' ? 'text-green-500' : 'text-red-500'
             }`}
           >
             {apy.toFixed(2)}%

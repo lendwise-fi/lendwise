@@ -8,7 +8,7 @@ export interface Protocol {
     | 'avalanche'
     | 'bsc'
   tvl: number
-  category: 'lending' | 'dex' | 'yield_farming' | 'derivatives'
+  category: 'supplying' | 'dex' | 'yield_farming' | 'derivatives'
   risk_score: number
   audit_status: 'audited' | 'partially_audited' | 'unaudited'
   logo_url?: string
@@ -19,7 +19,7 @@ const mockProtocols: Protocol[] = [
     name: 'Aave V3',
     blockchain: 'ethereum',
     tvl: 5200000000,
-    category: 'lending',
+    category: 'supplying',
     risk_score: 2,
     audit_status: 'audited',
   },
@@ -27,7 +27,7 @@ const mockProtocols: Protocol[] = [
     name: 'Compound V3',
     blockchain: 'ethereum',
     tvl: 3100000000,
-    category: 'lending',
+    category: 'supplying',
     risk_score: 2,
     audit_status: 'audited',
   },
@@ -35,7 +35,7 @@ const mockProtocols: Protocol[] = [
     name: 'Morpho Blue',
     blockchain: 'ethereum',
     tvl: 850000000,
-    category: 'lending',
+    category: 'supplying',
     risk_score: 3,
     audit_status: 'audited',
   },
@@ -43,7 +43,7 @@ const mockProtocols: Protocol[] = [
     name: 'Radiant Capital',
     blockchain: 'arbitrum',
     tvl: 450000000,
-    category: 'lending',
+    category: 'supplying',
     risk_score: 5,
     audit_status: 'audited',
   },

@@ -7,7 +7,7 @@ export interface Position {
     | 'optimism'
     | 'avalanche'
     | 'bsc'
-  position_type: 'lending' | 'borrowing'
+  position_type: 'supplying' | 'borrowing'
   asset: string
   amount: number
   usd_value: number
@@ -23,7 +23,7 @@ const mockPositions: Position[] = [
   {
     protocol: 'Aave V3',
     blockchain: 'ethereum',
-    position_type: 'lending',
+    position_type: 'supplying',
     asset: 'USDC',
     amount: 50000,
     usd_value: 50000,
@@ -33,7 +33,7 @@ const mockPositions: Position[] = [
   {
     protocol: 'Compound V3',
     blockchain: 'ethereum',
-    position_type: 'lending',
+    position_type: 'supplying',
     asset: 'ETH',
     amount: 15,
     usd_value: 37500,

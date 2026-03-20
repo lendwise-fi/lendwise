@@ -2,10 +2,10 @@ import type { Address } from 'viem'
 
 import type {
   BorrowPosition,
-  LendMarket,
-  LendPosition,
   MarketRate,
   MarketStats,
+  SupplyMarket,
+  SupplyPosition,
   TimeframeLabel,
 } from '@/types'
 
@@ -35,10 +35,10 @@ import type { DataSourceConfig, ProtocolAdapter, VersionAdapter } from './types'
  * )
  *
  * // Use default version (aave_v3)
- * const positions = await aaveAdapter.getUserLendPositions(['0x...'])
+ * const positions = await aaveAdapter.getUserSupplyPositions(['0x...'])
  *
  * // Use specific version
- * const v2Positions = await aaveAdapter.getUserLendPositions(['0x...'], 'aave_v2')
+ * const v2Positions = await aaveAdapter.getUserSupplyPositions(['0x...'], 'aave_v2')
  * ```
  */
 export function createProtocolAdapter(
@@ -81,10 +81,10 @@ export function createProtocolAdapter(
       return versionAdapter
     },
 
-    async getUserLendPositions(
+    async getUserSupplyPositions(
       params: { addresses: Address[] },
       version?: string
-    ): Promise<LendPosition[]> {
+    ): Promise<SupplyPosition[]> {
       const versionAdapter = this.getVersion(version)
       const positionsAdapter = versionAdapter.dataSources.positions
 
@@ -94,13 +94,13 @@ export function createProtocolAdapter(
         )
       }
 
-      if (!positionsAdapter.getUserLendPositions) {
+      if (!positionsAdapter.getUserSupplyPositions) {
         throw new Error(
-          `Positions adapter for ${this.protocol} ${versionAdapter.version} does not implement getUserLendPositions`
+          `Positions adapter for ${this.protocol} ${versionAdapter.version} does not implement getUserSupplyPositions`
         )
       }
 
-      return positionsAdapter.getUserLendPositions(params)
+      return positionsAdapter.getUserSupplyPositions(params)
     },
 
     async getUserBorrowPositions(
@@ -176,7 +176,7 @@ export function createProtocolAdapter(
       return ratesAdapter.getMarketBorrowHistoryRates(params)
     },
 
-    async getMarketLendHistoryRates(
+    async getMarketSupplyHistoryRates(
       params: {
         chainId: number
         poolId: string
@@ -196,17 +196,17 @@ export function createProtocolAdapter(
         return []
       }
 
-      if (!ratesAdapter.getMarketLendHistoryRates) {
+      if (!ratesAdapter.getMarketSupplyHistoryRates) {
         console.warn(
-          `Rates adapter for ${this.protocol} ${versionAdapter.version} does not implement getMarketLendHistoryRates`
+          `Rates adapter for ${this.protocol} ${versionAdapter.version} does not implement getMarketSupplyHistoryRates`
         )
         return []
       }
 
-      return ratesAdapter.getMarketLendHistoryRates(params)
+      return ratesAdapter.getMarketSupplyHistoryRates(params)
     },
 
-    async getLendingMarkets(version?: string): Promise<LendMarket[]> {
+    async getSupplyingMarkets(version?: string): Promise<SupplyMarket[]> {
       const versionAdapter = this.getVersion(version)
       // Try positions adapter first, then rates, then stats
       const adapter =
@@ -221,14 +221,14 @@ export function createProtocolAdapter(
         return []
       }
 
-      if (!adapter.getLendingMarkets) {
+      if (!adapter.getSupplyingMarkets) {
         console.warn(
-          `Adapter for ${this.protocol} ${versionAdapter.version} does not implement getLendingMarkets`
+          `Adapter for ${this.protocol} ${versionAdapter.version} does not implement getSupplyingMarkets`
         )
         return []
       }
 
-      return adapter.getLendingMarkets()
+      return adapter.getSupplyingMarkets()
     },
   }
 }

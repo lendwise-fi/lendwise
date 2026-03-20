@@ -1,4 +1,5 @@
 import { createSchema } from 'graphql-yoga'
+
 import { resolvers } from './resolvers'
 
 export const typeDefs = /* GraphQL */ `
@@ -20,266 +21,253 @@ export const typeDefs = /* GraphQL */ `
 
   # ─── Shared types ────────────────────────────────────────────────────────────
 
-  type Chain {
-    id:   Int!
-    name: String!
-  }
-
-  type Asset {
-    symbol:   String!
-    name:     String!
-    address:  String!
-    decimals: Int!
+  type RewardToken {
+    symbol: String!
+    address: String!
   }
 
   # ─── APY breakdown ───────────────────────────────────────────────────────────
 
   type RewardItem {
-    token:   Asset!
+    token: RewardToken!
     "Raw APR as returned by the source protocol — stored for traceability."
-    apr:     Float!
+    apr: Float!
     "APR converted to APY using daily compounding (1 + APR/365)^365 - 1."
-    apy:     Float!
-    source:  RewardSource!
+    apy: Float!
+    source: RewardSource!
     program: String
   }
 
-  "APY breakdown for SPOT timeframe — single value per field."
-  type SpotApyBreakdown {
+  "APY breakdown for HOURLY timeframe — single value per field."
+  type HourlyApyBreakdown {
     "Base APY from the protocol IRM — before fees, without rewards."
-    base:        Float!
+    base: Float!
     "Sum of all reward APYs (converted from APR)."
-    rewards:     Float!
+    rewards: Float!
     "Protocol fee APY."
-    fees:        Float!
-    "Net APY = base - fees + rewards (lend) / base + fees - rewards (borrow)."
-    net:         Float!
+    fees: Float!
+    "Net APY = base - fees + rewards (supply) / base + fees - rewards (borrow)."
+    net: Float!
     "Individual reward items — one per (token, program) pair."
     rewardItems: [RewardItem!]!
   }
 
-  "Statistical distribution used in DAILY timeframe."
-  type Distribution {
-    avg:    Float!
-    min:    Float!
-    max:    Float!
-    p25:    Float!
-    p75:    Float!
-    stdDev: Float!
-  }
-
-  "APY breakdown for DAILY timeframe — full statistical distribution."
+  "APY breakdown for DAILY timeframe — daily averaged values."
   type DailyApyBreakdown {
-    "Distribution of base APY across all spot slots of the day."
-    base:    Distribution!
-    "Distribution of net APY — primary field for comparisons."
-    net:     Distribution!
+    "Average base APY across all hourly slots of the day."
+    base: Float!
+    "Average net APY — primary field for comparisons."
+    net: Float!
     "Average reward APY across the day."
     rewards: Float!
     "Average protocol fee APY across the day."
-    fees:    Float!
+    fees: Float!
+    "Reward items from the last hourly slot of the day."
+    rewardItems: [RewardItem!]!
   }
 
   # ─── Market state ─────────────────────────────────────────────────────────────
 
-  type LendSpotMarketState {
+  type SupplyHourlyMarketState {
     "Total amount supplied in native token units."
-    supplyAssets:    Float!
+    supplyAssets: Float!
     "Total value supplied in USD."
     supplyAssetsUsd: Float!
     utilizationRate: Float!
-    assetPriceUsd:   Float!
+    assetPriceUsd: Float!
   }
 
-  type BorrowSpotMarketState {
+  type BorrowHourlyMarketState {
     "Total amount supplied in native token units."
-    supplyAssets:    Float!
+    supplyAssets: Float!
     "Total value supplied in USD."
     supplyAssetsUsd: Float!
     "Total amount borrowed in native token units."
-    borrowAssets:    Float!
+    borrowAssets: Float!
     "Total value borrowed in USD."
     borrowAssetsUsd: Float!
     utilizationRate: Float!
-    assetPriceUsd:   Float!
+    assetPriceUsd: Float!
     "null for AAVE/Compound — multi-collateral."
-    collateralAssetsUsd:        Float
+    collateralAssetsUsd: Float
     "Morpho Blue only — null for AAVE/Compound."
     priceCollateralInLoanAsset: Float
   }
 
-  type LendDailyMarketState {
-    "Closing value — last spot slot of the day."
-    supplyAssets:    Float!
-    "Closing value."
+  type SupplyDailyMarketState {
+    "Average total amount supplied in native token units across the day."
+    supplyAssets: Float!
+    "Average total value supplied in USD across the day."
     supplyAssetsUsd: Float!
-    "Daily distribution."
-    utilizationRate: Distribution!
-    "Daily distribution."
-    assetPriceUsd:   Distribution!
+    "Average utilization rate across the day."
+    utilizationRate: Float!
+    "Average asset price in USD across the day."
+    assetPriceUsd: Float!
   }
 
   type BorrowDailyMarketState {
-    "Closing value — last spot slot of the day."
-    supplyAssets:    Float!
-    "Closing value."
+    "Average total amount supplied in native token units across the day."
+    supplyAssets: Float!
+    "Average total value supplied in USD across the day."
     supplyAssetsUsd: Float!
-    "Closing value."
-    borrowAssets:    Float!
-    "Closing value."
+    "Average total amount borrowed in native token units across the day."
+    borrowAssets: Float!
+    "Average total value borrowed in USD across the day."
     borrowAssetsUsd: Float!
-    "Closing value — null for AAVE/Compound."
-    collateralAssetsUsd:        Float
-    "Daily distribution."
-    utilizationRate:            Distribution!
-    "Daily distribution."
-    assetPriceUsd:              Distribution!
-    "Morpho Blue only — null for AAVE/Compound."
-    priceCollateralInLoanAsset: Distribution
+    "Average total collateral in USD across the day — null for AAVE/Compound."
+    collateralAssetsUsd: Float
+    "Average utilization rate across the day."
+    utilizationRate: Float!
+    "Average asset price in USD across the day."
+    assetPriceUsd: Float!
+    "Average collateral/loan price ratio across the day — null for AAVE/Compound."
+    priceCollateralInLoanAsset: Float
   }
 
   # ─── Quality ──────────────────────────────────────────────────────────────────
 
-  type SpotQuality {
-    status:    String!
-    fetchedAt: DateTime!
-    revision:  Int!
+  type HourlyQuality {
+    count: Int!
+    expectedCount: Int!
+    firstSlot: DateTime!
+    lastSlot: DateTime!
+    status: String!
   }
 
   type DailyQuality {
-    actualCount:  Int!
+    actualCount: Int!
     completeness: Float!
-    status:       String!
-    revision:     Int!
-    computedAt:   DateTime!
+    status: String!
+    revision: Int!
+    computedAt: DateTime!
   }
 
   # ─── Collateral ───────────────────────────────────────────────────────────────
 
   type Collateral {
-    symbol:          String!
-    name:            String!
-    address:         String!
-    decimals:        Int!
+    symbol: String!
+    name: String!
+    address: String!
+    decimals: Int!
     "null for Morpho Blue — only lltv is exposed."
-    ltv:             Float
-    lltv:            Float!
+    ltv: Float
+    lltv: Float!
     canBeCollateral: Boolean!
   }
 
-  # ─── Lend results ─────────────────────────────────────────────────────────────
+  # ─── Supply results ─────────────────────────────────────────────────────────────
 
-  type LendSpotResult {
-    timestamp: DateTime!
-    poolId:    String!
-    protocol:  ProtocolName!
-    chain:     Chain!
-    asset:     Asset!
-    apy:       SpotApyBreakdown!
-    market:    LendSpotMarketState!
-    quality:   SpotQuality!
+  type SupplyHourlyResult {
+    hour: DateTime!
+    productId: String!
+    protocol: ProtocolName!
+    chainId: Int!
+    asset: String!
+    apy: HourlyApyBreakdown!
+    market: SupplyHourlyMarketState!
+    quality: HourlyQuality!
   }
 
-  type LendDailyResult {
-    date:     DateTime!
-    poolId:   String!
+  type SupplyDailyResult {
+    date: DateTime!
+    productId: String!
     protocol: ProtocolName!
-    chain:    Chain!
-    asset:    Asset!
-    apy:      DailyApyBreakdown!
-    market:   LendDailyMarketState!
-    quality:  DailyQuality!
+    chainId: Int!
+    asset: String!
+    apy: DailyApyBreakdown!
+    market: SupplyDailyMarketState!
+    quality: DailyQuality!
   }
 
   # ─── Borrow results ───────────────────────────────────────────────────────────
 
-  type BorrowSpotResult {
-    timestamp:   DateTime!
-    poolId:      String!
-    protocol:    ProtocolName!
-    chain:       Chain!
-    asset:       Asset!
+  type BorrowHourlyResult {
+    hour: DateTime!
+    productId: String!
+    protocol: ProtocolName!
+    chainId: Int!
+    asset: String!
     collaterals: [Collateral!]!
-    apy:         SpotApyBreakdown!
-    market:      BorrowSpotMarketState!
-    quality:     SpotQuality!
+    apy: HourlyApyBreakdown!
+    market: BorrowHourlyMarketState!
+    quality: HourlyQuality!
   }
 
   type BorrowDailyResult {
-    date:        DateTime!
-    poolId:      String!
-    protocol:    ProtocolName!
-    chain:       Chain!
-    asset:       Asset!
+    date: DateTime!
+    productId: String!
+    protocol: ProtocolName!
+    chainId: Int!
+    asset: String!
     collaterals: [Collateral!]!
-    apy:         DailyApyBreakdown!
-    market:      BorrowDailyMarketState!
-    quality:     DailyQuality!
+    apy: DailyApyBreakdown!
+    market: BorrowDailyMarketState!
+    quality: DailyQuality!
   }
 
   # ─── Inputs ───────────────────────────────────────────────────────────────────
 
-  "Shared filters for spot queries."
-  input SpotFilters {
+  "Shared filters for hourly queries."
+  input HourlyFilters {
     "Filter by protocol name — aave | morpho | compound."
     protocol: ProtocolName
     "Filter by native market name — e.g. AaveV3Ethereum, MorphoBlueEthereum."
-    market:   String
+    market: String
     "Filter by chain ID."
-    chainId:  Int
+    chainId: Int
     "Filter by loan asset symbol — e.g. USDC, WETH."
-    asset:    String
+    asset: String
     "ISO date string — start of range (inclusive). Defaults to last 24h."
-    from:     String
+    from: String
     "ISO date string — end of range (inclusive)."
-    to:       String
+    to: String
   }
 
   "Shared filters for daily queries."
   input DailyFilters {
     protocol: ProtocolName
-    market:   String
-    chainId:  Int
-    asset:    String
+    market: String
+    chainId: Int
+    asset: String
     "ISO date string — start of range (inclusive)."
-    from:     String
+    from: String
     "ISO date string — end of range (inclusive)."
-    to:       String
+    to: String
     "Convenience shorthand — 7d | 30d | 90d | 180d | 1y. Default: 30d."
-    range:    String
+    range: String
   }
 
-  input BorrowSpotFilters {
-    protocol:   ProtocolName
-    market:     String
-    chainId:    Int
-    asset:      String
+  input BorrowHourlyFilters {
+    protocol: ProtocolName
+    market: String
+    chainId: Int
+    asset: String
     "Filter by collateral asset symbol."
     collateral: String
-    from:       String
-    to:         String
+    from: String
+    to: String
   }
 
   input BorrowDailyFilters {
-    protocol:   ProtocolName
-    market:     String
-    chainId:    Int
-    asset:      String
+    protocol: ProtocolName
+    market: String
+    chainId: Int
+    asset: String
     collateral: String
-    from:       String
-    to:         String
-    range:      String
+    from: String
+    to: String
+    range: String
   }
 
   # ─── Queries ──────────────────────────────────────────────────────────────────
 
   type Query {
-    "Latest 10-min APY snapshots for lend pools."
-    lendApySpot(filters: SpotFilters):   [LendSpotResult!]!
-    "Daily aggregated APY for lend pools."
-    lendApyDaily(filters: DailyFilters): [LendDailyResult!]!
-    "Latest 10-min APY snapshots for borrow pools."
-    borrowApySpot(filters: BorrowSpotFilters):   [BorrowSpotResult!]!
+    "Latest hourly APY snapshots for supply products."
+    supplyApyHourly(filters: HourlyFilters): [SupplyHourlyResult!]!
+    "Daily aggregated APY for supply products."
+    supplyApyDaily(filters: DailyFilters): [SupplyDailyResult!]!
+    "Latest hourly APY snapshots for borrow pools."
+    borrowApyHourly(filters: BorrowHourlyFilters): [BorrowHourlyResult!]!
     "Daily aggregated APY for borrow pools."
     borrowApyDaily(filters: BorrowDailyFilters): [BorrowDailyResult!]!
   }

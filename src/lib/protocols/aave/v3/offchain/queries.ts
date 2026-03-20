@@ -1,7 +1,7 @@
 import { gql } from 'urql'
 
 export const USER_LEND_POSITIONS = gql`
-  query UserLendPositions($request: UserSuppliesRequest!) {
+  query UserSupplyPositions($request: UserSuppliesRequest!) {
     userSupplies(request: $request) {
       balance {
         amount {
@@ -95,7 +95,7 @@ export const USER_MARKET_HEALTH_FACTOR = gql`
   }
 `
 export const USER_LEND_COLLATERALS = gql`
-  query UserLendCollaterals($request: UserSuppliesRequest!) {
+  query UserSupplyCollaterals($request: UserSuppliesRequest!) {
     userSupplies(request: $request) {
       isCollateral
       balance {
@@ -135,7 +135,7 @@ export const MARKET_BORROW_HISTORY_RATES = gql`
   }
 `
 export const MARKET_LEND_HISTORY_RATES = gql`
-  query MarketLendHistoryRates($request: SupplyAPYHistoryRequest!) {
+  query MarketSupplyHistoryRates($request: SupplyAPYHistoryRequest!) {
     supplyAPYHistory(request: $request) {
       avgRate {
         value
@@ -159,13 +159,15 @@ export const ALL_MARKETS = gql`
 export const MARKETS_APY = gql`
   query MarketsApy($request: MarketsRequest!) {
     markets(request: $request) {
-      name
-      address
-      chain {
-        name
-        chainId
-      }
       reserves {
+        market {
+          name
+          address
+          chain {
+            name
+            chainId
+          }
+        }
         underlyingToken {
           symbol
           name
@@ -207,6 +209,8 @@ export const MARKETS_APY = gql`
           }
         }
         borrowInfo {
+          borrowingState
+          borrowCapReached
           variableRateSlope1 {
             value
           }
@@ -318,8 +322,8 @@ export const APY_HISTORY = gql`
   }
 `
 
-export const LIST_LENDING_MARKETS = gql`
-  query ListLendingMarkets($request: MarketsRequest!) {
+export const LIST_SUPPLYING_PRODUCTS = gql`
+  query ListSupplyingProducts($request: MarketsRequest!) {
     markets(request: $request) {
       address
       name

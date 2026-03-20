@@ -2,8 +2,6 @@ import { optimism } from 'viem/chains'
 
 import { COMPOUND_V3_CHAINS } from '../config'
 import { createChainClient, registerChain } from '../index'
-import { USER_BORROW_POSITIONS, USER_LEND_POSITIONS } from './queries'
-import { getUserBorrowPositions, getUserLendPositions } from './transformers'
 
 const config = COMPOUND_V3_CHAINS[optimism.id]
 
@@ -22,12 +20,4 @@ registerChain({
   client: optimismClient,
   chainId: config.id,
   chainName: config.name,
-  queries: {
-    USER_LEND_POSITIONS,
-    USER_BORROW_POSITIONS,
-  },
-  transformers: {
-    getUserLendPositions,
-    getUserBorrowPositions,
-  },
 })

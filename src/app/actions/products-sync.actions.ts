@@ -1,42 +1,48 @@
 'use server'
 
 import { type ProtocolName } from '@/config/protocols'
-import { MONGODB_COLLECTION_POOLS, getDb } from '@/lib/db/mongodb'
-import type { BorrowPool, LendPool, Pool } from '@/lib/db/types'
-import { fetchAaveV3Pools } from '@/lib/protocols/aave'
-import { fetchMorphoV1Pools } from '@/lib/protocols/morpho'
+import { MONGODB_COLLECTION_PRODUCTS, getDb } from '@/lib/db/mongodb'
+import type { BorrowProduct, Product, SupplyProduct } from '@/lib/db/types'
+import { fetchAaveV3Products } from '@/lib/protocols/aave'
+import { fetchCompoundV3Products } from '@/lib/protocols/compound'
+import { fetchMorphoV1Products } from '@/lib/protocols/morpho'
 
 // ─── Protocol tasks ───────────────────────────────────────────────────────────
 
 const PROTOCOL_TASKS: Partial<
-  Record<ProtocolName, () => Promise<(LendPool | BorrowPool)[]>>
+  Record<ProtocolName, () => Promise<(SupplyProduct | BorrowProduct)[]>>
 > = {
-  aave_v3: fetchAaveV3Pools,
-  morpho_v1: fetchMorphoV1Pools,
+  aave_v3: fetchAaveV3Products,
+  morpho_v1: fetchMorphoV1Products,
+  compound_v3: fetchCompoundV3Products,
 }
 
 // ─── Upsert ───────────────────────────────────────────────────────────────────
 
 /**
- * Upsert pool documents into the pools collection.
+ * Upsert product documents into the products collection.
  *
  * Uses _id as the upsert key — deterministic slug ensures idempotency.
  * Sets createdAt only on insert, always updates updatedAt.
  */
-async function writePoolDocs(pools: Pool[]): Promise<void> {
-  if (pools.length === 0) return
+async function writeProductDocs(products: Product[]): Promise<void> {
+  if (products.length === 0) return
 
   const db = await getDb()
-  const collection = db.collection<Pool>(MONGODB_COLLECTION_POOLS)
+  const collection = db.collection<Product>(MONGODB_COLLECTION_PRODUCTS)
 
-  const ops = pools.map((pool) => {
-    const { createdAt, updatedAt, ...poolData } = pool
+  const ops = products.map((product) => {
+    const {
+      createdAt: _createdAt,
+      updatedAt: _updatedAt,
+      ...productData
+    } = product
     return {
       updateOne: {
-        filter: { _id: pool._id },
+        filter: { _id: product._id },
         update: {
-          $set: { ...poolData, updatedAt: new Date() },
-          $setOnInsert: { createdAt: pool.createdAt || new Date() },
+          $set: { ...productData, updatedAt: new Date() },
+          $setOnInsert: { createdAt: product.createdAt || new Date() },
         },
         upsert: true,
       },
@@ -46,7 +52,7 @@ async function writePoolDocs(pools: Pool[]): Promise<void> {
   const result = await collection.bulkWrite(ops, { ordered: false })
 
   console.log(
-    `[db:pools] upserted ${result.upsertedCount} new,` +
+    `[db:products] upserted ${result.upsertedCount} new,` +
       ` updated ${result.modifiedCount} existing` +
       ` (${result.matchedCount} matched)`
   )
@@ -54,7 +60,7 @@ async function writePoolDocs(pools: Pool[]): Promise<void> {
 
 // ─── Result type ──────────────────────────────────────────────────────────────
 
-export type SyncPoolsResult = {
+export type SyncProductsResult = {
   success: boolean
   counts: Partial<Record<ProtocolName, number>> & { total: number }
   errors: string[]
@@ -64,29 +70,31 @@ export type SyncPoolsResult = {
 // ─── Orchestrator ─────────────────────────────────────────────────────────────
 
 /**
- * Orchestrates pool metadata sync across all protocols (or a single one).
- * Fetchers run in parallel. Results are upserted into the pools collection.
+ * Orchestrates product metadata sync across all protocols (or a single one).
+ * Fetchers run in parallel. Results are upserted into the products collection.
  *
  * Safe to run multiple times — upsert on _id slug is idempotent.
  * Governance changes (new collaterals, IRM params) are picked up on each run.
  *
  * @param protocol - Optional protocol ID to run a single fetcher.
  */
-export async function syncPools(
+export async function syncProducts(
   protocol?: ProtocolName
-): Promise<SyncPoolsResult> {
+): Promise<SyncProductsResult> {
   const start = Date.now()
   const errors: string[] = []
 
-  const tasks: [ProtocolName, () => Promise<(LendPool | BorrowPool)[]>][] =
-    protocol
-      ? PROTOCOL_TASKS[protocol]
-        ? [[protocol, PROTOCOL_TASKS[protocol]!]]
-        : []
-      : (Object.entries(PROTOCOL_TASKS) as [
-          ProtocolName,
-          () => Promise<(LendPool | BorrowPool)[]>,
-        ][])
+  const tasks: [
+    ProtocolName,
+    () => Promise<(SupplyProduct | BorrowProduct)[]>,
+  ][] = protocol
+    ? PROTOCOL_TASKS[protocol]
+      ? [[protocol, PROTOCOL_TASKS[protocol]!]]
+      : []
+    : (Object.entries(PROTOCOL_TASKS) as [
+        ProtocolName,
+        () => Promise<(SupplyProduct | BorrowProduct)[]>,
+      ][])
 
   if (tasks.length === 0) {
     return {
@@ -99,7 +107,7 @@ export async function syncPools(
 
   const results = await Promise.allSettled(tasks.map(([, fetch]) => fetch()))
 
-  const allPools: Pool[] = []
+  const allProducts: Product[] = []
   const protoCounts: Partial<Record<ProtocolName, number>> = {}
 
   for (let i = 0; i < results.length; i++) {
@@ -108,24 +116,24 @@ export async function syncPools(
 
     if (result.status === 'fulfilled') {
       protoCounts[protoId] = result.value.length
-      allPools.push(...result.value)
+      allProducts.push(...result.value)
     } else {
       const msg =
         result.reason instanceof Error
           ? result.reason.message
           : String(result.reason)
       errors.push(`[${protoId}] fetch error: ${msg}`)
-      console.error(`[sync:pools] ${protoId} failed:`, msg)
+      console.error(`[sync:products] ${protoId} failed:`, msg)
     }
   }
 
-  if (allPools.length > 0) {
+  if (allProducts.length > 0) {
     try {
-      await writePoolDocs(allPools)
+      await writeProductDocs(allProducts)
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err)
       errors.push(`mongodb write: ${msg}`)
-      console.error('[sync:pools] Failed to write to MongoDB:', msg)
+      console.error('[sync:products] Failed to write to MongoDB:', msg)
       throw err
     }
   }
@@ -136,12 +144,12 @@ export async function syncPools(
     .join(' ')
 
   console.log(
-    `[sync:pools] Completed in ${durationMs}ms — ${countSummary} total:${allPools.length}`
+    `[sync:products] Completed in ${durationMs}ms — ${countSummary} total:${allProducts.length}`
   )
 
   return {
     success: errors.length === 0,
-    counts: { ...protoCounts, total: allPools.length },
+    counts: { ...protoCounts, total: allProducts.length },
     errors,
     durationMs,
   }

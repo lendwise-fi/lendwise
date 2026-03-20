@@ -17,7 +17,7 @@ import { useCurrency } from '@/contexts'
 import { useLoadUserPositions } from '@/hooks/useLoadUserPositions'
 import { useWalletStore } from '@/stores/walletStore'
 
-import { BorrowingTable, LendingTable } from '.'
+import { BorrowingTable, SupplyingTable } from '.'
 
 export function Portfolio() {
   const { address, isConnected } = useAccount()
@@ -41,7 +41,7 @@ export function Portfolio() {
     }
   }, [address])
 
-  const lendPieChartDonut = useMemo(() => {
+  const supplyPieChartDonut = useMemo(() => {
     const chart: PieChartDonutTextProps = {
       data: [],
       config: {},
@@ -50,14 +50,14 @@ export function Portfolio() {
     let nbPositions = 0
     const totalByProtocol: number[] = []
 
-    Object.keys(userPositions.lend).map((protocol, idx) => {
-      if (!userPositions.lend[protocol].length) return
-      const total = userPositions.lend[protocol].reduce(
+    Object.keys(userPositions.supply).map((protocol, idx) => {
+      if (!userPositions.supply[protocol].length) return
+      const total = userPositions.supply[protocol].reduce(
         (acc, val) => acc + Number(val.assetAmountUsd) * rate,
         0
       )
       totalByProtocol.push(total)
-      nbPositions += userPositions.lend[protocol].length
+      nbPositions += userPositions.supply[protocol].length
       const protocolName = getProtocolVersionNameById(protocol)
       chart.data.push({
         id: protocol,
@@ -76,7 +76,7 @@ export function Portfolio() {
       item.percent = (item.value / total) * 100
     })
 
-    chart['title'] = 'Total Lending'
+    chart['title'] = 'Total Supplying'
     chart['description'] =
       `${nbPositions} position${nbPositions > 1 ? 's' : ''}`
 
@@ -136,7 +136,7 @@ export function Portfolio() {
       {/* Header */}
       <div className="flex items-start justify-between">
         <div className="min-w-0 flex-1">
-          <h1 className="text-foreground mb-2 text-2xl md:text-3xl font-bold">
+          <h1 className="text-foreground mb-2 text-2xl font-bold md:text-3xl">
             Portfolio Tracker
           </h1>
           <p className="text-muted-foreground-400 text-sm md:text-base">
@@ -146,7 +146,7 @@ export function Portfolio() {
       </div>
 
       {/* Portfolio Summary */}
-      <div className="grid grid-cols-1 gap-4 md:gap-6 md:grid-cols-2">
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 md:gap-6">
         {isPending ? (
           <>
             <PieChartDonutTextSkeleton />
@@ -155,10 +155,10 @@ export function Portfolio() {
         ) : (
           <>
             <PieChartDonutText
-              title={lendPieChartDonut.title}
-              description={lendPieChartDonut.description}
-              data={lendPieChartDonut.data}
-              config={lendPieChartDonut.config}
+              title={supplyPieChartDonut.title}
+              description={supplyPieChartDonut.description}
+              data={supplyPieChartDonut.data}
+              config={supplyPieChartDonut.config}
             />
             <PieChartDonutText
               title={borrowPieChartDonut.title}
@@ -177,8 +177,8 @@ export function Portfolio() {
           <DataTableSkeleton />
         </div>
       ) : (
-        <div className="mt-8 md:mt-12 space-y-8 md:space-y-12">
-          <LendingTable data={Object.values(userPositions.lend).flat()} />
+        <div className="mt-8 space-y-8 md:mt-12 md:space-y-12">
+          <SupplyingTable data={Object.values(userPositions.supply).flat()} />
           <BorrowingTable data={Object.values(userPositions.borrow).flat()} />
         </div>
       )}

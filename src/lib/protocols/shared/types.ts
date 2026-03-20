@@ -1,6 +1,6 @@
 import type { Client } from '@urql/core'
 
-import type { BorrowPosition, LendPosition, MarketRate } from '@/types'
+import type { BorrowPosition, MarketRate, SupplyPosition } from '@/types'
 
 /**
  * Base chain client configuration type.
@@ -30,7 +30,10 @@ export type ChainConfig = {
  * Base transformer types that protocols can use or extend.
  */
 export type BaseChainTransformers = {
-  getUserLendPositions?: (data: unknown, protocolId: string) => LendPosition[]
+  getUserSupplyPositions?: (
+    data: unknown,
+    protocolId: string
+  ) => SupplyPosition[]
   getUserBorrowPositions?: (
     data: unknown,
     protocolId: string
@@ -39,7 +42,7 @@ export type BaseChainTransformers = {
     data: unknown,
     protocolId: string
   ) => MarketRate[]
-  getMarketLendHistoryRates?: (
+  getMarketSupplyHistoryRates?: (
     data: unknown,
     protocolId: string
   ) => MarketRate[]

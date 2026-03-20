@@ -26,7 +26,7 @@ export type ChainTransformers = {
     data: unknown,
     protocolId: string
   ) => MarketRate[]
-  getMarketLendHistoryRates?: (
+  getMarketSupplyHistoryRates?: (
     data: unknown,
     protocolId: string
   ) => MarketRate[]
@@ -153,11 +153,11 @@ async function getMarketBorrowHistoryRates({
   }
 }
 
-async function getMarketLendHistoryRates() {
+async function getMarketSupplyHistoryRates() {
   return []
 }
 export const aaveV3OnchainAdapter: DataAdapter = {
   dataSourceType: 'onchain',
   getMarketBorrowHistoryRates,
-  getMarketLendHistoryRates,
+  getMarketSupplyHistoryRates,
 }

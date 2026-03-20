@@ -5,25 +5,26 @@ import type { DataAdapter } from '@/lib/protocols/types'
 import { generateSlug } from '@/lib/utils'
 import {
   BorrowPosition,
-  LendMarket,
-  LendPosition,
   MarketRate,
+  SupplyMarket,
+  SupplyPosition,
   TimeframeLabel,
 } from '@/types'
 
 import { MORPHO_CONFIG } from '../../config'
+import { CHAIN_NAME_MAPPING } from '../utils'
 import {
-  ListLendingMarketsQuery,
+  ListSupplyingProductsQuery,
   MarketBorrowHistoryRatesQuery,
-  MarketLendHistoryRatesQuery,
+  MarketSupplyHistoryRatesQuery,
   TimeseriesInterval,
   UserBorrowPositionsQuery,
-  UserLendPositionsQuery,
+  UserSupplyPositionsQuery,
   VaultFilters,
   VaultState,
 } from './generated/graphql'
 import {
-  LIST_LENDING_MARKETS,
+  LIST_SUPPLYING_PRODUCTS,
   MARKET_BORROW_HISTORY_RATES,
   MARKET_LEND_HISTORY_RATES,
   USER_BORROW_POSITIONS,
@@ -32,11 +33,11 @@ import {
 
 const client = createGraphQLClient(MORPHO_CONFIG.morpho_v1.offchainApiUrl!)
 
-async function getUserLendPositions({
+async function getUserSupplyPositions({
   addresses,
 }: {
   addresses: Address[]
-}): Promise<LendPosition[]> {
+}): Promise<SupplyPosition[]> {
   if (!addresses || addresses.length === 0) {
     return []
   }
@@ -45,14 +46,14 @@ async function getUserLendPositions({
     // Get all chain IDs from MORPHO_CONFIG
     const chainIds = Object.keys(MORPHO_CONFIG.morpho_v1.chains).map(Number)
 
-    const allPositions: LendPosition[] = []
+    const allPositions: SupplyPosition[] = []
     let skip = 0
     let hasMore = true
 
     // Fetch all pages until we have all positions
     while (hasMore) {
       const { data, error } = await client
-        .query<UserLendPositionsQuery>(USER_LEND_POSITIONS, {
+        .query<UserSupplyPositionsQuery>(USER_LEND_POSITIONS, {
           where: {
             chainId_in: chainIds,
             userAddress_in: addresses,
@@ -82,10 +83,12 @@ async function getUserLendPositions({
           return balance > 0n
         })
         .map(
-          (position): LendPosition => ({
+          (position): SupplyPosition => ({
             id: position.id,
             protocol: MORPHO_CONFIG.morpho_v1.id,
-            network: position.vault.chain.network.toLowerCase(),
+            network:
+              CHAIN_NAME_MAPPING[position.vault.chain.id]?.protocolName ||
+              position.vault.chain.network.toLowerCase(),
             userAddress: position.user.address.toLowerCase(),
             poolName: position.vault.name,
             poolAddress: position.vault.address,
@@ -97,6 +100,7 @@ async function getUserLendPositions({
             assetDecimals: position.vault.asset.decimals,
             assetAmount: position.state?.assets ?? 0,
             assetAmountUsd: position.state?.assetsUsd ?? 0,
+            assetLiveAmountUsd: position.state?.assetsUsd ?? 0,
             apy: position.vault.state?.avgNetApy
               ? position.vault.state.avgNetApy * 100
               : 0,
@@ -171,9 +175,11 @@ async function getUserBorrowPositions({
           id: position.id,
           protocol: MORPHO_CONFIG.morpho_v1.id,
           network:
+            CHAIN_NAME_MAPPING[position.market.morphoBlue.chain.id]
+              ?.protocolName ||
             position.market.morphoBlue.chain.network.toLowerCase(),
           healthFactor: Number(position.healthFactor),
-          userAddress: position.user.address,
+          userAddress: position.user.address.toLowerCase(),
           poolId: position.market.id,
           poolName: `${position.market.collateralAsset?.symbol}/${position.market.loanAsset?.symbol}`,
           poolAddress: position.market.uniqueKey,
@@ -187,6 +193,7 @@ async function getUserBorrowPositions({
               Number(`1e${position.market.loanAsset.decimals}`)
             : 0,
           loanAssetAmountUsd: position.state?.borrowAssetsUsd ?? 0,
+          loanLiveAssetAmountUsd: position.state?.borrowAssetsUsd ?? 0,
           loanTimestamp: 0,
           collaterals: [
             {
@@ -195,7 +202,7 @@ async function getUserBorrowPositions({
               symbol: position.market.collateralAsset?.symbol ?? '',
               decimals: position.market.collateralAsset?.decimals ?? 0,
               amount: position.state?.collateral,
-              amountUSD: position.state?.collateralUsd ?? 0,
+              amountUsd: position.state?.collateralUsd ?? 0,
             },
           ],
           apy: position.market.state?.avgBorrowApy
@@ -268,7 +275,7 @@ async function getMarketBorrowHistoryRates({
   )
 }
 
-async function getMarketLendHistoryRates({
+async function getMarketSupplyHistoryRates({
   poolId,
   interval,
   fromTimestamp,
@@ -278,7 +285,7 @@ async function getMarketLendHistoryRates({
   fromTimestamp: number
 }): Promise<MarketRate[]> {
   const { data, error } = await client
-    .query<MarketLendHistoryRatesQuery>(MARKET_LEND_HISTORY_RATES, {
+    .query<MarketSupplyHistoryRatesQuery>(MARKET_LEND_HISTORY_RATES, {
       marketId: poolId,
       options: {
         startTimestamp: fromTimestamp,
@@ -289,7 +296,7 @@ async function getMarketLendHistoryRates({
     .toPromise()
 
   if (error) {
-    console.error(`Failed to fetch Morpho V1 lend rates:`, error)
+    console.error(`Failed to fetch Morpho V1 supply rates:`, error)
     if (error.message?.includes('Time-out') || error.networkError) {
       console.warn(`Morpho V1 API timeout - returning empty rates`)
     }
@@ -304,15 +311,15 @@ async function getMarketLendHistoryRates({
   )
 }
 
-async function getLendingMarkets(): Promise<LendMarket[]> {
-  const allMarkets: LendMarket[] = []
+async function getSupplyingMarkets(): Promise<SupplyMarket[]> {
+  const allMarkets: SupplyMarket[] = []
   let skip = 0
   let hasMore = true
 
   try {
     while (hasMore) {
       const { data, error } = await client
-        .query<ListLendingMarketsQuery>(LIST_LENDING_MARKETS, {
+        .query<ListSupplyingProductsQuery>(LIST_SUPPLYING_PRODUCTS, {
           first: 100,
           skip,
           where: {
@@ -326,7 +333,7 @@ async function getLendingMarkets(): Promise<LendMarket[]> {
         .toPromise()
 
       if (error) {
-        console.error(`Failed to fetch Morpho V1 lending markets:`, error)
+        console.error(`Failed to fetch Morpho V1 supplying markets:`, error)
         if (error.message?.includes('Time-out') || error.networkError) {
           console.warn(`Morpho V1 API timeout - returning empty markets`)
         }
@@ -339,7 +346,9 @@ async function getLendingMarkets(): Promise<LendMarket[]> {
 
       const markets = data.vaults.items.map((vault) => ({
         protocol: MORPHO_CONFIG.morpho_v1.id,
-        network: vault.asset.chain.network.toLowerCase(),
+        network:
+          CHAIN_NAME_MAPPING[vault.asset.chain.id]?.protocolName ||
+          vault.asset.chain.network.toLowerCase(),
         poolName: vault.name,
         poolId: vault.id,
         poolAddress: vault.address,
@@ -387,16 +396,16 @@ async function getLendingMarkets(): Promise<LendMarket[]> {
 
     return allMarkets
   } catch (err) {
-    console.error('Unexpected error fetching Morpho V1 lending markets:', err)
+    console.error('Unexpected error fetching Morpho V1 supplying markets:', err)
     return []
   }
 }
 
 export const morphoV1OffchainAdapter: DataAdapter = {
   dataSourceType: 'offchain',
-  getUserLendPositions,
+  getUserSupplyPositions,
   getUserBorrowPositions,
   getMarketBorrowHistoryRates,
-  getMarketLendHistoryRates,
-  getLendingMarkets,
+  getMarketSupplyHistoryRates,
+  getSupplyingMarkets,
 }

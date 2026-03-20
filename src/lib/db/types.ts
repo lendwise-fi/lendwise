@@ -3,7 +3,7 @@
  * MongoDB document types for the APY standard.
  *
  * Collections:
- *   pools      — static registry of all lend/borrow pools
+ *   products   — static registry of all supply/borrow products
  *   apy.hourly — rolling average APY per hour (classic collection, upserted every 10 min)
  *   apy.daily  — daily average APY computed from apy.hourly (classic collection)
  */
@@ -12,24 +12,24 @@
 // Shared primitives
 // ─────────────────────────────────────────────────────────────────────────────
 
-export type ProtocolName = 'aave' | 'morpho' | 'compound'
+export type Kind = 'supply' | 'borrow'
+export type ProviderId = 'aave' | 'morpho' | 'compound'
 
-export type NativeType = 'reserve' | 'market' | 'vault' | 'comet'
+export type ProductType = 'reserve' | 'market' | 'vault'
 
-export type Kind = 'lend' | 'borrow'
-
-export type SlotQualityStatus  = 'building' | 'complete' | 'partial'
-export type DailyQualityStatus = 'complete' | 'partial'  | 'missing'
+export type HourlyQualityStatus = 'building' | 'complete' | 'partial'
+export type SlotQualityStatus = 'building' | 'complete' | 'partial'
+export type DailyQualityStatus = 'complete' | 'partial' | 'missing'
 
 export interface Chain {
-  id:   number   // EVM chain ID — 1 = Ethereum, 8453 = Base, 42161 = Arbitrum
-  name: string   // "ethereum" | "base" | "arbitrum" | "polygon"
+  id: number // EVM chain ID — 1 = Ethereum, 8453 = Base, 42161 = Arbitrum
+  name: string // "ethereum" | "base" | "arbitrum" | "polygon"
 }
 
 export interface Asset {
-  symbol:   string
-  name:     string
-  address:  string
+  symbol: string
+  name: string
+  address: string
   decimals: number
 }
 
@@ -38,17 +38,17 @@ export interface Asset {
 // ─────────────────────────────────────────────────────────────────────────────
 
 export interface Collateral {
-  symbol:   string
-  name:     string
-  address:  string
+  symbol: string
+  name: string
+  address: string
   decimals: number
   /**
    * Maximum LTV allowed to open a borrow position.
    * null for Morpho Blue — the protocol only exposes lltv.
    */
-  ltv:             number | null
+  ltv: number | null
   /** Liquidation threshold — position becomes liquidatable above this LTV. */
-  lltv:            number
+  lltv: number
   /**
    * Whether this asset can be used as collateral on this specific market.
    * Sourced from AAVE's supplyInfo.canBeCollateral.
@@ -57,98 +57,135 @@ export interface Collateral {
   canBeCollateral: boolean
 }
 
-// ─── Protocol meta ────────────────────────────────────────────────────────────
+// ─── Protocol-specific meta — merged into protocol.meta ───────────────────────
 
-/** AAVE lend — supply-side parameters, fixed at reserve creation. */
-export interface ProtocolMetaAaveLend {
-  aTokenSymbol:         string   // e.g. "aEthLidoUSDC"
+/**
+ * AAVE supply — a "reserve" in AAVE terminology.
+ * Identified by the underlying asset address (underlyingToken).
+ */
+export interface ProtocolMetaAaveSupply {
+  underlyingToken: string // underlying asset contract address
+  aTokenSymbol: string // e.g. "aEthLidoUSDC"
   /** Maximum LTV allowed if this asset is used as collateral — e.g. 0.75 */
-  maxLTV:               number
+  maxLTV: number
   /** Liquidation threshold — position becomes liquidatable above this LTV — e.g. 0.80 */
   liquidationThreshold: number
 }
 
-/** AAVE borrow — IRM parameters fixed by governance. */
+/**
+ * AAVE borrow — same "reserve", borrow side.
+ * IRM parameters fixed by governance.
+ */
 export interface ProtocolMetaAaveBorrow {
-  variableRateSlope1:     number
-  variableRateSlope2:     number
-  optimalUsageRate:       number
+  underlyingToken: string // underlying asset contract address
+  vTokenSymbol: string // e.g. "variableDebtEthLidoUSDC"
+  variableRateSlope1: number
+  variableRateSlope2: number
+  optimalUsageRate: number
   baseVariableBorrowRate: number
-  vTokenSymbol:           string   // e.g. "variableDebtEthLidoUSDC"
 }
 
-/** Morpho Blue borrow — no static protocol meta needed for V1. */
-export type ProtocolMetaMorphoBlue = Record<string, never>
-
-/** MetaMorpho lend — no static protocol meta needed for V1. */
-export type ProtocolMetaMorphoLend = Record<string, never>
-
-/** MetaMorpho lend — vault configuration. */
-export interface ProtocolMetaMetaMorpho {
-  curator:           string     // e.g. "Steakhouse", "Gauntlet"
-  underlyingMarkets: string[]   // list of Morpho Blue marketIds
+/**
+ * Morpho Blue borrow — same market, borrow side.
+ */
+export interface ProtocolMetaMorphoBlueBorrow {
+  id: string // marketId hash
+  lltv: number // liquidation LTV for this market — e.g. 0.915
 }
 
-/** Compound — market parameters fixed by governance. */
-export interface ProtocolMetaCompound {
-  reserveFactor: number   // e.g. 0.10
-  cTokenSymbol:  string   // e.g. "cUSDCv3"
+/**
+ * MetaMorpho supply — a "vault" built on top of Morpho Blue markets.
+ * Identified by the vault contract address.
+ * No borrow side — vaults are supply-only.
+ */
+export interface ProtocolMetaMetaMorphoSupply {
+  name: string
+  symbol: string
+  address: string // vault contract address
+  curators: string[] // e.g. ["Steakhouse", "Gauntlet"]
 }
 
-// ─── Pool base ────────────────────────────────────────────────────────────────
+/**
+ * Compound supply — a "market" in Compound terminology.
+ * Identified by the cToken (v2) or Comet (v3) contract address.
+ */
+export interface ProtocolMetaCompoundSupply {
+  cToken: string // e.g. "cUSDCv3" contract address
+  reserveFactor: number // e.g. 0.10
+}
 
-interface BasePool {
+/**
+ * Compound borrow — same market, borrow side.
+ */
+export interface ProtocolMetaCompoundBorrow {
+  cToken: string
+  reserveFactor: number
+}
+
+// ─── Product base ─────────────────────────────────────────────────────────────
+
+export interface BaseProduct {
   /**
    * Deterministic slug — primary key.
-   * Format: {protocol.name}-{protocol.market}-{asset.symbol}-{kind}
+   * Format: {protocol.provider}-{protocol.name}-{asset.symbol}-{kind}
    * Morpho Blue borrow: …-{collateral.symbol}-borrow
    */
   _id: string
 
   protocol: {
-    /** Normalized identifier for filtering — "aave" | "morpho" | "compound" */
-    name:    ProtocolName
+    /** Normalized provider identifier for filtering — "aave" | "morpho" | "compound" */
+    provider: ProviderId
+    type: ProductType
     /**
-     * Native market name, verbatim from the protocol subgraph.
+     * Native market/deployment name, verbatim from the protocol subgraph.
      * Examples: "AaveV3Ethereum", "AaveV3EthereumLido", "MorphoBlueEthereum"
      */
-    market:  string
-    chain:   Chain
+    name: string
+    chain: Chain
+    /** Protocol contract address — supplying pool / market factory. */
     address: string
-  }
-
-  native: {
-    type: NativeType
     /**
-     * Native identifier in the source protocol.
-     * AAVE:        underlying asset address
-     * Morpho Blue: marketId hash
-     * MetaMorpho:  vault contract address
-     * Compound:    cToken or Comet address
+     * Protocol-specific metadata — type discriminator + native identifier
+     * + governance parameters.
      */
-    id:   string
+    meta:
+      | ProtocolMetaAaveSupply
+      | ProtocolMetaAaveBorrow
+      | ProtocolMetaMorphoBlueBorrow
+      | ProtocolMetaMetaMorphoSupply
+      | ProtocolMetaCompoundSupply
+      | ProtocolMetaCompoundBorrow
   }
-
-  asset:       Asset
+  asset: Asset
   subgraphUrl: string
-  active:      boolean
-  createdAt:   Date
-  updatedAt:   Date
+  active: boolean
+  createdAt: Date
+  updatedAt: Date
 }
 
-export interface LendPool extends BasePool {
-  kind: 'lend'
-  protocolMeta: ProtocolMetaAaveLend | ProtocolMetaMorphoLend | ProtocolMetaMetaMorpho | ProtocolMetaCompound
+export interface SupplyProduct extends BaseProduct {
+  kind: 'supply'
+  protocol: BaseProduct['protocol'] & {
+    meta:
+      | ProtocolMetaAaveSupply
+      | ProtocolMetaMetaMorphoSupply
+      | ProtocolMetaCompoundSupply
+  }
 }
 
-export interface BorrowPool extends BasePool {
+export interface BorrowProduct extends BaseProduct {
   kind: 'borrow'
-  /** Always non-empty on a borrow pool. */
-  collaterals:  Collateral[]
-  protocolMeta: ProtocolMetaAaveBorrow | ProtocolMetaMorphoBlue | ProtocolMetaCompound
+  /** Always non-empty on a borrow product. */
+  collaterals: Collateral[]
+  protocol: BaseProduct['protocol'] & {
+    meta:
+      | ProtocolMetaAaveBorrow
+      | ProtocolMetaMorphoBlueBorrow
+      | ProtocolMetaCompoundBorrow
+  }
 }
 
-export type Pool = LendPool | BorrowPool
+export type Product = SupplyProduct | BorrowProduct
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Shared APY types — used by apy.hourly and apy.daily
@@ -156,7 +193,7 @@ export type Pool = LendPool | BorrowPool
 
 export interface RewardItem {
   token: {
-    symbol:  string
+    symbol: string
     address: string
   }
   /**
@@ -165,29 +202,29 @@ export interface RewardItem {
    * AAVE:    AaveSupplyIncentive.extraSupplyApr / AaveBorrowIncentive.borrowAprDiscount
    * Merkl:   opportunity.apr
    */
-  apr:     number
+  apr: number
   /**
    * APR converted to APY using daily compounding (n=365).
    * APY = (1 + APR / 365)^365 - 1
    */
-  apy:     number
-  source:  'protocol' | 'merkl' | 'merit'
+  apy: number
+  source: 'protocol' | 'merkl' | 'merit'
   program: string | null
 }
 
 export interface ApyBreakdown {
   /** Average base APY from the protocol IRM — before fees, without rewards. */
-  base:        number
+  base: number
   /** Average sum of all reward APYs. */
-  rewards:     number
+  rewards: number
   /** Average protocol fee APY. */
-  fees:        number
+  fees: number
   /**
    * Average net APY — effective rate for the user.
-   * Lend:   base - fees + rewards
+   * Supply:   base - fees + rewards
    * Borrow: base + fees - rewards
    */
-  net:         number
+  net: number
   /**
    * Reward items from the last slot — not averaged.
    * Items can appear/disappear between slots.
@@ -197,35 +234,35 @@ export interface ApyBreakdown {
 
 // ─── Market state — split by kind ─────────────────────────────────────────────
 
-export interface LendMarketState {
+export interface SupplyMarketState {
   /** Average total amount supplied in native token units. */
-  supplyAssets:    number
+  supplyAssets: number
   /** Average total value supplied in USD. */
   supplyAssetsUsd: number
   /** Average borrow utilization rate — 0 to 1. */
   utilizationRate: number
   /** Average loan asset price in USD. */
-  assetPriceUsd:   number
+  assetPriceUsd: number
 }
 
 export interface BorrowMarketState {
   /** Average total amount supplied in native token units. */
-  supplyAssets:    number
+  supplyAssets: number
   /** Average total value supplied in USD. */
   supplyAssetsUsd: number
   /** Average total amount borrowed in native token units. */
-  borrowAssets:    number
+  borrowAssets: number
   /** Average total value borrowed in USD. */
   borrowAssetsUsd: number
   /** Average borrow utilization rate — 0 to 1. */
   utilizationRate: number
   /** Average loan asset price in USD. */
-  assetPriceUsd:   number
+  assetPriceUsd: number
   /**
    * Average total collateral in USD.
    * null for AAVE/Compound (multi-collateral).
    */
-  collateralAssetsUsd:        number | null
+  collateralAssetsUsd: number | null
   /**
    * Average collateral/loan price ratio.
    * Morpho Blue only — null for AAVE/Compound.
@@ -241,11 +278,11 @@ export interface BorrowMarketState {
  * Display fields (asset name, address, chain name…) resolved via pools._id.
  */
 interface ApyMeta {
-  poolId:   string        // FK → pools._id — upsert key
-  kind:     Kind
-  protocol: ProtocolName
-  chainId:  number        // EVM chain ID — for filtering
-  asset:    string        // loan asset symbol only — "USDC", "WETH"
+  productId: string // FK → pools._id — upsert key
+  kind: Kind
+  protocol: ProviderId
+  chainId: number // EVM chain ID — for filtering
+  asset: string // loan asset symbol only — "USDC", "WETH"
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -257,31 +294,31 @@ export interface SlotQuality {
    * Number of 10-min slots that contributed to the rolling average.
    * Expected: 6 for a complete hour.
    */
-  count:         number
+  count: number
   /** Expected slots per hour — always 6. */
   expectedCount: 6
   /** Timestamp of the first slot that contributed to this hour. */
-  firstSlot:     Date
+  firstSlot: Date
   /** Timestamp of the most recent slot that contributed. */
-  lastSlot:      Date
+  lastSlot: Date
   /**
    * building — hour in progress, count < 6
    * complete — count >= 6
    * partial  — hour is past but count < 6 (gaps detected)
    */
-  status:        SlotQualityStatus
+  status: SlotQualityStatus
 }
 
-export interface LendApySlot {
+export interface SupplyApySlot {
   /**
    * Hour boundary UTC — normalized to the top of the hour.
    * 11:17:42Z → 11:00:00.000Z
-   * Upsert key: (meta.poolId, hour).
+   * Upsert key: (meta.productId, hour).
    */
-  hour:    Date
-  meta:    ApyMeta & { kind: 'lend' }
-  apy:     ApyBreakdown
-  market:  LendMarketState
+  hour: Date
+  meta: ApyMeta & { kind: 'supply' }
+  apy: ApyBreakdown
+  market: SupplyMarketState
   quality: SlotQuality
 }
 
@@ -289,16 +326,16 @@ export interface BorrowApySlot {
   /**
    * Hour boundary UTC — normalized to the top of the hour.
    * 11:17:42Z → 11:00:00.000Z
-   * Upsert key: (meta.poolId, hour).
+   * Upsert key: (meta.productId, hour).
    */
-  hour:    Date
-  meta:    ApyMeta & { kind: 'borrow' }
-  apy:     ApyBreakdown
-  market:  BorrowMarketState
+  hour: Date
+  meta: ApyMeta & { kind: 'borrow' }
+  apy: ApyBreakdown
+  market: BorrowMarketState
   quality: SlotQuality
 }
 
-export type ApySlot = LendApySlot | BorrowApySlot
+export type ApySlot = SupplyApySlot | BorrowApySlot
 
 // ─────────────────────────────────────────────────────────────────────────────
 // SpotPayload — fetcher output, input to the hourly upsert pipeline
@@ -310,14 +347,20 @@ export type ApySlot = LendApySlot | BorrowApySlot
  * No timestamp — assigned by the orchestrator at collection time.
  */
 export type SpotPayload = {
-  poolId:   string
-  kind:     Kind
-  protocol: ProtocolName
-  chainId:  number
+  productId: string
+  kind: Kind
+  protocol: ProviderId
+  chainId: number
   /** Loan asset symbol — "USDC", "WETH". */
-  asset:    string
-  apy: ApyBreakdown
-  market: LendMarketState | BorrowMarketState
+  asset: string
+  apy: {
+    base: number
+    rewards: number
+    fees: number
+    net: number
+    rewardItems: RewardItem[]
+  }
+  market: SupplyMarketState | BorrowMarketState
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -329,28 +372,28 @@ export interface DailyQuality {
    * Number of hourly documents found in the [D-1 00:00Z, D 00:00Z[ window.
    * Expected: 24 for a complete day.
    */
-  actualCount:  number
+  actualCount: number
   /**
    * actualCount / 24 — 0 to 1.
    * < 0.5 → treat as unreliable, exclude from optimization engine.
    */
   completeness: number
-  status:       DailyQualityStatus
+  status: DailyQualityStatus
   /** Incremented on each recomputation — > 1 means the document was replayed. */
-  revision:     number
-  computedAt:   Date
+  revision: number
+  computedAt: Date
 }
 
-export interface LendApyDaily {
+export interface SupplyApyDaily {
   /**
    * Midnight UTC of the day covered.
    * 2025-03-12 → 2025-03-12T00:00:00.000Z
-   * Upsert key: (meta.poolId, date).
+   * Upsert key: (meta.productId, date).
    */
-  date:    Date
-  meta:    ApyMeta & { kind: 'lend' }
-  apy:     ApyBreakdown
-  market:  LendMarketState
+  date: Date
+  meta: ApyMeta & { kind: 'supply' }
+  apy: ApyBreakdown
+  market: SupplyMarketState
   quality: DailyQuality
 }
 
@@ -358,13 +401,13 @@ export interface BorrowApyDaily {
   /**
    * Midnight UTC of the day covered.
    * 2025-03-12 → 2025-03-12T00:00:00.000Z
-   * Upsert key: (meta.poolId, date).
+   * Upsert key: (meta.productId, date).
    */
-  date:    Date
-  meta:    ApyMeta & { kind: 'borrow' }
-  apy:     ApyBreakdown
-  market:  BorrowMarketState
+  date: Date
+  meta: ApyMeta & { kind: 'borrow' }
+  apy: ApyBreakdown
+  market: BorrowMarketState
   quality: DailyQuality
 }
 
-export type ApyDaily = LendApyDaily | BorrowApyDaily
+export type ApyDaily = SupplyApyDaily | BorrowApyDaily

@@ -33,9 +33,9 @@ const slotTimestamp = DateTime.utc()
   .toJSDate()
 ```
 
-### 3. Upsert on (poolId, timestamp) for idempotency
+### 3. Upsert on (productId, timestamp) for idempotency
 
-The collection job uses `updateOne(..., { upsert: true })` keyed on `(meta.poolId, timestamp)`. Any number of QStash retries on the same slot produces exactly one document.
+The collection job uses `updateOne(..., { upsert: true })` keyed on `(meta.productId, timestamp)`. Any number of QStash retries on the same slot produces exactly one document.
 
 ### 4. All rates stored as APY
 
@@ -50,7 +50,7 @@ The raw APR is also stored in `rewardItems[].apr` for traceability.
 ### 5. `apy.net` formula
 
 ```
-Lend:   net = base - fees + rewards
+Supply:   net = base - fees + rewards
 Borrow: net = base + fees - rewards
 ```
 
@@ -116,7 +116,7 @@ export interface ApyBreakdown {
   /**
    * Sum of all reward items converted to APY.
    * = sum(rewardItems[].apy)
-   * Lend:   adds to yield
+   * Supply:   adds to yield
    * Borrow: reduces effective cost
    */
   rewards: number
@@ -124,7 +124,7 @@ export interface ApyBreakdown {
   /**
    * Protocol fee as APY — deducted from the gross rate.
    * Morpho Blue:   state.fee (set at market creation, taken from borrowers)
-   * MetaMorpho:    vault performance fee (taken by the curator)
+   * MetaMorpho:    vault performance fee (taken by the curators)
    * AAVE:          reserve factor from protocolMeta (not re-fetched here)
    * Compound:      reserveFactor from protocolMeta
    */
@@ -132,7 +132,7 @@ export interface ApyBreakdown {
 
   /**
    * Net APY — effective rate for the user.
-   * Lend:   base - fees + rewards
+   * Supply:   base - fees + rewards
    * Borrow: base + fees - rewards
    *
    * For Morpho, cross-checked against state.netSupplyApy / state.netBorrowApy.
@@ -209,7 +209,7 @@ export interface ApySpot {
   /**
    * Slot timestamp — normalized to the 10-minute boundary (UTC).
    * 13:17:42Z → 13:10:00.000Z
-   * Part of the compound upsert key: (meta.poolId, timestamp).
+   * Part of the compound upsert key: (meta.productId, timestamp).
    */
   timestamp: Date
 
@@ -218,8 +218,8 @@ export interface ApySpot {
    * Deliberately denormalized from pools for query efficiency.
    */
   meta: {
-    poolId: string // FK → pools._id
-    kind: 'lend' | 'borrow'
+    productId: string // FK → pools._id
+    kind: 'supply' | 'borrow'
     protocol: ProtocolName // "aave" | "morpho" | "compound"
     chain: {
       id: number
@@ -253,12 +253,12 @@ export interface ApySpot {
 
 | `apy.spot` field         | Morpho source                                       |
 | ------------------------ | --------------------------------------------------- |
-| `apy.base` (lend)        | `state.supplyApy`                                   |
+| `apy.base` (supply)      | `state.supplyApy`                                   |
 | `apy.base` (borrow)      | `state.borrowApy`                                   |
 | `apy.fees`               | `state.fee`                                         |
-| `apy.rewards` (lend)     | `sum(state.rewards[].supplyApr)` → converted to APY |
+| `apy.rewards` (supply)   | `sum(state.rewards[].supplyApr)` → converted to APY |
 | `apy.rewards` (borrow)   | `sum(state.rewards[].borrowApr)` → converted to APY |
-| `apy.net` (lend)         | `state.netSupplyApy` (cross-check with formula)     |
+| `apy.net` (supply)       | `state.netSupplyApy` (cross-check with formula)     |
 | `apy.net` (borrow)       | `state.netBorrowApy` (cross-check with formula)     |
 | `rewardItems[].apr`      | `state.rewards[].supplyApr` or `borrowApr`          |
 | `rewardItems[].source`   | `"protocol"`                                        |
@@ -269,20 +269,20 @@ export interface ApySpot {
 
 ### AAVE
 
-| `apy.spot` field            | AAVE source                                                                  |
-| --------------------------- | ---------------------------------------------------------------------------- |
-| `apy.base` (lend)           | `supplyInfo.apy.value`                                                       |
-| `apy.base` (borrow)         | `borrowInfo.apy.value`                                                       |
-| `apy.fees`                  | `protocolMeta.reserveFactor` (from `pools`, not re-fetched)                  |
-| `apy.rewards` (lend)        | `sum(AaveSupplyIncentive.extraSupplyApr)` + `sum(Merkl supply APR)` → APY    |
-| `apy.rewards` (borrow)      | `sum(AaveBorrowIncentive.borrowAprDiscount)` + `sum(Merkl borrow APR)` → APY |
-| `apy.net` (lend)            | computed: `base - fees + rewards`                                            |
-| `apy.net` (borrow)          | computed: `base + fees - rewards`                                            |
-| `rewardItems[].source`      | `"protocol"` (AAVE native) or `"merkl"` or `"merit"`                         |
-| `market.supplyAssetsUsd`    | `supplyInfo.total.value × usdExchangeRate`                                   |
-| `market.borrowAssetsUsd`    | `borrowInfo.total.usd`                                                       |
-| `market.utilizationRate`    | computed: `borrowAssetsUsd / supplyAssetsUsd`                                |
-| `market.assetPriceUsd`      | `usdExchangeRate`                                                            |
+| `apy.spot` field         | AAVE source                                                                  |
+| ------------------------ | ---------------------------------------------------------------------------- |
+| `apy.base` (supply)      | `supplyInfo.apy.value`                                                       |
+| `apy.base` (borrow)      | `borrowInfo.apy.value`                                                       |
+| `apy.fees`               | `protocolMeta.reserveFactor` (from `pools`, not re-fetched)                  |
+| `apy.rewards` (supply)   | `sum(AaveSupplyIncentive.extraSupplyApr)` + `sum(Merkl supply APR)` → APY    |
+| `apy.rewards` (borrow)   | `sum(AaveBorrowIncentive.borrowAprDiscount)` + `sum(Merkl borrow APR)` → APY |
+| `apy.net` (supply)       | computed: `base - fees + rewards`                                            |
+| `apy.net` (borrow)       | computed: `base + fees - rewards`                                            |
+| `rewardItems[].source`   | `"protocol"` (AAVE native) or `"merkl"` or `"merit"`                         |
+| `market.supplyAssetsUsd` | `supplyInfo.total.value × usdExchangeRate`                                   |
+| `market.borrowAssetsUsd` | `borrowInfo.total.usd`                                                       |
+| `market.utilizationRate` | computed: `borrowAssetsUsd / supplyAssetsUsd`                                |
+| `market.assetPriceUsd`   | `usdExchangeRate`                                                            |
 
 ---
 
@@ -307,9 +307,9 @@ aprToApy(0.01) // 1% APR  → 1.005% APY
 
 ```js
 // Primary — fetch latest spot for a pool
-db['apy.spot'].createIndex({ 'meta.poolId': 1, timestamp: -1 })
+db['apy.spot'].createIndex({ 'meta.productId': 1, timestamp: -1 })
 
-// UI query — "all lend pools for USDC on Ethereum over last 7 days"
+// UI query — "all supply pools for USDC on Ethereum over last 7 days"
 db['apy.spot'].createIndex({
   'meta.asset': 1,
   'meta.kind': 1,
@@ -323,14 +323,14 @@ db['apy.spot'].createIndex({ 'meta.protocol': 1, timestamp: -1 })
 
 ---
 
-## Document Example — Morpho Blue USDC/WETH lend
+## Document Example — Morpho Blue USDC/WETH supply
 
 ```json
 {
   "timestamp": "2025-03-12T14:10:00.000Z",
   "meta": {
-    "poolId": "morpho-MorphoBlueEthereum-usdc-weth-lend",
-    "kind": "lend",
+    "productId": "morpho-MorphoBlueEthereum-usdc-weth-supply",
+    "kind": "supply",
     "protocol": "morpho",
     "chain": { "id": 1, "name": "ethereum" },
     "asset": "USDC"

@@ -16,16 +16,17 @@ All monetary values are in **USD**. All rates are in **APY**.
 db.createCollection('apy.daily')
 ```
 
-### 2. Upsert on (poolId, date) — idempotent by design
+### 2. Upsert on (productId, date) — idempotent by design
 
 ```js
-await db
-  .collection('apy.daily')
-  .updateOne(
-    { poolId: 'aave-AaveV3Ethereum-usdc-lend', date: new Date('2025-03-12') },
-    { $set: { ...document }, $inc: { revision: 1 } },
-    { upsert: true }
-  )
+await db.collection('apy.daily').updateOne(
+  {
+    productId: 'aave-AaveV3Ethereum-usdc-supply',
+    date: new Date('2025-03-12'),
+  },
+  { $set: { ...document }, $inc: { revision: 1 } },
+  { upsert: true }
+)
 ```
 
 Each rerun increments `revision`. If spot data was incomplete earlier (gap in `apy.spot`) and is later backfilled, the daily job can be replayed to produce a corrected document.
@@ -155,21 +156,21 @@ export interface ApyDaily {
   /**
    * The day this document covers — midnight UTC of D-1.
    * Example: document for 2025-03-12 → date = 2025-03-12T00:00:00.000Z
-   * Part of the compound upsert key: (poolId, date).
+   * Part of the compound upsert key: (productId, date).
    */
   date: Date
 
   /**
    * Foreign key → pools._id
-   * Part of the compound upsert key: (poolId, date).
+   * Part of the compound upsert key: (productId, date).
    */
-  poolId: string
+  productId: string
 
   /**
    * Denormalized from pools for query efficiency — same fields as apy.spot.meta.
    */
   meta: {
-    kind: 'lend' | 'borrow'
+    kind: 'supply' | 'borrow'
     protocol: ProtocolName
     chain: {
       id: number
@@ -209,7 +210,7 @@ const [stats] = await db
   .aggregate([
     {
       $match: {
-        'meta.poolId': poolId,
+        'meta.productId': productId,
         timestamp: { $gte: windowStart, $lt: windowEnd },
       },
     },
@@ -278,7 +279,7 @@ const [closing] = await db
   .aggregate([
     {
       $match: {
-        'meta.poolId': poolId,
+        'meta.productId': productId,
         timestamp: { $gte: windowStart, $lt: windowEnd },
       },
     },
@@ -300,9 +301,9 @@ const [closing] = await db
 
 ```js
 // Primary — lookup a pool's daily history
-db['apy.daily'].createIndex({ poolId: 1, date: -1 }, { unique: true })
+db['apy.daily'].createIndex({ productId: 1, date: -1 }, { unique: true })
 
-// UI query — "all lend pools for USDC over last 90 days"
+// UI query — "all supply pools for USDC over last 90 days"
 db['apy.daily'].createIndex({
   'meta.asset': 1,
   'meta.kind': 1,
@@ -319,15 +320,15 @@ db['apy.daily'].createIndex({ 'quality.status': 1, date: -1 })
 
 ---
 
-## Document Example — AAVE USDC lend
+## Document Example — AAVE USDC supply
 
 ```json
 {
   "date": "2025-03-12T00:00:00.000Z",
-  "poolId": "aave-AaveV3Ethereum-usdc-lend",
+  "productId": "aave-AaveV3Ethereum-usdc-supply",
 
   "meta": {
-    "kind": "lend",
+    "kind": "supply",
     "protocol": "aave",
     "chain": { "id": 1, "name": "ethereum" },
     "asset": "USDC"

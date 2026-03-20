@@ -1,20 +1,14 @@
-//@ts-nocheck
-import type { ApyTimeSeriesDocument } from '@/lib/db/types'
+import type {
+  BorrowMarketState,
+  SpotPayload,
+  SupplyMarketState,
+} from '@/lib/db/types'
 import { COMPOUND_CONFIG } from '@/lib/protocols/compound/config'
 import { MarketsApyQuery } from '@/lib/protocols/compound/v3/onchain/generated/graphql'
 import { MARKETS_APY } from '@/lib/protocols/compound/v3/onchain/queries'
 import { createGraphQLClient } from '@/lib/protocols/shared'
 
-/**
- * Map Compound subgraph network enum to our chain naming.
- */
-const NETWORK_TO_CHAIN: Record<string, string> = {
-  MAINNET: 'ethereum',
-  ARBITRUM_ONE: 'arbitrum',
-  MATIC: 'polygon',
-  OPTIMISM: 'optimism',
-  BASE: 'base',
-}
+import { buildProductId } from './utils'
 
 /**
  * Fetch current supply and borrow APY for all Compound V3 markets across all chains.
@@ -24,48 +18,39 @@ const NETWORK_TO_CHAIN: Record<string, string> = {
  */
 export async function fetchCompoundV3Apy(
   chainFilter?: string
-): Promise<ApyTimeSeriesDocument[]> {
+): Promise<SpotPayload[]> {
   const config = COMPOUND_CONFIG.compound_v3
-  const snapshots: ApyTimeSeriesDocument[] = []
+  const snapshots: SpotPayload[] = []
 
-  let chainEntries = Object.entries(config.chains).filter(
-    ([, chainConfig]) => chainConfig.custom?.subgraphUrl
-  )
+  let chainIds = Object.keys(config.chains).map(Number)
 
-  // Filter chains if specific one requested
   if (chainFilter) {
-    const filtered = chainEntries.filter(
-      ([, chainConfig]) =>
-        chainConfig.name.toLowerCase() === chainFilter.toLowerCase()
+    const found = Object.entries(config.chains).find(
+      ([, c]) => c.name.toLowerCase() === chainFilter.toLowerCase()
     )
-
-    if (filtered.length > 0) {
-      chainEntries = filtered
-    } else {
-      // If chain supported by config but not in the subgraph list, just return empty
-      // (or if valid chain doesn't exist at all)
+    if (!found) {
       console.warn(
-        `[cron:compound] Chain filter '${chainFilter}' not found or has no subgraph`
+        `[products:compound] Chain filter '${chainFilter}' not found in config`
       )
       return []
     }
+    chainIds = [Number(found[0])]
   }
 
   const results = await Promise.allSettled(
-    chainEntries.map(async ([, chainConfig]) => {
-      const subgraphUrl = chainConfig.custom.subgraphUrl!
-      const apiKey = process.env.THEGRAPH_API_KEY
+    chainIds.map(async (chainId) => {
+      const chainConfig = config.chains[chainId]
+      if (!chainConfig?.custom.subgraphUrl) {
+        console.warn(`[products:compound] No subgraph URL for chain ${chainId}`)
+        return []
+      }
 
-      const url = apiKey
-        ? subgraphUrl.replace(
-            '/api/subgraphs/id/',
-            `/api/${apiKey}/subgraphs/id/`
-          )
-        : subgraphUrl
+      const chainClient = createGraphQLClient(
+        chainConfig.custom.subgraphUrl,
+        process.env.THEGRAPH_API_KEY
+      )
 
-      const client = createGraphQLClient(url)
-
-      const { data, error } = await client
+      const { data, error } = await chainClient
         .query<MarketsApyQuery>(MARKETS_APY, {})
         .toPromise()
 
@@ -77,71 +62,67 @@ export async function fetchCompoundV3Apy(
         return []
       }
 
-      if (!data?.markets) {
+      if (!data?.markets?.length) {
         return []
       }
 
-      const snapshots: ApyTimeSeriesDocument[] = []
-      const timestamp = new Date()
+      const chain = {
+        id: chainId,
+        name: chainConfig.name.toLowerCase(),
+      }
 
       for (const market of data.markets) {
-        const network = market.protocol.network
-        const chain = NETWORK_TO_CHAIN[network] ?? network.toLowerCase()
-
-        let supplyApy = 0
-        let borrowApy = 0
-
-        for (const rate of market.rates || []) {
-          if (rate.side === 'LENDER') {
-            supplyApy = parseFloat(rate.rate)
-          } else if (rate.side === 'BORROWER') {
-            borrowApy = parseFloat(rate.rate)
-          }
+        // ─── Supply payload ──────────────────────────────────────────────────────
+        const supplyProductId = buildProductId(market.id, chain, 'supply')
+        const supplyPayload: SpotPayload = {
+          productId: supplyProductId,
+          kind: 'supply',
+          protocol: 'compound',
+          chainId,
+          asset: market.configuration.symbol,
+          apy: {
+            base: market.accounting.supplyApr,
+            rewards: market.accounting.rewardSupplyApr,
+            fees: 0,
+            net: market.accounting.netSupplyApr,
+            rewardItems: [],
+          },
+          market: {
+            supplyAssets: market.accounting.totalBaseSupply,
+            supplyAssetsUsd: market.accounting.totalBaseSupplyUsd,
+            utilizationRate: market.accounting.utilization,
+            assetPriceUsd: market.configuration.baseToken.lastPriceUsd,
+          } as SupplyMarketState,
         }
 
-        const borrowAssets = 0
-        const borrowAssetsUsd = 0
-        const supplyAssets = 0
-        const supplyAssetsUsd = 0
-        const collateralAssets = 0
-        const collateralAssetsUsd = 0
+        // ─── Borrow payload ────────────────────────────────────────────────────
+        const borrowProductId = buildProductId(market.id, chain, 'borrow')
+        const borrowPayload: SpotPayload = {
+          productId: borrowProductId,
+          kind: 'borrow',
+          protocol: 'compound',
+          chainId,
+          asset: market.configuration.symbol,
+          apy: {
+            base: market.accounting.borrowApr,
+            rewards: market.accounting.rewardBorrowApr,
+            fees: 0,
+            net: market.accounting.netBorrowApr,
+            rewardItems: [],
+          },
+          market: {
+            supplyAssets: market.accounting.totalBaseSupply,
+            supplyAssetsUsd: market.accounting.totalBaseSupplyUsd,
+            borrowAssets: market.accounting.totalBaseBorrow,
+            borrowAssetsUsd: market.accounting.totalBaseBorrowUsd,
+            utilizationRate: market.accounting.utilization,
+            assetPriceUsd: market.configuration.baseToken.lastPriceUsd,
+            collateralAssetsUsd: market.accounting.collateralBalanceUsd,
+            priceCollateralInLoanAsset: null, // TODO: derive from collateral state
+          } as BorrowMarketState,
+        }
 
-        snapshots.push({
-          timestamp,
-          metadata: {
-            protocol: {
-              name: config.id,
-              address: '',
-            },
-            chain: {
-              id: 0,
-              name: chain,
-            },
-            vault: {
-              symbol: market.name || '',
-              name: market.name || '',
-              address: '',
-            },
-          },
-          supplyApy: {
-            native: supplyApy,
-            rewards: 0,
-            fees: 0,
-            total: supplyApy,
-          },
-          borrowApy: {
-            native: borrowApy,
-            rewards: 0,
-            fees: 0,
-            total: borrowApy,
-          },
-          supplyAssets,
-          supplyAssetsUsd,
-          borrowAssets,
-          borrowAssetsUsd,
-          collateralAssets,
-          collateralAssetsUsd,
-        })
+        snapshots.push(supplyPayload, borrowPayload)
       }
       return snapshots
     })

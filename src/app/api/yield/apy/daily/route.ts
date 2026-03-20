@@ -3,17 +3,17 @@ import { NextRequest, NextResponse } from 'next/server'
 import { verifySignatureAppRouter } from '@upstash/qstash/nextjs'
 
 import {
-  MONGODB_COLLECTION_HOURLY,
   MONGODB_COLLECTION_DAILY,
+  MONGODB_COLLECTION_HOURLY,
   getDb,
 } from '@/lib/db/mongodb'
 import type {
-  ApySlot,
   ApyDaily,
-  LendApyDaily,
+  ApySlot,
   BorrowApyDaily,
-  LendMarketState,
   BorrowMarketState,
+  SupplyApyDaily,
+  SupplyMarketState,
 } from '@/lib/db/types'
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -28,8 +28,10 @@ function avg(values: number[]): number {
   return values.reduce((s, v) => s + v, 0) / values.length
 }
 
-function computeStatus(completeness: number): 'complete' | 'partial' | 'missing' {
-  if (completeness >= 1)   return 'complete'
+function computeStatus(
+  completeness: number
+): 'complete' | 'partial' | 'missing' {
+  if (completeness >= 1) return 'complete'
   if (completeness >= 0.5) return 'partial'
   return 'missing'
 }
@@ -37,43 +39,43 @@ function computeStatus(completeness: number): 'complete' | 'partial' | 'missing'
 // ─── Aggregation ──────────────────────────────────────────────────────────────
 
 /**
- * Aggregate all hourly documents for a single poolId over a 24h window
+ * Aggregate all hourly documents for a single productId over a 24h window
  * into a single ApyDaily document.
  *
  * All numeric fields are averaged across the 24 hourly slots.
  * rewardItems comes from the last slot.
  */
 async function aggregatePool(
-  poolId:      string,
+  productId: string,
   windowStart: Date,
-  windowEnd:   Date,
-  computedAt:  Date
+  windowEnd: Date,
+  computedAt: Date
 ): Promise<ApyDaily | null> {
-  const db         = await getDb()
+  const db = await getDb()
   const collection = db.collection<ApySlot>(MONGODB_COLLECTION_HOURLY)
 
   const hours = await collection
     .find(
       {
-        'meta.poolId': poolId,
+        'meta.productId': productId,
         hour: { $gte: windowStart, $lt: windowEnd },
       },
       {
         projection: {
-          hour:                                1,
-          'meta':                              1,
-          'apy.base':                          1,
-          'apy.net':                           1,
-          'apy.rewards':                       1,
-          'apy.fees':                          1,
-          'apy.rewardItems':                   1,
-          'market.supplyAssets':               1,
-          'market.supplyAssetsUsd':            1,
-          'market.borrowAssets':               1,
-          'market.borrowAssetsUsd':            1,
-          'market.utilizationRate':            1,
-          'market.assetPriceUsd':              1,
-          'market.collateralAssetsUsd':        1,
+          hour: 1,
+          meta: 1,
+          'apy.base': 1,
+          'apy.net': 1,
+          'apy.rewards': 1,
+          'apy.fees': 1,
+          'apy.rewardItems': 1,
+          'market.supplyAssets': 1,
+          'market.supplyAssetsUsd': 1,
+          'market.borrowAssets': 1,
+          'market.borrowAssetsUsd': 1,
+          'market.utilizationRate': 1,
+          'market.assetPriceUsd': 1,
+          'market.collateralAssetsUsd': 1,
           'market.priceCollateralInLoanAsset': 1,
         },
       }
@@ -83,38 +85,44 @@ async function aggregatePool(
 
   if (hours.length === 0) return null
 
-  const meta        = hours[0].meta
-  const lastSlot    = hours[hours.length - 1]
+  const meta = hours[0].meta
+  const lastSlot = hours[hours.length - 1]
   const actualCount = hours.length
   const completeness = actualCount / EXPECTED_SLOTS
 
   const quality = {
     actualCount,
     completeness,
-    status:    computeStatus(completeness),
-    revision:  1,
+    status: computeStatus(completeness),
+    revision: 1,
     computedAt,
   }
 
   const apy = {
-    base:        avg(hours.map((h) => h.apy.base)),
-    net:         avg(hours.map((h) => h.apy.net)),
-    rewards:     avg(hours.map((h) => h.apy.rewards)),
-    fees:        avg(hours.map((h) => h.apy.fees)),
+    base: avg(hours.map((h) => h.apy.base)),
+    net: avg(hours.map((h) => h.apy.net)),
+    rewards: avg(hours.map((h) => h.apy.rewards)),
+    fees: avg(hours.map((h) => h.apy.fees)),
     rewardItems: lastSlot.apy.rewardItems,
   }
 
-  if (meta.kind === 'lend') {
-    const market: LendMarketState = {
-      supplyAssets:    avg(hours.map((h) => h.market.supplyAssets)),
+  if (meta.kind === 'supply') {
+    const market: SupplyMarketState = {
+      supplyAssets: avg(hours.map((h) => h.market.supplyAssets)),
       supplyAssetsUsd: avg(hours.map((h) => h.market.supplyAssetsUsd)),
       utilizationRate: avg(hours.map((h) => h.market.utilizationRate)),
-      assetPriceUsd:   avg(hours.map((h) => h.market.assetPriceUsd)),
+      assetPriceUsd: avg(hours.map((h) => h.market.assetPriceUsd)),
     }
 
-    const doc: LendApyDaily = {
+    const doc: SupplyApyDaily = {
       date: windowStart,
-      meta: { kind: 'lend', poolId, protocol: meta.protocol, chainId: meta.chainId, asset: meta.asset },
+      meta: {
+        kind: 'supply',
+        productId,
+        protocol: meta.protocol,
+        chainId: meta.chainId,
+        asset: meta.asset,
+      },
       apy,
       market,
       quality,
@@ -135,19 +143,27 @@ async function aggregatePool(
     .filter((v): v is number => v != null)
 
   const market: BorrowMarketState = {
-    supplyAssets:               avg(borrowHours.map((m) => m.supplyAssets)),
-    supplyAssetsUsd:            avg(borrowHours.map((m) => m.supplyAssetsUsd)),
-    borrowAssets:               avg(borrowHours.map((m) => m.borrowAssets)),
-    borrowAssetsUsd:            avg(borrowHours.map((m) => m.borrowAssetsUsd)),
-    utilizationRate:            avg(borrowHours.map((m) => m.utilizationRate)),
-    assetPriceUsd:              avg(borrowHours.map((m) => m.assetPriceUsd)),
-    collateralAssetsUsd:        collateralValues.length     > 0 ? avg(collateralValues)      : null,
-    priceCollateralInLoanAsset: priceCollateralValues.length > 0 ? avg(priceCollateralValues) : null,
+    supplyAssets: avg(borrowHours.map((m) => m.supplyAssets)),
+    supplyAssetsUsd: avg(borrowHours.map((m) => m.supplyAssetsUsd)),
+    borrowAssets: avg(borrowHours.map((m) => m.borrowAssets)),
+    borrowAssetsUsd: avg(borrowHours.map((m) => m.borrowAssetsUsd)),
+    utilizationRate: avg(borrowHours.map((m) => m.utilizationRate)),
+    assetPriceUsd: avg(borrowHours.map((m) => m.assetPriceUsd)),
+    collateralAssetsUsd:
+      collateralValues.length > 0 ? avg(collateralValues) : null,
+    priceCollateralInLoanAsset:
+      priceCollateralValues.length > 0 ? avg(priceCollateralValues) : null,
   }
 
   const doc: BorrowApyDaily = {
     date: windowStart,
-    meta: { kind: 'borrow', poolId, protocol: meta.protocol, chainId: meta.chainId, asset: meta.asset },
+    meta: {
+      kind: 'borrow',
+      productId,
+      protocol: meta.protocol,
+      chainId: meta.chainId,
+      asset: meta.asset,
+    },
     apy,
     market,
     quality,
@@ -159,15 +175,15 @@ async function aggregatePool(
 // ─── Upsert ───────────────────────────────────────────────────────────────────
 
 async function upsertDailyDoc(doc: ApyDaily): Promise<void> {
-  const db         = await getDb()
+  const db = await getDb()
   const collection = db.collection<ApyDaily>(MONGODB_COLLECTION_DAILY)
 
   await collection.updateOne(
-    { 'meta.poolId': doc.meta.poolId, date: doc.date },
+    { 'meta.productId': doc.meta.productId, date: doc.date },
     {
-      $set:         { ...doc },
+      $set: { ...doc },
       $setOnInsert: { 'quality.revision': 1 },
-      $inc:         { 'quality.revision': 0 },
+      $inc: { 'quality.revision': 0 },
     },
     { upsert: true }
   )
@@ -180,7 +196,7 @@ async function upsertDailyDoc(doc: ApyDaily): Promise<void> {
  *
  * Triggered by QStash at 00:10 UTC.
  * Reads all apy.hourly documents from [D-1 00:00Z, D 00:00Z[
- * and produces one ApyDaily document per active poolId.
+ * and produces one ApyDaily document per active productId.
  *
  * Idempotent — reruns on the same day replace the existing document
  * and increment quality.revision.
@@ -192,38 +208,42 @@ export const POST = verifySignatureAppRouter(async (_req: NextRequest) => {
     const db = await getDb()
 
     // Explicit window — never relative to now()
-    const windowEnd   = new Date(computedAt)
+    const windowEnd = new Date(computedAt)
     windowEnd.setUTCHours(0, 0, 0, 0)
 
     const windowStart = new Date(windowEnd)
     windowStart.setUTCDate(windowStart.getUTCDate() - 1)
 
-    // Discover all poolIds active in this window
+    // Discover all productIds active in this window
     const hourlyCollection = db.collection<ApySlot>(MONGODB_COLLECTION_HOURLY)
-    const poolIds: string[] = await hourlyCollection
+    const productIds: string[] = await hourlyCollection
       .aggregate<{ _id: string }>([
         { $match: { hour: { $gte: windowStart, $lt: windowEnd } } },
-        { $group: { _id: '$meta.poolId' } },
+        { $group: { _id: '$meta.productId' } },
       ])
       .map((d) => d._id)
       .toArray()
 
-    if (poolIds.length === 0) {
+    if (productIds.length === 0) {
       return NextResponse.json(
-        { success: true, message: 'No hourly data found for the window', counts: { total: 0 } },
+        {
+          success: true,
+          message: 'No hourly data found for the window',
+          counts: { total: 0 },
+        },
         { status: 200 }
       )
     }
 
-    // Aggregate each pool independently — allows partial success
+    // Aggregate each product independently — allows partial success
     const results = await Promise.allSettled(
-      poolIds.map((poolId) =>
-        aggregatePool(poolId, windowStart, windowEnd, computedAt)
+      productIds.map((productId) =>
+        aggregatePool(productId, windowStart, windowEnd, computedAt)
       )
     )
 
-    let written  = 0
-    let skipped  = 0
+    let written = 0
+    let skipped = 0
     const errors: string[] = []
 
     for (let i = 0; i < results.length; i++) {
@@ -236,24 +256,33 @@ export const POST = verifySignatureAppRouter(async (_req: NextRequest) => {
           skipped++
         }
       } else {
-        const msg = result.reason instanceof Error
-          ? result.reason.message
-          : String(result.reason)
-        errors.push(`[${poolIds[i]}] ${msg}`)
-        console.error(`[cron:apy-daily] Failed for pool ${poolIds[i]}:`, msg)
+        const msg =
+          result.reason instanceof Error
+            ? result.reason.message
+            : String(result.reason)
+        errors.push(`[${productIds[i]}] ${msg}`)
+        console.error(
+          `[cron:apy-daily] Failed for product ${productIds[i]}:`,
+          msg
+        )
       }
     }
 
     const window = `${windowStart.toISOString()} → ${windowEnd.toISOString()}`
     console.log(
       `[cron:apy-daily] Completed — window: ${window}` +
-      ` written: ${written} skipped: ${skipped} errors: ${errors.length}`
+        ` written: ${written} skipped: ${skipped} errors: ${errors.length}`
     )
 
     return NextResponse.json(
       {
         success: errors.length === 0,
-        counts:  { total: poolIds.length, written, skipped, errors: errors.length },
+        counts: {
+          total: productIds.length,
+          written,
+          skipped,
+          errors: errors.length,
+        },
         window,
         errors,
       },

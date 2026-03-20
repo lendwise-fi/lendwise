@@ -10,10 +10,11 @@
   "scripts": {
     "preinstall": "pnpx only-allow pnpm",
     "db:init": "tsx scripts/db-init.ts",
-    "pools:sync": "tsx scripts/pools-sync.ts",
+    "products:sync": "tsx scripts/products-sync.ts",
     "dev": "next dev",
     "build": "pnpm codegen && next build",
     "start": "next start",
+    "typecheck": "tsc --noEmit",
     "lint": "eslint .",
     "format": "prettier --write \"**/*.{js,jsx,ts,tsx,json,css,md}\"",
     "format:check": "prettier --check \"**/*.{js,jsx,ts,tsx,json,css,md}\"",

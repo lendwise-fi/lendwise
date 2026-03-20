@@ -16,12 +16,12 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 
 const portfolioData = [
-  { name: 'Jan', value: 12000, yield: 8.5, borrow: 5200, lending: 17200 },
-  { name: 'Feb', value: 14500, yield: 9.2, borrow: 5800, lending: 20300 },
-  { name: 'Mar', value: 13800, yield: 8.8, borrow: 5400, lending: 19200 },
-  { name: 'Apr', value: 16200, yield: 10.1, borrow: 6100, lending: 22300 },
-  { name: 'May', value: 18900, yield: 11.3, borrow: 6800, lending: 25700 },
-  { name: 'Jun', value: 22100, yield: 12.7, borrow: 7500, lending: 29600 },
+  { name: 'Jan', value: 12000, yield: 8.5, borrow: 5200, supplying: 17200 },
+  { name: 'Feb', value: 14500, yield: 9.2, borrow: 5800, supplying: 20300 },
+  { name: 'Mar', value: 13800, yield: 8.8, borrow: 5400, supplying: 19200 },
+  { name: 'Apr', value: 16200, yield: 10.1, borrow: 6100, supplying: 22300 },
+  { name: 'May', value: 18900, yield: 11.3, borrow: 6800, supplying: 25700 },
+  { name: 'Jun', value: 22100, yield: 12.7, borrow: 7500, supplying: 29600 },
 ]
 
 export default function PortfolioChart() {
@@ -43,11 +43,11 @@ export default function PortfolioChart() {
           label: 'Total Borrow ($)',
           format: (value: number) => `$${value.toLocaleString()}`,
         }
-      case 'lending':
+      case 'supplying':
         return {
-          dataKey: 'lending',
+          dataKey: 'supplying',
           color: 'var(--color-chart-1)',
-          label: 'Total Lending ($)',
+          label: 'Total Supplying ($)',
           format: (value: number) => `$${value.toLocaleString()}`,
         }
       default:
@@ -77,8 +77,8 @@ export default function PortfolioChart() {
               <TabsTrigger value="yield" className="text-xs">
                 Yield
               </TabsTrigger>
-              <TabsTrigger value="lending" className="text-xs">
-                Lending
+              <TabsTrigger value="supplying" className="text-xs">
+                Supplying
               </TabsTrigger>
               <TabsTrigger value="borrow" className="text-xs">
                 Borrow

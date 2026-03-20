@@ -217,7 +217,7 @@ export function DataTable<TData, TValue>({
             table.getRowModel().rows.map((row) => {
               return (
                 <TableRow
-                  key={row.id}
+                  key={row.index}
                   data-state={row.getIsSelected() && 'selected'}
                   className={cn('bg-muted/50 relative z-0')}
                 >

@@ -1,3 +1,3 @@
 export { Portfolio } from './Portfolio'
-export { LendingTable } from './LendingTable'
+export { SupplyingTable } from './SupplyingTable'
 export { BorrowingTable } from './BorrowingTable'
