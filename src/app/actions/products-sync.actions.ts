@@ -7,6 +7,14 @@ import { fetchAaveV3Products } from '@/lib/protocols/aave'
 import { fetchCompoundV3Products } from '@/lib/protocols/compound'
 import { fetchMorphoV1Products } from '@/lib/protocols/morpho'
 
+// ─── Types ─────────────────────────────────────────────────────────────────────
+
+type ProductUpdateOperation = {
+  $set: Partial<Product> & { updatedAt: Date }
+  $setOnInsert: { createdAt: Date }
+  $unset: { [key: string]: true | '' | 1 }
+}
+
 // ─── Protocol tasks ───────────────────────────────────────────────────────────
 
 const PROTOCOL_TASKS: Partial<
@@ -43,7 +51,8 @@ async function writeProductDocs(products: Product[]): Promise<void> {
         update: {
           $set: { ...productData, updatedAt: new Date() },
           $setOnInsert: { createdAt: product.createdAt || new Date() },
-        },
+          $unset: { subgraphUrl: true },
+        } satisfies ProductUpdateOperation,
         upsert: true,
       },
     }
