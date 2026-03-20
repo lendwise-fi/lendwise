@@ -36,6 +36,19 @@ function normalizeHourTimestamp(date: Date): Date {
   return d
 }
 
+// ─── Composite _id ────────────────────────────────────────────────────────────
+
+/**
+ * Build a deterministic _id for an hourly document.
+ * Guarantees idempotent upserts — running the job twice on the same hour
+ * updates the existing document instead of creating a duplicate.
+ *
+ * Example: "aave:v3:ethereum:reserve:0x1111...:borrow:2026-03-20T00"
+ */
+function buildHourlyId(productId: string, hour: Date): string {
+  return `${productId}:${hour.toISOString().slice(0, 13)}`
+}
+
 // ─── MongoDB aggregation pipeline upsert ─────────────────────────────────────
 
 /**
@@ -53,7 +66,9 @@ async function upsertHourly(
   hour: Date,
   slotTime: Date
 ): Promise<void> {
-  const { productId, kind, protocol, chainId, asset, apy, market } = payload
+  const { productId, kind, apy, market } = payload
+
+  const id = buildHourlyId(productId, hour)
 
   const isSupply = kind === 'supply'
   const supplyMkt = market as SupplyMarketState
@@ -333,15 +348,14 @@ async function upsertHourly(
   const newCount = { $add: [{ $ifNull: ['$quality.count', 0] }, 1] }
 
   await collection.updateOne(
-    { 'meta.productId': productId, hour },
+    // ✅ Filter on composite _id — safe upsert, no duplicate risk
+    { _id: id as string },
     [
       {
         $set: {
-          // Meta — set once, never changes within an hour
+          // ✅ Immutable fields — set on insert, never overwritten
           hour,
-          meta: {
-            $ifNull: ['$meta', { productId, kind, protocol, chainId, asset }],
-          },
+          productId: { $ifNull: ['$productId', productId] },
 
           // APY rolling averages
           'apy.base': {

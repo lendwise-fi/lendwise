@@ -310,6 +310,7 @@ export interface SlotQuality {
 }
 
 export interface SupplyApySlot {
+  _id: string
   /**
    * Hour boundary UTC — normalized to the top of the hour.
    * 11:17:42Z → 11:00:00.000Z
