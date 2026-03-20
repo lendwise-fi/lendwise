@@ -131,7 +131,10 @@ export interface BaseProduct {
    * Morpho Blue borrow: …-{collateral.symbol}-borrow
    */
   _id: string
-
+  active: boolean
+  createdAt: Date
+  updatedAt: Date
+  asset: Asset
   protocol: {
     /** Normalized provider identifier for filtering — "aave" | "morpho" | "compound" */
     provider: ProviderId
@@ -158,10 +161,6 @@ export interface BaseProduct {
       | ProtocolMetaCompoundSupply
       | ProtocolMetaCompoundBorrow
   }
-  asset: Asset
-  active: boolean
-  createdAt: Date
-  updatedAt: Date
 }
 
 export interface SupplyProduct extends BaseProduct {
