@@ -81,7 +81,11 @@ export async function fetchCompoundV3Products(
 
       const supplyId = buildProductId(market.id, chain, 'supply')
       const borrowId = buildProductId(market.id, chain, 'borrow')
-      const name = `CompoundV3${chainConfig.name}${market.configuration.baseToken.token.symbol}`
+      const name =
+        `CompoundV3${chainConfig.name}${market.configuration.baseToken.token.symbol}`.replaceAll(
+          ' ',
+          ''
+        )
 
       // ─── Supply product ─────────────────────────────────────────────────────────────────────────
 

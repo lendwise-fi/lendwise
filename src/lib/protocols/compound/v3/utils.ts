@@ -10,7 +10,7 @@ export function buildProductId(
 ): string {
   // market prefix prevents collision — same token can exist on multiple Compound markets
   // on the same chain (e.g. different versions or deployments)
-  return `compoundcomet:v3:${chain.name}:market:${marketId}:${kind}`
+  return `compoundcomet:v3:${CHAIN_NAME_MAPPING[chain.id].protocolName}:market:${marketId}:${kind}`
 }
 
 // ============================================================================
