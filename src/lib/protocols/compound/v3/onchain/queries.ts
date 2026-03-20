@@ -169,6 +169,42 @@ export const MARKETS_ALL = gql`
   }
 `
 
+export const LIST_SUPPLYING_PRODUCTS = gql`
+  query ListSupplyingProducts {
+    markets {
+      id
+      accounting {
+        totalBaseSupply
+        totalBaseSupplyUsd
+        totalReserveBalanceUsd
+        collateralization
+        netSupplyApr
+      }
+      configuration {
+        baseToken {
+          token {
+            symbol
+            name
+            decimals
+            address
+          }
+        }
+        collateralTokens {
+          borrowCollateralFactor
+          liquidationFactor
+          liquidateCollateralFactor
+          token {
+            address
+            decimals
+            name
+            symbol
+          }
+        }
+      }
+    }
+  }
+`
+
 // export const MARKET_HOURLY_BORROW_RATES = gql`
 //   query MarketHourlyBorrowRates($where: MarketHourlySnapshot_filter) {
 //     marketHourlySnapshots(where: $where) {

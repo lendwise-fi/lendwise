@@ -277,7 +277,6 @@ export const LIST_SUPPLYING_PRODUCTS = gql`
           curators {
             name
           }
-          avgNetApy(lookback: SIX_HOURS)
           totalAssetsUsd
           totalAssets
           allocation {
@@ -289,6 +288,9 @@ export const LIST_SUPPLYING_PRODUCTS = gql`
           }
           apy
           netApy
+          avgNetApy(lookback: SIX_HOURS)
+          apyDaily: avgNetApy(lookback: ONE_DAY)
+          apyYearly: avgNetApy(lookback: ONE_YEAR)
           avgNetApyExcludingRewards(lookback: SIX_HOURS)
         }
         liquidity {

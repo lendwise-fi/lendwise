@@ -1,5 +1,4 @@
 import { type Address } from 'viem'
-import { arbitrum, mainnet, optimism } from 'viem/chains'
 
 import type { DataAdapter } from '@/lib/protocols/types'
 import {
@@ -15,6 +14,7 @@ import {
   createGraphQLClient,
 } from '../../../shared'
 import { COMPOUND_CONFIG } from '../../config'
+import { BASE_INDEX_SCALE, CHAIN_NAME_MAPPING } from '../utils'
 import type {
   Account_Filter,
   // MarketDailyBorrowRatesQuery,
@@ -32,6 +32,7 @@ import {
   USER_BORROW_POSITIONS,
   USER_SUPPLY_POSITIONS,
 } from './queries'
+import { getSupplyingMarkets } from './supplying-markets'
 
 // ============================================================================
 // Types
@@ -100,7 +101,8 @@ export const registerChain = chainRegistry.registerChain
 /**
  * Get all registered chain clients.
  */
-const getChainClients = () => chainRegistry.getChainClients(chainImporter)
+export const getChainClients = () =>
+  chainRegistry.getChainClients(chainImporter)
 
 /**
  * Get a specific chain client by chain ID.
@@ -113,34 +115,6 @@ const _getChainClient = (chainId: number) =>
  * with existing chain folder implementations.
  */
 export { createGraphQLClient as createChainClient }
-
-// ============================================================================
-// Chain Name Mapping
-// ============================================================================
-
-/**
- * Maps Compound subgraph Network enum values to human-readable chain names.
- * Add entries as new chains are supported.
- */
-const CHAIN_NAME_MAPPING: Record<
-  string,
-  { protocolName: string; marketSlug: string }
-> = {
-  [mainnet.id]: {
-    protocolName: 'ethereum',
-    marketSlug: 'mainnet',
-  },
-  [arbitrum.id]: {
-    protocolName: 'arbitrum',
-    marketSlug: 'arb',
-  },
-  [optimism.id]: {
-    protocolName: 'optimism',
-    marketSlug: 'op',
-  },
-}
-
-const BASE_INDEX_SCALE = 1e15 // Compound V3 constant
 
 function calculateHealthFactor(
   position: NonNullable<UserBorrowPositionsQuery>['accounts'][number]['positions'][number]
@@ -253,7 +227,7 @@ async function getUserSupplyPositions({
                     BASE_INDEX_SCALE /
                     10 ** (token.decimals || 18),
                   apy: position.market.accounting.netSupplyApr,
-                  link: `https://app.compound.finance/?market=${token.symbol.toLowerCase()}-${CHAIN_NAME_MAPPING[chainId].marketSlug}`,
+                  link: `https://app.compound.finance/?market=${token.symbol.toLowerCase()}-${CHAIN_NAME_MAPPING[chainId] ? CHAIN_NAME_MAPPING[chainId].marketSlug : 'mainnet'}`,
                 }
               })
             }) ?? []
@@ -377,7 +351,7 @@ async function getUserBorrowPositions({
                   apy: parseFloat(
                     (position.market.accounting.netBorrowApr * 100).toFixed(2)
                   ),
-                  link: `https://app.compound.finance/?market=${token.symbol.toLowerCase()}-${CHAIN_NAME_MAPPING[chainId].marketSlug}`,
+                  link: `https://app.compound.finance/?market=${token.symbol.toLowerCase()}-${CHAIN_NAME_MAPPING[chainId] ? CHAIN_NAME_MAPPING[chainId].marketSlug : 'mainnet'}`,
                 }
               })
             }) ?? []
@@ -540,5 +514,5 @@ export const compoundV3OnchainAdapter: DataAdapter = {
   getUserBorrowPositions,
   getMarketBorrowHistoryRates,
   getMarketSupplyHistoryRates,
-  getSupplyingMarkets: async () => [],
+  getSupplyingMarkets,
 }
