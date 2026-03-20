@@ -4,18 +4,25 @@ import type {
   SupplyMarketState,
 } from '@/lib/db/types'
 import { MORPHO_CONFIG } from '@/lib/protocols/morpho/config'
-import type { MarketsApyQuery } from '@/lib/protocols/morpho/v1/offchain/generated/graphql'
-import { MARKETS_APY } from '@/lib/protocols/morpho/v1/offchain/queries'
+import type {
+  MarketsApyQuery,
+  VaultsApyQuery,
+} from '@/lib/protocols/morpho/v1/offchain/generated/graphql'
+import {
+  MARKETS_APY,
+  VAULTS_APY,
+} from '@/lib/protocols/morpho/v1/offchain/queries'
 import { createGraphQLClient } from '@/lib/protocols/shared'
 import { aprToApyMorpho } from '@/lib/utils'
 
 import { buildProductId } from './utils'
 
 /**
- * Fetch current APY snapshots for all active Morpho Blue markets.
- * Returns SpotPayload documents ready for hourly upsert.
+ * Fetch current APY snapshots for Morpho.
+ * - Supply snapshots → MetaMorpho vaults (VAULTS_APY)
+ * - Borrow snapshots → Morpho Blue markets (MARKETS_APY)
  *
- * One market → two snapshots (supply + borrow).
+ * Returns SpotPayload documents ready for hourly upsert.
  */
 export async function fetchMorphoV1ApySpot(
   chainFilter?: string
@@ -39,8 +46,105 @@ export async function fetchMorphoV1ApySpot(
   }
 
   const snapshots: SpotPayload[] = []
+
+  // ─── Phase 1: Supply snapshots from MetaMorpho vaults ─────────────────────
+
   let skip = 0
   let hasMore = true
+
+  while (hasMore) {
+    const { data, error } = await client
+      .query<VaultsApyQuery>(VAULTS_APY, {
+        first: 100,
+        skip,
+        where: {
+          listed: true,
+          chainId_in: chainIds,
+          // totalAssetsUsd_gte: 10000,
+        },
+      })
+      .toPromise()
+
+    if (error) {
+      console.error('[cron:morpho] Failed to fetch vault APY:', error.message)
+      break
+    }
+
+    if (!data?.vaults?.items?.length) break
+
+    for (const vault of data.vaults.items) {
+      const state = vault.state
+      if (!state) continue
+
+      const chainId = vault.asset.chain.id
+      const assetSymbol = vault.asset.symbol
+      const network = vault.asset.chain.network
+        .toLowerCase()
+        .replaceAll(' ', '')
+      const productId = `metamorpho:v1:${network}:vault:${vault.address.toLowerCase()}`
+
+      // ─── Rewards ────────────────────────────────────────────────────────────
+      // APR per reward = annualised token amount per supplied token × reward price
+      const rewardItems = (state.rewards ?? [])
+        .map((r) => {
+          const amountPerToken =
+            Number(r.amountPerSuppliedToken) / Math.pow(10, r.asset.decimals)
+          const apr = amountPerToken * (r.asset.priceUsd ?? 0)
+          return {
+            token: { symbol: r.asset.symbol, address: r.asset.address },
+            apr,
+            apy: aprToApyMorpho(apr),
+            source: 'protocol' as const,
+            program: null,
+          }
+        })
+        .filter((r) => r.apr > 0)
+
+      // Total rewards = net APY delta between net and net-excluding-rewards
+      const rewardsTotal =
+        (state.netApy ?? 0) - (state.netApyExcludingRewards ?? 0)
+
+      // ─── Market state ────────────────────────────────────────────────────────
+      const totalAssets = Number(state.totalAssets ?? 0)
+      const totalAssetsUsd = state.totalAssetsUsd ?? 0
+      const assetPriceUsd = totalAssets > 0 ? totalAssetsUsd / totalAssets : 0
+
+      const supplyPayload: SpotPayload = {
+        productId,
+        kind: 'supply',
+        protocol: 'morpho',
+        chainId,
+        asset: assetSymbol,
+        apy: {
+          base: state.apy ?? 0,
+          rewards: rewardsTotal,
+          fees: state.fee ?? 0,
+          net: state.netApy ?? 0,
+          rewardItems,
+        },
+        market: {
+          supplyAssets: totalAssets,
+          supplyAssetsUsd: totalAssetsUsd,
+          utilizationRate: 0,
+          assetPriceUsd,
+        } as SupplyMarketState,
+      }
+
+      snapshots.push(supplyPayload)
+    }
+
+    const pageInfo = data.vaults.pageInfo
+    if (pageInfo && pageInfo.countTotal > skip + pageInfo.limit) {
+      skip += pageInfo.limit
+    } else {
+      hasMore = false
+    }
+  }
+
+  // ─── Phase 2: Borrow snapshots from Morpho Blue markets ───────────────────
+
+  skip = 0
+  hasMore = true
 
   while (hasMore) {
     const { data, error } = await client
@@ -48,6 +152,7 @@ export async function fetchMorphoV1ApySpot(
         first: 100,
         skip,
         where: {
+          listed: true,
           chainId_in: chainIds,
           borrowAssetsUsd_gte: 10000,
         },
@@ -68,20 +173,7 @@ export async function fetchMorphoV1ApySpot(
       const chainId = market.loanAsset.chain.id
       const loanSymbol = market.loanAsset.symbol
 
-      // ─── Rewards ──────────────────────────────────────────────────────────
-
-      const supplyRewardItems = state.rewards
-        .filter(
-          (r): r is typeof r & { supplyApr: number } =>
-            r.supplyApr != null && r.supplyApr > 0
-        )
-        .map((r) => ({
-          token: { symbol: r.asset.symbol, address: r.asset.address },
-          apr: r.supplyApr,
-          apy: aprToApyMorpho(r.supplyApr),
-          source: 'protocol' as const,
-          program: null,
-        }))
+      // ─── Rewards ────────────────────────────────────────────────────────────
 
       const borrowRewardItems = state.rewards
         .filter(
@@ -96,16 +188,12 @@ export async function fetchMorphoV1ApySpot(
           program: null,
         }))
 
-      const supplyRewardsTotal = supplyRewardItems.reduce(
-        (s, r) => s + r.apy,
-        0
-      )
       const borrowRewardsTotal = borrowRewardItems.reduce(
         (s, r) => s + r.apy,
         0
       )
 
-      // ─── Market state ──────────────────────────────────────────────────────
+      // ─── Market state ────────────────────────────────────────────────────────
 
       const supplyAssetsUsd = state.supplyAssetsUsd ?? 0
       const supplyAssets = Number(state.supplyAssets ?? 0)
@@ -116,35 +204,10 @@ export async function fetchMorphoV1ApySpot(
         supplyAssets > 0 ? supplyAssetsUsd / supplyAssets : 0
 
       const fee = state.fee ?? 0
-      const supplyApy = state.supplyApy ?? 0
-      const netSupplyApy = state.netSupplyApy ?? supplyApy
       const borrowApy = state.borrowApy ?? 0
       const netBorrowApy = state.netBorrowApy ?? borrowApy
 
-      // ─── Supply payload ──────────────────────────────────────────────────────
-      const supplyProductId = buildProductId(market, 'supply')
-      const supplyPayload: SpotPayload = {
-        productId: supplyProductId,
-        kind: 'supply',
-        protocol: 'morpho',
-        chainId,
-        asset: loanSymbol,
-        apy: {
-          base: supplyApy,
-          rewards: supplyRewardsTotal,
-          fees: fee,
-          net: netSupplyApy,
-          rewardItems: supplyRewardItems,
-        },
-        market: {
-          supplyAssets,
-          supplyAssetsUsd,
-          utilizationRate,
-          assetPriceUsd,
-        } as SupplyMarketState,
-      }
-
-      // ─── Borrow payload ────────────────────────────────────────────────────
+      // ─── Borrow payload ──────────────────────────────────────────────────────
       const borrowProductId = buildProductId(market, 'borrow')
       const borrowPayload: SpotPayload = {
         productId: borrowProductId,
@@ -171,7 +234,7 @@ export async function fetchMorphoV1ApySpot(
         } as BorrowMarketState,
       }
 
-      snapshots.push(supplyPayload, borrowPayload)
+      snapshots.push(borrowPayload)
     }
 
     const pageInfo = data.markets.pageInfo
@@ -182,8 +245,10 @@ export async function fetchMorphoV1ApySpot(
     }
   }
 
+  const supplyCount = snapshots.filter((s) => s.kind === 'supply').length
+  const borrowCount = snapshots.filter((s) => s.kind === 'borrow').length
   console.log(
-    `[cron:morpho] Fetched ${snapshots.length} snapshots (${snapshots.length / 2} markets)`
+    `[cron:morpho] Fetched ${snapshots.length} snapshots (${supplyCount} vaults, ${borrowCount} markets)`
   )
   return snapshots
 }

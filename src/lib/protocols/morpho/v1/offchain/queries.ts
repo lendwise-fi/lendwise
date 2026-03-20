@@ -236,6 +236,59 @@ export const MARKETS_APY = gql`
   }
 `
 
+export const VAULTS_APY = gql`
+  query VaultsApy($first: Int, $skip: Int, $where: VaultFilters) {
+    vaults(first: $first, skip: $skip, where: $where) {
+      items {
+        address
+        asset {
+          address
+          chain {
+            network
+            id
+          }
+          decimals
+          name
+          priceUsd
+          symbol
+          yield {
+            apr
+          }
+        }
+        state {
+          apy
+          avgNetApy
+          avgNetApyExcludingRewards
+          fee
+          netApy
+          netApyExcludingRewards
+          totalAssets
+          totalAssetsUsd
+          rewards {
+            amountPerSuppliedToken
+            asset {
+              decimals
+              address
+              name
+              priceUsd
+              symbol
+              yield {
+                apr
+              }
+            }
+          }
+        }
+      }
+      pageInfo {
+        count
+        countTotal
+        limit
+        skip
+      }
+    }
+  }
+`
+
 export const LIST_SUPPLYING_PRODUCTS = gql`
   query ListSupplyingProducts(
     $first: Int
