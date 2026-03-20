@@ -11,6 +11,7 @@ import type {
   SupplyMarketState,
 } from '@/lib/db/types'
 import { fetchAaveV3ApySpot } from '@/lib/protocols/aave'
+import { fetchCompoundV3ApySpot } from '@/lib/protocols/compound'
 import { fetchMorphoV1ApySpot } from '@/lib/protocols/morpho'
 
 // ─── Protocol tasks ───────────────────────────────────────────────────────────
@@ -20,6 +21,7 @@ const PROTOCOL_TASKS: Partial<
 > = {
   aave_v3: fetchAaveV3ApySpot,
   morpho_v1: fetchMorphoV1ApySpot,
+  compound_v3: fetchCompoundV3ApySpot,
 }
 
 // ─── Hour normalization ───────────────────────────────────────────────────────

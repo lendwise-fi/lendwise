@@ -16,7 +16,7 @@ import { buildProductId } from './utils'
  * Compound uses on-chain subgraphs per chain, so we query each chain's subgraph
  * independently and aggregate the results.
  */
-export async function fetchCompoundV3Apy(
+export async function fetchCompoundV3ApySpot(
   chainFilter?: string
 ): Promise<SpotPayload[]> {
   const config = COMPOUND_CONFIG.compound_v3

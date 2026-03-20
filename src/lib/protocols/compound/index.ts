@@ -35,5 +35,5 @@ export const CompoundAdapter = createProtocolAdapter(
 // Re-exports
 // ============================================================================
 export { COMPOUND_CONFIG } from './config'
-export { fetchCompoundV3Apy } from './v3/apy-spot'
+export { fetchCompoundV3ApySpot } from './v3/apy-spot'
 export { fetchCompoundV3Products } from './v3/products'
