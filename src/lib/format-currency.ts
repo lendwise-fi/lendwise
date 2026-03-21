@@ -110,7 +110,7 @@ export function formatCurrency(
  * Automatically handles BigInt scaling if decimals are provided
  */
 export function formatCompactCurrency(
-  amount: number | bigint,
+  amount: number | string,
   currencyCode: string,
   decimals?: number
 ): string {
@@ -118,14 +118,14 @@ export function formatCompactCurrency(
 
   let numAmount: number
 
-  if (typeof amount === 'bigint') {
+  if (typeof amount === 'string') {
     if (decimals === undefined) {
       console.warn(
-        `formatCompactCurrency: decimals required for BigInt amount (currency: ${currencyCode})`
+        `formatCompactCurrency: decimals required for raw string amount (currency: ${currencyCode})`
       )
       numAmount = Number(amount) // Fallback, likely incorrect scaling
     } else {
-      numAmount = Number(formatUnits(amount, decimals))
+      numAmount = Number(formatUnits(BigInt(amount), decimals))
     }
   } else {
     // If decimals provided for a number, assume it's in raw token units and scale it

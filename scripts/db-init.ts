@@ -50,22 +50,10 @@ async function createHourlyCollection(db: Db): Promise<void> {
 
   const col = db.collection(MONGODB_COLLECTION_HOURLY)
 
-  // Primary upsert key — unique constraint enforces one doc per (productId, hour)
+  // Query by productId in a time window — e.g. "last 7 days for this product"
   await col.createIndex(
-    { 'meta.productId': 1, hour: -1 },
-    { unique: true, name: 'hourly_productId_hour' }
-  )
-
-  // Cross-products query — "all supply USDC products on Ethereum over last 7 days"
-  await col.createIndex(
-    { 'meta.asset': 1, 'meta.kind': 1, 'meta.chainId': 1, hour: -1 },
-    { name: 'hourly_asset_kind_chain_hour' }
-  )
-
-  // Daily job — aggregate all hourly docs for a protocol in a time window
-  await col.createIndex(
-    { 'meta.protocol': 1, hour: -1 },
-    { name: 'hourly_protocol_hour' }
+    { productId: 1, hour: -1 },
+    { name: 'hourly_productId_hour' }
   )
 
   // TTL — 180 days
@@ -94,22 +82,10 @@ async function createDailyCollection(db: Db): Promise<void> {
 
   const col = db.collection(MONGODB_COLLECTION_DAILY)
 
-  // Primary upsert key — unique constraint enforces one doc per (productId, date)
+  // Query by productId in a time window — e.g. "last 90 days for this product"
   await col.createIndex(
-    { 'meta.productId': 1, date: -1 },
-    { unique: true, name: 'daily_productId_date' }
-  )
-
-  // UI query — "all supply USDC products on Ethereum over last 90 days"
-  await col.createIndex(
-    { 'meta.asset': 1, 'meta.kind': 1, 'meta.chainId': 1, date: -1 },
-    { name: 'daily_asset_kind_chain_date' }
-  )
-
-  // Optimization engine — cross-protocol comparison for a given asset
-  await col.createIndex(
-    { 'meta.protocol': 1, 'meta.asset': 1, date: -1 },
-    { name: 'daily_protocol_asset_date' }
+    { productId: 1, date: -1 },
+    { name: 'daily_productId_date' }
   )
 
   // Filter unreliable daily documents

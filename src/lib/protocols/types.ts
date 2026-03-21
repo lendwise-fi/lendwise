@@ -98,11 +98,18 @@ export interface DataAdapter {
   }): Promise<MarketRate[]>
 
   /**
-   * Fetches market rates (supply rates, borrow rates, etc.).
+   * Fetches market rates (supply rates, etc.).
    * Can be provided by either GraphQL or Subgraph depending on availability.
    * @returns A promise that resolves to an array of market rates.
    */
   getSupplyingMarkets?(): Promise<SupplyMarket[]>
+
+  /**
+   * Fetches market rates (borrow rates, etc.).
+   * Can be provided by either GraphQL or Subgraph depending on availability.
+   * @returns A promise that resolves to an array of market rates.
+   */
+  getBorrowingMarkets?(): Promise<SupplyMarket[]>
 }
 
 // ============================================================================

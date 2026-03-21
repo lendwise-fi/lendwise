@@ -465,14 +465,16 @@ async function writeApySlot(
     payloads.map((p) => upsertHourly(collection, p, hour, slotTime))
   )
 
-  const errors = results.filter((r) => r.status === 'rejected')
-  if (errors.length > 0) {
-    errors.forEach((e) => {
-      const msg =
+  const failed = results.filter((r) => r.status === 'rejected')
+  if (failed.length > 0) {
+    const messages = failed.map(
+      (e) =>
         (e as PromiseRejectedResult).reason?.message ??
         String((e as PromiseRejectedResult).reason)
-      console.error('[db:hourly] Upsert error:', msg)
-    })
+    )
+    throw new Error(
+      `[db:hourly] ${failed.length}/${payloads.length} upsert(s) failed: ${messages.join('; ')}`
+    )
   }
 
   const written = results.filter((r) => r.status === 'fulfilled').length

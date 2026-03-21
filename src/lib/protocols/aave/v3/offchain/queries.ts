@@ -322,6 +322,45 @@ export const APY_HISTORY = gql`
   }
 `
 
+export const LIST_BORROWING_PRODUCTS = gql`
+  query ListBorrowingProducts($request: MarketsRequest!) {
+    markets(request: $request) {
+      address
+      name
+      chain {
+        name
+        chainId
+      }
+      reserves {
+        borrowInfo {
+          borrowingState
+          apy {
+            value
+          }
+          total {
+            usd
+            amount {
+              raw
+            }
+          }
+        }
+        size {
+          usd
+          amount {
+            raw
+          }
+        }
+        underlyingToken {
+          address
+          name
+          symbol
+          decimals
+        }
+      }
+    }
+  }
+`
+
 export const LIST_SUPPLYING_PRODUCTS = gql`
   query ListSupplyingProducts($request: MarketsRequest!) {
     markets(request: $request) {

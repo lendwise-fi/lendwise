@@ -193,8 +193,7 @@ export async function fetchAaveV3ApySpot(
   const { data, error } = graphqlResult
 
   if (error) {
-    console.error('[cron:aave] Failed to fetch APY:', error.message)
-    return []
+    throw new Error(`[cron:aave] Failed to fetch APY: ${error.message}`)
   }
 
   if (!data?.markets) return []

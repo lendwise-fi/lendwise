@@ -1,4 +1,5 @@
 import type { Address } from 'viem'
+import { arbitrum, base, mainnet, optimism, polygon } from 'viem/chains'
 
 import type {
   BorrowPosition,
@@ -230,6 +231,30 @@ export function createProtocolAdapter(
 
       return adapter.getSupplyingMarkets()
     },
+    async getBorrowingMarkets(version?: string): Promise<SupplyMarket[]> {
+      const versionAdapter = this.getVersion(version)
+      // Try positions adapter first, then rates, then stats
+      const adapter =
+        versionAdapter.dataSources.positions ||
+        versionAdapter.dataSources.rates ||
+        versionAdapter.dataSources.stats
+
+      if (!adapter) {
+        console.warn(
+          `No data source configured for ${this.protocol} ${versionAdapter.version}`
+        )
+        return []
+      }
+
+      if (!adapter.getBorrowingMarkets) {
+        console.warn(
+          `Adapter for ${this.protocol} ${versionAdapter.version} does not implement getBorrowingMarkets`
+        )
+        return []
+      }
+
+      return adapter.getBorrowingMarkets()
+    },
   }
 }
 
@@ -256,4 +281,12 @@ export function createVersionAdapter(
     version,
     dataSources,
   }
+}
+
+export const CHAIN_NAME_MAPPING: Record<number, string> = {
+  [mainnet.id]: 'ethereum',
+  [arbitrum.id]: 'arbitrum',
+  [polygon.id]: 'polygon',
+  [base.id]: 'base',
+  [optimism.id]: 'optimism',
 }

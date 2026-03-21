@@ -1,6 +1,7 @@
 import { type Address } from 'viem'
 
 import type { DataAdapter } from '@/lib/protocols/types'
+import { CHAIN_NAME_MAPPING } from '@/lib/protocols/utils'
 import {
   BorrowPosition,
   MarketRate,
@@ -14,7 +15,8 @@ import {
   createGraphQLClient,
 } from '../../../shared'
 import { COMPOUND_CONFIG } from '../../config'
-import { BASE_INDEX_SCALE, CHAIN_NAME_MAPPING } from '../utils'
+import { BASE_INDEX_SCALE, SLUG_MAPPING } from '../utils'
+import { getBorrowingMarkets } from './borrowing-markets'
 import type {
   Account_Filter,
   // MarketDailyBorrowRatesQuery,
@@ -206,8 +208,7 @@ async function getUserSupplyPositions({
                   id: positionAccounting.id,
                   protocol: COMPOUND_CONFIG.compound_v3.id,
                   network:
-                    CHAIN_NAME_MAPPING[chainId]?.protocolName ||
-                    chainName!.toLowerCase(),
+                    CHAIN_NAME_MAPPING[chainId] || chainName!.toLowerCase(),
                   userAddress: account.address.toLowerCase(),
                   poolName: token.name,
                   poolAddress: position.market.id,
@@ -227,7 +228,7 @@ async function getUserSupplyPositions({
                     BASE_INDEX_SCALE /
                     10 ** (token.decimals || 18),
                   apy: position.market.accounting.netSupplyApr,
-                  link: `https://app.compound.finance/?market=${token.symbol.toLowerCase()}-${CHAIN_NAME_MAPPING[chainId] ? CHAIN_NAME_MAPPING[chainId].marketSlug : 'mainnet'}`,
+                  link: `https://app.compound.finance/?market=${token.symbol.toLowerCase()}-${CHAIN_NAME_MAPPING[chainId] ? SLUG_MAPPING[chainId] : 'mainnet'}`,
                 }
               })
             }) ?? []
@@ -329,8 +330,7 @@ async function getUserBorrowPositions({
                   poolAddress: position.market.id,
                   poolChainId: chainId,
                   network:
-                    CHAIN_NAME_MAPPING[chainId]?.protocolName ||
-                    chainName!.toLowerCase(),
+                    CHAIN_NAME_MAPPING[chainId] || chainName!.toLowerCase(),
                   loanAssetAddress: token.address,
                   loanAssetName: token.name,
                   loanAssetSymbol: token.symbol,
@@ -351,7 +351,7 @@ async function getUserBorrowPositions({
                   apy: parseFloat(
                     (position.market.accounting.netBorrowApr * 100).toFixed(2)
                   ),
-                  link: `https://app.compound.finance/?market=${token.symbol.toLowerCase()}-${CHAIN_NAME_MAPPING[chainId] ? CHAIN_NAME_MAPPING[chainId].marketSlug : 'mainnet'}`,
+                  link: `https://app.compound.finance/?market=${token.symbol.toLowerCase()}-${CHAIN_NAME_MAPPING[chainId] ? CHAIN_NAME_MAPPING[chainId] : 'mainnet'}`,
                 }
               })
             }) ?? []
@@ -515,4 +515,5 @@ export const compoundV3OnchainAdapter: DataAdapter = {
   getMarketBorrowHistoryRates,
   getMarketSupplyHistoryRates,
   getSupplyingMarkets,
+  getBorrowingMarkets,
 }

@@ -6,22 +6,26 @@ import { SupplyMarket } from '@/types'
 import { getChainClients } from '.'
 import { COMPOUND_CONFIG } from '../../config'
 import { SLUG_MAPPING } from '../utils'
-import { ListSupplyingProductsQuery } from './generated/graphql'
-import { LIST_SUPPLYING_PRODUCTS } from './queries'
+import { ListBorrowingProductsQuery } from './generated/graphql'
+import { LIST_BORROWING_PRODUCTS } from './queries'
 
 // CPU-heavy transformation memoized
-const _formatSupplyingMarkets = cache(
+const _formatBorrowingMarkets = cache(
   (
-    markets: ListSupplyingProductsQuery['markets'],
+    markets: ListBorrowingProductsQuery['markets'],
     chainName: string,
     chainId: number
   ): SupplyMarket[] =>
     markets.map((market) => {
       const token = market.configuration.baseToken.token
+      const totalSupply = BigInt(market.accounting.totalBaseSupply)
+      const totalBorrow = BigInt(market.accounting.totalBaseBorrow)
+      const available =
+        totalSupply > totalBorrow ? totalSupply - totalBorrow : 0n
       return {
         protocol: COMPOUND_CONFIG.compound_v3.id,
         network: CHAIN_NAME_MAPPING[chainId] || chainName!.toLowerCase(),
-        poolName: market.configuration.baseToken.token.name,
+        poolName: token.name,
         poolId: market.id,
         poolAddress: market.id,
         poolChainId: chainId,
@@ -29,26 +33,30 @@ const _formatSupplyingMarkets = cache(
         assetName: token.name,
         assetSymbol: token.symbol,
         assetDecimals: token.decimals || 18,
-        assetAmount: market.accounting.totalBaseSupply.toString(),
+        assetAmount: totalSupply.toString(),
         assetAmountUsd: market.accounting.totalBaseSupplyUsd,
-        liquidityAmount: market.accounting.totalBaseSupply.toString(),
-        liquidityAmountUsd: market.accounting.totalBaseSupplyUsd,
+        liquidityAmount: available.toString(),
+        liquidityAmountUsd: Math.max(
+          0,
+          market.accounting.totalBaseSupplyUsd -
+            market.accounting.totalBaseBorrowUsd
+        ),
         collaterals: [],
-        apy: market.accounting.netSupplyApr,
-        apyDaily: market.accounting.netSupplyApr,
-        apyMonthly: market.accounting.netSupplyApr,
-        apyYearly: market.accounting.netSupplyApr,
+        apy: market.accounting.netBorrowApr,
+        apyDaily: market.accounting.netBorrowApr,
+        apyMonthly: market.accounting.netBorrowApr,
+        apyYearly: market.accounting.netBorrowApr,
         link: `https://app.compound.finance/?market=${token.symbol.toLowerCase()}-${SLUG_MAPPING[chainId] ?? 'mainnet'}`,
       }
     })
 )
 
-export async function getSupplyingMarkets(): Promise<SupplyMarket[]> {
+export async function getBorrowingMarkets(): Promise<SupplyMarket[]> {
   const chainClients = await getChainClients()
   const results = await Promise.allSettled(
     chainClients.map(async ({ client, chainName, chainId }) => {
       const { data, error } = await client
-        .query<ListSupplyingProductsQuery>(LIST_SUPPLYING_PRODUCTS, {})
+        .query<ListBorrowingProductsQuery>(LIST_BORROWING_PRODUCTS, {})
         .toPromise()
 
       if (error) {
@@ -61,7 +69,7 @@ export async function getSupplyingMarkets(): Promise<SupplyMarket[]> {
       }
 
       return data?.markets
-        ? _formatSupplyingMarkets(data.markets, chainName!, chainId)
+        ? _formatBorrowingMarkets(data.markets, chainName!, chainId)
         : []
     })
   )

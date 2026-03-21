@@ -55,11 +55,9 @@ export async function fetchCompoundV3ApySpot(
         .toPromise()
 
       if (error) {
-        console.error(
-          `[cron:compound] Failed to fetch ${chainConfig.name} rates:`,
-          error.message
+        throw new Error(
+          `[cron:compound] Failed to fetch ${chainConfig.name} rates: ${error.message}`
         )
-        return []
       }
 
       if (!data?.markets?.length) {
@@ -128,10 +126,21 @@ export async function fetchCompoundV3ApySpot(
     })
   )
 
+  const chainErrors: string[] = []
   for (const result of results) {
-    if (result.status === 'fulfilled') {
+    if (result.status === 'rejected') {
+      const msg =
+        result.reason instanceof Error
+          ? result.reason.message
+          : String(result.reason)
+      chainErrors.push(msg)
+    } else {
       snapshots.push(...result.value)
     }
+  }
+
+  if (chainErrors.length > 0) {
+    throw new Error(chainErrors.join(' | '))
   }
 
   console.log(`[cron:compound] Fetched ${snapshots.length} APY snapshots`)

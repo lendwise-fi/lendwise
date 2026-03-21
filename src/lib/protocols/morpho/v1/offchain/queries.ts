@@ -289,6 +289,51 @@ export const VAULTS_APY = gql`
   }
 `
 
+export const LIST_BORROWING_PRODUCTS = gql`
+  query ListBorrowingProducts($first: Int, $skip: Int, $where: MarketFilters) {
+    markets(first: $first, skip: $skip, where: $where) {
+      pageInfo {
+        countTotal
+        count
+        limit
+        skip
+      }
+      items {
+        id
+        uniqueKey
+        loanAsset {
+          address
+          name
+          symbol
+          decimals
+          chain {
+            id
+            network
+          }
+        }
+        collateralAsset {
+          name
+          symbol
+        }
+        morphoBlue {
+          chain {
+            id
+            network
+          }
+        }
+        state {
+          borrowApy
+          netBorrowApy
+          supplyAssets
+          supplyAssetsUsd
+          borrowAssets
+          borrowAssetsUsd
+        }
+      }
+    }
+  }
+`
+
 export const LIST_SUPPLYING_PRODUCTS = gql`
   query ListSupplyingProducts(
     $first: Int

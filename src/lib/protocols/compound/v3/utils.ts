@@ -1,6 +1,7 @@
 import { arbitrum, base, mainnet, optimism, polygon } from 'viem/chains'
 
 import type { Kind } from '@/lib/db/types'
+import { CHAIN_NAME_MAPPING } from '@/lib/protocols/utils'
 
 // ─── Pool ID builder ──────────────────────────────────────────────────────────
 export function buildProductId(
@@ -10,7 +11,7 @@ export function buildProductId(
 ): string {
   // market prefix prevents collision — same token can exist on multiple Compound markets
   // on the same chain (e.g. different versions or deployments)
-  return `compoundcomet:v3:${CHAIN_NAME_MAPPING[chain.id].protocolName}:market:${marketId}:${kind}`
+  return `compoundcomet:v3:${CHAIN_NAME_MAPPING[chain.id] ?? chain.id}:market:${marketId}:${kind}`
 }
 
 // ============================================================================
@@ -21,30 +22,12 @@ export function buildProductId(
  * Maps Compound subgraph Network enum values to human-readable chain names.
  * Add entries as new chains are supported.
  */
-export const CHAIN_NAME_MAPPING: Record<
-  string,
-  { protocolName: string; marketSlug: string }
-> = {
-  [mainnet.id]: {
-    protocolName: 'ethereum',
-    marketSlug: 'mainnet',
-  },
-  [arbitrum.id]: {
-    protocolName: 'arbitrum',
-    marketSlug: 'arb',
-  },
-  [polygon.id]: {
-    protocolName: 'polygon',
-    marketSlug: 'polygon',
-  },
-  [base.id]: {
-    protocolName: 'base',
-    marketSlug: 'base',
-  },
-  [optimism.id]: {
-    protocolName: 'optimism',
-    marketSlug: 'op',
-  },
+export const SLUG_MAPPING: Record<number, string> = {
+  [mainnet.id]: 'mainnet',
+  [arbitrum.id]: 'arb',
+  [polygon.id]: 'polygon',
+  [base.id]: 'base',
+  [optimism.id]: 'op',
 }
 
 export const BASE_INDEX_SCALE = 1e15 // Compound V3 constant

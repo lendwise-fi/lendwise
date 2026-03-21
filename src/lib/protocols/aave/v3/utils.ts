@@ -1,5 +1,6 @@
 import type { Kind } from '@/lib/db/types'
 import type { MarketsApyQuery } from '@/lib/protocols/aave/v3/offchain/generated/graphql'
+import { CHAIN_NAME_MAPPING } from '@/lib/protocols/utils'
 
 export function getNetworkName(chainName: string): string {
   if (chainName === 'Ethereum') {
@@ -18,7 +19,7 @@ export function buildProductId(
 ): string {
   // market prefix prevents collision — same token can exist on multiple AAVE markets
   // on the same chain (e.g. AaveV3Ethereum + AaveV3EthereumLido both have USDC on chain 1)
-  const network = reserve.market.name.toLowerCase().replace('aavev3', '')
+  const chain = reserve.market.chain
   const underlyingTokenAddress = reserve.underlyingToken.address.toLowerCase()
-  return `aave:v3:${network}:reserve:${underlyingTokenAddress}:${kind}`
+  return `aave:v3:${CHAIN_NAME_MAPPING[chain.chainId] ?? chain.chainId}:reserve:${underlyingTokenAddress}:${kind}`
 }

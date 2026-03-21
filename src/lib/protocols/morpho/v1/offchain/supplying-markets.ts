@@ -1,9 +1,9 @@
+import { CHAIN_NAME_MAPPING } from '@/lib/protocols/utils'
 import { generateSlug } from '@/lib/utils'
 import { SupplyMarket } from '@/types'
 
 import { client } from '.'
 import { MORPHO_CONFIG } from '../../config'
-import { CHAIN_NAME_MAPPING } from '../utils'
 import { ListSupplyingProductsQuery } from './generated/graphql'
 import { LIST_SUPPLYING_PRODUCTS } from './queries'
 
@@ -43,7 +43,7 @@ export async function getSupplyingMarkets(): Promise<SupplyMarket[]> {
       const markets = data.vaults.items.map((vault) => ({
         protocol: MORPHO_CONFIG.morpho_v1.id,
         network:
-          CHAIN_NAME_MAPPING[vault.asset.chain.id]?.protocolName ||
+          CHAIN_NAME_MAPPING[vault.asset.chain.id] ||
           vault.asset.chain.network.toLowerCase(),
         poolName: vault.name,
         poolId: vault.id,
@@ -53,9 +53,9 @@ export async function getSupplyingMarkets(): Promise<SupplyMarket[]> {
         assetName: vault.asset.name,
         assetSymbol: vault.asset.symbol,
         assetDecimals: vault.asset.decimals,
-        assetAmount: BigInt(vault?.state?.totalAssets ?? 0),
-        assetAmountUsd: vault?.state?.totalAssetsUsd ?? 0,
-        liquidityAmount: BigInt(vault.liquidity?.underlying ?? 0),
+        assetAmount: (vault.state?.totalAssets ?? 0).toString(),
+        assetAmountUsd: vault.state?.totalAssetsUsd ?? 0,
+        liquidityAmount: (vault.liquidity?.underlying ?? 0).toString(),
         liquidityAmountUsd: vault.liquidity?.usd ?? 0,
         collaterals: vault.state?.allocation?.map((allocation) =>
           allocation.market.collateralAsset

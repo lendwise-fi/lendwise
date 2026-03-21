@@ -39,8 +39,8 @@ export interface Market {
   collateralAsset?: Token
   supplyAPY: number
   borrowAPY: number
-  totalSupply: bigint
-  totalBorrow: bigint
+  totalSupply: string
+  totalBorrow: string
   utilizationRate: number
   ltv: number
   liquidationThreshold: number
@@ -55,7 +55,7 @@ export interface Position {
   user: Address
   market: Market
   type: PositionType
-  amount: bigint
+  amount: string
   amountUsd: number
   apy: number
   healthFactor?: number
@@ -99,7 +99,7 @@ export interface SupplyPosition {
   assetName: string
   assetSymbol: string
   assetDecimals: number
-  assetAmount: bigint
+  assetAmount: string
   assetAmountUsd: number
   assetLiveAmountUsd: number
   apy: number
@@ -117,9 +117,9 @@ export interface SupplyMarket {
   assetName: string
   assetSymbol: string
   assetDecimals: number
-  assetAmount: bigint
+  assetAmount: string
   assetAmountUsd: number
-  liquidityAmount: bigint
+  liquidityAmount: string
   liquidityAmountUsd: number
   apy: number
   apyDaily?: number

@@ -66,8 +66,9 @@ export async function fetchMorphoV1ApySpot(
       .toPromise()
 
     if (error) {
-      console.error('[cron:morpho] Failed to fetch vault APY:', error.message)
-      break
+      throw new Error(
+        `[cron:morpho] Failed to fetch vault APY: ${error.message}`
+      )
     }
 
     if (!data?.vaults?.items?.length) break
@@ -160,8 +161,9 @@ export async function fetchMorphoV1ApySpot(
       .toPromise()
 
     if (error) {
-      console.error('[cron:morpho] Failed to fetch market APY:', error.message)
-      break
+      throw new Error(
+        `[cron:morpho] Failed to fetch market APY: ${error.message}`
+      )
     }
 
     if (!data?.markets?.items?.length) break

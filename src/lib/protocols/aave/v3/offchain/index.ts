@@ -6,6 +6,7 @@ import { BorrowPosition, SupplyPosition } from '@/types'
 
 import { AAVE_CONFIG } from '../../config'
 import { getNetworkName } from '../utils'
+import { getBorrowingMarkets } from './borrowing-markets'
 import {
   MarketsQuery,
   UserBorrowPositionsQuery,
@@ -120,7 +121,7 @@ async function getUserSupplyPositions({
               assetName: position.currency.name,
               assetSymbol: position.currency.symbol,
               assetDecimals: position.currency.decimals,
-              assetAmount: position.balance.amount.raw,
+              assetAmount: position.balance.amount.raw.toString(),
               assetAmountUsd: position.balance.usd,
               assetLiveAmountUsd: position.balance.usd,
               apy: position.apy.formatted,
@@ -328,4 +329,5 @@ export const aaveV3OffchainAdapter: DataAdapter = {
   getMarketBorrowHistoryRates,
   getMarketSupplyHistoryRates,
   getSupplyingMarkets,
+  getBorrowingMarkets,
 }

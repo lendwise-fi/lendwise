@@ -41,7 +41,7 @@ export const POST = verifySignatureAppRouter(async (req: NextRequest) => {
     const result = await collectApySpot(protocol as ProtocolName)
 
     return NextResponse.json(result, {
-      status: result.success ? 200 : 207,
+      status: result.success ? 200 : 500,
     })
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err)

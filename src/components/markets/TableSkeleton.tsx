@@ -1,6 +1,6 @@
 'use client'
 
-export function SupplyingTableSkeleton() {
+export function TableSkeleton() {
   return (
     <div className="animate-pulse space-y-2">
       {Array.from({ length: 10 }).map((_, i) => (

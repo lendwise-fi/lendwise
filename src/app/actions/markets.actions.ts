@@ -40,3 +40,39 @@ export const loadSupplyingMarkets = unstable_cache(
     tags: ['supplying-markets'],
   }
 )
+
+async function fetchBorrowingMarkets(): Promise<SupplyMarket[]> {
+  const protocolIds = getProtocolIds()
+
+  const results = await Promise.allSettled(
+    protocolIds.map(async (protocolId) => {
+      const adapterLoader = getProtocolAdapter(protocolId)
+      if (!adapterLoader) throw new Error(`No adapter found for ${protocolId}`)
+
+      const protocolAdapter = await adapterLoader()
+      return protocolAdapter.getBorrowingMarkets()
+    })
+  )
+
+  const allBorrowingMarkets: SupplyMarket[] = []
+
+  results.forEach((result, index) => {
+    const protocolId = protocolIds[index]
+    if (result.status === 'fulfilled') {
+      allBorrowingMarkets.push(...result.value)
+    } else {
+      console.error(`Adapter ${protocolId} failed:`, result.reason)
+    }
+  })
+
+  return allBorrowingMarkets.sort((a, b) => b.apy - a.apy)
+}
+
+export const loadBorrowingMarkets = unstable_cache(
+  fetchBorrowingMarkets,
+  ['borrowing-markets'],
+  {
+    revalidate: 60,
+    tags: ['borrowing-markets'],
+  }
+)

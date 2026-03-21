@@ -1,7 +1,7 @@
 import { Suspense } from 'react'
 
 import { SupplyingTableServer } from '@/components/markets/SupplyingTableServer'
-import { SupplyingTableSkeleton } from '@/components/markets/SupplyingTableSkeleton'
+import { TableSkeleton } from '@/components/markets/TableSkeleton'
 import { Separator } from '@/components/ui/separator'
 
 export default async function SupplyingPage() {
@@ -13,12 +13,12 @@ export default async function SupplyingPage() {
             Supplying pools
           </h1>
           <p className="text-muted-foreground-400">
-            All available supplying pools across protocols and chains
+            All available supplying products across protocols and chains
           </p>
         </div>
       </div>
       <Separator className="my-3" />
-      <Suspense fallback={<SupplyingTableSkeleton />}>
+      <Suspense fallback={<TableSkeleton />}>
         <SupplyingTableServer />
       </Suspense>
     </div>

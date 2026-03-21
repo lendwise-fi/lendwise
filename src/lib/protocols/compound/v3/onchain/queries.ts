@@ -169,6 +169,31 @@ export const MARKETS_ALL = gql`
   }
 `
 
+export const LIST_BORROWING_PRODUCTS = gql`
+  query ListBorrowingProducts {
+    markets {
+      id
+      accounting {
+        totalBaseSupply
+        totalBaseSupplyUsd
+        totalBaseBorrow
+        totalBaseBorrowUsd
+        netBorrowApr
+      }
+      configuration {
+        baseToken {
+          token {
+            symbol
+            name
+            decimals
+            address
+          }
+        }
+      }
+    }
+  }
+`
+
 export const LIST_SUPPLYING_PRODUCTS = gql`
   query ListSupplyingProducts {
     markets {

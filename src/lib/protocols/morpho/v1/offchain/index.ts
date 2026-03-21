@@ -2,6 +2,7 @@ import type { Address } from 'viem'
 
 import { createGraphQLClient } from '@/lib/protocols/shared'
 import type { DataAdapter } from '@/lib/protocols/types'
+import { CHAIN_NAME_MAPPING } from '@/lib/protocols/utils'
 import { generateSlug } from '@/lib/utils'
 import {
   BorrowPosition,
@@ -11,7 +12,7 @@ import {
 } from '@/types'
 
 import { MORPHO_CONFIG } from '../../config'
-import { CHAIN_NAME_MAPPING } from '../utils'
+import { getBorrowingMarkets } from './borrowing-markets'
 import {
   MarketBorrowHistoryRatesQuery,
   MarketSupplyHistoryRatesQuery,
@@ -85,7 +86,7 @@ async function getUserSupplyPositions({
             id: position.id,
             protocol: MORPHO_CONFIG.morpho_v1.id,
             network:
-              CHAIN_NAME_MAPPING[position.vault.chain.id]?.protocolName ||
+              CHAIN_NAME_MAPPING[position.vault.chain.id] ||
               position.vault.chain.network.toLowerCase(),
             userAddress: position.user.address.toLowerCase(),
             poolName: position.vault.name,
@@ -96,7 +97,7 @@ async function getUserSupplyPositions({
             assetName: position.vault.asset.name,
             assetSymbol: position.vault.asset.symbol,
             assetDecimals: position.vault.asset.decimals,
-            assetAmount: position.state?.assets ?? 0,
+            assetAmount: (position.state?.assets ?? 0).toString(),
             assetAmountUsd: position.state?.assetsUsd ?? 0,
             assetLiveAmountUsd: position.state?.assetsUsd ?? 0,
             apy: position.vault.state?.avgNetApy
@@ -173,8 +174,7 @@ async function getUserBorrowPositions({
           id: position.id,
           protocol: MORPHO_CONFIG.morpho_v1.id,
           network:
-            CHAIN_NAME_MAPPING[position.market.morphoBlue.chain.id]
-              ?.protocolName ||
+            CHAIN_NAME_MAPPING[position.market.morphoBlue.chain.id] ||
             position.market.morphoBlue.chain.network.toLowerCase(),
           healthFactor: Number(position.healthFactor),
           userAddress: position.user.address.toLowerCase(),
@@ -316,4 +316,5 @@ export const morphoV1OffchainAdapter: DataAdapter = {
   getMarketBorrowHistoryRates,
   getMarketSupplyHistoryRates,
   getSupplyingMarkets,
+  getBorrowingMarkets,
 }

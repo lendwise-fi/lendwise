@@ -2,5 +2,11 @@ packages:
   - .
 
 onlyBuiltDependencies:
+  - '@mongodb-js/zstd'
   - '@tailwindcss/oxide'
+  - bufferutil
+  - esbuild
+  - keccak
+  - sharp
   - styled-components
+  - utf-8-validate
