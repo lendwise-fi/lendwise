@@ -212,7 +212,6 @@ function mapDaily(
       net: doc.apy.net,
       rewardItems: mapRewardItems(doc.apy.rewardItems),
     },
-    quality: doc.quality,
   }
 
   if (!isBorrow) {

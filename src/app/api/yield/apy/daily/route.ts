@@ -16,24 +16,11 @@ import type {
   SupplyMarketState,
 } from '@/lib/db/types'
 
-// ─── Constants ────────────────────────────────────────────────────────────────
-
-/** Expected number of hourly documents in a full day: 24 */
-const EXPECTED_SLOTS = 24
-
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function avg(values: number[]): number {
   if (values.length === 0) return 0
   return values.reduce((s, v) => s + v, 0) / values.length
-}
-
-function computeStatus(
-  completeness: number
-): 'complete' | 'partial' | 'missing' {
-  if (completeness >= 1) return 'complete'
-  if (completeness >= 0.5) return 'partial'
-  return 'missing'
 }
 
 // ─── Aggregation ──────────────────────────────────────────────────────────────
@@ -48,8 +35,7 @@ function computeStatus(
 async function aggregatePool(
   productId: string,
   windowStart: Date,
-  windowEnd: Date,
-  computedAt: Date
+  windowEnd: Date
 ): Promise<ApyDaily | null> {
   const db = await getDb()
   const collection = db.collection<ApySlot>(MONGODB_COLLECTION_HOURLY)
@@ -84,16 +70,6 @@ async function aggregatePool(
   if (hours.length === 0) return null
 
   const lastSlot = hours[hours.length - 1]
-  const actualCount = hours.length
-  const completeness = actualCount / EXPECTED_SLOTS
-
-  const quality = {
-    actualCount,
-    completeness,
-    status: computeStatus(completeness),
-    revision: 1,
-    computedAt,
-  }
 
   const apy = {
     base: avg(hours.map((h) => h.apy.base)),
@@ -121,7 +97,6 @@ async function aggregatePool(
       productId,
       apy,
       market,
-      quality,
     }
 
     return doc
@@ -156,7 +131,6 @@ async function aggregatePool(
     productId,
     apy,
     market,
-    quality,
   }
 
   return doc
@@ -170,11 +144,7 @@ async function upsertDailyDoc(doc: ApyDaily): Promise<void> {
 
   await collection.updateOne(
     { productId: doc.productId, date: doc.date },
-    {
-      $set: { ...doc },
-      $setOnInsert: { 'quality.revision': 1 },
-      $inc: { 'quality.revision': 0 },
-    },
+    { $set: { ...doc } },
     { upsert: true }
   )
 }
@@ -233,7 +203,7 @@ export const POST = verifySignatureAppRouter(async (_req: NextRequest) => {
     // Aggregate each product independently — allows partial success
     const results = await Promise.allSettled(
       productIds.map((productId) =>
-        aggregatePool(productId, windowStart, windowEnd, computedAt)
+        aggregatePool(productId, windowStart, windowEnd)
       )
     )
 

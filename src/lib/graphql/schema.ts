@@ -134,14 +134,6 @@ export const typeDefs = /* GraphQL */ `
     status: String!
   }
 
-  type DailyQuality {
-    actualCount: Int!
-    completeness: Float!
-    status: String!
-    revision: Int!
-    computedAt: DateTime!
-  }
-
   # ─── Collateral ───────────────────────────────────────────────────────────────
 
   type Collateral {
@@ -176,7 +168,6 @@ export const typeDefs = /* GraphQL */ `
     asset: String!
     apy: DailyApyBreakdown!
     market: SupplyDailyMarketState!
-    quality: DailyQuality!
   }
 
   # ─── Borrow results ───────────────────────────────────────────────────────────
@@ -202,7 +193,6 @@ export const typeDefs = /* GraphQL */ `
     collaterals: [Collateral!]!
     apy: DailyApyBreakdown!
     market: BorrowDailyMarketState!
-    quality: DailyQuality!
   }
 
   # ─── Inputs ───────────────────────────────────────────────────────────────────
