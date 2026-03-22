@@ -57,13 +57,11 @@ async function aggregatePool(
   const hours = await collection
     .find(
       {
-        'meta.productId': productId,
+        productId,
         hour: { $gte: windowStart, $lt: windowEnd },
       },
       {
         projection: {
-          hour: 1,
-          meta: 1,
           'apy.base': 1,
           'apy.net': 1,
           'apy.rewards': 1,
@@ -85,7 +83,6 @@ async function aggregatePool(
 
   if (hours.length === 0) return null
 
-  const meta = hours[0].meta
   const lastSlot = hours[hours.length - 1]
   const actualCount = hours.length
   const completeness = actualCount / EXPECTED_SLOTS
@@ -106,7 +103,12 @@ async function aggregatePool(
     rewardItems: lastSlot.apy.rewardItems,
   }
 
-  if (meta.kind === 'supply') {
+  // Detect borrow vs supply by checking if any hourly doc has borrowAssets
+  const isBorrow = hours.some(
+    (h) => (h.market as BorrowMarketState).borrowAssets != null
+  )
+
+  if (!isBorrow) {
     const market: SupplyMarketState = {
       supplyAssets: avg(hours.map((h) => h.market.supplyAssets)),
       supplyAssetsUsd: avg(hours.map((h) => h.market.supplyAssetsUsd)),
@@ -116,13 +118,7 @@ async function aggregatePool(
 
     const doc: SupplyApyDaily = {
       date: windowStart,
-      meta: {
-        kind: 'supply',
-        productId,
-        protocol: meta.protocol,
-        chainId: meta.chainId,
-        asset: meta.asset,
-      },
+      productId,
       apy,
       market,
       quality,
@@ -131,7 +127,7 @@ async function aggregatePool(
     return doc
   }
 
-  // kind === 'borrow'
+  // Borrow product
   const borrowHours = hours.map((h) => h.market as BorrowMarketState)
 
   const collateralValues = borrowHours
@@ -157,13 +153,7 @@ async function aggregatePool(
 
   const doc: BorrowApyDaily = {
     date: windowStart,
-    meta: {
-      kind: 'borrow',
-      productId,
-      protocol: meta.protocol,
-      chainId: meta.chainId,
-      asset: meta.asset,
-    },
+    productId,
     apy,
     market,
     quality,
@@ -179,7 +169,7 @@ async function upsertDailyDoc(doc: ApyDaily): Promise<void> {
   const collection = db.collection<ApyDaily>(MONGODB_COLLECTION_DAILY)
 
   await collection.updateOne(
-    { 'meta.productId': doc.meta.productId, date: doc.date },
+    { productId: doc.productId, date: doc.date },
     {
       $set: { ...doc },
       $setOnInsert: { 'quality.revision': 1 },
@@ -218,8 +208,13 @@ export const POST = verifySignatureAppRouter(async (_req: NextRequest) => {
     const hourlyCollection = db.collection<ApySlot>(MONGODB_COLLECTION_HOURLY)
     const productIds: string[] = await hourlyCollection
       .aggregate<{ _id: string }>([
-        { $match: { hour: { $gte: windowStart, $lt: windowEnd } } },
-        { $group: { _id: '$meta.productId' } },
+        {
+          $match: {
+            hour: { $gte: windowStart, $lt: windowEnd },
+            productId: { $ne: null },
+          },
+        },
+        { $group: { _id: '$productId' } },
       ])
       .map((d) => d._id)
       .toArray()

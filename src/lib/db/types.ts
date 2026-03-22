@@ -270,21 +270,6 @@ export interface BorrowMarketState {
   priceCollateralInLoanAsset: number | null
 }
 
-// ─── Shared meta — lean, filtering fields only ────────────────────────────────
-
-/**
- * Minimal metadata stored on each APY document.
- * Contains only fields needed for MongoDB filtering — no display data.
- * Display fields (asset name, address, chain name…) resolved via pools._id.
- */
-interface ApyMeta {
-  productId: string // FK → pools._id — upsert key
-  kind: Kind
-  protocol: ProviderId
-  chainId: number // EVM chain ID — for filtering
-  asset: string // loan asset symbol only — "USDC", "WETH"
-}
-
 // ─────────────────────────────────────────────────────────────────────────────
 // apy.hourly collection
 // ─────────────────────────────────────────────────────────────────────────────
@@ -310,14 +295,13 @@ export interface SlotQuality {
 }
 
 export interface SupplyApySlot {
-  _id: string
   /**
    * Hour boundary UTC — normalized to the top of the hour.
    * 11:17:42Z → 11:00:00.000Z
-   * Upsert key: (meta.productId, hour).
+   * Upsert key: (productId, hour).
    */
   hour: Date
-  meta: ApyMeta & { kind: 'supply' }
+  productId: string
   apy: ApyBreakdown
   market: SupplyMarketState
   quality: SlotQuality
@@ -327,10 +311,10 @@ export interface BorrowApySlot {
   /**
    * Hour boundary UTC — normalized to the top of the hour.
    * 11:17:42Z → 11:00:00.000Z
-   * Upsert key: (meta.productId, hour).
+   * Upsert key: (productId, hour).
    */
   hour: Date
-  meta: ApyMeta & { kind: 'borrow' }
+  productId: string
   apy: ApyBreakdown
   market: BorrowMarketState
   quality: SlotQuality
@@ -389,10 +373,10 @@ export interface SupplyApyDaily {
   /**
    * Midnight UTC of the day covered.
    * 2025-03-12 → 2025-03-12T00:00:00.000Z
-   * Upsert key: (meta.productId, date).
+   * Upsert key: (productId, date).
    */
   date: Date
-  meta: ApyMeta & { kind: 'supply' }
+  productId: string
   apy: ApyBreakdown
   market: SupplyMarketState
   quality: DailyQuality
@@ -402,10 +386,10 @@ export interface BorrowApyDaily {
   /**
    * Midnight UTC of the day covered.
    * 2025-03-12 → 2025-03-12T00:00:00.000Z
-   * Upsert key: (meta.productId, date).
+   * Upsert key: (productId, date).
    */
   date: Date
-  meta: ApyMeta & { kind: 'borrow' }
+  productId: string
   apy: ApyBreakdown
   market: BorrowMarketState
   quality: DailyQuality

@@ -349,7 +349,7 @@ async function upsertHourly(
 
   await collection.updateOne(
     // ✅ Filter on composite _id — safe upsert, no duplicate risk
-    { _id: id as string },
+    { _id: id } as unknown as import('mongodb').Filter<ApySlot>,
     [
       {
         $set: {

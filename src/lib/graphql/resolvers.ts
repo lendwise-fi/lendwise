@@ -1,22 +1,15 @@
 import { GraphQLScalarType, Kind } from 'graphql'
-import { Filter } from 'mongodb'
+import { Document, Filter } from 'mongodb'
 
 import { ALL_CHAINS } from '@/config/chains'
 import { getProtocolIds } from '@/config/protocols'
 import {
   MONGODB_COLLECTION_DAILY,
   MONGODB_COLLECTION_HOURLY,
+  MONGODB_COLLECTION_PRODUCTS,
   getDb,
 } from '@/lib/db/mongodb'
-import type {
-  ApyDaily,
-  ApySlot,
-  BorrowApyDaily,
-  BorrowApySlot,
-  BorrowMarketState,
-  SupplyApyDaily,
-  SupplyApySlot,
-} from '@/lib/db/types'
+import type { ApyDaily, ApySlot, BorrowMarketState } from '@/lib/db/types'
 
 // ─── Scalar ───────────────────────────────────────────────────────────────────
 
@@ -108,7 +101,7 @@ function buildTimeFilter(
 
 // ─── Shared reward items mapper ───────────────────────────────────────────────
 
-function mapRewardItems(items: SupplyApySlot['apy']['rewardItems']) {
+function mapRewardItems(items: ApySlot['apy']['rewardItems']) {
   return items.map((r) => ({
     token: r.token,
     apr: r.apr,
@@ -118,21 +111,50 @@ function mapRewardItems(items: SupplyApySlot['apy']['rewardItems']) {
   }))
 }
 
+// ─── Product metadata batch loader ───────────────────────────────────────────
+
+type ProductMeta = {
+  protocol: string
+  chainId: number
+  asset: string
+}
+
+async function loadProductMeta(
+  productIds: string[]
+): Promise<Map<string, ProductMeta>> {
+  const db = await getDb()
+  const products = await db
+    .collection(MONGODB_COLLECTION_PRODUCTS!)
+    .find(
+      { _id: { $in: productIds } as unknown as Filter<Document>['_id'] },
+      { projection: { kind: 1, protocol: 1, asset: 1 } }
+    )
+    .toArray()
+
+  const map = new Map<string, ProductMeta>()
+  for (const p of products) {
+    map.set(String(p._id), {
+      protocol: p.protocol?.provider ?? '',
+      chainId: p.protocol?.chain?.id ?? 0,
+      asset: p.asset?.symbol ?? '',
+    })
+  }
+  return map
+}
+
 // ─── MongoDB → GraphQL mapping ────────────────────────────────────────────────
 
-/**
- * ApyMeta is lean — only productId, kind, protocol, chainId, asset (symbol).
- * chain (full object) and asset (full object) are resolved via pools lookup.
- * TODO: DataLoader from pools collection for chain.name, asset.address, asset.decimals
- */
-
-function mapSupplySlot(doc: SupplyApySlot) {
-  return {
+function mapSlot(
+  doc: ApySlot,
+  meta: ProductMeta | undefined,
+  isBorrow: boolean
+) {
+  const base = {
     hour: doc.hour,
-    productId: doc.meta.productId,
-    protocol: doc.meta.protocol,
-    chainId: doc.meta.chainId,
-    asset: doc.meta.asset,
+    productId: doc.productId,
+    protocol: meta?.protocol ?? '',
+    chainId: meta?.chainId ?? 0,
+    asset: meta?.asset ?? '',
     apy: {
       base: doc.apy.base,
       rewards: doc.apy.rewards,
@@ -140,25 +162,49 @@ function mapSupplySlot(doc: SupplyApySlot) {
       net: doc.apy.net,
       rewardItems: mapRewardItems(doc.apy.rewardItems),
     },
-    market: {
-      supplyAssets: doc.market.supplyAssets,
-      supplyAssetsUsd: doc.market.supplyAssetsUsd,
-      utilizationRate: doc.market.utilizationRate,
-      assetPriceUsd: doc.market.assetPriceUsd,
-    },
     quality: doc.quality,
   }
-}
 
-function mapBorrowSlot(doc: BorrowApySlot) {
-  const market = doc.market as BorrowMarketState
+  if (!isBorrow) {
+    return {
+      ...base,
+      market: {
+        supplyAssets: doc.market.supplyAssets,
+        supplyAssetsUsd: doc.market.supplyAssetsUsd,
+        utilizationRate: doc.market.utilizationRate,
+        assetPriceUsd: doc.market.assetPriceUsd,
+      },
+    }
+  }
+
+  const m = doc.market as BorrowMarketState
   return {
-    hour: doc.hour,
-    productId: doc.meta.productId,
-    protocol: doc.meta.protocol,
-    chainId: doc.meta.chainId,
-    asset: doc.meta.asset,
+    ...base,
     collaterals: [], // TODO: DataLoader from pools collection
+    market: {
+      supplyAssets: m.supplyAssets,
+      supplyAssetsUsd: m.supplyAssetsUsd,
+      borrowAssets: m.borrowAssets,
+      borrowAssetsUsd: m.borrowAssetsUsd,
+      utilizationRate: m.utilizationRate,
+      assetPriceUsd: m.assetPriceUsd,
+      collateralAssetsUsd: m.collateralAssetsUsd,
+      priceCollateralInLoanAsset: m.priceCollateralInLoanAsset,
+    },
+  }
+}
+
+function mapDaily(
+  doc: ApyDaily,
+  meta: ProductMeta | undefined,
+  isBorrow: boolean
+) {
+  const base = {
+    date: doc.date,
+    productId: doc.productId,
+    protocol: meta?.protocol ?? '',
+    chainId: meta?.chainId ?? 0,
+    asset: meta?.asset ?? '',
     apy: {
       base: doc.apy.base,
       rewards: doc.apy.rewards,
@@ -166,92 +212,88 @@ function mapBorrowSlot(doc: BorrowApySlot) {
       net: doc.apy.net,
       rewardItems: mapRewardItems(doc.apy.rewardItems),
     },
-    market: {
-      supplyAssets: market.supplyAssets,
-      supplyAssetsUsd: market.supplyAssetsUsd,
-      borrowAssets: market.borrowAssets,
-      borrowAssetsUsd: market.borrowAssetsUsd,
-      utilizationRate: market.utilizationRate,
-      assetPriceUsd: market.assetPriceUsd,
-      collateralAssetsUsd: market.collateralAssetsUsd,
-      priceCollateralInLoanAsset: market.priceCollateralInLoanAsset,
-    },
     quality: doc.quality,
   }
-}
 
-function mapSupplyDaily(doc: SupplyApyDaily) {
-  return {
-    date: doc.date,
-    productId: doc.meta.productId,
-    protocol: doc.meta.protocol,
-    chainId: doc.meta.chainId,
-    asset: doc.meta.asset,
-    apy: {
-      base: doc.apy.base,
-      rewards: doc.apy.rewards,
-      fees: doc.apy.fees,
-      net: doc.apy.net,
-      rewardItems: mapRewardItems(doc.apy.rewardItems),
-    },
-    market: {
-      supplyAssets: doc.market.supplyAssets,
-      supplyAssetsUsd: doc.market.supplyAssetsUsd,
-      utilizationRate: doc.market.utilizationRate,
-      assetPriceUsd: doc.market.assetPriceUsd,
-    },
-    quality: doc.quality,
+  if (!isBorrow) {
+    return {
+      ...base,
+      market: {
+        supplyAssets: doc.market.supplyAssets,
+        supplyAssetsUsd: doc.market.supplyAssetsUsd,
+        utilizationRate: doc.market.utilizationRate,
+        assetPriceUsd: doc.market.assetPriceUsd,
+      },
+    }
   }
-}
 
-function mapBorrowDaily(doc: BorrowApyDaily) {
-  const market = doc.market as BorrowMarketState
+  const m = doc.market as BorrowMarketState
   return {
-    date: doc.date,
-    productId: doc.meta.productId,
-    protocol: doc.meta.protocol,
-    chainId: doc.meta.chainId,
-    asset: doc.meta.asset,
+    ...base,
     collaterals: [], // TODO: DataLoader from pools collection
-    apy: {
-      base: doc.apy.base,
-      rewards: doc.apy.rewards,
-      fees: doc.apy.fees,
-      net: doc.apy.net,
-      rewardItems: mapRewardItems(doc.apy.rewardItems),
-    },
     market: {
-      supplyAssets: market.supplyAssets,
-      supplyAssetsUsd: market.supplyAssetsUsd,
-      borrowAssets: market.borrowAssets,
-      borrowAssetsUsd: market.borrowAssetsUsd,
-      utilizationRate: market.utilizationRate,
-      assetPriceUsd: market.assetPriceUsd,
-      collateralAssetsUsd: market.collateralAssetsUsd,
-      priceCollateralInLoanAsset: market.priceCollateralInLoanAsset,
+      supplyAssets: m.supplyAssets,
+      supplyAssetsUsd: m.supplyAssetsUsd,
+      borrowAssets: m.borrowAssets,
+      borrowAssetsUsd: m.borrowAssetsUsd,
+      utilizationRate: m.utilizationRate,
+      assetPriceUsd: m.assetPriceUsd,
+      collateralAssetsUsd: m.collateralAssetsUsd,
+      priceCollateralInLoanAsset: m.priceCollateralInLoanAsset,
     },
-    quality: doc.quality,
   }
 }
 
 // ─── Query builders ───────────────────────────────────────────────────────────
 
+/**
+ * Build a productId-based query filter.
+ * Hourly/daily docs only store productId — kind, protocol, market, collateral
+ * are matched via regex on the productId string.
+ *
+ * productId format: "{provider}:{version}:{chain}:{type}:{address}:{kind}"
+ * e.g. "aave:v3:ethereum:reserve:0x1111…:supply"
+ */
+function buildProductIdFilter(
+  kind: 'supply' | 'borrow',
+  filters: {
+    protocol?: string
+    market?: string
+    chainId?: number
+    asset?: string
+    collateral?: string
+  }
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+): Record<string, any> {
+  const { protocol, market, collateral } = filters
+
+  if (protocol) validateProtocol(protocol)
+  if (filters.chainId) validateChainId(filters.chainId)
+
+  // Kind is always the last segment of productId
+  const patterns: string[] = [`:${kind}$`]
+
+  // Protocol prefix — aave_v3 → "^aave"
+  if (protocol) {
+    const prefix = protocol.split('_')[0]
+    patterns.push(`^${prefix}`)
+  }
+
+  if (market) patterns.push(market)
+  if (collateral) patterns.push(collateral)
+
+  const combined = patterns.map((p) => `(?=.*${p})`).join('')
+
+  return { productId: { $regex: combined, $options: 'i' } }
+}
+
 function buildHourlyQuery(
   kind: 'supply' | 'borrow',
   filters: HourlyFilters & { collateral?: string }
 ): Filter<ApySlot> {
-  const { protocol, market, chainId, asset, collateral } = filters
-
-  if (protocol) validateProtocol(protocol)
-  if (chainId) validateChainId(chainId)
-
-  const query: Filter<ApySlot> = { 'meta.kind': kind }
-  if (protocol) query['meta.protocol'] = protocol
-  if (chainId) query['meta.chainId'] = chainId
-  if (asset) query['meta.asset'] = asset.toUpperCase()
-  if (market) query['meta.productId'] = { $regex: market, $options: 'i' }
-  if (collateral)
-    query['meta.productId'] = { $regex: collateral, $options: 'i' }
+  const query: Filter<ApySlot> = {
+    ...buildProductIdFilter(kind, filters),
+  }
 
   const timeFilter = buildTimeFilter(undefined, filters.from, filters.to)
   if (Object.keys(timeFilter).length > 0) {
@@ -265,22 +307,14 @@ function buildDailyQuery(
   kind: 'supply' | 'borrow',
   filters: DailyFilters & { collateral?: string }
 ): Filter<ApyDaily> {
-  const { protocol, market, chainId, asset, collateral, range, from, to } =
-    filters
+  const { range, from } = filters
 
-  if (protocol) validateProtocol(protocol)
-  if (chainId) validateChainId(chainId)
-
-  const query: Filter<ApyDaily> = { 'meta.kind': kind }
-  if (protocol) query['meta.protocol'] = protocol
-  if (chainId) query['meta.chainId'] = chainId
-  if (asset) query['meta.asset'] = asset.toUpperCase()
-  if (market) query['meta.productId'] = { $regex: market, $options: 'i' }
-  if (collateral)
-    query['meta.productId'] = { $regex: collateral, $options: 'i' }
+  const query: Filter<ApyDaily> = {
+    ...buildProductIdFilter(kind, filters),
+  }
 
   const effectiveRange = range ?? (!from ? '30d' : undefined)
-  const timeFilter = buildTimeFilter(effectiveRange, from, to)
+  const timeFilter = buildTimeFilter(effectiveRange, from, filters.to)
   if (Object.keys(timeFilter).length > 0) {
     query.date = timeFilter as Filter<ApyDaily>['date']
   }
@@ -302,7 +336,8 @@ export const resolvers = {
         .find(query)
         .sort({ hour: 1 })
         .toArray()
-      return docs.map((d) => mapSupplySlot(d as SupplyApySlot))
+      const metaMap = await loadProductMeta(docs.map((d) => d.productId))
+      return docs.map((d) => mapSlot(d, metaMap.get(d.productId), false))
     },
 
     async supplyApyDaily(_: unknown, args: { filters?: DailyFilters }) {
@@ -313,7 +348,8 @@ export const resolvers = {
         .find(query)
         .sort({ date: 1 })
         .toArray()
-      return docs.map((d) => mapSupplyDaily(d as SupplyApyDaily))
+      const metaMap = await loadProductMeta(docs.map((d) => d.productId))
+      return docs.map((d) => mapDaily(d, metaMap.get(d.productId), false))
     },
 
     async borrowApyHourly(_: unknown, args: { filters?: BorrowHourlyFilters }) {
@@ -324,7 +360,8 @@ export const resolvers = {
         .find(query)
         .sort({ hour: 1 })
         .toArray()
-      return docs.map((d) => mapBorrowSlot(d as BorrowApySlot))
+      const metaMap = await loadProductMeta(docs.map((d) => d.productId))
+      return docs.map((d) => mapSlot(d, metaMap.get(d.productId), true))
     },
 
     async borrowApyDaily(_: unknown, args: { filters?: BorrowDailyFilters }) {
@@ -335,7 +372,8 @@ export const resolvers = {
         .find(query)
         .sort({ date: 1 })
         .toArray()
-      return docs.map((d) => mapBorrowDaily(d as BorrowApyDaily))
+      const metaMap = await loadProductMeta(docs.map((d) => d.productId))
+      return docs.map((d) => mapDaily(d, metaMap.get(d.productId), true))
     },
   },
 }
