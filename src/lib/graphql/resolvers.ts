@@ -122,11 +122,14 @@ type ProductMeta = {
 async function loadProductMeta(
   productIds: string[]
 ): Promise<Map<string, ProductMeta>> {
+  const unique = [...new Set(productIds)]
+  if (unique.length === 0) return new Map()
+
   const db = await getDb()
   const products = await db
     .collection(MONGODB_COLLECTION_PRODUCTS!)
     .find(
-      { _id: { $in: productIds } as unknown as Filter<Document>['_id'] },
+      { _id: { $in: unique } as unknown as Filter<Document>['_id'] },
       { projection: { kind: 1, protocol: 1, asset: 1 } }
     )
     .toArray()
@@ -334,6 +337,7 @@ export const resolvers = {
         .collection<ApySlot>(MONGODB_COLLECTION_HOURLY)
         .find(query)
         .sort({ hour: 1 })
+        .limit(10_000)
         .toArray()
       const metaMap = await loadProductMeta(docs.map((d) => d.productId))
       return docs.map((d) => mapSlot(d, metaMap.get(d.productId), false))
@@ -346,6 +350,7 @@ export const resolvers = {
         .collection<ApyDaily>(MONGODB_COLLECTION_DAILY)
         .find(query)
         .sort({ date: 1 })
+        .limit(10_000)
         .toArray()
       const metaMap = await loadProductMeta(docs.map((d) => d.productId))
       return docs.map((d) => mapDaily(d, metaMap.get(d.productId), false))
@@ -358,6 +363,7 @@ export const resolvers = {
         .collection<ApySlot>(MONGODB_COLLECTION_HOURLY)
         .find(query)
         .sort({ hour: 1 })
+        .limit(10_000)
         .toArray()
       const metaMap = await loadProductMeta(docs.map((d) => d.productId))
       return docs.map((d) => mapSlot(d, metaMap.get(d.productId), true))
@@ -370,6 +376,7 @@ export const resolvers = {
         .collection<ApyDaily>(MONGODB_COLLECTION_DAILY)
         .find(query)
         .sort({ date: 1 })
+        .limit(10_000)
         .toArray()
       const metaMap = await loadProductMeta(docs.map((d) => d.productId))
       return docs.map((d) => mapDaily(d, metaMap.get(d.productId), true))

@@ -200,36 +200,24 @@ export const POST = verifySignatureAppRouter(async (_req: NextRequest) => {
       )
     }
 
-    // Aggregate each product independently — allows partial success
-    const results = await Promise.allSettled(
-      productIds.map((productId) =>
-        aggregatePool(productId, windowStart, windowEnd)
-      )
-    )
-
+    // Process products sequentially to avoid OOM on serverless functions
     let written = 0
     let skipped = 0
     const errors: string[] = []
 
-    for (let i = 0; i < results.length; i++) {
-      const result = results[i]
-      if (result.status === 'fulfilled') {
-        if (result.value) {
-          await upsertDailyDoc(result.value)
+    for (const productId of productIds) {
+      try {
+        const doc = await aggregatePool(productId, windowStart, windowEnd)
+        if (doc) {
+          await upsertDailyDoc(doc)
           written++
         } else {
           skipped++
         }
-      } else {
-        const msg =
-          result.reason instanceof Error
-            ? result.reason.message
-            : String(result.reason)
-        errors.push(`[${productIds[i]}] ${msg}`)
-        console.error(
-          `[cron:apy-daily] Failed for product ${productIds[i]}:`,
-          msg
-        )
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err)
+        errors.push(`[${productId}] ${msg}`)
+        console.error(`[cron:apy-daily] Failed for product ${productId}:`, msg)
       }
     }
 

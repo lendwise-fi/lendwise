@@ -36,8 +36,14 @@ const options: MongoClientOptions = {
   },
 }
 
-let client: MongoClient
 let clientPromise: Promise<MongoClient>
+
+async function initClient(): Promise<MongoClient> {
+  const client = new MongoClient(uri, options)
+  await client.connect()
+  attachDatabasePool(client)
+  return client
+}
 
 if (process.env.NODE_ENV === 'development') {
   // In development mode, use a global variable so that the value
@@ -47,14 +53,12 @@ if (process.env.NODE_ENV === 'development') {
   }
 
   if (!globalWithMongo._mongoClientPromise) {
-    client = new MongoClient(uri, options)
-    globalWithMongo._mongoClientPromise = client.connect()
+    globalWithMongo._mongoClientPromise = initClient()
   }
   clientPromise = globalWithMongo._mongoClientPromise
 } else {
   // In production mode, it's best to not use a global variable.
-  client = new MongoClient(uri, options)
-  clientPromise = client.connect()
+  clientPromise = initClient()
 }
 
 export const MONGODB_URI = process.env.MONGODB_URI
@@ -98,7 +102,6 @@ export async function ensureApyMergeIndex<T extends Document = Document>(
  */
 export async function getDb(dbName: string = MONGODB_DB_NAME): Promise<Db> {
   const client = await clientPromise
-  attachDatabasePool(client)
   return client.db(dbName)
 }
 
