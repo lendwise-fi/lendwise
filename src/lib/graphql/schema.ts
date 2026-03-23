@@ -4,6 +4,7 @@ import { resolvers } from './resolvers'
 
 export const typeDefs = /* GraphQL */ `
   scalar DateTime
+  scalar JSON
 
   # ─── Enums ──────────────────────────────────────────────────────────────────
 
@@ -147,6 +148,65 @@ export const typeDefs = /* GraphQL */ `
     canBeCollateral: Boolean!
   }
 
+  # ─── Product ─────────────────────────────────────────────────────────────────
+
+  type ProductAsset {
+    symbol: String!
+    name: String!
+    address: String!
+    decimals: Int!
+  }
+
+  type ProductChain {
+    id: Int!
+    name: String!
+  }
+
+  type ProductProtocol {
+    "Normalized provider identifier — aave | morpho | compound."
+    provider: ProtocolName!
+    "Product type — reserve | market | vault."
+    type: String!
+    version: String!
+    "Native market/deployment name — e.g. AaveV3Ethereum, MorphoBlueEthereum."
+    name: String!
+    chain: ProductChain!
+    "Protocol contract address — pool / market factory."
+    address: String!
+    "Protocol-specific metadata — shape varies by provider. Use JSON scalar."
+    meta: JSON
+  }
+
+  type Product {
+    id: String!
+    active: Boolean!
+    kind: String!
+    asset: ProductAsset!
+    protocol: ProductProtocol!
+    "Accepted collateral assets — null for supply products."
+    collaterals: [Collateral!]
+    createdAt: DateTime!
+    updatedAt: DateTime!
+  }
+
+  # ─── Pagination ──────────────────────────────────────────────────────────────
+
+  type PaginationInfo {
+    "Number of items returned in this page."
+    count: Int!
+    "Total number of items matching the filters (ignoring first/skip)."
+    countTotal: Int!
+    "Maximum number of items requested (first argument)."
+    limit: Int!
+    "Number of items skipped (skip argument)."
+    skip: Int!
+  }
+
+  enum OrderDirection {
+    asc
+    desc
+  }
+
   # ─── Supply results ─────────────────────────────────────────────────────────────
 
   type SupplyHourlyResult {
@@ -155,6 +215,7 @@ export const typeDefs = /* GraphQL */ `
     protocol: ProtocolName!
     chainId: Int!
     asset: String!
+    product: Product
     apy: HourlyApyBreakdown!
     market: SupplyHourlyMarketState!
     quality: HourlyQuality!
@@ -166,6 +227,7 @@ export const typeDefs = /* GraphQL */ `
     protocol: ProtocolName!
     chainId: Int!
     asset: String!
+    product: Product
     apy: DailyApyBreakdown!
     market: SupplyDailyMarketState!
   }
@@ -178,6 +240,7 @@ export const typeDefs = /* GraphQL */ `
     protocol: ProtocolName!
     chainId: Int!
     asset: String!
+    product: Product
     collaterals: [Collateral!]!
     apy: HourlyApyBreakdown!
     market: BorrowHourlyMarketState!
@@ -190,9 +253,32 @@ export const typeDefs = /* GraphQL */ `
     protocol: ProtocolName!
     chainId: Int!
     asset: String!
+    product: Product
     collaterals: [Collateral!]!
     apy: DailyApyBreakdown!
     market: BorrowDailyMarketState!
+  }
+
+  # ─── Paginated responses ─────────────────────────────────────────────────────
+
+  type SupplyHourlyResponse {
+    items: [SupplyHourlyResult!]!
+    pagination: PaginationInfo!
+  }
+
+  type SupplyDailyResponse {
+    items: [SupplyDailyResult!]!
+    pagination: PaginationInfo!
+  }
+
+  type BorrowHourlyResponse {
+    items: [BorrowHourlyResult!]!
+    pagination: PaginationInfo!
+  }
+
+  type BorrowDailyResponse {
+    items: [BorrowDailyResult!]!
+    pagination: PaginationInfo!
   }
 
   # ─── Inputs ───────────────────────────────────────────────────────────────────
@@ -253,13 +339,37 @@ export const typeDefs = /* GraphQL */ `
 
   type Query {
     "Latest hourly APY snapshots for supply products."
-    supplyApyHourly(filters: HourlyFilters): [SupplyHourlyResult!]!
+    supplyApyHourly(
+      filters: HourlyFilters
+      first: Int = 100
+      skip: Int = 0
+      orderBy: String = "hour"
+      orderDirection: OrderDirection = asc
+    ): SupplyHourlyResponse!
     "Daily aggregated APY for supply products."
-    supplyApyDaily(filters: DailyFilters): [SupplyDailyResult!]!
+    supplyApyDaily(
+      filters: DailyFilters
+      first: Int = 100
+      skip: Int = 0
+      orderBy: String = "date"
+      orderDirection: OrderDirection = asc
+    ): SupplyDailyResponse!
     "Latest hourly APY snapshots for borrow pools."
-    borrowApyHourly(filters: BorrowHourlyFilters): [BorrowHourlyResult!]!
+    borrowApyHourly(
+      filters: BorrowHourlyFilters
+      first: Int = 100
+      skip: Int = 0
+      orderBy: String = "hour"
+      orderDirection: OrderDirection = asc
+    ): BorrowHourlyResponse!
     "Daily aggregated APY for borrow pools."
-    borrowApyDaily(filters: BorrowDailyFilters): [BorrowDailyResult!]!
+    borrowApyDaily(
+      filters: BorrowDailyFilters
+      first: Int = 100
+      skip: Int = 0
+      orderBy: String = "date"
+      orderDirection: OrderDirection = asc
+    ): BorrowDailyResponse!
   }
 `
 

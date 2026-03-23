@@ -9,9 +9,14 @@ import {
   MONGODB_COLLECTION_PRODUCTS,
   getDb,
 } from '@/lib/db/mongodb'
-import type { ApyDaily, ApySlot, BorrowMarketState } from '@/lib/db/types'
+import type {
+  ApyDaily,
+  ApySlot,
+  BorrowMarketState,
+  Product,
+} from '@/lib/db/types'
 
-// ─── Scalar ───────────────────────────────────────────────────────────────────
+// ─── Scalars ──────────────────────────────────────────────────────────────────
 
 const DateTime = new GraphQLScalarType({
   name: 'DateTime',
@@ -26,6 +31,20 @@ const DateTime = new GraphQLScalarType({
   },
   parseLiteral(ast) {
     if (ast.kind === Kind.STRING) return new Date(ast.value)
+    return null
+  },
+})
+
+const JSON_SCALAR = new GraphQLScalarType({
+  name: 'JSON',
+  serialize(value) {
+    return value
+  },
+  parseValue(value) {
+    return value
+  },
+  parseLiteral(ast) {
+    if (ast.kind === Kind.STRING) return globalThis.JSON.parse(ast.value)
     return null
   },
 })
@@ -57,6 +76,15 @@ type DailyFilters = HourlyFilters & {
 
 type BorrowHourlyFilters = HourlyFilters & { collateral?: string }
 type BorrowDailyFilters = DailyFilters & { collateral?: string }
+
+type PaginationArgs = {
+  first?: number
+  skip?: number
+  orderBy?: string
+  orderDirection?: 'asc' | 'desc'
+}
+
+const MAX_LIMIT = 10_000
 
 // ─── Validation ───────────────────────────────────────────────────────────────
 
@@ -113,51 +141,61 @@ function mapRewardItems(items: ApySlot['apy']['rewardItems']) {
 
 // ─── Product metadata batch loader ───────────────────────────────────────────
 
-type ProductMeta = {
-  protocol: string
-  chainId: number
-  asset: string
-}
-
-async function loadProductMeta(
+async function loadProducts(
   productIds: string[]
-): Promise<Map<string, ProductMeta>> {
+): Promise<Map<string, Product>> {
   const unique = [...new Set(productIds)]
   if (unique.length === 0) return new Map()
 
   const db = await getDb()
   const products = await db
     .collection(MONGODB_COLLECTION_PRODUCTS!)
-    .find(
-      { _id: { $in: unique } as unknown as Filter<Document>['_id'] },
-      { projection: { kind: 1, protocol: 1, asset: 1 } }
-    )
+    .find({ _id: { $in: unique } as unknown as Filter<Document>['_id'] })
     .toArray()
 
-  const map = new Map<string, ProductMeta>()
+  const map = new Map<string, Product>()
   for (const p of products) {
-    map.set(String(p._id), {
-      protocol: p.protocol?.provider ?? '',
-      chainId: p.protocol?.chain?.id ?? 0,
-      asset: p.asset?.symbol ?? '',
-    })
+    map.set(String(p._id), p as unknown as Product)
   }
   return map
+}
+
+function mapProduct(p: Product | undefined) {
+  if (!p) return null
+  return {
+    id: p._id,
+    active: p.active,
+    kind: p.kind,
+    asset: p.asset,
+    protocol: {
+      provider: p.protocol.provider,
+      type: p.protocol.type,
+      version: p.protocol.version,
+      name: p.protocol.name,
+      chain: p.protocol.chain,
+      address: p.protocol.address,
+      meta: p.protocol.meta ?? null,
+    },
+    collaterals: 'collaterals' in p ? p.collaterals : null,
+    createdAt: p.createdAt,
+    updatedAt: p.updatedAt,
+  }
 }
 
 // ─── MongoDB → GraphQL mapping ────────────────────────────────────────────────
 
 function mapSlot(
   doc: ApySlot,
-  meta: ProductMeta | undefined,
+  product: Product | undefined,
   isBorrow: boolean
 ) {
   const base = {
     hour: doc.hour,
     productId: doc.productId,
-    protocol: meta?.protocol ?? '',
-    chainId: meta?.chainId ?? 0,
-    asset: meta?.asset ?? '',
+    protocol: product?.protocol?.provider ?? '',
+    chainId: product?.protocol?.chain?.id ?? 0,
+    asset: product?.asset?.symbol ?? '',
+    product: mapProduct(product),
     apy: {
       base: doc.apy.base,
       rewards: doc.apy.rewards,
@@ -199,15 +237,16 @@ function mapSlot(
 
 function mapDaily(
   doc: ApyDaily,
-  meta: ProductMeta | undefined,
+  product: Product | undefined,
   isBorrow: boolean
 ) {
   const base = {
     date: doc.date,
     productId: doc.productId,
-    protocol: meta?.protocol ?? '',
-    chainId: meta?.chainId ?? 0,
-    asset: meta?.asset ?? '',
+    protocol: product?.protocol?.provider ?? '',
+    chainId: product?.protocol?.chain?.id ?? 0,
+    asset: product?.asset?.symbol ?? '',
+    product: mapProduct(product),
     apy: {
       base: doc.apy.base,
       rewards: doc.apy.rewards,
@@ -328,58 +367,127 @@ function buildDailyQuery(
 
 export const resolvers = {
   DateTime,
+  JSON: JSON_SCALAR,
 
   Query: {
-    async supplyApyHourly(_: unknown, args: { filters?: HourlyFilters }) {
+    async supplyApyHourly(
+      _: unknown,
+      args: { filters?: HourlyFilters } & PaginationArgs
+    ) {
       const db = await getDb()
       const query = buildHourlyQuery('supply', args.filters ?? {})
-      const docs = await db
-        .collection<ApySlot>(MONGODB_COLLECTION_HOURLY)
-        .find(query)
-        .sort({ hour: 1 })
-        .limit(10_000)
-        .toArray()
-      const metaMap = await loadProductMeta(docs.map((d) => d.productId))
-      return docs.map((d) => mapSlot(d, metaMap.get(d.productId), false))
+      const collection = db.collection<ApySlot>(MONGODB_COLLECTION_HOURLY)
+
+      const limit = Math.min(args.first ?? 100, MAX_LIMIT)
+      const skip = args.skip ?? 0
+      const sortField = args.orderBy ?? 'hour'
+      const sortDir = args.orderDirection === 'desc' ? -1 : 1
+
+      const [countTotal, docs] = await Promise.all([
+        collection.countDocuments(query),
+        collection
+          .find(query)
+          .sort({ [sortField]: sortDir })
+          .skip(skip)
+          .limit(limit)
+          .toArray(),
+      ])
+
+      const productMap = await loadProducts(docs.map((d) => d.productId))
+      return {
+        items: docs.map((d) => mapSlot(d, productMap.get(d.productId), false)),
+        pagination: { count: docs.length, countTotal, limit, skip },
+      }
     },
 
-    async supplyApyDaily(_: unknown, args: { filters?: DailyFilters }) {
+    async supplyApyDaily(
+      _: unknown,
+      args: { filters?: DailyFilters } & PaginationArgs
+    ) {
       const db = await getDb()
       const query = buildDailyQuery('supply', args.filters ?? {})
-      const docs = await db
-        .collection<ApyDaily>(MONGODB_COLLECTION_DAILY)
-        .find(query)
-        .sort({ date: 1 })
-        .limit(10_000)
-        .toArray()
-      const metaMap = await loadProductMeta(docs.map((d) => d.productId))
-      return docs.map((d) => mapDaily(d, metaMap.get(d.productId), false))
+      const collection = db.collection<ApyDaily>(MONGODB_COLLECTION_DAILY)
+
+      const limit = Math.min(args.first ?? 100, MAX_LIMIT)
+      const skip = args.skip ?? 0
+      const sortField = args.orderBy ?? 'date'
+      const sortDir = args.orderDirection === 'desc' ? -1 : 1
+
+      const [countTotal, docs] = await Promise.all([
+        collection.countDocuments(query),
+        collection
+          .find(query)
+          .sort({ [sortField]: sortDir })
+          .skip(skip)
+          .limit(limit)
+          .toArray(),
+      ])
+
+      const productMap = await loadProducts(docs.map((d) => d.productId))
+      return {
+        items: docs.map((d) => mapDaily(d, productMap.get(d.productId), false)),
+        pagination: { count: docs.length, countTotal, limit, skip },
+      }
     },
 
-    async borrowApyHourly(_: unknown, args: { filters?: BorrowHourlyFilters }) {
+    async borrowApyHourly(
+      _: unknown,
+      args: { filters?: BorrowHourlyFilters } & PaginationArgs
+    ) {
       const db = await getDb()
       const query = buildHourlyQuery('borrow', args.filters ?? {})
-      const docs = await db
-        .collection<ApySlot>(MONGODB_COLLECTION_HOURLY)
-        .find(query)
-        .sort({ hour: 1 })
-        .limit(10_000)
-        .toArray()
-      const metaMap = await loadProductMeta(docs.map((d) => d.productId))
-      return docs.map((d) => mapSlot(d, metaMap.get(d.productId), true))
+      const collection = db.collection<ApySlot>(MONGODB_COLLECTION_HOURLY)
+
+      const limit = Math.min(args.first ?? 100, MAX_LIMIT)
+      const skip = args.skip ?? 0
+      const sortField = args.orderBy ?? 'hour'
+      const sortDir = args.orderDirection === 'desc' ? -1 : 1
+
+      const [countTotal, docs] = await Promise.all([
+        collection.countDocuments(query),
+        collection
+          .find(query)
+          .sort({ [sortField]: sortDir })
+          .skip(skip)
+          .limit(limit)
+          .toArray(),
+      ])
+
+      const productMap = await loadProducts(docs.map((d) => d.productId))
+      return {
+        items: docs.map((d) => mapSlot(d, productMap.get(d.productId), true)),
+        pagination: { count: docs.length, countTotal, limit, skip },
+      }
     },
 
-    async borrowApyDaily(_: unknown, args: { filters?: BorrowDailyFilters }) {
+    async borrowApyDaily(
+      _: unknown,
+      args: { filters?: BorrowDailyFilters } & PaginationArgs
+    ) {
       const db = await getDb()
       const query = buildDailyQuery('borrow', args.filters ?? {})
-      const docs = await db
-        .collection<ApyDaily>(MONGODB_COLLECTION_DAILY)
-        .find(query)
-        .sort({ date: 1 })
-        .limit(10_000)
-        .toArray()
-      const metaMap = await loadProductMeta(docs.map((d) => d.productId))
-      return docs.map((d) => mapDaily(d, metaMap.get(d.productId), true))
+      const collection = db.collection<ApyDaily>(MONGODB_COLLECTION_DAILY)
+
+      const limit = Math.min(args.first ?? 100, MAX_LIMIT)
+      const skip = args.skip ?? 0
+      const sortField = args.orderBy ?? 'date'
+      const sortDir = args.orderDirection === 'desc' ? -1 : 1
+
+      const [countTotal, docs] = await Promise.all([
+        collection.countDocuments(query),
+        collection
+          .find(query)
+          .sort({ [sortField]: sortDir })
+          .skip(skip)
+          .limit(limit)
+          .toArray(),
+      ])
+
+      const productMap = await loadProducts(docs.map((d) => d.productId))
+      return {
+        items: docs.map((d) => mapDaily(d, productMap.get(d.productId), true)),
+        pagination: { count: docs.length, countTotal, limit, skip },
+      }
     },
   },
 }
