@@ -1,13 +1,10 @@
-//@ts-nocheck
-import { ApyTimeSeriesDocument } from '@/lib/db/types'
+import type { ApyBreakdown, BorrowMarketState, SupplyMarketState } from '@/lib/db/types'
 import { AAVE_CONFIG } from '@/lib/protocols/aave/config'
-import {
-  APY_HISTORY,
-  MARKETS_WITH_TOKENS,
-} from '@/lib/protocols/aave/v3/offchain/queries'
+import { APY_HISTORY, MARKETS_WITH_TOKENS } from '@/lib/protocols/aave/v3/offchain/queries'
 import { createGraphQLClient } from '@/lib/protocols/shared'
+import { CHAIN_NAME_MAPPING } from '@/lib/protocols/utils'
 
-// import { writeApySnapshotsWithTimestamps } from '@/lib/db/write-apy'
+// ─── Types ────────────────────────────────────────────────────────────────────
 
 type MarketsWithTokensQuery = {
   markets: {
@@ -24,32 +21,69 @@ type ApyHistoryQuery = {
   borrowAPYHistory: { date: string; avgRate: { value: number } }[]
 }
 
-type ReserveInfo = {
-  marketAddress: string
-  chainId: number
-  chainName: string
-  tokenAddress: string
-  tokenSymbol: string
+export type HistoryDataPoint = {
+  timestamp: Date
+  productId: string
+  kind: 'supply' | 'borrow'
+  apy: ApyBreakdown
+  market: SupplyMarketState | BorrowMarketState
 }
 
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+function buildProductId(
+  chainId: number,
+  tokenAddress: string,
+  kind: 'supply' | 'borrow'
+): string {
+  const network = CHAIN_NAME_MAPPING[chainId] ?? String(chainId)
+  return `aave:v3:${network}:reserve:${tokenAddress.toLowerCase()}:${kind}`
+}
+
+function emptySupplyMarket(): SupplyMarketState {
+  return { supplyAssets: 0, supplyAssetsUsd: 0, utilizationRate: 0, assetPriceUsd: 0 }
+}
+
+function emptyBorrowMarket(): BorrowMarketState {
+  return {
+    supplyAssets: 0,
+    supplyAssetsUsd: 0,
+    borrowAssets: 0,
+    borrowAssetsUsd: 0,
+    utilizationRate: 0,
+    assetPriceUsd: 0,
+    collateralAssetsUsd: null,
+    priceCollateralInLoanAsset: null,
+  }
+}
+
+// ─── Fetcher ──────────────────────────────────────────────────────────────────
+
 /**
- * Sync historical AAVE v3 APY data for the last year.
+ * Fetch historical AAVE v3 APY data.
  *
- * Strategy:
- * 1. List all markets + reserves (to get market address, chainId, token address)
- * 2. For each reserve, fetch supplyAPYHistory + borrowAPYHistory (window: LAST_YEAR)
- * 3. Merge supply and borrow by date, write timestamped snapshots to InfluxDB
- *
- * The AAVE API returns daily data points. Each point is written with its date
- * floored to the hour (which for daily data means 00:00:00 of that day).
+ * Uses the AAVE offchain GraphQL API which supports up to LAST_YEAR window.
+ * Returns daily data points with supply and borrow APY per reserve.
  */
-export async function syncAaveHistory(): Promise<{
-  total: number
-  errors: string[]
-}> {
+export async function fetchAaveHistory(opts?: {
+  chainFilter?: string
+  onProgress?: (msg: string) => void
+}): Promise<HistoryDataPoint[]> {
+  const log = opts?.onProgress ?? console.log
   const config = AAVE_CONFIG.aave_v3
   const client = createGraphQLClient(config.offchainApiUrl!)
-  const chainIds = Object.keys(config.chains).map(Number)
+  let chainIds = Object.keys(config.chains).map(Number)
+
+  if (opts?.chainFilter) {
+    const found = Object.entries(config.chains).find(
+      ([, c]) => c.name.toLowerCase() === opts.chainFilter!.toLowerCase()
+    )
+    if (!found) {
+      log(`[history:aave] Chain filter '${opts.chainFilter}' not found`)
+      return []
+    }
+    chainIds = [Number(found[0])]
+  }
 
   // Step 1: List all markets and their reserves
   const { data: marketsData, error: marketsError } = await client
@@ -59,12 +93,17 @@ export async function syncAaveHistory(): Promise<{
     .toPromise()
 
   if (marketsError || !marketsData?.markets) {
-    const msg = marketsError?.message ?? 'No markets data'
-    console.error('[sync:aave] Failed to list markets:', msg)
-    return { total: 0, errors: [msg] }
+    throw new Error(`[history:aave] Failed to list markets: ${marketsError?.message ?? 'No data'}`)
   }
 
-  // Flatten to a list of reserves with their market context
+  type ReserveInfo = {
+    marketAddress: string
+    chainId: number
+    chainName: string
+    tokenAddress: string
+    tokenSymbol: string
+  }
+
   const reserves: ReserveInfo[] = []
   for (const market of marketsData.markets) {
     for (const reserve of market.reserves) {
@@ -78,13 +117,10 @@ export async function syncAaveHistory(): Promise<{
     }
   }
 
-  console.log(
-    `[sync:aave] Found ${reserves.length} reserves across ${marketsData.markets.length} markets`
-  )
+  log(`[history:aave] Found ${reserves.length} reserves across ${marketsData.markets.length} markets`)
 
-  // Step 2: Fetch history for each reserve sequentially to avoid rate limiting
-  let totalWritten = 0
-  const errors: string[] = []
+  // Step 2: Fetch history for each reserve sequentially
+  const allPoints: HistoryDataPoint[] = []
 
   for (const reserve of reserves) {
     try {
@@ -103,101 +139,73 @@ export async function syncAaveHistory(): Promise<{
         .toPromise()
 
       if (error) {
-        const msg = `${reserve.tokenSymbol}@${reserve.chainName}: ${error.message}`
-        console.error(`[sync:aave] ${msg}`)
-        errors.push(msg)
+        log(`[history:aave] ${reserve.tokenSymbol}@${reserve.chainName}: ${error.message}`)
         continue
       }
 
-      // Build a map of date → { supplyApy, borrowApy }
-      const dateMap = new Map<
-        string,
-        { supplyApy: number; borrowApy: number }
-      >()
+      // Build date → { supplyApy, borrowApy } map
+      const dateMap = new Map<string, { supplyApy: number; borrowApy: number }>()
 
       for (const entry of data?.supplyAPYHistory ?? []) {
-        const existing = dateMap.get(entry.date) ?? {
-          supplyApy: 0,
-          borrowApy: 0,
-        }
+        const existing = dateMap.get(entry.date) ?? { supplyApy: 0, borrowApy: 0 }
         existing.supplyApy = entry.avgRate.value
         dateMap.set(entry.date, existing)
       }
 
       for (const entry of data?.borrowAPYHistory ?? []) {
-        const existing = dateMap.get(entry.date) ?? {
-          supplyApy: 0,
-          borrowApy: 0,
-        }
+        const existing = dateMap.get(entry.date) ?? { supplyApy: 0, borrowApy: 0 }
         existing.borrowApy = entry.avgRate.value
         dateMap.set(entry.date, existing)
       }
 
-      // Convert to timestamped snapshots
-      const snapshots: ApyTimeSeriesDocument[] = []
+      const supplyProductId = buildProductId(reserve.chainId, reserve.tokenAddress, 'supply')
+      const borrowProductId = buildProductId(reserve.chainId, reserve.tokenAddress, 'borrow')
 
-      for (const [date, _rates] of dateMap) {
-        const supplyApy = _rates.supplyApy
-        const borrowApy = _rates.borrowApy
-        const borrowAssets = 0
-        const borrowAssetsUsd = 0
-        const supplyAssets = 0
-        const supplyAssetsUsd = 0
-        const collateralAssets = 0
-        const collateralAssetsUsd = 0
+      for (const [date, rates] of dateMap) {
+        const timestamp = new Date(date)
 
-        snapshots.push({
-          timestamp: new Date(date),
-          metadata: {
-            protocol: {
-              name: config.id,
-              address: '',
-            },
-            chain: {
-              id: 0,
-              name: '',
-            },
-            vault: {
-              symbol: '',
-              name: '',
-              address: '',
-            },
-          },
-          supplyApy: {
-            native: supplyApy,
+        // Supply point
+        allPoints.push({
+          timestamp,
+          productId: supplyProductId,
+          kind: 'supply',
+          apy: {
+            base: rates.supplyApy,
             rewards: 0,
             fees: 0,
-            total: supplyApy,
+            net: rates.supplyApy,
+            rewardItems: [],
           },
-          borrowApy: {
-            native: borrowApy,
+          market: emptySupplyMarket(),
+        })
+
+        // Borrow point
+        allPoints.push({
+          timestamp,
+          productId: borrowProductId,
+          kind: 'borrow',
+          apy: {
+            base: rates.borrowApy,
             rewards: 0,
             fees: 0,
-            total: borrowApy,
+            net: rates.borrowApy,
+            rewardItems: [],
           },
-          supplyAssets,
-          supplyAssetsUsd,
-          borrowAssets,
-          borrowAssetsUsd,
-          collateralAssets,
-          collateralAssetsUsd,
+          market: emptyBorrowMarket(),
         })
       }
 
-      if (snapshots.length > 0) {
-        // await writeApySnapshotsWithTimestamps(snapshots)
-        totalWritten += snapshots.length
-        console.log(
-          `[sync:aave] ${reserve.tokenSymbol}@${reserve.chainName}: ${snapshots.length} data points`
-        )
-      }
+      log(`[history:aave] ${reserve.tokenSymbol}@${reserve.chainName}: ${dateMap.size} days`)
     } catch (err) {
-      const msg = `${reserve.tokenSymbol}@${reserve.chainName}: ${err instanceof Error ? err.message : String(err)}`
-      console.error(`[sync:aave] ${msg}`)
-      errors.push(msg)
+      log(
+        `[history:aave] ${reserve.tokenSymbol}@${reserve.chainName}: ${err instanceof Error ? err.message : String(err)}`
+      )
     }
   }
 
-  console.log(`[sync:aave] Total: ${totalWritten} data points written`)
-  return { total: totalWritten, errors }
+  log(`[history:aave] Total: ${allPoints.length} data points`)
+  return allPoints
 }
+
+// Re-export for backwards compatibility
+export { fetchAaveHistory as syncAaveHistory }

@@ -1,13 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server'
 
-import { syncAaveHistory } from '@/lib/protocols/aave'
+import { fetchAaveHistory } from '@/lib/protocols/aave'
+import { fetchCompoundDailyHistory } from '@/lib/protocols/compound'
+import { fetchMorphoHistory } from '@/lib/protocols/morpho'
 
 /**
  * One-time historical APY sync endpoint.
  * Protected by CRON_SECRET. Call with:
  *   curl -H "Authorization: Bearer <CRON_SECRET>" http://localhost:3000/api/cron/sync-history?protocol=aave
  *
- * Supported protocols: aave (morpho and compound to be added)
+ * Supported protocols: aave, morpho, compound
  */
 export async function GET(request: NextRequest) {
   const authHeader = request.headers.get('authorization')
@@ -20,32 +22,39 @@ export async function GET(request: NextRequest) {
   const startTime = Date.now()
 
   try {
-    let result: { total: number; errors: string[] }
+    let total = 0
+    const errors: string[] = []
 
     switch (protocol) {
-      case 'aave':
-        result = await syncAaveHistory()
+      case 'aave': {
+        const points = await fetchAaveHistory()
+        total = points.length
         break
-      // case 'morpho':
-      //   result = await syncMorphoHistory()
-      //   break
-      // case 'compound':
-      //   result = await syncCompoundHistory()
-      //   break
+      }
+      case 'morpho': {
+        const points = await fetchMorphoHistory()
+        total = points.length
+        break
+      }
+      case 'compound': {
+        const points = await fetchCompoundDailyHistory()
+        total = points.length
+        break
+      }
       default:
         return NextResponse.json(
           {
-            error: `Unknown or missing protocol: ${protocol}. Supported: aave`,
+            error: `Unknown or missing protocol: ${protocol}. Supported: aave, morpho, compound`,
           },
           { status: 400 }
         )
     }
 
     return NextResponse.json({
-      success: result.errors.length === 0,
+      success: errors.length === 0,
       protocol,
-      total: result.total,
-      errors: result.errors,
+      total,
+      errors,
       durationMs: Date.now() - startTime,
     })
   } catch (err) {

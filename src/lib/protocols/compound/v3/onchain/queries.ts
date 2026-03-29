@@ -230,46 +230,90 @@ export const LIST_SUPPLYING_PRODUCTS = gql`
   }
 `
 
-// export const MARKET_HOURLY_BORROW_RATES = gql`
-//   query MarketHourlyBorrowRates($where: MarketHourlySnapshot_filter) {
-//     marketHourlySnapshots(where: $where) {
-//       rates(where: { side: BORROWER }) {
-//         rate
-//       }
-//       timestamp
-//     }
-//   }
-// `
+// ─── Historical data queries ──────────────────────────────────────────────────
 
-// export const MARKET_HOURLY_LEND_RATES = gql`
-//   query MarketHourlySupplyRates($where: MarketHourlySnapshot_filter) {
-//     marketHourlySnapshots(where: $where) {
-//       rates(where: { side: LENDER }) {
-//         rate
-//       }
-//       timestamp
-//     }
-//   }
-// `
+export const MARKET_DAILY_ACCOUNTING = gql`
+  query MarketDailyAccounting(
+    $where: DailyMarketAccounting_filter
+    $first: Int
+    $skip: Int
+    $orderBy: DailyMarketAccounting_orderBy
+    $orderDirection: OrderDirection
+  ) {
+    dailyMarketAccountings(
+      where: $where
+      first: $first
+      skip: $skip
+      orderBy: $orderBy
+      orderDirection: $orderDirection
+    ) {
+      timestamp
+      market {
+        id
+        configuration {
+          symbol
+          baseToken {
+            lastPriceUsd
+          }
+        }
+      }
+      accounting {
+        supplyApr
+        netSupplyApr
+        rewardSupplyApr
+        borrowApr
+        netBorrowApr
+        rewardBorrowApr
+        totalBaseSupply
+        totalBaseSupplyUsd
+        totalBaseBorrow
+        totalBaseBorrowUsd
+        utilization
+        collateralBalanceUsd
+      }
+    }
+  }
+`
 
-// export const MARKET_DAILY_BORROW_RATES = gql`
-//   query MarketDailyBorrowRates($where: MarketDailySnapshot_filter) {
-//     marketDailySnapshots(where: $where) {
-//       rates(where: { side: BORROWER }) {
-//         rate
-//       }
-//       timestamp
-//     }
-//   }
-// `
-
-// export const MARKET_DAILY_LEND_RATES = gql`
-//   query MarketDailySupplyRates($where: MarketDailySnapshot_filter) {
-//     marketDailySnapshots(where: $where) {
-//       rates(where: { side: LENDER }) {
-//         rate
-//       }
-//       timestamp
-//     }
-//   }
-// `
+export const MARKET_HOURLY_ACCOUNTING = gql`
+  query MarketHourlyAccounting(
+    $where: HourlyMarketAccounting_filter
+    $first: Int
+    $skip: Int
+    $orderBy: HourlyMarketAccounting_orderBy
+    $orderDirection: OrderDirection
+  ) {
+    hourlyMarketAccountings(
+      where: $where
+      first: $first
+      skip: $skip
+      orderBy: $orderBy
+      orderDirection: $orderDirection
+    ) {
+      timestamp
+      market {
+        id
+        configuration {
+          symbol
+          baseToken {
+            lastPriceUsd
+          }
+        }
+      }
+      accounting {
+        supplyApr
+        netSupplyApr
+        rewardSupplyApr
+        borrowApr
+        netBorrowApr
+        rewardBorrowApr
+        totalBaseSupply
+        totalBaseSupplyUsd
+        totalBaseBorrow
+        totalBaseBorrowUsd
+        utilization
+        collateralBalanceUsd
+      }
+    }
+  }
+`

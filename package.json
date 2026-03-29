@@ -11,6 +11,7 @@
     "preinstall": "pnpx only-allow pnpm",
     "db:init": "tsx scripts/db-init.ts",
     "products:sync": "tsx scripts/products-sync.ts",
+    "apy:backfill": "tsx scripts/apy-history-backfill.ts",
     "dev": "next dev",
     "build": "pnpm codegen && next build",
     "start": "next start",
