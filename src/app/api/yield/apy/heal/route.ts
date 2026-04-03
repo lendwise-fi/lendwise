@@ -70,7 +70,7 @@ function detectProtocol(
   )
     return 'morpho'
   if (productId.startsWith('aave:')) return 'aave'
-  if (productId.startsWith('compound:')) return 'compound'
+  if (productId.startsWith('compoundcomet:')) return 'compound'
   return 'unknown'
 }
 
