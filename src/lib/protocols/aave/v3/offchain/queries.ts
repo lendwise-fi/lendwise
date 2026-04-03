@@ -1,6 +1,6 @@
 import { gql } from 'urql'
 
-export const USER_LEND_POSITIONS = gql`
+export const USER_SUPPLY_POSITIONS = gql`
   query UserSupplyPositions($request: UserSuppliesRequest!) {
     userSupplies(request: $request) {
       balance {
@@ -124,7 +124,7 @@ export const USER_LEND_COLLATERALS = gql`
     }
   }
 `
-export const MARKET_BORROW_HISTORY_RATES = gql`
+export const MARKET_BORROW_HISTORY = gql`
   query MarketBorrowHistoryRates($request: BorrowAPYHistoryRequest!) {
     borrowAPYHistory(request: $request) {
       avgRate {
@@ -134,7 +134,7 @@ export const MARKET_BORROW_HISTORY_RATES = gql`
     }
   }
 `
-export const MARKET_LEND_HISTORY_RATES = gql`
+export const MARKET_SUPPLY_HISTORY = gql`
   query MarketSupplyHistoryRates($request: SupplyAPYHistoryRequest!) {
     supplyAPYHistory(request: $request) {
       avgRate {

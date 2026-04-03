@@ -12,6 +12,8 @@ import type {
   ApySlot,
   BorrowApyDaily,
   BorrowMarketState,
+  DailyQuality,
+  DailyQualityStatus,
   SupplyApyDaily,
   SupplyMarketState,
 } from '@/lib/db/types'
@@ -21,6 +23,14 @@ import type {
 function avg(values: number[]): number {
   if (values.length === 0) return 0
   return values.reduce((s, v) => s + v, 0) / values.length
+}
+
+const EXPECTED_HOURLY_COUNT = 24
+
+function computeDailyQualityStatus(actualCount: number): DailyQualityStatus {
+  if (actualCount >= EXPECTED_HOURLY_COUNT) return 'complete'
+  if (actualCount >= EXPECTED_HOURLY_COUNT / 2) return 'partial'
+  return 'missing'
 }
 
 // ─── Aggregation ──────────────────────────────────────────────────────────────
@@ -35,7 +45,8 @@ function avg(values: number[]): number {
 async function aggregatePool(
   productId: string,
   windowStart: Date,
-  windowEnd: Date
+  windowEnd: Date,
+  computedAt: Date
 ): Promise<ApyDaily | null> {
   const db = await getDb()
   const collection = db.collection<ApySlot>(MONGODB_COLLECTION_HOURLY)
@@ -92,11 +103,21 @@ async function aggregatePool(
       assetPriceUsd: avg(hours.map((h) => h.market.assetPriceUsd)),
     }
 
+    const quality: DailyQuality = {
+      actualCount: hours.length,
+      expectedCount: EXPECTED_HOURLY_COUNT,
+      completeness: Math.min(hours.length / EXPECTED_HOURLY_COUNT, 1),
+      status: computeDailyQualityStatus(hours.length),
+      revision: 0, // will be incremented by $inc in upsert
+      computedAt,
+    }
+
     const doc: SupplyApyDaily = {
       date: windowStart,
       productId,
       apy,
       market,
+      quality,
     }
 
     return doc
@@ -126,11 +147,21 @@ async function aggregatePool(
       priceCollateralValues.length > 0 ? avg(priceCollateralValues) : null,
   }
 
+  const quality: DailyQuality = {
+    actualCount: hours.length,
+    expectedCount: EXPECTED_HOURLY_COUNT,
+    completeness: Math.min(hours.length / EXPECTED_HOURLY_COUNT, 1),
+    status: computeDailyQualityStatus(hours.length),
+    revision: 0,
+    computedAt,
+  }
+
   const doc: BorrowApyDaily = {
     date: windowStart,
     productId,
     apy,
     market,
+    quality,
   }
 
   return doc
@@ -142,9 +173,16 @@ async function upsertDailyDoc(doc: ApyDaily): Promise<void> {
   const db = await getDb()
   const collection = db.collection<ApyDaily>(MONGODB_COLLECTION_DAILY)
 
+  // Separate revision from the rest so $inc handles it atomically
+  const { quality, ...rest } = doc
+  const { revision: _revision, ...qualityWithoutRevision } = quality
+
   await collection.updateOne(
     { productId: doc.productId, date: doc.date },
-    { $set: { ...doc } },
+    {
+      $set: { ...rest, ...qualityWithoutRevision },
+      $inc: { 'quality.revision': 1 },
+    },
     { upsert: true }
   )
 }
@@ -207,7 +245,12 @@ export const POST = verifySignatureAppRouter(async (_req: NextRequest) => {
 
     for (const productId of productIds) {
       try {
-        const doc = await aggregatePool(productId, windowStart, windowEnd)
+        const doc = await aggregatePool(
+          productId,
+          windowStart,
+          windowEnd,
+          computedAt
+        )
         if (doc) {
           await upsertDailyDoc(doc)
           written++
@@ -224,7 +267,8 @@ export const POST = verifySignatureAppRouter(async (_req: NextRequest) => {
     const window = `${windowStart.toISOString()} → ${windowEnd.toISOString()}`
     console.log(
       `[cron:apy-daily] Completed — window: ${window}` +
-        ` written: ${written} skipped: ${skipped} errors: ${errors.length}`
+        ` written: ${written} skipped: ${skipped} errors: ${errors.length}` +
+        ` products: ${productIds.length}`
     )
 
     return NextResponse.json(

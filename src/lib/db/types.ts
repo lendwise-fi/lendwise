@@ -19,6 +19,7 @@ export type ProductType = 'reserve' | 'market' | 'vault'
 
 export type HourlyQualityStatus = 'building' | 'complete' | 'partial'
 export type SlotQualityStatus = 'building' | 'complete' | 'partial'
+export type DailyQualityStatus = 'complete' | 'partial' | 'missing'
 
 export interface Chain {
   id: number // EVM chain ID — 1 = Ethereum, 8453 = Base, 42161 = Arbitrum
@@ -351,6 +352,36 @@ export type SpotPayload = {
 // apy.daily collection
 // ─────────────────────────────────────────────────────────────────────────────
 
+export interface DailyQuality {
+  /**
+   * Number of hourly docs found in the [D-1 00:00Z, D 00:00Z[ window.
+   * Expected: 24 for a complete day.
+   */
+  actualCount: number
+  /** Expected hourly docs per day — always 24. */
+  expectedCount: 24
+  /**
+   * actualCount / expectedCount — 0 to 1.
+   * < 0.5  → treat as unreliable, exclude from optimization engine
+   * < 1.0  → partial day, averages may be slightly biased
+   * = 1.0  → complete day
+   */
+  completeness: number
+  /**
+   * complete — all 24 hourly docs present
+   * partial  — some hours missing but above 0.5 threshold
+   * missing  — below 0.5 threshold — document written but flagged unreliable
+   */
+  status: DailyQualityStatus
+  /**
+   * Incremented each time this daily document is recomputed.
+   * > 1 indicates the document was replayed (manual backfill or gap recovery).
+   */
+  revision: number
+  /** Timestamp when the aggregation job ran. */
+  computedAt: Date
+}
+
 export interface SupplyApyDaily {
   /**
    * Midnight UTC of the day covered.
@@ -361,6 +392,7 @@ export interface SupplyApyDaily {
   productId: string
   apy: ApyBreakdown
   market: SupplyMarketState
+  quality: DailyQuality
 }
 
 export interface BorrowApyDaily {
@@ -373,6 +405,7 @@ export interface BorrowApyDaily {
   productId: string
   apy: ApyBreakdown
   market: BorrowMarketState
+  quality: DailyQuality
 }
 
 export type ApyDaily = SupplyApyDaily | BorrowApyDaily

@@ -3,9 +3,9 @@ import type { HistoryDataPoint } from '@/lib/protocols/aave/v3/apy-history'
 import { MORPHO_CONFIG } from '@/lib/protocols/morpho/config'
 import {
   MARKETS_APY,
-  MARKET_BORROW_HISTORY_RATES,
+  MARKET_BORROW_HISTORY,
   VAULTS_APY,
-  VAULT_HISTORY,
+  VAULT_SUPPLY_HISTORY,
 } from '@/lib/protocols/morpho/v1/offchain/queries'
 import {
   buildMarketProductId,
@@ -198,7 +198,7 @@ export async function fetchMorphoHistory(opts?: {
   const vaultPoints = await processBatches(vaultAddresses, async (vault) => {
     try {
       const { data, error } = await client
-        .query<VaultHistoryQuery>(VAULT_HISTORY, {
+        .query<VaultHistoryQuery>(VAULT_SUPPLY_HISTORY, {
           address: vault.address,
           options: timeseriesOptions,
         })
@@ -322,7 +322,7 @@ export async function fetchMorphoHistory(opts?: {
   const marketPoints = await processBatches(marketKeys, async (market) => {
     try {
       const { data, error } = await client
-        .query<MarketBorrowHistoryQuery>(MARKET_BORROW_HISTORY_RATES, {
+        .query<MarketBorrowHistoryQuery>(MARKET_BORROW_HISTORY, {
           marketId: market.marketId,
           options: timeseriesOptions,
         })

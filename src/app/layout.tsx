@@ -53,6 +53,7 @@ export default function RootLayout({
             </CurrencyProvider>
           </Web3Provider>
         </ThemeProvider>
+        <Analytics />
       </body>
     </html>
   )

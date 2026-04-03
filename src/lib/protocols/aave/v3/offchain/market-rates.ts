@@ -10,10 +10,7 @@ import {
   MarketSupplyHistoryRatesQuery,
   TimeWindow,
 } from './generated/graphql'
-import {
-  MARKET_BORROW_HISTORY_RATES,
-  MARKET_LEND_HISTORY_RATES,
-} from './queries'
+import { MARKET_BORROW_HISTORY, MARKET_SUPPLY_HISTORY } from './queries'
 
 const TIMEFRAME_MAP: Record<TimeframeLabel, TimeWindow> = {
   '24h': TimeWindow.LastDay,
@@ -44,7 +41,7 @@ export async function getMarketBorrowHistoryRates({
   interval: TimeframeLabel
 }): Promise<MarketRate[]> {
   const { data, error } = await client
-    .query<MarketBorrowHistoryRatesQuery>(MARKET_BORROW_HISTORY_RATES, {
+    .query<MarketBorrowHistoryRatesQuery>(MARKET_BORROW_HISTORY, {
       request: {
         chainId,
         market: poolId,
@@ -88,7 +85,7 @@ export async function getMarketSupplyHistoryRates({
   interval: TimeframeLabel
 }): Promise<MarketRate[]> {
   const { data, error } = await client
-    .query<MarketSupplyHistoryRatesQuery>(MARKET_LEND_HISTORY_RATES, {
+    .query<MarketSupplyHistoryRatesQuery>(MARKET_SUPPLY_HISTORY, {
       request: {
         chainId,
         market: poolId,

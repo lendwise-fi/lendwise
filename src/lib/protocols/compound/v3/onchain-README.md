@@ -124,7 +124,7 @@ Some chains may have different subgraph schemas. You can override queries per ch
 
    ```typescript
    // base/queries.ts
-   export const USER_LEND_POSITIONS_BASE = gql`
+   export const USER_SUPPLY_POSITIONS_BASE = gql`
      query UserSupplyPositionsBase($where: AccountFilters) {
        accounts(where: $where) {
          # Different schema for Base
@@ -143,7 +143,7 @@ Some chains may have different subgraph schemas. You can override queries per ch
    import { createChainClient, registerChain } from '../index'
    import {
      USER_BORROW_POSITIONS_BASE,
-     USER_LEND_POSITIONS_BASE,
+     USER_SUPPLY_POSITIONS_BASE,
    } from './queries'
 
    const config = COMPOUND_V3_CHAINS[base.id]
@@ -159,7 +159,7 @@ Some chains may have different subgraph schemas. You can override queries per ch
      chainId: config.id,
      chainName: config.name,
      queries: {
-       USER_LEND_POSITIONS: USER_LEND_POSITIONS_BASE,
+       USER_SUPPLY_POSITIONS: USER_SUPPLY_POSITIONS_BASE,
        USER_BORROW_POSITIONS: USER_BORROW_POSITIONS_BASE,
      },
    })

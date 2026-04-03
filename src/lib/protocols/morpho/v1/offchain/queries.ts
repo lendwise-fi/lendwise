@@ -1,6 +1,6 @@
 import { gql } from 'urql'
 
-export const USER_LEND_POSITIONS = gql`
+export const USER_SUPPLY_POSITIONS = gql`
   query UserSupplyPositions(
     $where: VaultPositionFilters
     $first: Int
@@ -114,7 +114,7 @@ export const USER_BORROW_POSITIONS = gql`
   }
 `
 
-export const MARKET_BORROW_HISTORY_RATES = gql`
+export const MARKET_BORROW_HISTORY = gql`
   query MarketBorrowHistoryRates(
     $marketId: String!
     $options: TimeseriesOptions
@@ -130,34 +130,6 @@ export const MARKET_BORROW_HISTORY_RATES = gql`
           y
         }
         dailyBorrowApy(options: $options) {
-          x
-          y
-        }
-        fee(options: $options) {
-          x
-          y
-        }
-      }
-    }
-  }
-`
-
-export const MARKET_LEND_HISTORY_RATES = gql`
-  query MarketSupplyHistoryRates(
-    $marketId: String!
-    $options: TimeseriesOptions
-  ) {
-    market(id: $marketId) {
-      historicalState {
-        supplyApy(options: $options) {
-          x
-          y
-        }
-        netSupplyApy(options: $options) {
-          x
-          y
-        }
-        dailySupplyApy(options: $options) {
           x
           y
         }
@@ -290,7 +262,7 @@ export const VAULTS_APY = gql`
   }
 `
 
-export const VAULT_HISTORY = gql`
+export const VAULT_SUPPLY_HISTORY = gql`
   query VaultHistory($address: String!, $options: TimeseriesOptions) {
     vaultByAddress(address: $address) {
       address

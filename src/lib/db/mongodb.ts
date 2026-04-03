@@ -29,6 +29,8 @@ const options: MongoClientOptions = {
   appName: 'optimizer',
   maxIdleTimeMS: 5000,
   compressors: ['zstd', 'zlib', 'snappy'],
+  retryWrites: true,
+  retryReads: true,
   serverApi: {
     version: ServerApiVersion.v1,
     strict: true,

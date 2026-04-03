@@ -156,7 +156,7 @@ async function batchUpsert(
     const ops = batch.map((doc) => ({
       updateOne: {
         filter: { _id: doc._id },
-        update: { $setOnInsert: doc },
+        update: { $set: doc },
         upsert: true,
       },
     }))
@@ -164,121 +164,11 @@ async function batchUpsert(
     const result = await collection.bulkWrite(ops, { ordered: false })
     written += result.upsertedCount
     log(
-      `  [${label}] batch ${Math.floor(i / batchSize) + 1}: ${result.upsertedCount} inserted, ${result.modifiedCount} skipped (already exist)`
+      `  [${label}] batch ${Math.floor(i / batchSize) + 1}: ${result.upsertedCount} inserted, ${result.modifiedCount} updated`
     )
   }
 
   return written
-}
-
-// ─── Group daily points ───────────────────────────────────────────────────────
-
-/**
- * When we have hourly data and need to produce daily docs,
- * average all hourly points for the same productId+date into one daily doc.
- */
-function aggregateHourlyToDaily(
-  points: HistoryDataPoint[]
-): HistoryDataPoint[] {
-  const buckets = new Map<string, HistoryDataPoint[]>()
-
-  for (const pt of points) {
-    const date = normalizeDateMidnight(pt.timestamp)
-    const key = `${pt.productId}:${date.toISOString().slice(0, 10)}`
-    const existing = buckets.get(key) ?? []
-    existing.push(pt)
-    buckets.set(key, existing)
-  }
-
-  const dailyPoints: HistoryDataPoint[] = []
-
-  for (const [, group] of buckets) {
-    const count = group.length
-    const first = group[0]
-    const date = normalizeDateMidnight(first.timestamp)
-
-    // Average numeric APY fields
-    const avgApy: ApyBreakdown = {
-      base: group.reduce((s, p) => s + p.apy.base, 0) / count,
-      rewards: group.reduce((s, p) => s + p.apy.rewards, 0) / count,
-      fees: group.reduce((s, p) => s + p.apy.fees, 0) / count,
-      net: group.reduce((s, p) => s + p.apy.net, 0) / count,
-      rewardItems: [],
-    }
-
-    // Average market state — use the first point's shape
-    let avgMarket: SupplyMarketState | BorrowMarketState
-    if (first.kind === 'borrow') {
-      const bGroup = group as HistoryDataPoint[]
-      avgMarket = {
-        supplyAssets:
-          bGroup.reduce(
-            (s, p) => s + (p.market as BorrowMarketState).supplyAssets,
-            0
-          ) / count,
-        supplyAssetsUsd:
-          bGroup.reduce(
-            (s, p) => s + (p.market as BorrowMarketState).supplyAssetsUsd,
-            0
-          ) / count,
-        borrowAssets:
-          bGroup.reduce(
-            (s, p) => s + (p.market as BorrowMarketState).borrowAssets,
-            0
-          ) / count,
-        borrowAssetsUsd:
-          bGroup.reduce(
-            (s, p) => s + (p.market as BorrowMarketState).borrowAssetsUsd,
-            0
-          ) / count,
-        utilizationRate:
-          bGroup.reduce(
-            (s, p) => s + (p.market as BorrowMarketState).utilizationRate,
-            0
-          ) / count,
-        assetPriceUsd:
-          bGroup.reduce(
-            (s, p) => s + (p.market as BorrowMarketState).assetPriceUsd,
-            0
-          ) / count,
-        collateralAssetsUsd: null,
-        priceCollateralInLoanAsset: null,
-      } as BorrowMarketState
-    } else {
-      avgMarket = {
-        supplyAssets:
-          group.reduce(
-            (s, p) => s + (p.market as SupplyMarketState).supplyAssets,
-            0
-          ) / count,
-        supplyAssetsUsd:
-          group.reduce(
-            (s, p) => s + (p.market as SupplyMarketState).supplyAssetsUsd,
-            0
-          ) / count,
-        utilizationRate:
-          group.reduce(
-            (s, p) => s + (p.market as SupplyMarketState).utilizationRate,
-            0
-          ) / count,
-        assetPriceUsd:
-          group.reduce(
-            (s, p) => s + (p.market as SupplyMarketState).assetPriceUsd,
-            0
-          ) / count,
-      } as SupplyMarketState
-    }
-
-    dailyPoints.push({
-      timestamp: date,
-      productId: first.productId,
-      kind: first.kind,
-      apy: avgApy,
-      market: avgMarket,
-    })
-  }
-
-  return dailyPoints
 }
 
 // ─── Main ─────────────────────────────────────────────────────────────────────

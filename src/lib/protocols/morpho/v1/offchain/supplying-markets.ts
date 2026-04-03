@@ -46,7 +46,7 @@ export async function getSupplyingMarkets(): Promise<SupplyMarket[]> {
           CHAIN_NAME_MAPPING[vault.asset.chain.id] ||
           vault.asset.chain.network.toLowerCase(),
         poolName: vault.name,
-        poolId: vault.id,
+        poolId: vault.address,
         poolAddress: vault.address,
         poolChainId: vault.asset.chain.id,
         assetAddress: vault.asset.address,

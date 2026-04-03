@@ -181,7 +181,7 @@ Create `src/lib/protocols/[protocol]/v1/graphql/queries.ts`:
 ```typescript
 import { gql } from 'urql'
 
-export const USER_LEND_POSITIONS = gql`
+export const USER_SUPPLY_POSITIONS = gql`
   query UserSupplyPositions($address: String!) {
     // Your query here
   }

@@ -15,16 +15,16 @@ import { MORPHO_CONFIG } from '../../config'
 import { getBorrowingMarkets } from './borrowing-markets'
 import {
   MarketBorrowHistoryRatesQuery,
-  MarketSupplyHistoryRatesQuery,
   TimeseriesInterval,
   UserBorrowPositionsQuery,
   UserSupplyPositionsQuery,
+  VaultHistoryQuery,
 } from './generated/graphql'
 import {
-  MARKET_BORROW_HISTORY_RATES,
-  MARKET_LEND_HISTORY_RATES,
+  MARKET_BORROW_HISTORY,
   USER_BORROW_POSITIONS,
-  USER_LEND_POSITIONS,
+  USER_SUPPLY_POSITIONS,
+  VAULT_SUPPLY_HISTORY,
 } from './queries'
 import { getSupplyingMarkets } from './supplying-markets'
 
@@ -52,7 +52,7 @@ async function getUserSupplyPositions({
     // Fetch all pages until we have all positions
     while (hasMore) {
       const { data, error } = await client
-        .query<UserSupplyPositionsQuery>(USER_LEND_POSITIONS, {
+        .query<UserSupplyPositionsQuery>(USER_SUPPLY_POSITIONS, {
           where: {
             chainId_in: chainIds,
             userAddress_in: addresses,
@@ -91,7 +91,7 @@ async function getUserSupplyPositions({
             userAddress: position.user.address.toLowerCase(),
             poolName: position.vault.name,
             poolAddress: position.vault.address,
-            poolId: position.vault.id,
+            poolId: position.vault.address,
             poolChainId: Number(position.vault.chain.id),
             assetAddress: position.vault.asset.address,
             assetName: position.vault.asset.name,
@@ -247,7 +247,7 @@ async function getMarketBorrowHistoryRates({
 }): Promise<MarketRate[]> {
   console.log('borrow', poolId)
   const { data, error } = await client
-    .query<MarketBorrowHistoryRatesQuery>(MARKET_BORROW_HISTORY_RATES, {
+    .query<MarketBorrowHistoryRatesQuery>(MARKET_BORROW_HISTORY, {
       marketId: poolId,
       options: {
         startTimestamp: fromTimestamp,
@@ -283,8 +283,8 @@ async function getMarketSupplyHistoryRates({
   fromTimestamp: number
 }): Promise<MarketRate[]> {
   const { data, error } = await client
-    .query<MarketSupplyHistoryRatesQuery>(MARKET_LEND_HISTORY_RATES, {
-      marketId: poolId,
+    .query<VaultHistoryQuery>(VAULT_SUPPLY_HISTORY, {
+      address: poolId,
       options: {
         startTimestamp: fromTimestamp,
         endTimestamp: null,
@@ -294,7 +294,7 @@ async function getMarketSupplyHistoryRates({
     .toPromise()
 
   if (error) {
-    console.error(`Failed to fetch Morpho V1 supply rates:`, error)
+    console.error(`Failed to fetch Morpho V1 vault supply rates:`, error)
     if (error.message?.includes('Time-out') || error.networkError) {
       console.warn(`Morpho V1 API timeout - returning empty rates`)
     }
@@ -302,7 +302,7 @@ async function getMarketSupplyHistoryRates({
   }
 
   return (
-    data?.market.historicalState?.netSupplyApy.reverse().map((item) => ({
+    data?.vaultByAddress.historicalState?.netApy.reverse().map((item) => ({
       timestamp: item.x,
       rate: item.y ?? 0,
     })) ?? []

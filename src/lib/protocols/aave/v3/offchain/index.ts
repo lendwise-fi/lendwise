@@ -22,8 +22,8 @@ import {
   ALL_MARKETS,
   USER_BORROW_POSITIONS,
   USER_LEND_COLLATERALS,
-  USER_LEND_POSITIONS,
   USER_MARKET_HEALTH_FACTOR,
+  USER_SUPPLY_POSITIONS,
 } from './queries'
 import { getSupplyingMarkets } from './supplying-markets'
 
@@ -76,7 +76,7 @@ async function getUserSupplyPositions({
     const supplyingPositionsResults = await Promise.all(
       addresses.map(async (address) => {
         const { data, error } = await client
-          .query<UserSupplyPositionsQuery>(USER_LEND_POSITIONS, {
+          .query<UserSupplyPositionsQuery>(USER_SUPPLY_POSITIONS, {
             request: {
               collateralsOnly: false,
               user: address,

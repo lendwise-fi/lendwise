@@ -451,6 +451,21 @@ async function upsertHourly(
 
 // ─── Write hourly docs ────────────────────────────────────────────────────────
 
+const MAX_RETRIES = 3
+const RETRY_DELAY_MS = 2000
+const WRITE_BATCH_SIZE = 50
+
+function isTransientError(err: unknown): boolean {
+  const msg = err instanceof Error ? err.message : String(err)
+  return (
+    msg.includes('primary marked stale') ||
+    msg.includes('not primary') ||
+    msg.includes('node is recovering') ||
+    msg.includes('ECONNRESET') ||
+    msg.includes('socket was unexpectedly closed')
+  )
+}
+
 async function writeApySlot(
   payloads: SpotPayload[],
   slotTime: Date
@@ -461,23 +476,60 @@ async function writeApySlot(
   const collection = db.collection<ApySlot>(MONGODB_COLLECTION_HOURLY)
   const hour = normalizeHourTimestamp(slotTime)
 
-  const results = await Promise.allSettled(
-    payloads.map((p) => upsertHourly(collection, p, hour, slotTime))
-  )
+  let written = 0
+  const permanentFailures: string[] = []
 
-  const failed = results.filter((r) => r.status === 'rejected')
-  if (failed.length > 0) {
-    const messages = failed.map(
-      (e) =>
-        (e as PromiseRejectedResult).reason?.message ??
-        String((e as PromiseRejectedResult).reason)
-    )
+  // Process in batches to avoid overwhelming the connection during failovers
+  for (let i = 0; i < payloads.length; i += WRITE_BATCH_SIZE) {
+    const batch = payloads.slice(i, i + WRITE_BATCH_SIZE)
+    let pending = batch
+    let attempt = 0
+
+    while (pending.length > 0 && attempt < MAX_RETRIES) {
+      if (attempt > 0) {
+        const delay = RETRY_DELAY_MS * attempt
+        console.warn(
+          `[db:hourly] Retry ${attempt}/${MAX_RETRIES} for ${pending.length} docs (waiting ${delay}ms)`
+        )
+        await new Promise((r) => setTimeout(r, delay))
+      }
+
+      const results = await Promise.allSettled(
+        pending.map((p) => upsertHourly(collection, p, hour, slotTime))
+      )
+
+      const retryable: SpotPayload[] = []
+      for (let j = 0; j < results.length; j++) {
+        const result = results[j]
+        if (result.status === 'fulfilled') {
+          written++
+        } else if (isTransientError(result.reason)) {
+          retryable.push(pending[j])
+        } else {
+          permanentFailures.push(
+            result.reason?.message ?? String(result.reason)
+          )
+        }
+      }
+
+      pending = retryable
+      attempt++
+    }
+
+    // Exhausted retries — record remaining as failures
+    if (pending.length > 0) {
+      permanentFailures.push(
+        `${pending.length} doc(s) failed after ${MAX_RETRIES} retries (transient error)`
+      )
+    }
+  }
+
+  if (permanentFailures.length > 0) {
     throw new Error(
-      `[db:hourly] ${failed.length}/${payloads.length} upsert(s) failed: ${messages.join('; ')}`
+      `[db:hourly] ${permanentFailures.length} upsert(s) failed: ${permanentFailures.slice(0, 5).join('; ')}`
     )
   }
 
-  const written = results.filter((r) => r.status === 'fulfilled').length
   console.log(
     `[db:hourly] Upserted ${written}/${payloads.length} hourly docs for hour ${hour.toISOString()}`
   )
