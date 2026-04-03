@@ -7,6 +7,7 @@
  * - Base types for chain clients and transformers
  */
 
+export { processBatches } from './batch'
 export { createGraphQLClient, DEFAULT_SUBGRAPH_TIMEOUT } from './graphql-client'
 export { createChainRegistry } from './chain-registry'
 export type {

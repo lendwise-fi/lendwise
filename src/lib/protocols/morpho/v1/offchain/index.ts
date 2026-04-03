@@ -180,7 +180,7 @@ async function getUserBorrowPositions({
           userAddress: position.user.address.toLowerCase(),
           poolId: position.market.id,
           poolName: `${position.market.collateralAsset?.symbol}/${position.market.loanAsset?.symbol}`,
-          poolAddress: position.market.uniqueKey,
+          poolAddress: position.market.marketId,
           poolChainId: position.market.morphoBlue.chain.id,
           loanAssetAddress: position.market.loanAsset.address,
           loanAssetName: position.market.loanAsset.name,
@@ -206,7 +206,7 @@ async function getUserBorrowPositions({
           apy: position.market.state?.avgBorrowApy
             ? Number((position.market.state.avgBorrowApy * 100).toFixed(2))
             : 0,
-          link: `https://app.morpho.org/${position.market.morphoBlue.chain.network.toLowerCase()}/market/${position.market.uniqueKey}/${generateSlug(position.market.collateralAsset?.symbol + '-' + position.market.loanAsset?.symbol)}?subTab=yourPosition`,
+          link: `https://app.morpho.org/${position.market.morphoBlue.chain.network.toLowerCase()}/market/${position.market.marketId}/${generateSlug(position.market.collateralAsset?.symbol + '-' + position.market.loanAsset?.symbol)}?subTab=yourPosition`,
         })
       )
 

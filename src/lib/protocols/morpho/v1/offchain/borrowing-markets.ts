@@ -47,7 +47,7 @@ const _formatBorrowingMarkets = cache(
         apyDaily: market.state?.netBorrowApy ?? 0,
         apyMonthly: market.state?.netBorrowApy ?? 0,
         apyYearly: market.state?.netBorrowApy ?? 0,
-        link: `https://app.morpho.org/${market.morphoBlue.chain.network.toLowerCase()}/market/${market.uniqueKey}`,
+        link: `https://app.morpho.org/${market.morphoBlue.chain.network.toLowerCase()}/market/${market.marketId}`,
       }
     }) || []
 )

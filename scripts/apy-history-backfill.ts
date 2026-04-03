@@ -36,8 +36,15 @@ import {
   MONGODB_DB_NAME,
   MONGODB_URI,
 } from '@/lib/db/mongodb'
-import type { ApyBreakdown, BorrowMarketState, SupplyMarketState } from '@/lib/db/types'
-import { fetchAaveHistory, type HistoryDataPoint } from '@/lib/protocols/aave/v3/apy-history'
+import type {
+  ApyBreakdown,
+  BorrowMarketState,
+  SupplyMarketState,
+} from '@/lib/db/types'
+import {
+  type HistoryDataPoint,
+  fetchAaveHistory,
+} from '@/lib/protocols/aave/v3/apy-history'
 import {
   fetchCompoundDailyHistory,
   fetchCompoundHourlyHistory,
@@ -156,7 +163,9 @@ async function batchUpsert(
 
     const result = await collection.bulkWrite(ops, { ordered: false })
     written += result.upsertedCount
-    log(`  [${label}] batch ${Math.floor(i / batchSize) + 1}: ${result.upsertedCount} inserted, ${result.modifiedCount} skipped (already exist)`)
+    log(
+      `  [${label}] batch ${Math.floor(i / batchSize) + 1}: ${result.upsertedCount} inserted, ${result.modifiedCount} skipped (already exist)`
+    )
   }
 
   return written
@@ -168,7 +177,9 @@ async function batchUpsert(
  * When we have hourly data and need to produce daily docs,
  * average all hourly points for the same productId+date into one daily doc.
  */
-function aggregateHourlyToDaily(points: HistoryDataPoint[]): HistoryDataPoint[] {
+function aggregateHourlyToDaily(
+  points: HistoryDataPoint[]
+): HistoryDataPoint[] {
   const buckets = new Map<string, HistoryDataPoint[]>()
 
   for (const pt of points) {
@@ -200,21 +211,61 @@ function aggregateHourlyToDaily(points: HistoryDataPoint[]): HistoryDataPoint[] 
     if (first.kind === 'borrow') {
       const bGroup = group as HistoryDataPoint[]
       avgMarket = {
-        supplyAssets: bGroup.reduce((s, p) => s + (p.market as BorrowMarketState).supplyAssets, 0) / count,
-        supplyAssetsUsd: bGroup.reduce((s, p) => s + (p.market as BorrowMarketState).supplyAssetsUsd, 0) / count,
-        borrowAssets: bGroup.reduce((s, p) => s + (p.market as BorrowMarketState).borrowAssets, 0) / count,
-        borrowAssetsUsd: bGroup.reduce((s, p) => s + (p.market as BorrowMarketState).borrowAssetsUsd, 0) / count,
-        utilizationRate: bGroup.reduce((s, p) => s + (p.market as BorrowMarketState).utilizationRate, 0) / count,
-        assetPriceUsd: bGroup.reduce((s, p) => s + (p.market as BorrowMarketState).assetPriceUsd, 0) / count,
+        supplyAssets:
+          bGroup.reduce(
+            (s, p) => s + (p.market as BorrowMarketState).supplyAssets,
+            0
+          ) / count,
+        supplyAssetsUsd:
+          bGroup.reduce(
+            (s, p) => s + (p.market as BorrowMarketState).supplyAssetsUsd,
+            0
+          ) / count,
+        borrowAssets:
+          bGroup.reduce(
+            (s, p) => s + (p.market as BorrowMarketState).borrowAssets,
+            0
+          ) / count,
+        borrowAssetsUsd:
+          bGroup.reduce(
+            (s, p) => s + (p.market as BorrowMarketState).borrowAssetsUsd,
+            0
+          ) / count,
+        utilizationRate:
+          bGroup.reduce(
+            (s, p) => s + (p.market as BorrowMarketState).utilizationRate,
+            0
+          ) / count,
+        assetPriceUsd:
+          bGroup.reduce(
+            (s, p) => s + (p.market as BorrowMarketState).assetPriceUsd,
+            0
+          ) / count,
         collateralAssetsUsd: null,
         priceCollateralInLoanAsset: null,
       } as BorrowMarketState
     } else {
       avgMarket = {
-        supplyAssets: group.reduce((s, p) => s + (p.market as SupplyMarketState).supplyAssets, 0) / count,
-        supplyAssetsUsd: group.reduce((s, p) => s + (p.market as SupplyMarketState).supplyAssetsUsd, 0) / count,
-        utilizationRate: group.reduce((s, p) => s + (p.market as SupplyMarketState).utilizationRate, 0) / count,
-        assetPriceUsd: group.reduce((s, p) => s + (p.market as SupplyMarketState).assetPriceUsd, 0) / count,
+        supplyAssets:
+          group.reduce(
+            (s, p) => s + (p.market as SupplyMarketState).supplyAssets,
+            0
+          ) / count,
+        supplyAssetsUsd:
+          group.reduce(
+            (s, p) => s + (p.market as SupplyMarketState).supplyAssetsUsd,
+            0
+          ) / count,
+        utilizationRate:
+          group.reduce(
+            (s, p) => s + (p.market as SupplyMarketState).utilizationRate,
+            0
+          ) / count,
+        assetPriceUsd:
+          group.reduce(
+            (s, p) => s + (p.market as SupplyMarketState).assetPriceUsd,
+            0
+          ) / count,
       } as SupplyMarketState
     }
 
@@ -233,7 +284,8 @@ function aggregateHourlyToDaily(points: HistoryDataPoint[]): HistoryDataPoint[] 
 // ─── Main ─────────────────────────────────────────────────────────────────────
 
 async function main(): Promise<void> {
-  const { protocol, chain, dbName, dryRun, dailyOnly, startDate, endDate } = parseArgs()
+  const { protocol, chain, dbName, dryRun, dailyOnly, startDate, endDate } =
+    parseArgs()
 
   const startTs = Math.floor(startDate.getTime() / 1000)
   const endTs = Math.floor(endDate.getTime() / 1000)
@@ -247,7 +299,9 @@ async function main(): Promise<void> {
   console.log(`  Database:   ${dbName}`)
   console.log(`  Protocol:   ${protocol ?? 'all'}`)
   console.log(`  Chain:      ${chain ?? 'all'}`)
-  console.log(`  Range:      ${startDate.toISOString().slice(0, 10)} → ${endDate.toISOString().slice(0, 10)}`)
+  console.log(
+    `  Range:      ${startDate.toISOString().slice(0, 10)} → ${endDate.toISOString().slice(0, 10)}`
+  )
   console.log(`  Dry run:    ${dryRun}`)
   console.log(`  Daily only: ${dailyOnly}`)
   console.log()
@@ -270,7 +324,7 @@ async function main(): Promise<void> {
           chainFilter: chain,
           onProgress: log,
         })
-        dailyPoints.push(...aavePoints)
+        for (const pt of aavePoints) dailyPoints.push(pt)
         // For hourly: create one hourly doc at 00:00 for each daily point (within 180d)
         if (!dailyOnly) {
           for (const pt of aavePoints) {
@@ -292,7 +346,7 @@ async function main(): Promise<void> {
           interval: 'DAY',
           onProgress: log,
         })
-        dailyPoints.push(...morphoDailyPoints)
+        for (const pt of morphoDailyPoints) dailyPoints.push(pt)
 
         // Hourly history (only last 180 days)
         if (!dailyOnly) {
@@ -304,7 +358,7 @@ async function main(): Promise<void> {
             interval: 'HOUR',
             onProgress: log,
           })
-          hourlyPoints.push(...morphoHourlyPoints)
+          for (const pt of morphoHourlyPoints) hourlyPoints.push(pt)
         }
         break
       }
@@ -317,7 +371,7 @@ async function main(): Promise<void> {
           endTimestamp: endTs,
           onProgress: log,
         })
-        dailyPoints.push(...compoundDailyPoints)
+        for (const pt of compoundDailyPoints) dailyPoints.push(pt)
 
         if (!dailyOnly) {
           log('🟢 Fetching Compound hourly history...')
@@ -327,7 +381,7 @@ async function main(): Promise<void> {
             endTimestamp: endTs,
             onProgress: log,
           })
-          hourlyPoints.push(...compoundHourlyPoints)
+          for (const pt of compoundHourlyPoints) hourlyPoints.push(pt)
         }
         break
       }
@@ -353,7 +407,9 @@ async function main(): Promise<void> {
       const sample = dailyPoints[0]
       console.log('\n  Sample daily point:')
       console.log(`    productId: ${sample.productId}`)
-      console.log(`    date:      ${sample.timestamp.toISOString().slice(0, 10)}`)
+      console.log(
+        `    date:      ${sample.timestamp.toISOString().slice(0, 10)}`
+      )
       console.log(`    kind:      ${sample.kind}`)
       console.log(`    apy.net:   ${(sample.apy.net * 100).toFixed(4)}%`)
     }
@@ -383,15 +439,29 @@ async function main(): Promise<void> {
     // Write daily
     if (dailyDocs.length > 0) {
       const dailyCollection = db.collection(MONGODB_COLLECTION_DAILY)
-      const dailyWritten = await batchUpsert(dailyCollection, dailyDocs, 'daily', log)
-      console.log(`\n  ✅ Daily: ${dailyWritten} new documents inserted (${dailyDocs.length - dailyWritten} already existed)`)
+      const dailyWritten = await batchUpsert(
+        dailyCollection,
+        dailyDocs,
+        'daily',
+        log
+      )
+      console.log(
+        `\n  ✅ Daily: ${dailyWritten} new documents inserted (${dailyDocs.length - dailyWritten} already existed)`
+      )
     }
 
     // Write hourly
     if (hourlyDocs.length > 0) {
       const hourlyCollection = db.collection(MONGODB_COLLECTION_HOURLY)
-      const hourlyWritten = await batchUpsert(hourlyCollection, hourlyDocs, 'hourly', log)
-      console.log(`  ✅ Hourly: ${hourlyWritten} new documents inserted (${hourlyDocs.length - hourlyWritten} already existed)`)
+      const hourlyWritten = await batchUpsert(
+        hourlyCollection,
+        hourlyDocs,
+        'hourly',
+        log
+      )
+      console.log(
+        `  ✅ Hourly: ${hourlyWritten} new documents inserted (${hourlyDocs.length - hourlyWritten} already existed)`
+      )
     }
 
     console.log('\n✅ Backfill complete\n')

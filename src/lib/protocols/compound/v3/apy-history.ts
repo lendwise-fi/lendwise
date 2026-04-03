@@ -1,13 +1,12 @@
-import type { ApyBreakdown, BorrowMarketState, SupplyMarketState } from '@/lib/db/types'
+import type { BorrowMarketState, SupplyMarketState } from '@/lib/db/types'
+import type { HistoryDataPoint } from '@/lib/protocols/aave/v3/apy-history'
 import { COMPOUND_CONFIG } from '@/lib/protocols/compound/config'
 import {
   MARKET_DAILY_ACCOUNTING,
   MARKET_HOURLY_ACCOUNTING,
 } from '@/lib/protocols/compound/v3/onchain/queries'
-import { createGraphQLClient } from '@/lib/protocols/shared'
-import { CHAIN_NAME_MAPPING } from '@/lib/protocols/utils'
-
-import type { HistoryDataPoint } from '@/lib/protocols/aave/v3/apy-history'
+import { buildProductId } from '@/lib/protocols/compound/v3/utils'
+import { createGraphQLClient, processBatches } from '@/lib/protocols/shared'
 
 // ─── Response types ───────────────────────────────────────────────────────────
 
@@ -36,14 +35,6 @@ type AccountingSnapshot = {
   }
 }
 
-type DailyAccountingQuery = {
-  dailyMarketAccountings: AccountingSnapshot[]
-}
-
-type HourlyAccountingQuery = {
-  hourlyMarketAccountings: AccountingSnapshot[]
-}
-
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function snapshotToPoints(
@@ -55,14 +46,22 @@ function snapshotToPoints(
   const marketId = snapshot.market.id
   const acc = snapshot.accounting
 
-  const network = CHAIN_NAME_MAPPING[chainId] ?? chainName
-
-  const supplyProductId = `compoundcomet:v3:${network}:market:${marketId}:supply`
-  const borrowProductId = `compoundcomet:v3:${network}:market:${marketId}:borrow`
+  const supplyProductId = buildProductId(
+    marketId,
+    { id: chainId, name: chainName },
+    'supply'
+  )
+  const borrowProductId = buildProductId(
+    marketId,
+    { id: chainId, name: chainName },
+    'borrow'
+  )
 
   const supplyAssetsUsd = Number(acc.totalBaseSupplyUsd)
   const borrowAssetsUsd = Number(acc.totalBaseBorrowUsd)
-  const assetPriceUsd = Number(snapshot.market.configuration.baseToken.lastPriceUsd)
+  const assetPriceUsd = Number(
+    snapshot.market.configuration.baseToken.lastPriceUsd
+  )
 
   const supplyPoint: HistoryDataPoint = {
     timestamp: ts,
@@ -182,44 +181,63 @@ export async function fetchCompoundDailyHistory(opts?: {
     chainIds = [Number(found[0])]
   }
 
-  for (const chainId of chainIds) {
-    const chainConfig = config.chains[chainId]
-    if (!chainConfig?.custom?.subgraphUrl) continue
+  const validChains = chainIds
+    .map((id) => ({ chainId: id, chainConfig: config.chains[id] }))
+    .filter((c) => c.chainConfig?.custom?.subgraphUrl)
 
-    const chainClient = createGraphQLClient(
-      chainConfig.custom.subgraphUrl,
-      process.env.THEGRAPH_API_KEY,
-      60_000
-    )
+  log(
+    `[history:compound] Fetching daily snapshots for ${validChains.length} chains (in parallel batches)`
+  )
 
-    const chainName = chainConfig.name.toLowerCase()
-
-    try {
-      const where: Record<string, unknown> = {}
-      if (opts?.startTimestamp) where.timestamp_gte = String(opts.startTimestamp)
-      if (opts?.endTimestamp) where.timestamp_lte = String(opts.endTimestamp)
-
-      log(`[history:compound] Fetching daily snapshots for ${chainName}...`)
-
-      const snapshots = await fetchAllSnapshots<AccountingSnapshot>(
-        chainClient,
-        MARKET_DAILY_ACCOUNTING,
-        where,
-        'dailyMarketAccountings',
-        'timestamp'
+  const chainPoints = await processBatches(
+    validChains,
+    async ({ chainId, chainConfig }) => {
+      const chainClient = createGraphQLClient(
+        chainConfig.custom!.subgraphUrl!,
+        process.env.THEGRAPH_API_KEY,
+        60_000
       )
+      const chainName = chainConfig.name.toLowerCase()
 
-      for (const snapshot of snapshots) {
-        const [supply, borrow] = snapshotToPoints(snapshot, chainId, chainName)
-        allPoints.push(supply, borrow)
+      try {
+        const where: Record<string, unknown> = {}
+        if (opts?.startTimestamp)
+          where.timestamp_gte = String(opts.startTimestamp)
+        if (opts?.endTimestamp) where.timestamp_lte = String(opts.endTimestamp)
+
+        const snapshots = await fetchAllSnapshots<AccountingSnapshot>(
+          chainClient,
+          MARKET_DAILY_ACCOUNTING,
+          where,
+          'dailyMarketAccountings',
+          'timestamp'
+        )
+
+        const points: HistoryDataPoint[] = []
+        for (const snapshot of snapshots) {
+          const [supply, borrow] = snapshotToPoints(
+            snapshot,
+            chainId,
+            chainName
+          )
+          points.push(supply, borrow)
+        }
+
+        log(
+          `[history:compound] ${chainName}: ${snapshots.length} daily snapshots`
+        )
+        return points
+      } catch (err) {
+        log(
+          `[history:compound] ${chainName} daily failed: ${err instanceof Error ? err.message : String(err)}`
+        )
+        return null
       }
-
-      log(`[history:compound] ${chainName}: ${snapshots.length} daily snapshots`)
-    } catch (err) {
-      log(
-        `[history:compound] ${chainName} daily failed: ${err instanceof Error ? err.message : String(err)}`
-      )
     }
+  )
+
+  for (const pts of chainPoints) {
+    for (const pt of pts) allPoints.push(pt)
   }
 
   log(`[history:compound] Total daily: ${allPoints.length} data points`)
@@ -257,44 +275,63 @@ export async function fetchCompoundHourlyHistory(opts?: {
     chainIds = [Number(found[0])]
   }
 
-  for (const chainId of chainIds) {
-    const chainConfig = config.chains[chainId]
-    if (!chainConfig?.custom?.subgraphUrl) continue
+  const validChains = chainIds
+    .map((id) => ({ chainId: id, chainConfig: config.chains[id] }))
+    .filter((c) => c.chainConfig?.custom?.subgraphUrl)
 
-    const chainClient = createGraphQLClient(
-      chainConfig.custom.subgraphUrl,
-      process.env.THEGRAPH_API_KEY,
-      60_000
-    )
+  log(
+    `[history:compound] Fetching hourly snapshots for ${validChains.length} chains (in parallel batches)`
+  )
 
-    const chainName = chainConfig.name.toLowerCase()
-
-    try {
-      const where: Record<string, unknown> = {}
-      if (opts?.startTimestamp) where.timestamp_gte = String(opts.startTimestamp)
-      if (opts?.endTimestamp) where.timestamp_lte = String(opts.endTimestamp)
-
-      log(`[history:compound] Fetching hourly snapshots for ${chainName}...`)
-
-      const snapshots = await fetchAllSnapshots<AccountingSnapshot>(
-        chainClient,
-        MARKET_HOURLY_ACCOUNTING,
-        where,
-        'hourlyMarketAccountings',
-        'timestamp'
+  const chainPoints = await processBatches(
+    validChains,
+    async ({ chainId, chainConfig }) => {
+      const chainClient = createGraphQLClient(
+        chainConfig.custom!.subgraphUrl!,
+        process.env.THEGRAPH_API_KEY,
+        60_000
       )
+      const chainName = chainConfig.name.toLowerCase()
 
-      for (const snapshot of snapshots) {
-        const [supply, borrow] = snapshotToPoints(snapshot, chainId, chainName)
-        allPoints.push(supply, borrow)
+      try {
+        const where: Record<string, unknown> = {}
+        if (opts?.startTimestamp)
+          where.timestamp_gte = String(opts.startTimestamp)
+        if (opts?.endTimestamp) where.timestamp_lte = String(opts.endTimestamp)
+
+        const snapshots = await fetchAllSnapshots<AccountingSnapshot>(
+          chainClient,
+          MARKET_HOURLY_ACCOUNTING,
+          where,
+          'hourlyMarketAccountings',
+          'timestamp'
+        )
+
+        const points: HistoryDataPoint[] = []
+        for (const snapshot of snapshots) {
+          const [supply, borrow] = snapshotToPoints(
+            snapshot,
+            chainId,
+            chainName
+          )
+          points.push(supply, borrow)
+        }
+
+        log(
+          `[history:compound] ${chainName}: ${snapshots.length} hourly snapshots`
+        )
+        return points
+      } catch (err) {
+        log(
+          `[history:compound] ${chainName} hourly failed: ${err instanceof Error ? err.message : String(err)}`
+        )
+        return null
       }
-
-      log(`[history:compound] ${chainName}: ${snapshots.length} hourly snapshots`)
-    } catch (err) {
-      log(
-        `[history:compound] ${chainName} hourly failed: ${err instanceof Error ? err.message : String(err)}`
-      )
     }
+  )
+
+  for (const pts of chainPoints) {
+    for (const pt of pts) allPoints.push(pt)
   }
 
   log(`[history:compound] Total hourly: ${allPoints.length} data points`)

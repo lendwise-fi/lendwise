@@ -12,14 +12,27 @@ export function getNetworkName(chainName: string): string {
   }
 }
 
-// ─── Pool ID builder ──────────────────────────────────────────────────────────
+// ─── Primitive Product ID builder ─────────────────────────────────────────────────────
+
+export function buildReserveProductId(
+  chainId: number,
+  tokenAddress: string,
+  kind: Kind
+): string {
+  const network = CHAIN_NAME_MAPPING[chainId] ?? String(chainId)
+  return `aave:v3:${network}:reserve:${tokenAddress.toLowerCase()}:${kind}`
+}
+
+// ─── Pool ID builder ──────────────────────────────────────────────────────────────
 export function buildProductId(
   reserve: NonNullable<MarketsApyQuery['markets']>[number]['reserves'][number],
   kind: Kind
 ): string {
   // market prefix prevents collision — same token can exist on multiple AAVE markets
   // on the same chain (e.g. AaveV3Ethereum + AaveV3EthereumLido both have USDC on chain 1)
-  const chain = reserve.market.chain
-  const underlyingTokenAddress = reserve.underlyingToken.address.toLowerCase()
-  return `aave:v3:${CHAIN_NAME_MAPPING[chain.chainId] ?? chain.chainId}:reserve:${underlyingTokenAddress}:${kind}`
+  return buildReserveProductId(
+    reserve.market.chain.chainId,
+    reserve.underlyingToken.address,
+    kind
+  )
 }

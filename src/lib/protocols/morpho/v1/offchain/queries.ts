@@ -93,14 +93,15 @@ export const USER_BORROW_POSITIONS = gql`
             avgBorrowApy
             avgNetBorrowApy
           }
-          uniqueKey
+          marketId
         }
         state {
           collateral
           collateralUsd
           borrowAssets
           borrowAssetsUsd
-          marginRoe
+          marginUsd
+          margin
         }
       }
       pageInfo {
@@ -187,7 +188,7 @@ export const MARKETS_APY = gql`
           type
           level
         }
-        uniqueKey
+        marketId
         loanAsset {
           symbol
           name
@@ -337,7 +338,7 @@ export const LIST_BORROWING_PRODUCTS = gql`
       }
       items {
         id
-        uniqueKey
+        marketId
         loanAsset {
           address
           name

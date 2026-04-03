@@ -1,15 +1,17 @@
-import type { ApyBreakdown, BorrowMarketState, SupplyMarketState } from '@/lib/db/types'
+import type { BorrowMarketState, SupplyMarketState } from '@/lib/db/types'
+import type { HistoryDataPoint } from '@/lib/protocols/aave/v3/apy-history'
 import { MORPHO_CONFIG } from '@/lib/protocols/morpho/config'
 import {
-  MARKET_BORROW_HISTORY_RATES,
   MARKETS_APY,
-  VAULT_HISTORY,
+  MARKET_BORROW_HISTORY_RATES,
   VAULTS_APY,
+  VAULT_HISTORY,
 } from '@/lib/protocols/morpho/v1/offchain/queries'
-import { createGraphQLClient } from '@/lib/protocols/shared'
-import { CHAIN_NAME_MAPPING } from '@/lib/protocols/utils'
-
-import type { HistoryDataPoint } from '@/lib/protocols/aave/v3/apy-history'
+import {
+  buildMarketProductId,
+  buildVaultProductId,
+} from '@/lib/protocols/morpho/v1/utils'
+import { createGraphQLClient, processBatches } from '@/lib/protocols/shared'
 
 // ─── Response types ───────────────────────────────────────────────────────────
 
@@ -59,7 +61,7 @@ type VaultsListQuery = {
 }
 
 type MarketsListItem = {
-  uniqueKey: string
+  marketId: string
   loanAsset: {
     symbol: string
     chain: { id: number; network: string }
@@ -75,10 +77,6 @@ type MarketsListQuery = {
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
-
-function emptySupplyMarket(): SupplyMarketState {
-  return { supplyAssets: 0, supplyAssetsUsd: 0, utilizationRate: 0, assetPriceUsd: 0 }
-}
 
 function emptyBorrowMarket(): BorrowMarketState {
   return {
@@ -140,7 +138,8 @@ export async function fetchMorphoHistory(opts?: {
   }
 
   const timeseriesOptions: Record<string, unknown> = {}
-  if (opts?.startTimestamp) timeseriesOptions.startTimestamp = opts.startTimestamp
+  if (opts?.startTimestamp)
+    timeseriesOptions.startTimestamp = opts.startTimestamp
   if (opts?.endTimestamp) timeseriesOptions.endTimestamp = opts.endTimestamp
   timeseriesOptions.interval = opts?.interval ?? 'DAY'
 
@@ -149,8 +148,12 @@ export async function fetchMorphoHistory(opts?: {
   // ─── Phase 1: Supply (MetaMorpho vaults) ──────────────────────────────────
 
   // First, list all vaults to get their addresses
-  const vaultAddresses: { address: string; chainId: number; network: string; symbol: string }[] =
-    []
+  const vaultAddresses: {
+    address: string
+    chainId: number
+    network: string
+    symbol: string
+  }[] = []
   let skip = 0
   let hasMore = true
 
@@ -187,10 +190,12 @@ export async function fetchMorphoHistory(opts?: {
     }
   }
 
-  log(`[history:morpho] Found ${vaultAddresses.length} vaults`)
+  log(
+    `[history:morpho] Found ${vaultAddresses.length} vaults (fetching in parallel batches)`
+  )
 
-  // Fetch history for each vault
-  for (const vault of vaultAddresses) {
+  // Fetch history for each vault (batched)
+  const vaultPoints = await processBatches(vaultAddresses, async (vault) => {
     try {
       const { data, error } = await client
         .query<VaultHistoryQuery>(VAULT_HISTORY, {
@@ -200,8 +205,10 @@ export async function fetchMorphoHistory(opts?: {
         .toPromise()
 
       if (error || !data?.vaultByAddress) {
-        log(`[history:morpho] vault ${vault.symbol}@${vault.network}: ${error?.message ?? 'no data'}`)
-        continue
+        log(
+          `[history:morpho] vault ${vault.symbol}@${vault.network}: ${error?.message ?? 'no data'}`
+        )
+        return null
       }
 
       const hist = data.vaultByAddress.historicalState
@@ -210,19 +217,20 @@ export async function fetchMorphoHistory(opts?: {
       const feeMap = toMap(hist.fee)
       const totalAssetsUsdMap = toMap(hist.totalAssetsUsd)
 
-      const productId = `metamorpho:v1:${CHAIN_NAME_MAPPING[vault.chainId] ?? vault.network}:vault:${vault.address.toLowerCase()}`
+      const productId = buildVaultProductId(vault.chainId, vault.address)
 
       // Use netApy timestamps as reference (most complete)
       const timestamps = new Set([...apyMap.keys(), ...netApyMap.keys()])
+      const points: HistoryDataPoint[] = []
 
       for (const ts of timestamps) {
         const baseApy = apyMap.get(ts) ?? 0
         const netApy = netApyMap.get(ts) ?? 0
         const fee = feeMap.get(ts) ?? 0
-        const rewards = netApy - (baseApy * (1 - fee))
+        const rewards = netApy - baseApy * (1 - fee)
         const totalAssetsUsd = totalAssetsUsdMap.get(ts) ?? 0
 
-        allPoints.push({
+        points.push({
           timestamp: new Date(ts * 1000),
           productId,
           kind: 'supply',
@@ -242,18 +250,29 @@ export async function fetchMorphoHistory(opts?: {
         })
       }
 
-      log(`[history:morpho] vault ${vault.symbol}@${vault.network}: ${timestamps.size} points`)
+      log(
+        `[history:morpho] vault ${vault.symbol}@${vault.network}: ${timestamps.size} points`
+      )
+      return points
     } catch (err) {
       log(
         `[history:morpho] vault ${vault.symbol}@${vault.network}: ${err instanceof Error ? err.message : String(err)}`
       )
+      return null
     }
+  })
+  for (const pts of vaultPoints) {
+    for (const pt of pts) allPoints.push(pt)
   }
 
   // ─── Phase 2: Borrow (Morpho Blue markets) ───────────────────────────────
 
-  const marketKeys: { uniqueKey: string; chainId: number; network: string; loanSymbol: string }[] =
-    []
+  const marketKeys: {
+    marketId: string
+    chainId: number
+    network: string
+    loanSymbol: string
+  }[] = []
   skip = 0
   hasMore = true
 
@@ -262,7 +281,11 @@ export async function fetchMorphoHistory(opts?: {
       .query<MarketsListQuery>(MARKETS_APY, {
         first: 100,
         skip,
-        where: { listed: true, chainId_in: chainIds, borrowAssetsUsd_gte: 10000 },
+        where: {
+          listed: true,
+          chainId_in: chainIds,
+          borrowAssetsUsd_gte: 10000,
+        },
       })
       .toPromise()
 
@@ -275,9 +298,11 @@ export async function fetchMorphoHistory(opts?: {
 
     for (const market of data.markets.items) {
       marketKeys.push({
-        uniqueKey: market.uniqueKey,
+        marketId: market.marketId,
         chainId: market.loanAsset.chain.id,
-        network: market.loanAsset.chain.network.toLowerCase().replaceAll(' ', ''),
+        network: market.loanAsset.chain.network
+          .toLowerCase()
+          .replaceAll(' ', ''),
         loanSymbol: market.loanAsset.symbol,
       })
     }
@@ -290,13 +315,15 @@ export async function fetchMorphoHistory(opts?: {
     }
   }
 
-  log(`[history:morpho] Found ${marketKeys.length} borrow markets`)
+  log(
+    `[history:morpho] Found ${marketKeys.length} borrow markets (fetching in parallel batches)`
+  )
 
-  for (const market of marketKeys) {
+  const marketPoints = await processBatches(marketKeys, async (market) => {
     try {
       const { data, error } = await client
         .query<MarketBorrowHistoryQuery>(MARKET_BORROW_HISTORY_RATES, {
-          marketId: market.uniqueKey,
+          marketId: market.marketId,
           options: timeseriesOptions,
         })
         .toPromise()
@@ -305,7 +332,7 @@ export async function fetchMorphoHistory(opts?: {
         log(
           `[history:morpho] market ${market.loanSymbol}@${market.network}: ${error?.message ?? 'no data'}`
         )
-        continue
+        return null
       }
 
       const hist = data.market.historicalState
@@ -313,15 +340,19 @@ export async function fetchMorphoHistory(opts?: {
       const netBorrowApyMap = toMap(hist.netBorrowApy)
       const feeMap = toMap(hist.fee)
 
-      const productId = `morphoblue:v1:${CHAIN_NAME_MAPPING[market.chainId] ?? market.network}:market:${market.uniqueKey}`
-      const timestamps = new Set([...borrowApyMap.keys(), ...netBorrowApyMap.keys()])
+      const productId = buildMarketProductId(market.chainId, market.marketId)
+      const timestamps = new Set([
+        ...borrowApyMap.keys(),
+        ...netBorrowApyMap.keys(),
+      ])
 
+      const points: HistoryDataPoint[] = []
       for (const ts of timestamps) {
         const borrowApy = borrowApyMap.get(ts) ?? 0
         const netBorrowApy = netBorrowApyMap.get(ts) ?? borrowApy
         const fee = feeMap.get(ts) ?? 0
 
-        allPoints.push({
+        points.push({
           timestamp: new Date(ts * 1000),
           productId,
           kind: 'borrow',
@@ -336,12 +367,19 @@ export async function fetchMorphoHistory(opts?: {
         })
       }
 
-      log(`[history:morpho] market ${market.loanSymbol}@${market.network}: ${timestamps.size} points`)
+      log(
+        `[history:morpho] market ${market.loanSymbol}@${market.network}: ${timestamps.size} points`
+      )
+      return points
     } catch (err) {
       log(
         `[history:morpho] market ${market.loanSymbol}@${market.network}: ${err instanceof Error ? err.message : String(err)}`
       )
+      return null
     }
+  })
+  for (const pts of marketPoints) {
+    for (const pt of pts) allPoints.push(pt)
   }
 
   log(

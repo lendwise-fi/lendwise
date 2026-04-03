@@ -1,8 +1,15 @@
-import type { ApyBreakdown, BorrowMarketState, SupplyMarketState } from '@/lib/db/types'
+import type {
+  ApyBreakdown,
+  BorrowMarketState,
+  SupplyMarketState,
+} from '@/lib/db/types'
 import { AAVE_CONFIG } from '@/lib/protocols/aave/config'
-import { APY_HISTORY, MARKETS_WITH_TOKENS } from '@/lib/protocols/aave/v3/offchain/queries'
-import { createGraphQLClient } from '@/lib/protocols/shared'
-import { CHAIN_NAME_MAPPING } from '@/lib/protocols/utils'
+import {
+  APY_HISTORY,
+  MARKETS_WITH_TOKENS,
+} from '@/lib/protocols/aave/v3/offchain/queries'
+import { buildReserveProductId } from '@/lib/protocols/aave/v3/utils'
+import { createGraphQLClient, processBatches } from '@/lib/protocols/shared'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -31,17 +38,13 @@ export type HistoryDataPoint = {
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-function buildProductId(
-  chainId: number,
-  tokenAddress: string,
-  kind: 'supply' | 'borrow'
-): string {
-  const network = CHAIN_NAME_MAPPING[chainId] ?? String(chainId)
-  return `aave:v3:${network}:reserve:${tokenAddress.toLowerCase()}:${kind}`
-}
-
 function emptySupplyMarket(): SupplyMarketState {
-  return { supplyAssets: 0, supplyAssetsUsd: 0, utilizationRate: 0, assetPriceUsd: 0 }
+  return {
+    supplyAssets: 0,
+    supplyAssetsUsd: 0,
+    utilizationRate: 0,
+    assetPriceUsd: 0,
+  }
 }
 
 function emptyBorrowMarket(): BorrowMarketState {
@@ -93,7 +96,9 @@ export async function fetchAaveHistory(opts?: {
     .toPromise()
 
   if (marketsError || !marketsData?.markets) {
-    throw new Error(`[history:aave] Failed to list markets: ${marketsError?.message ?? 'No data'}`)
+    throw new Error(
+      `[history:aave] Failed to list markets: ${marketsError?.message ?? 'No data'}`
+    )
   }
 
   type ReserveInfo = {
@@ -117,12 +122,12 @@ export async function fetchAaveHistory(opts?: {
     }
   }
 
-  log(`[history:aave] Found ${reserves.length} reserves across ${marketsData.markets.length} markets`)
+  log(
+    `[history:aave] Found ${reserves.length} reserves across ${marketsData.markets.length} markets (fetching in parallel batches)`
+  )
 
-  // Step 2: Fetch history for each reserve sequentially
-  const allPoints: HistoryDataPoint[] = []
-
-  for (const reserve of reserves) {
+  // Step 2: Fetch history for each reserve (batched)
+  const reservePoints = await processBatches(reserves, async (reserve) => {
     try {
       const historyRequest = {
         chainId: reserve.chainId,
@@ -139,33 +144,53 @@ export async function fetchAaveHistory(opts?: {
         .toPromise()
 
       if (error) {
-        log(`[history:aave] ${reserve.tokenSymbol}@${reserve.chainName}: ${error.message}`)
-        continue
+        log(
+          `[history:aave] ${reserve.tokenSymbol}@${reserve.chainName}: ${error.message}`
+        )
+        return null
       }
 
       // Build date → { supplyApy, borrowApy } map
-      const dateMap = new Map<string, { supplyApy: number; borrowApy: number }>()
+      const dateMap = new Map<
+        string,
+        { supplyApy: number; borrowApy: number }
+      >()
 
       for (const entry of data?.supplyAPYHistory ?? []) {
-        const existing = dateMap.get(entry.date) ?? { supplyApy: 0, borrowApy: 0 }
+        const existing = dateMap.get(entry.date) ?? {
+          supplyApy: 0,
+          borrowApy: 0,
+        }
         existing.supplyApy = entry.avgRate.value
         dateMap.set(entry.date, existing)
       }
 
       for (const entry of data?.borrowAPYHistory ?? []) {
-        const existing = dateMap.get(entry.date) ?? { supplyApy: 0, borrowApy: 0 }
+        const existing = dateMap.get(entry.date) ?? {
+          supplyApy: 0,
+          borrowApy: 0,
+        }
         existing.borrowApy = entry.avgRate.value
         dateMap.set(entry.date, existing)
       }
 
-      const supplyProductId = buildProductId(reserve.chainId, reserve.tokenAddress, 'supply')
-      const borrowProductId = buildProductId(reserve.chainId, reserve.tokenAddress, 'borrow')
+      const supplyProductId = buildReserveProductId(
+        reserve.chainId,
+        reserve.tokenAddress,
+        'supply'
+      )
+      const borrowProductId = buildReserveProductId(
+        reserve.chainId,
+        reserve.tokenAddress,
+        'borrow'
+      )
 
+      const points: HistoryDataPoint[] = []
       for (const [date, rates] of dateMap) {
         const timestamp = new Date(date)
 
         // Supply point
-        allPoints.push({
+        points.push({
           timestamp,
           productId: supplyProductId,
           kind: 'supply',
@@ -180,7 +205,7 @@ export async function fetchAaveHistory(opts?: {
         })
 
         // Borrow point
-        allPoints.push({
+        points.push({
           timestamp,
           productId: borrowProductId,
           kind: 'borrow',
@@ -195,12 +220,21 @@ export async function fetchAaveHistory(opts?: {
         })
       }
 
-      log(`[history:aave] ${reserve.tokenSymbol}@${reserve.chainName}: ${dateMap.size} days`)
+      log(
+        `[history:aave] ${reserve.tokenSymbol}@${reserve.chainName}: ${dateMap.size} days`
+      )
+      return points
     } catch (err) {
       log(
         `[history:aave] ${reserve.tokenSymbol}@${reserve.chainName}: ${err instanceof Error ? err.message : String(err)}`
       )
+      return null
     }
+  })
+
+  const allPoints: HistoryDataPoint[] = []
+  for (const pts of reservePoints) {
+    for (const pt of pts) allPoints.push(pt)
   }
 
   log(`[history:aave] Total: ${allPoints.length} data points`)

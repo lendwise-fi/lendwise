@@ -105,7 +105,7 @@ export async function fetchMorphoV1Products(
           chain,
           address: market.morphoBlue.address,
           meta: {
-            id: market.uniqueKey,
+            id: market.marketId,
             lltv,
           },
         },
