@@ -61,6 +61,7 @@ type VaultsListQuery = {
 }
 
 type MarketsListItem = {
+  id: string
   marketId: string
   loanAsset: {
     symbol: string
@@ -268,6 +269,7 @@ export async function fetchMorphoHistory(opts?: {
   // ─── Phase 2: Borrow (Morpho Blue markets) ───────────────────────────────
 
   const marketKeys: {
+    id: string
     marketId: string
     chainId: number
     network: string
@@ -298,6 +300,7 @@ export async function fetchMorphoHistory(opts?: {
 
     for (const market of data.markets.items) {
       marketKeys.push({
+        id: market.id,
         marketId: market.marketId,
         chainId: market.loanAsset.chain.id,
         network: market.loanAsset.chain.network
@@ -323,7 +326,7 @@ export async function fetchMorphoHistory(opts?: {
     try {
       const { data, error } = await client
         .query<MarketBorrowHistoryQuery>(MARKET_BORROW_HISTORY, {
-          marketId: market.marketId,
+          marketId: market.id,
           options: timeseriesOptions,
         })
         .toPromise()

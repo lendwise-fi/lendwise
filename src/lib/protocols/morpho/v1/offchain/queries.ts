@@ -146,6 +146,7 @@ export const MARKETS_APY = gql`
   query MarketsApy($first: Int, $skip: Int, $where: MarketFilters) {
     markets(first: $first, skip: $skip, where: $where) {
       items {
+        id
         morphoBlue {
           address
           id
