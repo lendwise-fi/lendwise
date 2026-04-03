@@ -29,20 +29,28 @@ interface GapDetectionResult {
   window: string
   /** Total active products discovered from the products collection. */
   activeProducts: number
-  /** Total hour × product slots expected in the window. */
-  expectedSlots: number
-  /** Slots actually found in apy.hourly. */
-  foundSlots: number
-  /** Completely missing slots (no hourly doc at all). */
-  missingSlots: number
-  /** Slots with quality.count < 6 (incomplete hour). */
-  incompleteSlots: number
+  /** Products that have at least 1 hourly doc in the window — the "collected" set. */
+  collectedProducts: number
+  /** Products active in `products` but with zero hourly docs in the window. */
+  neverIndexedCount: number
+  /**
+   * Operational metrics — computed only over collected products.
+   * These are the numbers suitable for alerting.
+   */
+  collected: {
+    expectedSlots: number
+    foundSlots: number
+    missingSlots: number
+    incompleteSlots: number
+  }
   /** Number of stale hourly docs marked as 'partial' (R3). */
   markedStale: number
-  /** Up to 50 missing gaps for debugging. */
+  /** Up to 50 missing gaps (collected products only) for debugging. */
   gaps: GapReport[]
   /** Up to 50 incomplete slots for debugging. */
   incomplete: IncompleteReport[]
+  /** Up to 50 never-indexed productIds for investigation. */
+  neverIndexed: string[]
   durationMs: number
 }
 
@@ -148,17 +156,33 @@ export const POST = verifySignatureAppRouter(async (req: NextRequest) => {
       })
     }
 
-    // ─── Detect gaps and incomplete slots ──────────────────────────────────────
+    // ─── Partition: collected vs never-indexed ────────────────────────────────
+    // A product is "collected" if it has at least 1 hourly doc in the window.
+    const collectedProductIds = new Set<string>()
+    for (const doc of existingDocs) {
+      collectedProductIds.add(doc.productId)
+    }
+
+    const neverIndexed: string[] = []
+    for (const id of activeProductIds) {
+      if (!collectedProductIds.has(id)) {
+        if (neverIndexed.length < 50) neverIndexed.push(id)
+      }
+    }
+    const neverIndexedCount = activeProductIds.length - collectedProductIds.size
+
+    // ─── Detect gaps and incomplete slots (collected products only) ──────────
     const gaps: GapReport[] = []
     const incomplete: IncompleteReport[] = []
     let missingCount = 0
     let incompleteCount = 0
+    let foundCollectedSlots = 0
 
-    const expectedSlots = activeProductIds.length * hourBoundaries.length
+    const collectedExpected = collectedProductIds.size * hourBoundaries.length
 
     for (const hour of hourBoundaries) {
       const hourISO = hour.toISOString()
-      for (const productId of activeProductIds) {
+      for (const productId of collectedProductIds) {
         const key = `${productId}|${hourISO}`
         const entry = existingMap.get(key)
 
@@ -169,6 +193,7 @@ export const POST = verifySignatureAppRouter(async (req: NextRequest) => {
           }
         } else if (entry.count < 6) {
           incompleteCount++
+          foundCollectedSlots++
           if (incomplete.length < 50) {
             incomplete.push({
               hour: hourISO,
@@ -176,6 +201,8 @@ export const POST = verifySignatureAppRouter(async (req: NextRequest) => {
               count: entry.count,
             })
           }
+        } else {
+          foundCollectedSlots++
         }
       }
     }
@@ -201,16 +228,18 @@ export const POST = verifySignatureAppRouter(async (req: NextRequest) => {
 
     if (missingCount > 0 || incompleteCount > 0) {
       console.warn(
-        `[cron:gap-detect] ⚠️ Gaps found — window: ${windowStr}` +
+        `[cron:gap-detect] ⚠️ Gaps in collected products — window: ${windowStr}` +
           ` missing: ${missingCount} incomplete: ${incompleteCount}` +
           ` markedStale: ${markedStale}` +
-          ` (${activeProductIds.length} products × ${hourBoundaries.length}h = ${expectedSlots} expected)`
+          ` (${collectedProductIds.size} collected × ${hourBoundaries.length}h = ${collectedExpected} expected)` +
+          ` neverIndexed: ${neverIndexedCount}`
       )
     } else {
       console.log(
         `[cron:gap-detect] ✅ No gaps — window: ${windowStr}` +
-          ` ${existingDocs.length}/${expectedSlots} slots OK` +
-          ` markedStale: ${markedStale}`
+          ` ${foundCollectedSlots}/${collectedExpected} collected slots OK` +
+          ` markedStale: ${markedStale}` +
+          ` neverIndexed: ${neverIndexedCount}`
       )
     }
 
@@ -218,13 +247,18 @@ export const POST = verifySignatureAppRouter(async (req: NextRequest) => {
       success: true,
       window: windowStr,
       activeProducts: activeProductIds.length,
-      expectedSlots,
-      foundSlots: existingDocs.length,
-      missingSlots: missingCount,
-      incompleteSlots: incompleteCount,
+      collectedProducts: collectedProductIds.size,
+      neverIndexedCount,
+      collected: {
+        expectedSlots: collectedExpected,
+        foundSlots: foundCollectedSlots,
+        missingSlots: missingCount,
+        incompleteSlots: incompleteCount,
+      },
       markedStale,
       gaps,
       incomplete,
+      neverIndexed,
       durationMs,
     }
 
