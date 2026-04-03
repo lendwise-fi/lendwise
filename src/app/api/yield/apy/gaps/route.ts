@@ -262,6 +262,41 @@ export const POST = verifySignatureAppRouter(async (req: NextRequest) => {
       durationMs,
     }
 
+    // ─── Persist report to MongoDB ──────────────────────────────────────
+    let reportId: string | null = null
+    try {
+      const insert = await db.collection('pipeline.reports').insertOne({
+        type: 'gap-detection',
+        createdAt: new Date(),
+        ...result,
+      })
+      reportId = insert.insertedId.toHexString()
+    } catch (err) {
+      console.error(
+        '[cron:gap-detect] Failed to persist report:',
+        err instanceof Error ? err.message : String(err)
+      )
+    }
+
+    // ─── Log detail summary to Vercel logs ──────────────────────────────
+    console.log(
+      `[cron:gap-detect] Report detail` +
+        (reportId ? ` (reportId: ${reportId})` : '') +
+        `:\n` +
+        JSON.stringify(
+          {
+            reportId,
+            collected: result.collected,
+            neverIndexedCount: result.neverIndexedCount,
+            neverIndexed: result.neverIndexed.slice(0, 10),
+            gapsSample: result.gaps.slice(0, 10),
+            incompleteSample: result.incomplete.slice(0, 10),
+          },
+          null,
+          2
+        )
+    )
+
     return NextResponse.json(result)
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error)
