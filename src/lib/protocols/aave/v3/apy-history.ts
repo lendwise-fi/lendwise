@@ -70,6 +70,8 @@ function emptyBorrowMarket(): BorrowMarketState {
  */
 export async function fetchAaveHistory(opts?: {
   chainFilter?: string
+  /** AAVE API window — e.g. 'LAST_DAY' (hourly points) or 'LAST_YEAR' (daily). Default: 'LAST_YEAR'. */
+  window?: string
   onProgress?: (msg: string) => void
 }): Promise<HistoryDataPoint[]> {
   const log = opts?.onProgress ?? console.log
@@ -133,7 +135,7 @@ export async function fetchAaveHistory(opts?: {
         chainId: reserve.chainId,
         market: reserve.marketAddress,
         underlyingToken: reserve.tokenAddress,
-        window: 'LAST_YEAR',
+        window: opts?.window ?? 'LAST_YEAR',
       }
 
       const { data, error } = await client
