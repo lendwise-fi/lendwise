@@ -62,7 +62,10 @@ async function writeProductDocs(products: Product[]): Promise<void> {
 
 export type SyncProductsResult = {
   success: boolean
-  counts: Partial<Record<ProtocolName, number>> & { total: number }
+  counts: Partial<Record<ProtocolName, number>> & {
+    total: number
+    deactivated: number
+  }
   errors: string[]
   durationMs: number
 }
@@ -99,7 +102,7 @@ export async function syncProducts(
   if (tasks.length === 0) {
     return {
       success: false,
-      counts: { total: 0 },
+      counts: { total: 0, deactivated: 0 },
       errors: [`Unknown protocol: ${protocol}`],
       durationMs: 0,
     }
@@ -127,6 +130,46 @@ export async function syncProducts(
     }
   }
 
+  // ─── Deactivate products for successfully fetched protocols ──────────
+  // Only deactivate protocols whose fetch succeeded — a failed fetch must
+  // not cause all products for that protocol to disappear.
+  let deactivated = 0
+  const succeededProviders = new Set<string>()
+
+  for (let i = 0; i < results.length; i++) {
+    if (results[i].status === 'fulfilled') {
+      const protoId = tasks[i][0] // e.g. "aave_v3"
+      const provider = protoId.split('_')[0] // e.g. "aave"
+      succeededProviders.add(provider)
+    }
+  }
+
+  if (succeededProviders.size > 0) {
+    try {
+      const db = await getDb()
+      const collection = db.collection<Product>(MONGODB_COLLECTION_PRODUCTS)
+
+      const deactivateResult = await collection.updateMany(
+        {
+          'protocol.provider': { $in: [...succeededProviders] },
+          active: true,
+        },
+        { $set: { active: false, updatedAt: new Date() } }
+      )
+      deactivated = deactivateResult.modifiedCount
+
+      console.log(
+        `[sync:products] Deactivated ${deactivated} products` +
+          ` for providers: ${[...succeededProviders].join(', ')}`
+      )
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err)
+      errors.push(`deactivation: ${msg}`)
+      console.error('[sync:products] Failed to deactivate:', msg)
+    }
+  }
+
+  // ─── Upsert fetched products (re-activates them) ────────────────────
   if (allProducts.length > 0) {
     try {
       await writeProductDocs(allProducts)
@@ -144,12 +187,13 @@ export async function syncProducts(
     .join(' ')
 
   console.log(
-    `[sync:products] Completed in ${durationMs}ms — ${countSummary} total:${allProducts.length}`
+    `[sync:products] Completed in ${durationMs}ms — ${countSummary}` +
+      ` total:${allProducts.length} deactivated:${deactivated}`
   )
 
   return {
     success: errors.length === 0,
-    counts: { ...protoCounts, total: allProducts.length },
+    counts: { ...protoCounts, total: allProducts.length, deactivated },
     errors,
     durationMs,
   }
