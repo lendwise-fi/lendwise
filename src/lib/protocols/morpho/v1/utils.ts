@@ -5,6 +5,19 @@ import type {
 } from '@/lib/protocols/morpho/v1/offchain/generated/graphql'
 import { CHAIN_NAME_MAPPING } from '@/lib/protocols/utils'
 
+// ─── Primitive Product ID builders ───────────────────────────────────────────
+
+export function buildVaultProductId(chainId: number, address: string): string {
+  return `metamorpho:v1:${CHAIN_NAME_MAPPING[chainId] ?? chainId}:vault:${address.toLowerCase()}`
+}
+
+export function buildMarketProductId(
+  chainId: number,
+  marketId: string
+): string {
+  return `morphoblue:v1:${CHAIN_NAME_MAPPING[chainId] ?? chainId}:market:${marketId}`
+}
+
 // ─── Market Product ID builder ──────────────────────────────────────────────────────────
 export function buildProductId(
   product:
@@ -16,13 +29,10 @@ export function buildProductId(
     const vault = product as NonNullable<
       ListSupplyingProductsQuery['vaults']['items']
     >[number]
-    const chain = vault.asset.chain
-    return `metamorpho:v1:${CHAIN_NAME_MAPPING[chain.id] ?? chain.id}:vault:${vault.address.toLowerCase()}`
+    return buildVaultProductId(vault.asset.chain.id, vault.address)
   }
   const market = product as NonNullable<
     MarketsApyQuery['markets']['items']
   >[number]
-
-  const chain = market.loanAsset.chain
-  return `morphoblue:v1:${CHAIN_NAME_MAPPING[chain.id] ?? chain.id}:market:${market.uniqueKey}`
+  return buildMarketProductId(market.loanAsset.chain.id, market.marketId)
 }

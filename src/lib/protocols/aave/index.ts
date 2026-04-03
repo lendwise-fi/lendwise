@@ -33,5 +33,5 @@ export const AaveAdapter = createProtocolAdapter(
 // ============================================================================
 export { AAVE_CONFIG } from './config'
 export { fetchAaveV3ApySpot } from './v3/apy-spot'
-export { syncAaveHistory } from './v3/apy-history'
+export { fetchAaveHistory, syncAaveHistory } from './v3/apy-history'
 export { fetchAaveV3Products } from './v3/products'

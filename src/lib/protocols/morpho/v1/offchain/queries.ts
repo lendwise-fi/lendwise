@@ -93,14 +93,15 @@ export const USER_BORROW_POSITIONS = gql`
             avgBorrowApy
             avgNetBorrowApy
           }
-          uniqueKey
+          marketId
         }
         state {
           collateral
           collateralUsd
           borrowAssets
           borrowAssetsUsd
-          marginRoe
+          marginUsd
+          margin
         }
       }
       pageInfo {
@@ -187,7 +188,7 @@ export const MARKETS_APY = gql`
           type
           level
         }
-        uniqueKey
+        marketId
         loanAsset {
           symbol
           name
@@ -289,6 +290,43 @@ export const VAULTS_APY = gql`
   }
 `
 
+export const VAULT_HISTORY = gql`
+  query VaultHistory($address: String!, $options: TimeseriesOptions) {
+    vaultByAddress(address: $address) {
+      address
+      asset {
+        symbol
+        chain {
+          id
+          network
+        }
+      }
+      historicalState {
+        apy(options: $options) {
+          x
+          y
+        }
+        netApy(options: $options) {
+          x
+          y
+        }
+        fee(options: $options) {
+          x
+          y
+        }
+        totalAssetsUsd(options: $options) {
+          x
+          y
+        }
+        totalAssets(options: $options) {
+          x
+          y
+        }
+      }
+    }
+  }
+`
+
 export const LIST_BORROWING_PRODUCTS = gql`
   query ListBorrowingProducts($first: Int, $skip: Int, $where: MarketFilters) {
     markets(first: $first, skip: $skip, where: $where) {
@@ -300,7 +338,7 @@ export const LIST_BORROWING_PRODUCTS = gql`
       }
       items {
         id
-        uniqueKey
+        marketId
         loanAsset {
           address
           name
