@@ -174,6 +174,9 @@ export const POST = verifySignatureAppRouter(async (req: NextRequest) => {
 
   try {
     const body = await req.json().catch(() => ({}))
+    console.log(
+      `[cron:heal] Starting heal job (reportId: ${body.reportId || 'latest'})`
+    )
     const db = await getDb()
 
     // ─── Load gap report ────────────────────────────────────────────────
@@ -274,9 +277,9 @@ export const POST = verifySignatureAppRouter(async (req: NextRequest) => {
     const aaveGaps = gapsByProtocol.get('aave') ?? []
     if (aaveGaps.length > 0) {
       try {
-        console.log(`[cron:heal] Fetching AAVE history (LAST_DAY window)…`)
+        console.log(`[cron:heal] Fetching AAVE history (LAST_WEEK window)…`)
         const aavePoints = await fetchAaveHistory({
-          window: 'LAST_DAY',
+          window: 'LAST_WEEK',
           onProgress: (msg) => console.log(`[cron:heal] ${msg}`),
         })
 
