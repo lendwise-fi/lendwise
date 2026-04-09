@@ -64,6 +64,8 @@ export async function getBorrowingMarkets(): Promise<SupplyMarket[]> {
           first: 100,
           skip,
           where: {
+            listed: true,
+            supplyAssetsUsd_gte: 10000,
             chainId_in: Object.keys(MORPHO_CONFIG.morpho_v1.chains).map((key) =>
               Number(key)
             ),

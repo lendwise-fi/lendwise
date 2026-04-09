@@ -19,11 +19,11 @@ export async function getSupplyingMarkets(): Promise<SupplyMarket[]> {
           first: 100,
           skip,
           where: {
+            listed: true,
             totalAssetsUsd_gte: 100000,
             chainId_in: Object.keys(MORPHO_CONFIG.morpho_v1.chains).map((key) =>
               Number(key)
             ),
-            listed: true,
           },
         })
         .toPromise()

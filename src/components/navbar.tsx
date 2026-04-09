@@ -1,13 +1,7 @@
 'use client'
 
 import { ConnectButton } from '@rainbow-me/rainbowkit'
-import {
-  Bell,
-  BookMarked,
-  HelpCircle,
-  Moon,
-  MoreHorizontal,
-} from 'lucide-react'
+import { BookMarked, HelpCircle, Moon, MoreHorizontal } from 'lucide-react'
 import { useAccount } from 'wagmi'
 
 import { Button } from '@/components/ui/button'
@@ -18,57 +12,12 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from '@/components/ui/popover'
 
 import { ThemeSwitcher } from './theme/ThemeSwitcher'
 import { UserMenu } from './user/UserMenu'
 
-const NotificationsPopover = () => {
-  const { isConnected } = useAccount()
-
-  return (
-    <Popover>
-      <PopoverTrigger asChild>
-        <Button variant="ghost" size="icon">
-          <Bell className="h-5 w-5" />
-        </Button>
-      </PopoverTrigger>
-      <PopoverContent className="w-80">
-        {isConnected ? (
-          <div className="flex flex-col items-center gap-y-4 py-4 text-center">
-            <div className="bg-muted rounded-full p-3">
-              <Bell className="h-8 w-8" />
-            </div>
-            <p className="font-semibold">No new notifications</p>
-            <p className="text-muted-foreground text-sm">Check back later!</p>
-          </div>
-        ) : (
-          <div className="flex flex-col items-center gap-y-4 py-4 text-center">
-            <div className="bg-muted rounded-full p-3">
-              <Bell className="h-8 w-8" />
-            </div>
-            <div className="space-y-2">
-              <p className="font-semibold">Notifications</p>
-              <p className="text-muted-foreground text-sm">
-                En signant, vous acceptez les conditions d’utilisation de Zapper
-                et acceptez sa politique de confidentialité
-              </p>
-            </div>
-            <Button className="w-full">Sign in with Ethereum</Button>
-          </div>
-        )}
-      </PopoverContent>
-    </Popover>
-  )
-}
-
 const DisconnectedNav = () => (
   <div className="flex items-center gap-x-2">
-    <NotificationsPopover />
     <ConnectButton.Custom>
       {({ openConnectModal, mounted }) => {
         if (!mounted) return null
@@ -82,7 +31,6 @@ const DisconnectedNav = () => (
 const ConnectedNav = () => {
   return (
     <div className="flex items-center gap-x-2">
-      <NotificationsPopover />
       <UserMenu />
     </div>
   )

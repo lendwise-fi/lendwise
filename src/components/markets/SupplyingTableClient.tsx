@@ -12,6 +12,7 @@ import { loadSupplyingMarkets } from '@/app/actions/markets.actions'
 import { NetworkBadge } from '@/components/badge/NetworkBadge'
 import { ProtocolBadge } from '@/components/badge/ProtocolBadge'
 import { NetworkIcon, ProtocolIcon, TokenIcon } from '@/components/icon'
+import { TableSkeleton } from '@/components/markets/TableSkeleton'
 import { SupplyingOptimizerView } from '@/components/optimizer/SupplyingOptimizerButton'
 import {
   DataTable,
@@ -233,7 +234,7 @@ export function SupplyingTableClient() {
     horizon,
     Object.keys(rowSelection).length
   )
-  const { data } = useQuery<SupplyMarket[]>({
+  const { data, isPending } = useQuery<SupplyMarket[]>({
     queryKey: ['supplyingMarkets'],
     queryFn: loadSupplyingMarkets,
     staleTime: 60_000, // 60s - aligned with server revalidate
@@ -251,6 +252,8 @@ export function SupplyingTableClient() {
   )
 
   const selectedData = (data || []).filter((row) => rowSelection[getRowId(row)])
+
+  if (isPending) return <TableSkeleton />
 
   return (
     <div className="space-y-4">

@@ -35,10 +35,7 @@ async function fetchSupplyingMarkets(): Promise<SupplyMarket[]> {
 export const loadSupplyingMarkets = unstable_cache(
   fetchSupplyingMarkets,
   ['supplying-markets'],
-  {
-    revalidate: 60,
-    tags: ['supplying-markets'],
-  }
+  { revalidate: 60, tags: ['supplying-markets'] }
 )
 
 async function fetchBorrowingMarkets(): Promise<SupplyMarket[]> {
@@ -71,8 +68,5 @@ async function fetchBorrowingMarkets(): Promise<SupplyMarket[]> {
 export const loadBorrowingMarkets = unstable_cache(
   fetchBorrowingMarkets,
   ['borrowing-markets'],
-  {
-    revalidate: 60,
-    tags: ['borrowing-markets'],
-  }
+  { revalidate: 60, tags: ['borrowing-markets'] }
 )

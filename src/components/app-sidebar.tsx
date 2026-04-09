@@ -4,11 +4,9 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 
 import {
-  BarChart3,
   PanelLeftClose,
   PanelLeftOpen,
   PieChart,
-  Shield,
   TrendingUp,
   Wallet,
 } from 'lucide-react'
@@ -33,12 +31,6 @@ import { Separator } from './ui/separator'
 
 const navigationItems = [
   {
-    title: 'Dashboard',
-    href: '/dashboard',
-    icon: BarChart3,
-    description: 'Overview & Analytics',
-  },
-  {
     title: 'Supplying',
     href: '/supplying',
     icon: TrendingUp,
@@ -49,12 +41,6 @@ const navigationItems = [
     href: '/borrowing',
     icon: Wallet,
     description: 'Cost Minimization',
-  },
-  {
-    title: 'Risk Monitor',
-    href: '/risk',
-    icon: Shield,
-    description: 'Health & Safety',
   },
   {
     title: 'Portfolio',
