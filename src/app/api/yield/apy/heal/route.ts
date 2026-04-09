@@ -137,17 +137,18 @@ function buildHealOp(
   sourceDetail: string,
   gapKind: 'missing' | 'incomplete' = 'missing'
 ): AnyBulkWriteOperation<ApySlot> {
+  const isRefetch = source === 'refetch'
   const healFields = {
     hour,
     productId,
     apy,
     market,
     quality: {
-      count: 0,
+      count: isRefetch ? 6 : 0,
       expectedCount: 6 as const,
       firstSlot: hour,
       lastSlot: hour,
-      status: 'partial' as const,
+      status: isRefetch ? ('complete' as const) : ('partial' as const),
     },
     healed: true,
     healSource: source,
