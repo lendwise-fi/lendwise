@@ -84,7 +84,7 @@ function generateHourBoundaries(windowStart: Date, windowEnd: Date): Date[] {
  * Body (JSON, optional):
  *   hours (number): How many hours to scan back. Default: 168 (7 days).
  */
-export const POST = verifySignatureAppRouter(async (req: NextRequest) => {
+async function gapsHandler(req: NextRequest) {
   const start = Date.now()
 
   try {
@@ -112,10 +112,20 @@ export const POST = verifySignatureAppRouter(async (req: NextRequest) => {
     const productsCollection = db.collection<Product>(
       MONGODB_COLLECTION_PRODUCTS
     )
-    const activeProductIds: string[] = await productsCollection
-      .find({ active: true }, { projection: { _id: 1 } })
-      .map((p) => p._id)
+    const activeProducts = await productsCollection
+      .find({ active: true }, { projection: { _id: 1, createdAt: 1 } })
       .toArray()
+    const activeProductIds = activeProducts.map((p) => p._id)
+
+    // Map productId → createdAt (floor to hour boundary)
+    const productCreatedAt = new Map<string, Date>()
+    for (const p of activeProducts) {
+      if (p.createdAt) {
+        const ca = new Date(p.createdAt)
+        ca.setUTCMinutes(0, 0, 0)
+        productCreatedAt.set(p._id, ca)
+      }
+    }
 
     if (activeProductIds.length === 0) {
       return NextResponse.json({
@@ -141,18 +151,23 @@ export const POST = verifySignatureAppRouter(async (req: NextRequest) => {
             hour: 1,
             'quality.count': 1,
             'quality.status': 1,
+            healed: 1,
           },
         }
       )
       .toArray()
 
     // Build a lookup: "productId|hourISO" → { count, status }
-    const existingMap = new Map<string, { count: number; status: string }>()
+    const existingMap = new Map<
+      string,
+      { count: number; status: string; healed: boolean }
+    >()
     for (const doc of existingDocs) {
       const key = `${doc.productId}|${doc.hour.toISOString()}`
       existingMap.set(key, {
         count: doc.quality?.count ?? 0,
         status: doc.quality?.status ?? 'building',
+        healed: !!(doc as Record<string, unknown>).healed,
       })
     }
 
@@ -184,13 +199,17 @@ export const POST = verifySignatureAppRouter(async (req: NextRequest) => {
     for (const hour of hourBoundaries) {
       const hourISO = hour.toISOString()
       for (const productId of collectedProductIds) {
+        // Skip hours before the product was created
+        const createdAt = productCreatedAt.get(productId)
+        if (createdAt && hour < createdAt) continue
+
         const key = `${productId}|${hourISO}`
         const entry = existingMap.get(key)
 
         if (!entry) {
           missingCount++
           allGaps.push({ hour: hourISO, productId })
-        } else if (entry.count < 6) {
+        } else if (entry.count < 6 && !entry.healed) {
           incompleteCount++
           foundCollectedSlots++
           allIncomplete.push({ hour: hourISO, productId, count: entry.count })
@@ -310,4 +329,9 @@ export const POST = verifySignatureAppRouter(async (req: NextRequest) => {
       { status: 500 }
     )
   }
-})
+}
+
+export const POST =
+  process.env.NODE_ENV === 'development'
+    ? gapsHandler
+    : verifySignatureAppRouter(gapsHandler)

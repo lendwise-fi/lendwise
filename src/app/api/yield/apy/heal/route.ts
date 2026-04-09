@@ -192,7 +192,7 @@ function buildHealOp(
  * Body (JSON, optional):
  *   reportId (string): specific gap report ObjectId. Default: latest.
  */
-export const POST = verifySignatureAppRouter(async (req: NextRequest) => {
+async function healHandler(req: NextRequest) {
   const start = Date.now()
   const errors: string[] = []
 
@@ -458,8 +458,8 @@ export const POST = verifySignatureAppRouter(async (req: NextRequest) => {
           const result = await hourlyCollection.bulkWrite(chunk, {
             ordered: false,
           })
-          healed += result.upsertedCount
-          alreadyExists += result.matchedCount
+          healed += result.upsertedCount + result.modifiedCount
+          alreadyExists += result.matchedCount - result.modifiedCount
         } catch (err) {
           const msg = err instanceof Error ? err.message : String(err)
           errors.push(`bulkWrite chunk ${i}: ${msg}`)
@@ -530,4 +530,9 @@ export const POST = verifySignatureAppRouter(async (req: NextRequest) => {
       { status: 500 }
     )
   }
-})
+}
+
+export const POST =
+  process.env.NODE_ENV === 'development'
+    ? healHandler
+    : verifySignatureAppRouter(healHandler)

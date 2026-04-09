@@ -15,6 +15,7 @@ interface SlotInfo {
   status: 'complete' | 'partial' | 'building'
   healed: boolean
   productCount: number
+  expectedProducts: number
 }
 
 interface ProtocolRow {
@@ -73,10 +74,20 @@ export async function GET() {
     const productsCollection = db.collection<Product>(
       MONGODB_COLLECTION_PRODUCTS
     )
-    const activeProducts = await productsCollection
-      .find({ active: true }, { projection: { _id: 1 } })
-      .map((p) => p._id)
+    const activeProductDocs = await productsCollection
+      .find({ active: true }, { projection: { _id: 1, createdAt: 1 } })
       .toArray()
+    const activeProducts = activeProductDocs.map((p) => p._id)
+
+    // Map productId → createdAt (floored to hour boundary)
+    const productCreatedAt = new Map<string, Date>()
+    for (const p of activeProductDocs) {
+      if (p.createdAt) {
+        const ca = new Date(p.createdAt)
+        ca.setUTCMinutes(0, 0, 0)
+        productCreatedAt.set(p._id, ca)
+      }
+    }
 
     const productsByProtocol = new Map<string, string[]>()
     for (const pid of activeProducts) {
@@ -178,11 +189,18 @@ export async function GET() {
             status: 'partial' as const,
             healed: false,
             productCount: 0,
+            expectedProducts: totalProducts,
           }
         }
 
         // Determine slot quality based on ratio of complete products
-        const completeRatio = agg.complete / totalProducts
+        const protoProductsList = productsByProtocol.get(key) ?? []
+        const expectedAtHourForRatio =
+          protoProductsList.filter((pid) => {
+            const ca = productCreatedAt.get(pid)
+            return !ca || h <= ca ? false : true
+          }).length || totalProducts
+        const completeRatio = agg.complete / expectedAtHourForRatio
         const isComplete = completeRatio >= 0.95
         const isPartial = agg.productCount > 0
 
@@ -194,12 +212,20 @@ export async function GET() {
           summaryMissing++
         }
 
+        // Count how many products existed at this hour
+        const protoProducts = productsByProtocol.get(key) ?? []
+        const expectedAtHour = protoProducts.filter((pid) => {
+          const ca = productCreatedAt.get(pid)
+          return !ca || h <= ca ? false : true
+        }).length
+
         return {
           hour: hourKey,
-          count: Math.round(agg.totalCount / agg.productCount),
+          count: Math.min(6, Math.round(agg.totalCount / agg.productCount)),
           status: isComplete ? ('complete' as const) : ('partial' as const),
           healed: agg.healed > 0,
           productCount: agg.productCount,
+          expectedProducts: expectedAtHour || totalProducts,
         }
       })
 
@@ -224,10 +250,7 @@ export async function GET() {
         { type: 'gap-detection' },
         { sort: { createdAt: -1 }, projection: { gaps: 0, incomplete: 0 } }
       ),
-      reportsCol.findOne(
-        { type: 'gap-healing' },
-        { sort: { createdAt: -1 } }
-      ),
+      reportsCol.findOne({ type: 'gap-healing' }, { sort: { createdAt: -1 } }),
     ])
 
     return NextResponse.json({

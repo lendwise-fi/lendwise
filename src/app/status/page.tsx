@@ -2,13 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react'
 
-import {
-  Activity,
-  CheckCircle2,
-  Clock,
-  RefreshCw,
-  XCircle,
-} from 'lucide-react'
+import { Activity, CheckCircle2, Clock, RefreshCw, XCircle } from 'lucide-react'
 
 import { Badge } from '@/components/ui/badge'
 import {
@@ -32,6 +26,7 @@ interface SlotInfo {
   status: 'complete' | 'partial' | 'building'
   healed: boolean
   productCount: number
+  expectedProducts: number
 }
 
 interface ProtocolRow {
@@ -94,22 +89,19 @@ function formatRelative(iso: string): string {
   return `${Math.floor(hours / 24)}d ago`
 }
 
-function slotColor(
-  slot: SlotInfo,
-  totalProducts: number
-): string {
+function slotColor(slot: SlotInfo, _totalProducts: number): string {
   if (slot.productCount === 0) return 'bg-red-500/80'
-  const ratio = slot.productCount / totalProducts
-  if (slot.status === 'complete' && ratio >= 0.95) return 'bg-emerald-500/80'
+  if (slot.status === 'complete') return 'bg-emerald-500/80'
+  if (slot.healed) return 'bg-emerald-500/60'
   if (slot.count >= 4) return 'bg-amber-400/80'
   if (slot.count >= 1) return 'bg-orange-500/80'
   return 'bg-red-500/80'
 }
 
-function slotLabel(slot: SlotInfo, totalProducts: number): string {
+function slotLabel(slot: SlotInfo, _totalProducts: number): string {
   if (slot.productCount === 0) return 'No data'
-  const ratio = Math.round((slot.productCount / totalProducts) * 100)
-  if (slot.status === 'complete' && ratio >= 95) return 'Complete'
+  if (slot.status === 'complete') return 'Complete'
+  if (slot.healed) return 'Healed'
   if (slot.count >= 4) return 'Partial'
   if (slot.count >= 1) return 'Sparse'
   return 'Missing'
@@ -119,15 +111,21 @@ function slotLabel(slot: SlotInfo, totalProducts: number): string {
 
 function ProtocolHeatmap({ row }: { row: ProtocolRow }) {
   const { label, totalProducts, slots, summary } = row
-  const pct = summary.total > 0
-    ? Math.round((summary.complete / summary.total) * 100)
-    : 0
+  const pct =
+    summary.total > 0 ? Math.round((summary.complete / summary.total) * 100) : 0
 
-  // Group slots by day (24h chunks)
+  // Group slots by calendar day (midnight-aligned)
+  const dayMap = new Map<string, SlotInfo[]>()
+  for (const slot of slots) {
+    const d = new Date(slot.hour)
+    const dayKey = `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}-${String(d.getUTCDate()).padStart(2, '0')}`
+    const list = dayMap.get(dayKey) ?? []
+    list.push(slot)
+    dayMap.set(dayKey, list)
+  }
   const days: { label: string; slots: SlotInfo[] }[] = []
-  for (let i = 0; i < slots.length; i += 24) {
-    const daySlots = slots.slice(i, i + 24)
-    const dayDate = new Date(daySlots[0].hour)
+  for (const [dayKey, daySlots] of dayMap) {
+    const dayDate = new Date(dayKey + 'T00:00:00Z')
     days.push({
       label: dayDate.toLocaleDateString('en-GB', {
         weekday: 'short',
@@ -146,12 +144,15 @@ function ProtocolHeatmap({ row }: { row: ProtocolRow }) {
           <div>
             <CardTitle className="text-lg">{label}</CardTitle>
             <CardDescription>
-              {totalProducts} products · {summary.complete}/{summary.total} hours complete ({pct}%)
+              {totalProducts} products · {summary.complete}/{summary.total}{' '}
+              hours complete ({pct}%)
             </CardDescription>
           </div>
           <div className="flex gap-2">
             <Badge
-              variant={pct >= 95 ? 'default' : pct >= 70 ? 'secondary' : 'destructive'}
+              variant={
+                pct >= 95 ? 'default' : pct >= 70 ? 'secondary' : 'destructive'
+              }
               className="text-xs"
             >
               {pct >= 95 ? 'Healthy' : pct >= 70 ? 'Degraded' : 'Critical'}
@@ -163,59 +164,80 @@ function ProtocolHeatmap({ row }: { row: ProtocolRow }) {
         <div className="space-y-2">
           {days.map((day) => (
             <div key={day.label} className="flex items-center gap-2">
-              <span className="text-muted-foreground text-xs w-24 shrink-0 text-right font-mono">
+              <span className="text-muted-foreground w-24 shrink-0 text-right font-mono text-xs">
                 {day.label}
               </span>
-              <div className="flex gap-px flex-1">
-                {day.slots.map((slot) => (
-                  <Tooltip key={slot.hour}>
-                    <TooltipTrigger asChild>
-                      <div
-                        className={`h-5 flex-1 rounded-[2px] cursor-pointer transition-all hover:scale-y-125 hover:brightness-110 ${slotColor(slot, totalProducts)} ${slot.healed ? 'ring-1 ring-blue-400/50' : ''}`}
-                      />
-                    </TooltipTrigger>
-                    <TooltipContent
-                      side="top"
-                      className="bg-popover text-popover-foreground border shadow-md max-w-xs"
-                    >
-                      <div className="space-y-1 py-1">
-                        <div className="font-semibold text-xs">
-                          {formatHour(slot.hour)} UTC
-                        </div>
-                        <div className="text-xs space-y-0.5">
-                          <div className="flex justify-between gap-4">
-                            <span className="text-muted-foreground">Status</span>
-                            <span className="font-medium">{slotLabel(slot, totalProducts)}</span>
+              <div
+                className="grid flex-1 grid-cols-24 gap-px"
+                style={{ gridTemplateColumns: 'repeat(24, 1fr)' }}
+              >
+                {day.slots.map((slot) => {
+                  const slotHour = new Date(slot.hour).getUTCHours()
+                  return (
+                    <Tooltip key={slot.hour}>
+                      <TooltipTrigger asChild>
+                        <div
+                          style={{ gridColumn: slotHour + 1 }}
+                          className={`h-5 cursor-pointer rounded-[2px] transition-all hover:scale-y-125 hover:brightness-110 ${slotColor(slot, totalProducts)} ${slot.healed ? 'ring-1 ring-blue-400/50' : ''}`}
+                        />
+                      </TooltipTrigger>
+                      <TooltipContent
+                        side="top"
+                        className="bg-popover text-popover-foreground max-w-xs border shadow-md"
+                      >
+                        <div className="space-y-1 py-1">
+                          <div className="text-xs font-semibold">
+                            {formatHour(slot.hour)} UTC
                           </div>
-                          <div className="flex justify-between gap-4">
-                            <span className="text-muted-foreground">Avg. spots</span>
-                            <span className="font-medium">{slot.count}/6</span>
-                          </div>
-                          <div className="flex justify-between gap-4">
-                            <span className="text-muted-foreground">Products</span>
-                            <span className="font-medium">
-                              {slot.productCount}/{totalProducts}
-                            </span>
-                          </div>
-                          {slot.healed && (
+                          <div className="space-y-0.5 text-xs">
                             <div className="flex justify-between gap-4">
-                              <span className="text-muted-foreground">Healed</span>
-                              <span className="font-medium text-blue-400">Yes</span>
+                              <span className="text-muted-foreground">
+                                Status
+                              </span>
+                              <span className="font-medium">
+                                {slotLabel(slot, totalProducts)}
+                              </span>
                             </div>
-                          )}
+                            <div className="flex justify-between gap-4">
+                              <span className="text-muted-foreground">
+                                Avg. spots
+                              </span>
+                              <span className="font-medium">
+                                {slot.count}/6
+                              </span>
+                            </div>
+                            <div className="flex justify-between gap-4">
+                              <span className="text-muted-foreground">
+                                Products
+                              </span>
+                              <span className="font-medium">
+                                {slot.productCount}/{slot.expectedProducts}
+                              </span>
+                            </div>
+                            {slot.healed && (
+                              <div className="flex justify-between gap-4">
+                                <span className="text-muted-foreground">
+                                  Healed
+                                </span>
+                                <span className="font-medium text-blue-400">
+                                  Yes
+                                </span>
+                              </div>
+                            )}
+                          </div>
                         </div>
-                      </div>
-                    </TooltipContent>
-                  </Tooltip>
-                ))}
+                      </TooltipContent>
+                    </Tooltip>
+                  )
+                })}
               </div>
             </div>
           ))}
         </div>
         {/* Hour labels */}
-        <div className="flex items-center gap-2 mt-1">
+        <div className="mt-1 flex items-center gap-2">
           <span className="w-24 shrink-0" />
-          <div className="flex flex-1 justify-between text-[10px] text-muted-foreground font-mono">
+          <div className="text-muted-foreground flex flex-1 justify-between font-mono text-[10px]">
             <span>00:00</span>
             <span>06:00</span>
             <span>12:00</span>
@@ -233,10 +255,10 @@ function ReportCard({ reports }: { reports: LatestReports }) {
   const heal = reports.gapHealing
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+    <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
       <Card>
         <CardHeader>
-          <CardTitle className="text-sm flex items-center gap-2">
+          <CardTitle className="flex items-center gap-2 text-sm">
             <Activity className="h-4 w-4" />
             Latest Gap Detection
           </CardTitle>
@@ -246,34 +268,42 @@ function ReportCard({ reports }: { reports: LatestReports }) {
             <div className="space-y-2 text-sm">
               <div className="flex justify-between">
                 <span className="text-muted-foreground">Run</span>
-                <span className="font-mono text-xs">{formatRelative(gap.createdAt)}</span>
+                <span className="font-mono text-xs">
+                  {formatRelative(gap.createdAt)}
+                </span>
               </div>
               <div className="flex justify-between">
                 <span className="text-muted-foreground">Expected slots</span>
-                <span className="font-mono">{gap.expectedSlots.toLocaleString()}</span>
+                <span className="font-mono">
+                  {gap.expectedSlots.toLocaleString()}
+                </span>
               </div>
               <div className="flex justify-between">
                 <span className="text-muted-foreground">Missing</span>
-                <span className={`font-mono ${gap.missingSlots > 0 ? 'text-red-400' : 'text-emerald-400'}`}>
+                <span
+                  className={`font-mono ${gap.missingSlots > 0 ? 'text-red-400' : 'text-emerald-400'}`}
+                >
                   {gap.missingSlots.toLocaleString()}
                 </span>
               </div>
               <div className="flex justify-between">
                 <span className="text-muted-foreground">Incomplete</span>
-                <span className={`font-mono ${gap.incompleteSlots > 0 ? 'text-amber-400' : 'text-emerald-400'}`}>
+                <span
+                  className={`font-mono ${gap.incompleteSlots > 0 ? 'text-amber-400' : 'text-emerald-400'}`}
+                >
                   {gap.incompleteSlots.toLocaleString()}
                 </span>
               </div>
             </div>
           ) : (
-            <p className="text-sm text-muted-foreground">No reports yet</p>
+            <p className="text-muted-foreground text-sm">No reports yet</p>
           )}
         </CardContent>
       </Card>
 
       <Card>
         <CardHeader>
-          <CardTitle className="text-sm flex items-center gap-2">
+          <CardTitle className="flex items-center gap-2 text-sm">
             <CheckCircle2 className="h-4 w-4" />
             Latest Heal Job
           </CardTitle>
@@ -283,33 +313,45 @@ function ReportCard({ reports }: { reports: LatestReports }) {
             <div className="space-y-2 text-sm">
               <div className="flex justify-between">
                 <span className="text-muted-foreground">Run</span>
-                <span className="font-mono text-xs">{formatRelative(heal.createdAt)}</span>
+                <span className="font-mono text-xs">
+                  {formatRelative(heal.createdAt)}
+                </span>
               </div>
               <div className="flex justify-between">
                 <span className="text-muted-foreground">Total gaps</span>
-                <span className="font-mono">{heal.totalGaps.toLocaleString()}</span>
+                <span className="font-mono">
+                  {heal.totalGaps.toLocaleString()}
+                </span>
               </div>
               <div className="flex justify-between">
                 <span className="text-muted-foreground">Healed</span>
-                <span className="font-mono text-emerald-400">{heal.healed.toLocaleString()}</span>
+                <span className="font-mono text-emerald-400">
+                  {heal.healed.toLocaleString()}
+                </span>
               </div>
               <div className="flex justify-between">
                 <span className="text-muted-foreground">By refetch</span>
-                <span className="font-mono">{heal.healedByRefetch.toLocaleString()}</span>
+                <span className="font-mono">
+                  {heal.healedByRefetch.toLocaleString()}
+                </span>
               </div>
               <div className="flex justify-between">
                 <span className="text-muted-foreground">By neighbor</span>
-                <span className="font-mono">{heal.healedByNeighbor.toLocaleString()}</span>
+                <span className="font-mono">
+                  {heal.healedByNeighbor.toLocaleString()}
+                </span>
               </div>
               <div className="flex justify-between">
                 <span className="text-muted-foreground">No donor</span>
-                <span className={`font-mono ${heal.noDonor > 0 ? 'text-red-400' : 'text-emerald-400'}`}>
+                <span
+                  className={`font-mono ${heal.noDonor > 0 ? 'text-red-400' : 'text-emerald-400'}`}
+                >
                   {heal.noDonor.toLocaleString()}
                 </span>
               </div>
             </div>
           ) : (
-            <p className="text-sm text-muted-foreground">No reports yet</p>
+            <p className="text-muted-foreground text-sm">No reports yet</p>
           )}
         </CardContent>
       </Card>
@@ -343,7 +385,7 @@ export default function StatusPage() {
   }, [fetchData])
 
   return (
-    <div className="p-6 max-w-[1400px] mx-auto space-y-6">
+    <div className="mx-auto max-w-[1400px] space-y-6 p-6">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
@@ -355,7 +397,7 @@ export default function StatusPage() {
         <button
           onClick={fetchData}
           disabled={loading}
-          className="inline-flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50 transition-colors"
+          className="bg-primary text-primary-foreground hover:bg-primary/90 inline-flex items-center gap-2 rounded-md px-4 py-2 text-sm font-medium transition-colors disabled:opacity-50"
         >
           <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
           Refresh
@@ -363,7 +405,7 @@ export default function StatusPage() {
       </div>
 
       {/* Legend */}
-      <div className="flex items-center gap-6 text-xs text-muted-foreground">
+      <div className="text-muted-foreground flex items-center gap-6 text-xs">
         <div className="flex items-center gap-1.5">
           <div className="h-3 w-3 rounded-[2px] bg-emerald-500/80" />
           Complete (≥95% products, 6/6 spots)
@@ -381,20 +423,20 @@ export default function StatusPage() {
           Missing (0 spots)
         </div>
         <div className="flex items-center gap-1.5">
-          <div className="h-3 w-3 rounded-[2px] ring-1 ring-blue-400/50 bg-muted" />
+          <div className="bg-muted h-3 w-3 rounded-[2px] ring-1 ring-blue-400/50" />
           Contains healed data
         </div>
       </div>
 
       {error && (
-        <div className="flex items-center gap-2 rounded-md border border-destructive/50 bg-destructive/10 p-4 text-sm text-destructive">
+        <div className="border-destructive/50 bg-destructive/10 text-destructive flex items-center gap-2 rounded-md border p-4 text-sm">
           <XCircle className="h-4 w-4 shrink-0" />
           {error}
         </div>
       )}
 
       {loading && !data && (
-        <div className="flex items-center justify-center gap-2 py-20 text-muted-foreground">
+        <div className="text-muted-foreground flex items-center justify-center gap-2 py-20">
           <Clock className="h-5 w-5 animate-pulse" />
           Loading quality data…
         </div>
@@ -403,8 +445,9 @@ export default function StatusPage() {
       {data && (
         <>
           {/* Window info */}
-          <p className="text-xs text-muted-foreground font-mono">
-            Window: {formatHour(data.window.start)} → {formatHour(data.window.end)} UTC
+          <p className="text-muted-foreground font-mono text-xs">
+            Window: {formatHour(data.window.start)} →{' '}
+            {formatHour(data.window.end)} UTC
           </p>
 
           {/* Protocol heatmaps */}
