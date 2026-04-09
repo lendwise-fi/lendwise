@@ -173,6 +173,7 @@ export const POST = verifySignatureAppRouter(async (req: NextRequest) => {
 
     // ─── Detect gaps and incomplete slots (collected products only) ──────────
     const allGaps: GapReport[] = []
+    const allIncomplete: IncompleteReport[] = []
     const incomplete: IncompleteReport[] = []
     let missingCount = 0
     let incompleteCount = 0
@@ -192,6 +193,7 @@ export const POST = verifySignatureAppRouter(async (req: NextRequest) => {
         } else if (entry.count < 6) {
           incompleteCount++
           foundCollectedSlots++
+          allIncomplete.push({ hour: hourISO, productId, count: entry.count })
           if (incomplete.length < 50) {
             incomplete.push({
               hour: hourISO,
@@ -261,8 +263,8 @@ export const POST = verifySignatureAppRouter(async (req: NextRequest) => {
     }
 
     // ─── Persist report to MongoDB ──────────────────────────────────────
-    // Store the FULL gap list in the report for the heal job to consume.
-    // The JSON response (result.gaps) is capped at 50 for readability.
+    // Store the FULL gap + incomplete lists in the report for the heal job.
+    // The JSON response is capped at 50 for readability.
     let reportId: string | null = null
     try {
       const insert = await db.collection('pipeline.reports').insertOne({
@@ -270,6 +272,7 @@ export const POST = verifySignatureAppRouter(async (req: NextRequest) => {
         createdAt: new Date(),
         ...result,
         gaps: allGaps,
+        incomplete: allIncomplete,
       })
       reportId = insert.insertedId.toHexString()
     } catch (err) {

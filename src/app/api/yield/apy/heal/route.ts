@@ -21,6 +21,13 @@ interface GapReportDoc {
   _id: ObjectId
   type: 'gap-detection'
   gaps: { hour: string; productId: string }[]
+  incomplete?: { hour: string; productId: string; count: number }[]
+}
+
+interface GapEntry {
+  hour: string
+  productId: string
+  kind: 'missing' | 'incomplete'
 }
 
 type HealSource = 'refetch' | 'nearest-neighbor'
@@ -30,6 +37,8 @@ interface HealResult {
   reportId: string | null
   sourceReportId: string
   totalGaps: number
+  totalMissing: number
+  totalIncomplete: number
   healedByRefetch: number
   healedByNeighbor: number
   healed: number
@@ -115,7 +124,9 @@ function findNearestDonor(targetHour: Date, donors: ApySlot[]): ApySlot | null {
 }
 
 /**
- * Create a $setOnInsert bulk operation for a healed hourly doc.
+ * Create a bulk operation for a healed hourly doc.
+ * - missing: $setOnInsert + upsert (never overwrite organic data)
+ * - incomplete: $set to overwrite the poor-quality existing doc
  */
 function buildHealOp(
   productId: string,
@@ -123,31 +134,43 @@ function buildHealOp(
   apy: HistoryDataPoint['apy'],
   market: HistoryDataPoint['market'],
   source: HealSource,
-  sourceDetail: string
+  sourceDetail: string,
+  gapKind: 'missing' | 'incomplete' = 'missing'
 ): AnyBulkWriteOperation<ApySlot> {
+  const healFields = {
+    hour,
+    productId,
+    apy,
+    market,
+    quality: {
+      count: 0,
+      expectedCount: 6 as const,
+      firstSlot: hour,
+      lastSlot: hour,
+      status: 'partial' as const,
+    },
+    healed: true,
+    healSource: source,
+    healedFrom: sourceDetail,
+  } as unknown as MatchKeysAndValues<ApySlot>
+
+  if (gapKind === 'incomplete') {
+    return {
+      updateOne: {
+        filter: {
+          _id: buildHourlyId(productId, hour),
+        } as unknown as Filter<ApySlot>,
+        update: { $set: healFields },
+      },
+    }
+  }
+
   return {
     updateOne: {
       filter: {
         _id: buildHourlyId(productId, hour),
       } as unknown as Filter<ApySlot>,
-      update: {
-        $setOnInsert: {
-          hour,
-          productId,
-          apy,
-          market,
-          quality: {
-            count: 0,
-            expectedCount: 6 as const,
-            firstSlot: hour,
-            lastSlot: hour,
-            status: 'partial' as const,
-          },
-          healed: true,
-          healSource: source,
-          healedFrom: sourceDetail,
-        } as unknown as MatchKeysAndValues<ApySlot>,
-      },
+      update: { $setOnInsert: healFields },
       upsert: true,
     },
   }
@@ -202,8 +225,16 @@ export const POST = verifySignatureAppRouter(async (req: NextRequest) => {
       )
     }
 
-    const allGaps = gapReport.gaps ?? []
-    if (allGaps.length === 0) {
+    const missingGaps = gapReport.gaps ?? []
+    const incompleteGaps = gapReport.incomplete ?? []
+
+    // Merge into unified list with kind marker
+    const allEntries: GapEntry[] = [
+      ...missingGaps.map((g) => ({ ...g, kind: 'missing' as const })),
+      ...incompleteGaps.map((g) => ({ ...g, kind: 'incomplete' as const })),
+    ]
+
+    if (allEntries.length === 0) {
       return NextResponse.json({
         success: true,
         sourceReportId: gapReport._id.toHexString(),
@@ -213,7 +244,8 @@ export const POST = verifySignatureAppRouter(async (req: NextRequest) => {
     }
 
     console.log(
-      `[cron:heal] Loaded ${allGaps.length} gaps from report ${gapReport._id.toHexString()}`
+      `[cron:heal] Loaded ${allEntries.length} entries from report ${gapReport._id.toHexString()}` +
+        ` (missing: ${missingGaps.length}, incomplete: ${incompleteGaps.length})`
     )
 
     // ─── Categorize gaps by protocol ────────────────────────────────────
@@ -221,15 +253,15 @@ export const POST = verifySignatureAppRouter(async (req: NextRequest) => {
       string,
       { productId: string; hour: Date }[]
     >()
-    for (const gap of allGaps) {
-      const proto = detectProtocol(gap.productId)
+    for (const entry of allEntries) {
+      const proto = detectProtocol(entry.productId)
       const list = gapsByProtocol.get(proto) ?? []
-      list.push({ productId: gap.productId, hour: new Date(gap.hour) })
+      list.push({ productId: entry.productId, hour: new Date(entry.hour) })
       gapsByProtocol.set(proto, list)
     }
 
     for (const [proto, list] of gapsByProtocol) {
-      console.log(`[cron:heal]   ${proto}: ${list.length} gaps`)
+      console.log(`[cron:heal]   ${proto}: ${list.length} entries`)
     }
 
     // ─── Phase 1: Re-fetch historical data (Morpho + AAVE) ─────────────
@@ -239,8 +271,8 @@ export const POST = verifySignatureAppRouter(async (req: NextRequest) => {
     // Compute gap time boundaries for fetchers
     let minTs = Infinity
     let maxTs = -Infinity
-    for (const gap of allGaps) {
-      const t = new Date(gap.hour).getTime()
+    for (const entry of allEntries) {
+      const t = new Date(entry.hour).getTime()
       if (t < minTs) minTs = t
       if (t > maxTs) maxTs = t
     }
@@ -299,10 +331,10 @@ export const POST = verifySignatureAppRouter(async (req: NextRequest) => {
     // ─── Phase 2: Nearest-neighbor donors (for Compound + fallback) ─────
     // Fetch existing hourly docs for products that need nearest-neighbor
     const needNeighborProductIds = new Set<string>()
-    for (const gap of allGaps) {
-      const key = lookupKey(gap.productId, new Date(gap.hour))
+    for (const entry of allEntries) {
+      const key = lookupKey(entry.productId, new Date(entry.hour))
       if (!historyLookup.has(key)) {
-        needNeighborProductIds.add(gap.productId)
+        needNeighborProductIds.add(entry.productId)
       }
     }
 
@@ -346,10 +378,10 @@ export const POST = verifySignatureAppRouter(async (req: NextRequest) => {
     const noDonorSample: string[] = []
     const breakdown: HealResult['breakdown'] = {}
 
-    for (const gap of allGaps) {
-      const hour = new Date(gap.hour)
-      const proto = detectProtocol(gap.productId)
-      const key = lookupKey(gap.productId, hour)
+    for (const entry of allEntries) {
+      const hour = new Date(entry.hour)
+      const proto = detectProtocol(entry.productId)
+      const key = lookupKey(entry.productId, hour)
 
       // Init breakdown
       if (!breakdown[proto]) {
@@ -362,12 +394,13 @@ export const POST = verifySignatureAppRouter(async (req: NextRequest) => {
       if (historyPoint) {
         bulkOps.push(
           buildHealOp(
-            gap.productId,
+            entry.productId,
             hour,
             historyPoint.apy,
             historyPoint.market,
             'refetch',
-            historyPoint.timestamp.toISOString()
+            historyPoint.timestamp.toISOString(),
+            entry.kind
           )
         )
         refetchCount++
@@ -376,18 +409,19 @@ export const POST = verifySignatureAppRouter(async (req: NextRequest) => {
       }
 
       // Fallback: nearest-neighbor
-      const donors = donorsByProduct.get(gap.productId) ?? []
+      const donors = donorsByProduct.get(entry.productId) ?? []
       const donor = findNearestDonor(hour, donors)
 
       if (donor) {
         bulkOps.push(
           buildHealOp(
-            gap.productId,
+            entry.productId,
             hour,
             donor.apy,
             donor.market,
             'nearest-neighbor',
-            donor.hour.toISOString()
+            donor.hour.toISOString(),
+            entry.kind
           )
         )
         neighborCount++
@@ -397,7 +431,7 @@ export const POST = verifySignatureAppRouter(async (req: NextRequest) => {
         breakdown[proto].noDonor++
         if (noDonorSample.length < 20) {
           noDonorSample.push(
-            `${gap.productId}@${hour.toISOString().slice(0, 13)}`
+            `${entry.productId}@${hour.toISOString().slice(0, 13)}`
           )
         }
       }
@@ -440,7 +474,9 @@ export const POST = verifySignatureAppRouter(async (req: NextRequest) => {
       success: errors.length === 0,
       reportId: null,
       sourceReportId: gapReport._id.toHexString(),
-      totalGaps: allGaps.length,
+      totalGaps: allEntries.length,
+      totalMissing: missingGaps.length,
+      totalIncomplete: incompleteGaps.length,
       healedByRefetch: refetchCount,
       healedByNeighbor: neighborCount,
       healed,
