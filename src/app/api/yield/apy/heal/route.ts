@@ -159,7 +159,7 @@ function buildHealOp(
  * Gap healing endpoint for the APY pipeline.
  *
  * Strategy (in priority order):
- *   1. **Re-fetch** — Morpho (HOUR interval) and AAVE (LAST_DAY window) historical APIs
+ *   1. **Re-fetch** — Morpho (HOUR interval) and AAVE (LAST_WEEK window) historical APIs
  *   2. **Nearest-neighbor** — copy closest existing hourly doc (Compound / fallback)
  *
  * Healed docs are marked with `healed: true`, `healSource` and `healedFrom`

@@ -75,14 +75,14 @@ function generateHourBoundaries(windowStart: Date, windowEnd: Date): Date[] {
  * Gap detection endpoint for the APY pipeline.
  *
  * Triggered by QStash daily at 01:00 UTC (after the daily aggregation at 00:10).
- * Scans apy.hourly for the previous 24h window and reports:
+ * Scans apy.hourly for the previous 7-day window and reports:
  *   - Missing hourly docs (no doc for a given productId × hour)
  *   - Incomplete hourly docs (quality.count < 6)
  *
  * Also marks past hourly docs with count < 6 as quality.status = 'partial' (R3).
  *
  * Body (JSON, optional):
- *   hours (number): How many hours to scan back. Default: 24.
+ *   hours (number): How many hours to scan back. Default: 168 (7 days).
  */
 export const POST = verifySignatureAppRouter(async (req: NextRequest) => {
   const start = Date.now()
@@ -90,8 +90,8 @@ export const POST = verifySignatureAppRouter(async (req: NextRequest) => {
   try {
     const body = await req.json().catch(() => ({}))
     const lookbackHours = Math.min(
-      Math.max(body.hours ?? 24, 1),
-      168 // max 7 days
+      Math.max(body.hours ?? 168, 1),
+      336 // max 14 days
     )
 
     const db = await getDb()
