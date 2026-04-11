@@ -110,11 +110,11 @@ export function Portfolio() {
   }
 
   return (
-    <div className="flex min-h-[calc(100vh-3.5rem)]">
+    <div className="flex h-full overflow-hidden">
       <PortfolioSidebar summary={portfolioSummary} />
 
       {/* Right: positions */}
-      <div className="flex-1 overflow-auto px-8 py-6">
+      <div className="flex-1 overflow-y-auto px-8 py-6">
         {isPending || conversionLoading ? (
           <div className="space-y-6">
             <DataTableSkeleton />

@@ -1,6 +1,6 @@
 import type { Metadata } from 'next'
 
-import { Inter } from 'next/font/google'
+import { Inter, JetBrains_Mono } from 'next/font/google'
 
 import { Analytics } from '@vercel/analytics/next'
 import { Toaster } from 'sonner'
@@ -16,7 +16,18 @@ import {
 
 import './globals.css'
 
-const inter = Inter({ subsets: ['latin'] })
+const inter = Inter({
+  subsets: ['latin'],
+  variable: '--font-inter',
+  display: 'swap',
+})
+
+const jetbrainsMono = JetBrains_Mono({
+  subsets: ['latin'],
+  variable: '--font-jetbrains-mono',
+  weight: ['400', '500'],
+  display: 'swap',
+})
 
 export const metadata: Metadata = {
   title: 'Yield Optimizer - DeFi Portfolio Optimization',
@@ -30,7 +41,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" suppressHydrationWarning>
-      <body className={`${inter.className} antialiased`}>
+      <body className={`${inter.variable} ${jetbrainsMono.variable} antialiased`}>
         <ThemeProvider
           attribute="class"
           defaultTheme="system"
@@ -40,9 +51,9 @@ export default function RootLayout({
           <Web3Provider>
             <CurrencyProvider defaultCurrency="USD">
               <WalletWatcherProvider>
-                <div className="flex min-h-screen flex-col">
+                <div className="flex h-screen flex-col overflow-hidden">
                   <Navbar />
-                  <main className="flex-1">{children}</main>
+                  <main className="min-h-0 flex-1 overflow-y-auto">{children}</main>
                   <Footer />
                 </div>
                 <Toaster position="top-right" richColors />

@@ -24,7 +24,7 @@ export default function PortfolioSidebar({
       : '∞'
 
   return (
-    <aside className="border-border bg-card/40 flex w-72 shrink-0 flex-col border-r">
+    <aside className="border-border bg-card/40 flex w-72 shrink-0 flex-col overflow-y-auto border-r">
       {/* Header */}
       <div className="border-border border-b px-6 py-5">
         <h1 className="text-foreground text-lg font-semibold">

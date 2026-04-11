@@ -23,7 +23,7 @@ import { NetworkBadge } from '@/components/badge/NetworkBadge'
 import { ProtocolBadge } from '@/components/badge/ProtocolBadge'
 import { NetworkIcon, ProtocolIcon, TokenIcon } from '@/components/icon'
 import { SupplyingOptimizerView } from '@/components/optimizer/SupplyingOptimizerButton'
-import { FilterChip } from '@/components/products/FilterChip'
+import { FilterChip } from '@/components/table'
 import { TableSkeleton } from '@/components/products/TableSkeleton'
 import { StatsBar } from '@/components/stats/StatsBar'
 import {
@@ -201,12 +201,14 @@ const createColumns = (
     ),
     cell: ({ row }) => (
       <div className="flex w-full items-center gap-3">
-        {formatCompactCurrency(
-          row.original.assetAmount,
-          row.original.assetSymbol,
-          row.original.assetDecimals
-        )}
-        <Badge variant="secondary">
+        <span className="font-mono">
+          {formatCompactCurrency(
+            row.original.assetAmount,
+            row.original.assetSymbol,
+            row.original.assetDecimals
+          )}
+        </span>
+        <Badge variant="secondary" className="font-mono">
           {formatCompactCurrency(row.original.assetAmountUsd * rate, currency)}
         </Badge>
       </div>
@@ -221,12 +223,14 @@ const createColumns = (
     ),
     cell: ({ row }) => (
       <div className="flex w-full items-center gap-3">
-        {formatCompactCurrency(
-          row.original.liquidityAmount,
-          row.original.assetSymbol,
-          row.original.assetDecimals
-        )}
-        <Badge variant="secondary">
+        <span className="font-mono">
+          {formatCompactCurrency(
+            row.original.liquidityAmount,
+            row.original.assetSymbol,
+            row.original.assetDecimals
+          )}
+        </span>
+        <Badge variant="secondary" className="font-mono">
           {formatCompactCurrency(
             row.original.liquidityAmountUsd * rate,
             currency
@@ -259,7 +263,7 @@ const createColumns = (
         | number
         | undefined
       return (
-        <span>
+        <span className="font-mono">
           {apyValue !== undefined ? `${(apyValue * 100).toFixed(2)}%` : '-'}
         </span>
       )

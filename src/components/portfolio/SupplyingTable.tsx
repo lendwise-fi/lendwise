@@ -4,8 +4,14 @@ import { useState, useTransition } from 'react'
 
 import Link from 'next/link'
 
-import { ColumnDef } from '@tanstack/react-table'
-import { AlertCircle, ArrowUpRightFromSquare, TrendingUp } from 'lucide-react'
+import { ColumnDef, ColumnFiltersState } from '@tanstack/react-table'
+import {
+  AlertCircle,
+  ArrowUpRightFromSquare,
+  Search,
+  TrendingUp,
+  X,
+} from 'lucide-react'
 import { Area, AreaChart, CartesianGrid, XAxis, YAxis } from 'recharts'
 
 import { loadMarketSupplyHistoryRates } from '@/app/actions'
@@ -14,6 +20,7 @@ import { ProtocolBadge } from '@/components/badge/ProtocolBadge'
 import { NetworkIcon, ProtocolIcon, TokenIcon } from '@/components/icon'
 import {
   DataTable,
+  FilterChip,
   SortableHeader,
   getUniqueColumnValues,
 } from '@/components/table'
@@ -35,6 +42,7 @@ import {
   DrawerTitle,
   DrawerTrigger,
 } from '@/components/ui/drawer'
+import { Input } from '@/components/ui/input'
 import {
   Select,
   SelectContent,
@@ -57,6 +65,7 @@ import {
 } from '@/types'
 
 import { AddressBadge } from '../badge/AddressBadge'
+import { addressColumn } from './columns.shared'
 
 const createColumns = (
   currency: string,
@@ -81,16 +90,7 @@ const createColumns = (
       isMobileHidden: true,
     },
   },
-  {
-    accessorKey: 'userAddress',
-    header: 'Address',
-    cell: ({ row }) => <AddressBadge address={row.original.userAddress} />,
-
-    enableHiding: false,
-    meta: {
-      isMobileHidden: true,
-    },
-  },
+  addressColumn<SupplyPosition>(),
   {
     accessorKey: 'poolName',
     header: 'Vault / Pool',
@@ -103,20 +103,24 @@ const createColumns = (
     enableHiding: false,
   },
   {
-    header: 'Deposits',
+    accessorKey: 'assetAmountUsd',
+    header: ({ column }) => (
+      <SortableHeader column={column}>Deposits</SortableHeader>
+    ),
     cell: ({ row }) => (
       <div className="flex w-full items-center gap-3 text-xs">
-        {formatCompactCurrency(
-          row.original.assetAmount,
-          row.original.assetSymbol,
-          row.original.assetDecimals
-        )}
-        <Badge variant="secondary" className="text-xs">
+        <span className="font-mono">
+          {formatCompactCurrency(
+            row.original.assetAmount,
+            row.original.assetSymbol,
+            row.original.assetDecimals
+          )}
+        </span>
+        <Badge variant="secondary" className="font-mono text-xs">
           {formatCompactCurrency(row.original.assetAmountUsd * rate, currency)}
         </Badge>
       </div>
     ),
-
     enableHiding: false,
   },
   {
@@ -125,7 +129,9 @@ const createColumns = (
       <SortableHeader column={column}>APY</SortableHeader>
     ),
     size: 60,
-    cell: ({ row }) => <span>{Number(row.original.apy).toFixed(2)}%</span>,
+    cell: ({ row }) => (
+      <span className="font-mono">{Number(row.original.apy).toFixed(2)}%</span>
+    ),
     enableHiding: false,
     enableSorting: true,
   },
@@ -217,256 +223,124 @@ function TableCellViewer({ item }: { item: SupplyPosition }) {
         </DrawerHeader>
         <Separator className="mb-4" />
         <div className="flex flex-col gap-4 overflow-y-auto px-4 text-sm">
-          {isMobile ? (
-            <div className="space-y-4">
-              <div className="flex items-center justify-between gap-2 leading-none font-medium">
-                <div className="flex items-center gap-2">
-                  Borrowing rate <TrendingUp className="size-4" />
-                </div>
-                <div className="flex items-center gap-1">
-                  <Select
-                    value={selectedTimeframe}
-                    onValueChange={(value) =>
-                      handleLoadRates(value as TimeframeLabel)
-                    }
-                  >
-                    <SelectTrigger className="h-7 w-[80px] text-xs">
-                      <SelectValue placeholder="Select timeframe" />
-                    </SelectTrigger>
-                    <SelectContent align="end">
-                      {TIMEFRAME_OPTIONS.map((option) => (
-                        <SelectItem
-                          key={option.label}
-                          value={option.label}
-                          className="text-xs"
-                        >
-                          {option.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-              {pending ? (
-                <div className="text-muted-foreground flex aspect-video items-center justify-center text-sm">
-                  Loading...
-                </div>
-              ) : (
-                <div className="relative w-full">
-                  <ChartContainer
-                    config={chartConfig}
-                    className="h-full w-full"
-                  >
-                    <AreaChart
-                      accessibilityLayer
-                      data={rates}
-                      margin={{
-                        top: 10,
-                        right: -45,
-                        left: 0,
-                        bottom: 0,
-                      }}
+          <div className="flex items-center justify-between gap-2 leading-none font-medium">
+            <div className="flex items-center gap-2">
+              Supply APY <TrendingUp className="size-4" />
+            </div>
+            <div className="flex items-center gap-1">
+              <Select
+                value={selectedTimeframe}
+                onValueChange={(value) =>
+                  handleLoadRates(value as TimeframeLabel)
+                }
+              >
+                <SelectTrigger className="h-7 w-[80px] text-xs">
+                  <SelectValue placeholder="Select timeframe" />
+                </SelectTrigger>
+                <SelectContent align="end">
+                  {TIMEFRAME_OPTIONS.map((option) => (
+                    <SelectItem
+                      key={option.label}
+                      value={option.label}
+                      className="text-xs"
                     >
-                      <CartesianGrid vertical={false} />
-                      <XAxis
-                        dataKey="timestamp"
-                        tickLine={false}
-                        axisLine={false}
-                        tickMargin={10}
-                        tickFormatter={(value) => {
+                      {option.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          {pending ? (
+            <div className="text-muted-foreground flex aspect-video items-center justify-center text-sm">
+              Loading...
+            </div>
+          ) : (
+            <div className="relative w-full">
+              <ChartContainer config={chartConfig} className="h-full w-full">
+                <AreaChart
+                  accessibilityLayer
+                  data={rates}
+                  margin={{
+                    top: 10,
+                    right: -45,
+                    left: 0,
+                    bottom: 0,
+                  }}
+                >
+                  <CartesianGrid vertical={false} />
+                  <XAxis
+                    dataKey="timestamp"
+                    tickLine={false}
+                    axisLine={false}
+                    tickMargin={10}
+                    tickFormatter={(value) => {
+                      return new Date(value * 1000).toLocaleDateString(
+                        'en-US',
+                        {
+                          month: 'short',
+                          day: 'numeric',
+                        }
+                      )
+                    }}
+                  />
+                  <YAxis
+                    dataKey="rate"
+                    orientation="right"
+                    axisLine={false}
+                    tickLine={false}
+                    tickMargin={-45}
+                    width={50}
+                    tick={{
+                      fill: 'var(--muted-foreground)',
+                      fontSize: 11,
+                    }}
+                    tickFormatter={(value) =>
+                      `${Number(value * 100).toFixed(2)}%`
+                    }
+                  />
+                  <ChartTooltip
+                    cursor={false}
+                    content={
+                      <ChartTooltipContent
+                        indicator="line"
+                        labelFormatter={(value) => {
                           return new Date(value * 1000).toLocaleDateString(
                             'en-US',
                             {
                               month: 'short',
                               day: 'numeric',
+                              year: 'numeric',
+                              ...(selectedTimeframe === '24h' && {
+                                hour: 'numeric',
+                                minute: 'numeric',
+                              }),
                             }
                           )
                         }}
-                      />
-                      <YAxis
-                        dataKey="rate"
-                        orientation="right"
-                        axisLine={false}
-                        tickLine={false}
-                        tickMargin={-45}
-                        width={50}
-                        tick={{
-                          fill: 'var(--muted-foreground)',
-                          fontSize: 11,
+                        valueFormatter={(value) => {
+                          return `${(Number(value) * 100).toFixed(2)}%`
                         }}
-                        tickFormatter={(value) =>
-                          `${Number(value * 100).toFixed(2)}%`
-                        }
                       />
-                      <ChartTooltip
-                        cursor={false}
-                        content={
-                          <ChartTooltipContent
-                            indicator="line"
-                            labelFormatter={(value) => {
-                              return new Date(value * 1000).toLocaleDateString(
-                                'en-US',
-                                {
-                                  month: 'short',
-                                  day: 'numeric',
-                                  year: 'numeric',
-                                  ...(selectedTimeframe === '24h' && {
-                                    hour: 'numeric',
-                                    minute: 'numeric',
-                                  }),
-                                }
-                              )
-                            }}
-                            valueFormatter={(value) => {
-                              return `${(Number(value) * 100).toFixed(2)}%`
-                            }}
-                          />
-                        }
-                      />
-                      <Area
-                        dataKey="rate"
-                        type="natural"
-                        fill="var(--color-rate)"
-                        fillOpacity={0.4}
-                        stroke="var(--color-rate)"
-                        stackId="a"
-                      />
-                    </AreaChart>
-                  </ChartContainer>
-                  {!hasData && (
-                    <div className="text-muted-foreground pointer-events-none absolute inset-0 flex flex-col items-center justify-center text-sm">
-                      <AlertCircle className="mb-2 h-6 w-6 opacity-40" />
-                      <p>No data available</p>
-                    </div>
-                  )}
+                    }
+                  />
+                  <Area
+                    dataKey="rate"
+                    type="natural"
+                    fill="var(--color-rate)"
+                    fillOpacity={0.4}
+                    stroke="var(--color-rate)"
+                    stackId="a"
+                  />
+                </AreaChart>
+              </ChartContainer>
+              {!hasData && (
+                <div className="text-muted-foreground pointer-events-none absolute inset-0 flex flex-col items-center justify-center text-sm">
+                  <AlertCircle className="mb-2 h-6 w-6 opacity-40" />
+                  <p>No data available</p>
                 </div>
               )}
             </div>
-          ) : (
-            <>
-              <div className="flex items-center justify-between gap-2 leading-none font-medium">
-                <div className="flex items-center gap-2">
-                  Borrowing rate <TrendingUp className="size-4" />
-                </div>
-                <div className="flex items-center gap-1">
-                  <Select
-                    value={selectedTimeframe}
-                    onValueChange={(value) =>
-                      handleLoadRates(value as TimeframeLabel)
-                    }
-                  >
-                    <SelectTrigger className="h-7 w-[80px] text-xs">
-                      <SelectValue placeholder="Select timeframe" />
-                    </SelectTrigger>
-                    <SelectContent align="end">
-                      {TIMEFRAME_OPTIONS.map((option) => (
-                        <SelectItem
-                          key={option.label}
-                          value={option.label}
-                          className="text-xs"
-                        >
-                          {option.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-              {pending ? (
-                <div className="text-muted-foreground flex aspect-video items-center justify-center text-sm">
-                  Loading...
-                </div>
-              ) : (
-                <div className="relative w-full">
-                  <ChartContainer
-                    config={chartConfig}
-                    className="h-full w-full"
-                  >
-                    <AreaChart
-                      accessibilityLayer
-                      data={rates}
-                      margin={{
-                        top: 10,
-                        right: -45,
-                        left: 0,
-                        bottom: 0,
-                      }}
-                    >
-                      <CartesianGrid vertical={false} />
-                      <XAxis
-                        dataKey="timestamp"
-                        tickLine={false}
-                        axisLine={false}
-                        tickMargin={10}
-                        tickFormatter={(value) => {
-                          return new Date(value * 1000).toLocaleDateString(
-                            'en-US',
-                            {
-                              month: 'short',
-                              day: 'numeric',
-                            }
-                          )
-                        }}
-                      />
-                      <YAxis
-                        dataKey="rate"
-                        orientation="right"
-                        axisLine={false}
-                        tickLine={false}
-                        tickMargin={-45}
-                        width={50}
-                        tick={{
-                          fill: 'var(--muted-foreground)',
-                          fontSize: 11,
-                        }}
-                        tickFormatter={(value) =>
-                          `${Number(value * 100).toFixed(2)}%`
-                        }
-                      />
-                      <ChartTooltip
-                        cursor={false}
-                        content={
-                          <ChartTooltipContent
-                            indicator="line"
-                            labelFormatter={(value) => {
-                              return new Date(value * 1000).toLocaleDateString(
-                                'en-US',
-                                {
-                                  month: 'short',
-                                  day: 'numeric',
-                                  year: 'numeric',
-                                  ...(selectedTimeframe === '24h' && {
-                                    hour: 'numeric',
-                                    minute: 'numeric',
-                                  }),
-                                }
-                              )
-                            }}
-                            valueFormatter={(value) => {
-                              return `${(Number(value) * 100).toFixed(2)}%`
-                            }}
-                          />
-                        }
-                      />
-                      <Area
-                        dataKey="rate"
-                        type="natural"
-                        fill="var(--color-rate)"
-                        fillOpacity={0.4}
-                        stroke="var(--color-rate)"
-                        stackId="a"
-                      />
-                    </AreaChart>
-                  </ChartContainer>
-                  {!hasData && (
-                    <div className="text-muted-foreground pointer-events-none absolute inset-0 flex flex-col items-center justify-center text-sm">
-                      <AlertCircle className="mb-2 h-6 w-6 opacity-40" />
-                      <p>No data available</p>
-                    </div>
-                  )}
-                </div>
-              )}
-            </>
           )}
         </div>
         <DrawerFooter>
@@ -482,73 +356,136 @@ function TableCellViewer({ item }: { item: SupplyPosition }) {
 export function SupplyingTable({ data }: { data: SupplyPosition[] }) {
   const { baseCurrency, rate } = useCurrency()
   const isMobile = useIsMobile()
+  const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([])
+  const [searchValue, setSearchValue] = useState('')
+
   const columns = createColumns(baseCurrency, rate, isMobile).filter(
     (column) => !isMobile || !column.meta?.isMobileHidden
   )
 
-  return (
-    <div>
-      <div className="mb-4 flex items-center justify-between">
-        <h2 className="text-foreground text-lg font-semibold">
-          Supplying positions
-        </h2>
+  const protocolOptions = getUniqueColumnValues(data, 'protocol').map((v) => ({
+    value: v as string,
+    label: (
+      <div className="flex items-center gap-2">
+        <ProtocolIcon protocol={v as string} />
+        {getProtocolVersionNameById(v)}
       </div>
+    ),
+  }))
+
+  const networkOptions = getUniqueColumnValues(data, 'network').map((v) => ({
+    value: v as string,
+    label: (
+      <div className="flex items-center gap-2">
+        <NetworkIcon networkSlug={v as string} />
+        {(v as string).charAt(0).toUpperCase() + (v as string).slice(1)}
+      </div>
+    ),
+  }))
+
+  const addressOptions = getUniqueColumnValues(data, 'userAddress').map(
+    (v) => ({
+      value: v as string,
+      label: (
+        <div className="flex items-center gap-2">
+          <WalletAvatar address={v as string} size={20} />
+          {formatAddress(v as string)}
+        </div>
+      ),
+    })
+  )
+
+  const isFiltered = columnFilters.length > 0 || searchValue !== ''
+
+  const filterableColumns = [
+    {
+      column: 'protocol',
+      title: 'Protocol',
+      options: protocolOptions,
+    },
+    {
+      column: 'network',
+      title: 'Network',
+      options: networkOptions,
+    },
+    {
+      column: 'userAddress',
+      title: 'Address',
+      options: addressOptions,
+    },
+  ]
+
+  return (
+    <div className="flex flex-col">
+      <div className="border-border/50 flex flex-wrap items-center justify-between gap-3 border-b px-8 py-5">
+        <div>
+          <h2 className="text-foreground text-xl font-bold">
+            Supplying positions
+          </h2>
+          <p className="text-muted-foreground text-xs">
+            Active supply positions across protocols and chains
+          </p>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="relative">
+            <Search className="text-muted-foreground absolute top-1/2 left-2 h-3.5 w-3.5 -translate-y-1/2" />
+            <Input
+              placeholder="Filter..."
+              value={searchValue}
+              onChange={(e) => setSearchValue(e.target.value)}
+              className="h-9 w-36 pl-7 text-xs placeholder:text-xs"
+            />
+          </div>
+          <FilterChip
+            title="Protocol"
+            columnId="protocol"
+            options={protocolOptions}
+            columnFilters={columnFilters}
+            onColumnFiltersChange={setColumnFilters}
+            renderIcon={(v) => <ProtocolIcon protocol={v} />}
+          />
+          <FilterChip
+            title="Network"
+            columnId="network"
+            options={networkOptions}
+            columnFilters={columnFilters}
+            onColumnFiltersChange={setColumnFilters}
+            renderIcon={(v) => <NetworkIcon networkSlug={v} />}
+          />
+          <FilterChip
+            title="Address"
+            columnId="userAddress"
+            options={addressOptions}
+            columnFilters={columnFilters}
+            onColumnFiltersChange={setColumnFilters}
+          />
+          {isFiltered && (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-8 px-2 text-[12px]"
+              onClick={() => {
+                setColumnFilters([])
+                setSearchValue('')
+              }}
+            >
+              Reset <X className="ml-1 h-3 w-3" />
+            </Button>
+          )}
+        </div>
+      </div>
+
       <DataTable
         columns={columns}
         data={data}
         searchableColumn="poolName"
         initialSorting={[{ id: 'apy', desc: true }]}
-        filterableColumns={[
-          ...(isMobile
-            ? []
-            : [
-                {
-                  column: 'protocol',
-                  title: 'Protocol',
-                  options: getUniqueColumnValues(data, 'protocol').map(
-                    (value) => ({
-                      value: value as string,
-                      label: (
-                        <div className="flex items-center gap-2">
-                          <ProtocolIcon protocol={value as string} />{' '}
-                          {getProtocolVersionNameById(value)}
-                        </div>
-                      ),
-                    })
-                  ),
-                },
-                {
-                  column: 'network',
-                  title: 'Network',
-                  options: getUniqueColumnValues(data, 'network').map(
-                    (value) => ({
-                      value: value as string,
-                      label: (
-                        <div className="flex items-center gap-2">
-                          <NetworkIcon networkSlug={value as string} />{' '}
-                          {value.charAt(0).toUpperCase() + value.slice(1)}
-                        </div>
-                      ),
-                    })
-                  ),
-                },
-                {
-                  column: 'userAddress',
-                  title: 'Address',
-                  options: getUniqueColumnValues(data, 'userAddress').map(
-                    (value) => ({
-                      value: value as string,
-                      label: (
-                        <div className="flex items-center gap-2">
-                          <WalletAvatar address={value as string} size={20} />
-                          {formatAddress(value as string)}
-                        </div>
-                      ),
-                    })
-                  ),
-                },
-              ]),
-        ]}
+        filterableColumns={filterableColumns}
+        hideToolbar={true}
+        columnFilters={columnFilters}
+        onColumnFiltersChange={setColumnFilters}
+        globalFilter={searchValue}
+        onGlobalFilterChange={setSearchValue}
       />
     </div>
   )
