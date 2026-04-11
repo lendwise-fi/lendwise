@@ -1,21 +1,21 @@
 import { cache } from 'react'
 
 import { CHAIN_NAME_MAPPING } from '@/lib/protocols/utils'
-import { SupplyMarket } from '@/types'
+import { SupplyProduct } from '@/types'
 
 import { getChainClients } from '.'
 import { COMPOUND_CONFIG } from '../../config'
-import { SLUG_MAPPING } from '../utils'
-import { ListSupplyingProductsQuery } from './generated/graphql'
-import { LIST_SUPPLYING_PRODUCTS } from './queries'
+import { SLUG_MAPPING, buildProductId } from '../utils'
+import { ListSupplyProductsQuery } from './generated/graphql'
+import { LIST_SUPPLY_PRODUCTS } from './queries'
 
 // CPU-heavy transformation memoized
-const _formatSupplyingMarkets = cache(
+const _formatSupplyProducts = cache(
   (
-    markets: ListSupplyingProductsQuery['markets'],
+    markets: ListSupplyProductsQuery['markets'],
     chainName: string,
     chainId: number
-  ): SupplyMarket[] =>
+  ): SupplyProduct[] =>
     markets.map((market) => {
       const token = market.configuration.baseToken.token
       return {
@@ -35,20 +35,22 @@ const _formatSupplyingMarkets = cache(
         liquidityAmountUsd: market.accounting.totalBaseSupplyUsd,
         collaterals: [],
         apy: market.accounting.netSupplyApr,
-        apyDaily: market.accounting.netSupplyApr,
-        apyMonthly: market.accounting.netSupplyApr,
-        apyYearly: market.accounting.netSupplyApr,
+        productId: buildProductId(
+          market.id,
+          { id: chainId, name: chainName! },
+          'supply'
+        ),
         link: `https://app.compound.finance/?market=${token.symbol.toLowerCase()}-${SLUG_MAPPING[chainId] ?? 'mainnet'}`,
       }
     })
 )
 
-export async function getSupplyingMarkets(): Promise<SupplyMarket[]> {
+export async function getSupplyProducts(): Promise<SupplyProduct[]> {
   const chainClients = await getChainClients()
   const results = await Promise.allSettled(
     chainClients.map(async ({ client, chainName, chainId }) => {
       const { data, error } = await client
-        .query<ListSupplyingProductsQuery>(LIST_SUPPLYING_PRODUCTS, {})
+        .query<ListSupplyProductsQuery>(LIST_SUPPLY_PRODUCTS, {})
         .toPromise()
 
       if (error) {
@@ -61,7 +63,7 @@ export async function getSupplyingMarkets(): Promise<SupplyMarket[]> {
       }
 
       return data?.markets
-        ? _formatSupplyingMarkets(data.markets, chainName!, chainId)
+        ? _formatSupplyProducts(data.markets, chainName!, chainId)
         : []
     })
   )

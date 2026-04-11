@@ -285,7 +285,15 @@ export function useMultiplePrices(
   const { prices, loading, error } = useCryptoPrices(coinIds, currency)
 
   // Transform the raw price data into the expected format
-  const formattedPrices: { [key: string]: any } = {}
+  const formattedPrices: Record<
+    string,
+    {
+      current_price: number
+      price_change_24h: number
+      price_change_percentage_24h: number
+      last_updated: string
+    }
+  > = {}
 
   if (prices) {
     Object.keys(prices).forEach((coinId) => {

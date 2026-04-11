@@ -113,7 +113,7 @@ export function createColumns(
       ? [
           {
             accessorKey: 'healthFactor',
-            header: ({ column }: any) => {
+            header: ({ column }: { column: import('@tanstack/react-table').Column<PositionData, unknown> }) => {
               return (
                 <Button
                   variant="ghost"
@@ -127,7 +127,7 @@ export function createColumns(
                 </Button>
               )
             },
-            cell: ({ row }: any) => {
+            cell: ({ row }: { row: import('@tanstack/react-table').Row<PositionData> }) => {
               const healthFactor = row.getValue('healthFactor') as
                 | number
                 | undefined
@@ -151,7 +151,7 @@ export function createColumns(
           {
             accessorKey: 'collateralRatio',
             header: 'Collateral Ratio',
-            cell: ({ row }: any) => {
+            cell: ({ row }: { row: import('@tanstack/react-table').Row<PositionData> }) => {
               const collateralRatio = row.getValue('collateralRatio') as
                 | number
                 | undefined

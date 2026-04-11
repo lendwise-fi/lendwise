@@ -1,16 +1,16 @@
 import { cache } from 'react'
 
-import { SupplyMarket } from '@/types'
+import { BorrowProduct } from '@/types'
 
 import { client } from '.'
 import { AAVE_CONFIG } from '../../config'
-import { getNetworkName } from '../utils'
-import { ListBorrowingProductsQuery } from './generated/graphql'
-import { LIST_BORROWING_PRODUCTS } from './queries'
+import { buildReserveProductId, getNetworkName } from '../utils'
+import { ListBorrowProductsQuery } from './generated/graphql'
+import { LIST_BORROW_PRODUCTS } from './queries'
 
 // CPU-heavy transformation memoized
-const _formatBorrowingMarkets = cache(
-  (markets: ListBorrowingProductsQuery['markets']): SupplyMarket[] =>
+const _formatBorrowProducts = cache(
+  (markets: ListBorrowProductsQuery['markets']): BorrowProduct[] =>
     markets.flatMap((market) =>
       market.reserves
         .filter(
@@ -45,18 +45,16 @@ const _formatBorrowingMarkets = cache(
             ),
             collaterals: [],
             apy: reserve.borrowInfo?.apy.value || 0,
-            apyDaily: reserve.borrowInfo?.apy.value || 0,
-            apyMonthly: reserve.borrowInfo?.apy.value || 0,
-            apyYearly: reserve.borrowInfo?.apy.value || 0,
+            productId: buildReserveProductId(market.chain.chainId, reserve.underlyingToken.address, 'borrow'),
             link: `https://app.aave.com/reserve-overview/?underlyingAsset=${reserve.underlyingToken.address.toLowerCase()}&marketName=proto_${market.chain.name.toLowerCase()}_v3`,
           }
         })
     )
 )
 
-export async function getBorrowingMarkets(): Promise<SupplyMarket[]> {
+export async function getBorrowProducts(): Promise<BorrowProduct[]> {
   const { data, error } = await client
-    .query<ListBorrowingProductsQuery>(LIST_BORROWING_PRODUCTS, {
+    .query<ListBorrowProductsQuery>(LIST_BORROW_PRODUCTS, {
       request: {
         chainIds: Object.keys(AAVE_CONFIG.aave_v3.chains).map(Number),
       },
@@ -72,5 +70,5 @@ export async function getBorrowingMarkets(): Promise<SupplyMarket[]> {
     throw error
   }
 
-  return data?.markets ? _formatBorrowingMarkets(data.markets) : []
+  return data?.markets ? _formatBorrowProducts(data.markets) : []
 }

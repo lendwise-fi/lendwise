@@ -36,11 +36,11 @@ import {
   MONGODB_DB_NAME,
   MONGODB_URI,
 } from '@/lib/db/mongodb'
-import type {
-  ApyBreakdown,
-  BorrowMarketState,
-  SupplyMarketState,
-} from '@/lib/db/types'
+// import type {
+//   ApyBreakdown,
+//   BorrowMarketState,
+//   SupplyMarketState,
+// } from '@/lib/db/types'
 import {
   type HistoryDataPoint,
   fetchAaveHistory,

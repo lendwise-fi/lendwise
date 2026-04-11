@@ -1,16 +1,16 @@
 import { cache } from 'react'
 
-import { SupplyMarket } from '@/types'
+import { SupplyProduct } from '@/types'
 
 import { client } from '.'
 import { AAVE_CONFIG } from '../../config'
-import { getNetworkName } from '../utils'
-import { ListSupplyingProductsQuery } from './generated/graphql'
-import { LIST_SUPPLYING_PRODUCTS } from './queries'
+import { buildReserveProductId, getNetworkName } from '../utils'
+import { ListSupplyProductsQuery } from './generated/graphql'
+import { LIST_SUPPLY_PRODUCTS } from './queries'
 
 // CPU-heavy transformation memoized
-const _formatSupplyingMarkets = cache(
-  (markets: ListSupplyingProductsQuery['markets']): SupplyMarket[] =>
+const _formatSupplyProducts = cache(
+  (markets: ListSupplyProductsQuery['markets']): SupplyProduct[] =>
     markets.flatMap((market) =>
       market.reserves.map((reserve) => ({
         protocol: AAVE_CONFIG.aave_v3.id,
@@ -29,17 +29,19 @@ const _formatSupplyingMarkets = cache(
         liquidityAmountUsd: reserve.supplyInfo.supplyCap.usd,
         collaterals: [],
         apy: reserve.supplyInfo.apy.value,
-        apyDaily: reserve.supplyInfo.apy.value,
-        apyMonthly: reserve.supplyInfo.apy.value,
-        apyYearly: reserve.supplyInfo.apy.value,
+        productId: buildReserveProductId(
+          market.chain.chainId,
+          reserve.underlyingToken.address,
+          'supply'
+        ),
         link: `https://app.aave.com/reserve-overview/?underlyingAsset=${reserve.underlyingToken.address.toLowerCase()}&marketName=proto_${market.chain.name.toLowerCase()}_v3`,
       }))
     )
 )
 
-export async function getSupplyingMarkets(): Promise<SupplyMarket[]> {
+export async function getSupplyProducts(): Promise<SupplyProduct[]> {
   const { data, error } = await client
-    .query<ListSupplyingProductsQuery>(LIST_SUPPLYING_PRODUCTS, {
+    .query<ListSupplyProductsQuery>(LIST_SUPPLY_PRODUCTS, {
       request: {
         chainIds: Object.keys(AAVE_CONFIG.aave_v3.chains).map(Number),
       },
@@ -55,5 +57,5 @@ export async function getSupplyingMarkets(): Promise<SupplyMarket[]> {
     throw error
   }
 
-  return data?.markets ? _formatSupplyingMarkets(data.markets) : []
+  return data?.markets ? _formatSupplyProducts(data.markets) : []
 }

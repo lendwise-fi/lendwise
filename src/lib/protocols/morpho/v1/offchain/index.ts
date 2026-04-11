@@ -12,7 +12,7 @@ import {
 } from '@/types'
 
 import { MORPHO_CONFIG } from '../../config'
-import { getBorrowingMarkets } from './borrowing-markets'
+import { getBorrowProducts } from './borrow-products'
 import {
   MarketBorrowHistoryRatesQuery,
   TimeseriesInterval,
@@ -26,7 +26,7 @@ import {
   USER_SUPPLY_POSITIONS,
   VAULT_SUPPLY_HISTORY,
 } from './queries'
-import { getSupplyingMarkets } from './supplying-markets'
+import { getSupplyProducts } from './supply-products'
 
 export const client = createGraphQLClient(
   MORPHO_CONFIG.morpho_v1.offchainApiUrl!
@@ -315,6 +315,6 @@ export const morphoV1OffchainAdapter: DataAdapter = {
   getUserBorrowPositions,
   getMarketBorrowHistoryRates,
   getMarketSupplyHistoryRates,
-  getSupplyingMarkets,
-  getBorrowingMarkets,
+  getSupplyProducts,
+  getBorrowProducts,
 }

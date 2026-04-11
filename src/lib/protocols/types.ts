@@ -2,10 +2,11 @@ import type { Address } from 'viem'
 
 import {
   BorrowPosition,
+  BorrowProduct,
   MarketRate,
   MarketStats,
-  SupplyMarket,
   SupplyPosition,
+  SupplyProduct,
   TimeframeLabel,
 } from '@/types'
 
@@ -102,14 +103,14 @@ export interface DataAdapter {
    * Can be provided by either GraphQL or Subgraph depending on availability.
    * @returns A promise that resolves to an array of market rates.
    */
-  getSupplyingMarkets?(): Promise<SupplyMarket[]>
+  getSupplyProducts?(): Promise<SupplyProduct[]>
 
   /**
    * Fetches market rates (borrow rates, etc.).
    * Can be provided by either GraphQL or Subgraph depending on availability.
    * @returns A promise that resolves to an array of market rates.
    */
-  getBorrowingMarkets?(): Promise<SupplyMarket[]>
+  getBorrowProducts?(): Promise<BorrowProduct[]>
 }
 
 // ============================================================================

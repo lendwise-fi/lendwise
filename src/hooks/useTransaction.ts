@@ -17,7 +17,7 @@ type NetworkInfo = {
   }
 }
 
-type TransactionStatus = {
+type _TransactionStatus = {
   isLoading: boolean
   isSuccess: boolean
   isError: boolean

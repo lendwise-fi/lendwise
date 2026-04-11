@@ -322,8 +322,8 @@ export const APY_HISTORY = gql`
   }
 `
 
-export const LIST_BORROWING_PRODUCTS = gql`
-  query ListBorrowingProducts($request: MarketsRequest!) {
+export const LIST_BORROW_PRODUCTS = gql`
+  query ListBorrowProducts($request: MarketsRequest!) {
     markets(request: $request) {
       address
       name
@@ -361,8 +361,8 @@ export const LIST_BORROWING_PRODUCTS = gql`
   }
 `
 
-export const LIST_SUPPLYING_PRODUCTS = gql`
-  query ListSupplyingProducts($request: MarketsRequest!) {
+export const LIST_SUPPLY_PRODUCTS = gql`
+  query ListSupplyProducts($request: MarketsRequest!) {
     markets(request: $request) {
       address
       name

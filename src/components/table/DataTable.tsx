@@ -1,11 +1,13 @@
 'use client'
 
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 
 import {
   Column,
   ColumnDef,
   ColumnFiltersState,
+  FilterFn,
+  Row,
   RowSelectionState,
   SortingState,
   VisibilityState,
@@ -48,8 +50,7 @@ import { cn } from '@/lib/utils'
 
 import { DataTableToolbar } from './DataTableToolbar'
 
-// Custom filter function for faceted filters (OR logic)
-// Custom filter function for faceted filters (OR logic)
+// Filter function for scalar columns — OR logic across selected values
 const arrayFilterFn = <_TData,>(
   row: { getValue: (columnId: string) => unknown },
   columnId: string,
@@ -69,14 +70,47 @@ const arrayFilterFn = <_TData,>(
   return String(value) === String(filterValue)
 }
 
+// Filter function for array-of-objects columns (e.g. collaterals)
+// getKeys receives the full row original and returns the list of filterable strings.
+const makeCollectionFilterFn = <TData,>(getKeys: (row: TData) => string[]) =>
+  Object.assign(
+    (
+      row: Row<TData>,
+      _columnId: string,
+      filterValue: string[] | string
+    ): boolean => {
+      if (
+        !filterValue ||
+        (Array.isArray(filterValue) && filterValue.length === 0)
+      ) {
+        return true
+      }
+      const keys = getKeys(row.original)
+      if (Array.isArray(filterValue)) {
+        return filterValue.some((v) => keys.includes(v))
+      }
+      return keys.includes(filterValue)
+    },
+    {
+      autoRemove: (val: unknown) =>
+        !val || (Array.isArray(val) && val.length === 0),
+    }
+  )
+
 interface DataTableProps<TData, TValue> {
   columns: ColumnDef<TData, TValue>[]
   data: TData[]
   searchableColumn?: string
+  searchableColumns?: {
+    columns: string[]
+    getExtraSearchValues?: (row: TData) => string[]
+  }
   filterableColumns?: {
     column: string
     title: string
     multiSelect?: boolean
+    /** For array-of-objects columns: extract the filterable key from each item */
+    getFilterValues?: (row: TData) => string[]
     options: {
       value: string
       label: string | React.ReactNode
@@ -92,12 +126,20 @@ interface DataTableProps<TData, TValue> {
   getRowId?: (originalRow: TData, index: number, parent?: unknown) => string
   hideHeader?: boolean
   hidePagination?: boolean
+  hideToolbar?: boolean
+  columnFilters?: ColumnFiltersState
+  onColumnFiltersChange?: React.Dispatch<
+    React.SetStateAction<ColumnFiltersState>
+  >
+  globalFilter?: string
+  onGlobalFilterChange?: (value: string) => void
 }
 
 export function DataTable<TData, TValue>({
   columns,
   data,
   searchableColumn,
+  searchableColumns,
   filterableColumns,
   hiddenColumns = [],
   onRowClick: _onRowClick,
@@ -108,6 +150,11 @@ export function DataTable<TData, TValue>({
   getRowId,
   hideHeader = false,
   hidePagination = false,
+  hideToolbar = false,
+  columnFilters: controlledColumnFilters,
+  onColumnFiltersChange: controlledOnColumnFiltersChange,
+  globalFilter: controlledGlobalFilter,
+  onGlobalFilterChange: controlledOnGlobalFilterChange,
 }: DataTableProps<TData, TValue>) {
   const [internalRowSelection, setInternalRowSelection] =
     useState<RowSelectionState>({})
@@ -122,9 +169,16 @@ export function DataTable<TData, TValue>({
   )
   const [columnVisibility, setColumnVisibility] =
     useState<VisibilityState>(initialVisibility)
-  const [columnFilters, setColumnFilters] =
+  const [internalColumnFilters, setInternalColumnFilters] =
     useState<ColumnFiltersState>(initialColumnFilters)
+  const columnFilters = controlledColumnFilters ?? internalColumnFilters
+  const setColumnFilters =
+    controlledOnColumnFiltersChange ?? setInternalColumnFilters
   const [sorting, setSorting] = useState<SortingState>(initialSorting)
+  const [internalGlobalFilter, setInternalGlobalFilter] = useState('')
+  const globalFilter = controlledGlobalFilter ?? internalGlobalFilter
+  const setGlobalFilter =
+    controlledOnGlobalFilterChange ?? setInternalGlobalFilter
   const [pagination, setPagination] = useState({
     pageIndex: 0,
     pageSize: 10,
@@ -133,11 +187,18 @@ export function DataTable<TData, TValue>({
   // Configure filter functions for filterable columns
   const columnDefs = columns.map((col) => {
     const columnId = 'accessorKey' in col ? col.accessorKey : col.id
-    const isFilterableColumn = filterableColumns?.some(
+    const filterableDef = filterableColumns?.find(
       (fc) => fc.column === columnId
     )
 
-    if (isFilterableColumn) {
+    if (filterableDef) {
+      if (filterableDef.getFilterValues) {
+        const getter = filterableDef.getFilterValues
+        return {
+          ...col,
+          filterFn: makeCollectionFilterFn<TData>(getter),
+        }
+      }
       return {
         ...col,
         filterFn: arrayFilterFn,
@@ -145,6 +206,24 @@ export function DataTable<TData, TValue>({
     }
     return col
   })
+
+  const multiColumnFilterFn: FilterFn<TData> = (
+    row: Row<TData>,
+    _columnId: string,
+    filterValue: string
+  ): boolean => {
+    if (!filterValue) return true
+    const q = filterValue.toLowerCase()
+    const cols = searchableColumns?.columns ?? []
+    const extra = searchableColumns?.getExtraSearchValues?.(row.original) ?? []
+    return (
+      cols.some((col) =>
+        String(row.getValue(col) ?? '')
+          .toLowerCase()
+          .includes(q)
+      ) || extra.some((v) => v.toLowerCase().includes(q))
+    )
+  }
 
   const table = useReactTable({
     data,
@@ -155,14 +234,34 @@ export function DataTable<TData, TValue>({
       rowSelection,
       columnFilters,
       pagination,
+      ...(searchableColumns || controlledGlobalFilter !== undefined
+        ? { globalFilter }
+        : {}),
     },
     getRowId,
     enableRowSelection: true,
     onRowSelectionChange: setRowSelection,
     onSortingChange: setSorting,
-    onColumnFiltersChange: setColumnFilters,
+    onColumnFiltersChange: setColumnFilters as React.Dispatch<
+      React.SetStateAction<ColumnFiltersState>
+    >,
     onColumnVisibilityChange: setColumnVisibility,
     onPaginationChange: setPagination,
+    ...(searchableColumns ||
+    (searchableColumn && controlledGlobalFilter !== undefined)
+      ? {
+          globalFilterFn: searchableColumns
+            ? multiColumnFilterFn
+            : (((row: Row<TData>, _colId: string, filterValue: string) => {
+                if (!filterValue) return true
+                const val = String(
+                  row.getValue(searchableColumn!) ?? ''
+                ).toLowerCase()
+                return val.includes(filterValue.toLowerCase())
+              }) as FilterFn<TData>),
+          onGlobalFilterChange: setGlobalFilter,
+        }
+      : {}),
     getCoreRowModel: getCoreRowModel(),
     getFilteredRowModel: getFilteredRowModel(),
     getPaginationRowModel: getPaginationRowModel(),
@@ -171,23 +270,52 @@ export function DataTable<TData, TValue>({
     getFacetedUniqueValues: getFacetedUniqueValues(),
   })
 
+  // Pre-compute facet counts for collection columns (array-of-objects)
+  const facetCountsMap = useMemo(() => {
+    const collectionCols = (filterableColumns ?? []).filter(
+      (fc) => fc.getFilterValues
+    )
+    if (collectionCols.length === 0) return undefined
+
+    const result: Record<string, Map<string, number>> = {}
+    const allRows = table.getPreFilteredRowModel().rows
+
+    for (const fc of collectionCols) {
+      const counts = new Map<string, number>()
+      for (const row of allRows) {
+        const keys = fc.getFilterValues!(row.original)
+        for (const key of keys) {
+          counts.set(key, (counts.get(key) ?? 0) + 1)
+        }
+      }
+      result[fc.column] = counts
+    }
+    return result
+  }, [filterableColumns, table])
+
   // Check if a select column (checkbox) is present
   const hasSelectColumn = columns.some(
     (col) => 'id' in col && col.id === 'select'
   )
 
   return (
-    <div className="space-y-4">
-      <DataTableToolbar
-        table={table}
-        searchableColumn={searchableColumn}
-        filterableColumns={filterableColumns}
-      />
-      <Table className="border-separate border-spacing-y-2 text-xs">
+    <div className="flex flex-col">
+      {!hideToolbar && (
+        <DataTableToolbar
+          table={table}
+          searchableColumn={searchableColumn}
+          searchableColumns={searchableColumns?.columns}
+          globalFilter={searchableColumns ? globalFilter : undefined}
+          onGlobalFilterChange={searchableColumns ? setGlobalFilter : undefined}
+          facetCountsMap={facetCountsMap}
+          filterableColumns={filterableColumns}
+        />
+      )}
+      <Table className="text-xs">
         {!hideHeader && (
-          <TableHeader className="sticky top-0 z-10">
+          <TableHeader className="bg-card/90 sticky top-0 z-10 backdrop-blur-sm">
             {table.getHeaderGroups().map((headerGroup) => (
-              <TableRow key={headerGroup.id}>
+              <TableRow key={headerGroup.id} className="border-border border-b">
                 {headerGroup.headers.map((header) => {
                   return (
                     <TableHead
@@ -197,7 +325,7 @@ export function DataTable<TData, TValue>({
                         width: header.getSize(),
                         minWidth: header.column.columnDef.minSize,
                       }}
-                      className="first:rounded-l-lg last:rounded-r-lg"
+                      className="text-muted-foreground px-6 py-5 text-xs font-medium uppercase"
                     >
                       {header.isPlaceholder
                         ? null
@@ -212,14 +340,16 @@ export function DataTable<TData, TValue>({
             ))}
           </TableHeader>
         )}
-        <TableBody className="**:data-[slot=table-cell]:first:w-8">
+        <TableBody>
           {table.getRowModel().rows?.length ? (
             table.getRowModel().rows.map((row) => {
               return (
                 <TableRow
                   key={row.index}
                   data-state={row.getIsSelected() && 'selected'}
-                  className={cn('bg-muted/50 relative z-0')}
+                  className={cn(
+                    'border-border/30 hover:bg-secondary/20 border-b transition-colors duration-150'
+                  )}
                 >
                   {row.getVisibleCells().map((cell) => (
                     <TableCell
@@ -228,7 +358,7 @@ export function DataTable<TData, TValue>({
                         width: cell.column.getSize(),
                         minWidth: cell.column.columnDef.minSize,
                       }}
-                      className={'first:rounded-l-lg last:rounded-r-lg'}
+                      className="px-6 py-3"
                     >
                       {flexRender(
                         cell.column.columnDef.cell,
@@ -250,7 +380,7 @@ export function DataTable<TData, TValue>({
       </Table>
 
       {!hidePagination && (
-        <div className="flex items-center justify-between px-4">
+        <div className="border-border/50 flex items-center justify-between border-t px-6 py-3">
           <div className="text-muted-foreground hidden flex-1 text-sm lg:flex">
             {hasSelectColumn && (
               <span>
@@ -345,7 +475,7 @@ export function SortableHeader<TData>({
 }) {
   return (
     <button
-      className="hover:text-foreground flex cursor-pointer items-center gap-1"
+      className="hover:text-foreground flex cursor-pointer items-center gap-1 text-xs uppercase"
       onClick={() => column.toggleSorting(column.getIsSorted() === 'asc')}
     >
       {children}

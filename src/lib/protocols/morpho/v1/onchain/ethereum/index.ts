@@ -6,7 +6,7 @@ import { MarketStats } from '@/types'
 const MORPHO_ETHEREUM_SUBGRAPH_URL =
   'https://api.thegraph.com/subgraphs/name/morpho-association/morpho-blue-mainnet'
 
-const client = createClient({
+const _client = createClient({
   url: MORPHO_ETHEREUM_SUBGRAPH_URL,
   exchanges: [cacheExchange, fetchExchange],
 })

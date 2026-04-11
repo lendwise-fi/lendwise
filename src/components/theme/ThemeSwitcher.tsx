@@ -16,42 +16,28 @@ export const ThemeSwitcher = () => {
     setMounted(true)
   }, [])
 
-  if (!mounted) {
-    return (
-      <div className="bg-muted/50 flex items-center gap-1 rounded-lg p-1">
-        <div className="h-8 w-8 rounded-md" />
-        <div className="h-8 w-8 rounded-md" />
-        <div className="h-8 w-8 rounded-md" />
-      </div>
-    )
+  const cycleTheme = () => {
+    if (theme === 'light') setTheme('dark')
+    else if (theme === 'dark') setTheme('system')
+    else setTheme('light')
   }
 
-  const themes = [
-    { value: 'light', icon: Sun, label: 'Light' },
-    { value: 'dark', icon: Moon, label: 'Dark' },
-    { value: 'system', icon: Monitor, label: 'System' },
-  ]
+  if (!mounted) {
+    return <div className="h-8 w-8 rounded-md" />
+  }
+
+  const Icon = theme === 'dark' ? Moon : theme === 'light' ? Sun : Monitor
 
   return (
-    <div className="bg-muted/50 flex items-center gap-1 rounded-lg p-1">
-      {themes.map(({ value, icon: Icon, label }) => (
-        <Button
-          key={value}
-          variant="ghost"
-          size="sm"
-          onClick={() => setTheme(value)}
-          className={cn(
-            'hover:bg-accent h-8 w-8 p-0 transition-all',
-            theme === value
-              ? 'bg-primary text-primary-foreground hover:bg-primary/90'
-              : 'text-muted-foreground hover:text-accent-foreground'
-          )}
-          title={label}
-        >
-          <Icon className="h-4 w-4" />
-          <span className="sr-only">{label}</span>
-        </Button>
-      ))}
-    </div>
+    <Button
+      variant="ghost"
+      size="icon"
+      onClick={cycleTheme}
+      className={cn('text-muted-foreground hover:text-foreground h-8 w-8')}
+      title={`Theme: ${theme}`}
+    >
+      <Icon className="h-4 w-4" />
+      <span className="sr-only">Toggle theme</span>
+    </Button>
   )
 }

@@ -300,8 +300,8 @@ export const VAULT_SUPPLY_HISTORY = gql`
   }
 `
 
-export const LIST_BORROWING_PRODUCTS = gql`
-  query ListBorrowingProducts($first: Int, $skip: Int, $where: MarketFilters) {
+export const LIST_BORROW_PRODUCTS = gql`
+  query ListBorrowProducts($first: Int, $skip: Int, $where: MarketFilters) {
     markets(first: $first, skip: $skip, where: $where) {
       pageInfo {
         countTotal
@@ -312,6 +312,7 @@ export const LIST_BORROWING_PRODUCTS = gql`
       items {
         id
         marketId
+        creationTimestamp
         loanAsset {
           address
           name
@@ -323,8 +324,10 @@ export const LIST_BORROWING_PRODUCTS = gql`
           }
         }
         collateralAsset {
+          address
           name
           symbol
+          decimals
         }
         morphoBlue {
           chain {
@@ -345,8 +348,8 @@ export const LIST_BORROWING_PRODUCTS = gql`
   }
 `
 
-export const LIST_SUPPLYING_PRODUCTS = gql`
-  query ListSupplyingProducts(
+export const LIST_SUPPLY_PRODUCTS = gql`
+  query ListSupplyProducts(
     $first: Int
     $skip: Int
     $where: VaultFilters
@@ -368,6 +371,7 @@ export const LIST_SUPPLYING_PRODUCTS = gql`
       }
       items {
         id
+        creationTimestamp
         address
         symbol
         name

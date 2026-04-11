@@ -1,6 +1,6 @@
 import type { Kind } from '@/lib/db/types'
 import type {
-  ListSupplyingProductsQuery,
+  ListSupplyProductsQuery,
   MarketsApyQuery,
 } from '@/lib/protocols/morpho/v1/offchain/generated/graphql'
 import { CHAIN_NAME_MAPPING } from '@/lib/protocols/utils'
@@ -21,13 +21,13 @@ export function buildMarketProductId(
 // ─── Market Product ID builder ──────────────────────────────────────────────────────────
 export function buildProductId(
   product:
-    | NonNullable<ListSupplyingProductsQuery['vaults']['items']>[number]
+    | NonNullable<ListSupplyProductsQuery['vaults']['items']>[number]
     | NonNullable<MarketsApyQuery['markets']['items']>[number],
   kind: Kind
 ): string {
   if (kind === 'supply') {
     const vault = product as NonNullable<
-      ListSupplyingProductsQuery['vaults']['items']
+      ListSupplyProductsQuery['vaults']['items']
     >[number]
     return buildVaultProductId(vault.asset.chain.id, vault.address)
   }

@@ -1,11 +1,11 @@
 import type { BorrowProduct, SupplyProduct } from '@/lib/db/types'
 import { MORPHO_CONFIG } from '@/lib/protocols/morpho/config'
 import type {
-  ListSupplyingProductsQuery,
+  ListSupplyProductsQuery,
   MarketsApyQuery,
 } from '@/lib/protocols/morpho/v1/offchain/generated/graphql'
 import {
-  LIST_SUPPLYING_PRODUCTS,
+  LIST_SUPPLY_PRODUCTS,
   MARKETS_APY,
 } from '@/lib/protocols/morpho/v1/offchain/queries'
 import { createGraphQLClient } from '@/lib/protocols/shared'
@@ -144,7 +144,7 @@ export async function fetchMorphoV1Products(
   hasMore = true
   while (hasMore) {
     const { data, error } = await client
-      .query<ListSupplyingProductsQuery>(LIST_SUPPLYING_PRODUCTS, {
+      .query<ListSupplyProductsQuery>(LIST_SUPPLY_PRODUCTS, {
         first: 100,
         skip,
         where: {

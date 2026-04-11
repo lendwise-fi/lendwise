@@ -6,7 +6,7 @@ import { useForm } from '@tanstack/react-form'
 import { DollarSign, Loader2, Percent, Sparkles } from 'lucide-react'
 import { Pie, PieChart, Label as RechartsLabel } from 'recharts'
 
-import { HORIZON_CONFIG } from '@/components/markets/BorrowingTableClient'
+import { HORIZON_CONFIG } from '@/components/products/BorrowTableClient'
 import { Button } from '@/components/ui/button'
 import {
   type ChartConfig,
@@ -31,7 +31,7 @@ import {
   optimizeVaults,
 } from '@/lib/api/optimizer'
 import { formatCompactCurrency } from '@/lib/format-currency'
-import type { SupplyMarket } from '@/types'
+import type { SupplyProduct } from '@/types'
 
 const DIVERSIFICATION_OPTIONS = [
   { label: 'High', value: DIVERSIFICATION_LEVELS.HIGH },
@@ -55,13 +55,13 @@ function getDiversificationLabel(value: number): string {
 type DisplayMode = 'percent' | 'value'
 
 interface OptimizationResult {
-  vault: SupplyMarket
+  vault: SupplyProduct
   allocation: number
   allocationPercent: number
 }
 
 interface BorrowingOptimizerViewProps {
-  markets: SupplyMarket[]
+  markets: SupplyProduct[]
   onBack?: () => void
 }
 
@@ -98,7 +98,7 @@ export function BorrowingOptimizerView({
         const horizonEntry = Object.values(HORIZON_CONFIG).find(
           (h) => h.apyKey === value.horizon
         )
-        const apyKey = (horizonEntry?.apyKey ?? 'apy') as keyof SupplyMarket
+        const apyKey = (horizonEntry?.apyKey ?? 'apy') as keyof SupplyProduct
 
         // Extract APYs per selected market for the chosen horizon
         const apys = markets.map((m) => {

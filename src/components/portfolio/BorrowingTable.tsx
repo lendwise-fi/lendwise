@@ -296,7 +296,7 @@ function TableCellViewer({ item }: { item: BorrowPosition }) {
       <DrawerTrigger asChild>
         <Button
           variant="link"
-          className="text-foreground decoration-muted-foreground w-fit cursor-pointer px-0 text-left underline decoration-dashed underline-offset-6"
+          className="text-foreground decoration-muted-foreground w-fit cursor-pointer px-0 text-left text-xs underline decoration-dashed underline-offset-6"
           onClick={() => {
             handleLoadRates('7d')
           }}
@@ -402,7 +402,7 @@ function TableCellViewer({ item }: { item: BorrowPosition }) {
                         tickMargin={-45}
                         width={50}
                         tick={{
-                          fill: 'hsl(var(--muted-foreground))',
+                          fill: 'var(--muted-foreground)',
                           fontSize: 11,
                         }}
                         tickFormatter={(value) =>
@@ -539,7 +539,7 @@ function TableCellViewer({ item }: { item: BorrowPosition }) {
                         tickMargin={-45}
                         width={50}
                         tick={{
-                          fill: 'hsl(var(--muted-foreground))',
+                          fill: 'var(--muted-foreground)',
                           fontSize: 11,
                         }}
                         tickFormatter={(value) =>
@@ -613,10 +613,11 @@ export function BorrowingTable({ data }: { data: BorrowPosition[] }) {
 
   return (
     <div>
-      <h2 className="text-foreground text-2xl font-semibold">
-        Borrowing positions
-      </h2>
-      <Separator className="my-3" />
+      <div className="mb-4 flex items-center justify-between">
+        <h2 className="text-foreground text-lg font-semibold">
+          Borrowing positions
+        </h2>
+      </div>
       <DataTable
         columns={columns}
         data={data}

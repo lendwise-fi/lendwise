@@ -110,7 +110,6 @@ export function WalletWatcherProvider({
         ;(provider as any).on('accountsChanged', handleAccountsChanged)
 
         return () => {
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           if ('removeListener' in provider) {
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             ;(provider as any).removeListener(

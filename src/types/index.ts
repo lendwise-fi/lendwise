@@ -106,7 +106,7 @@ export interface SupplyPosition {
   link?: string
 }
 
-export interface SupplyMarket {
+export interface SupplyProduct {
   protocol: ProtocolName
   network: string
   poolName: string
@@ -125,6 +125,31 @@ export interface SupplyMarket {
   apyDaily?: number
   apyMonthly?: number
   apyYearly?: number
+  productId?: string
+  link?: string
+}
+
+export interface BorrowProduct {
+  protocol: ProtocolName
+  network: string
+  poolName: string
+  poolAddress: Address
+  poolId: string
+  poolChainId: number
+  assetAddress: Address
+  assetName: string
+  assetSymbol: string
+  assetDecimals: number
+  assetAmount: string
+  assetAmountUsd: number
+  liquidityAmount: string
+  liquidityAmountUsd: number
+  collaterals: Token[]
+  apy: number
+  apyDaily?: number
+  apyMonthly?: number
+  apyYearly?: number
+  productId?: string
   link?: string
 }
 
@@ -205,3 +230,10 @@ export const TIMEFRAME_OPTIONS: TimeframeOption[] = [
   { label: '1Y', interval: MARKET_RATES_INTERVAL.DAY, days: 365 },
   { label: 'Max', interval: MARKET_RATES_INTERVAL.DAY },
 ]
+
+export interface StatCard {
+  label: string
+  value: string
+  sub?: string
+  accent?: boolean
+}

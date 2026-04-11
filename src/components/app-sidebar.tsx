@@ -31,14 +31,14 @@ import { Separator } from './ui/separator'
 
 const navigationItems = [
   {
-    title: 'Supplying',
-    href: '/supplying',
+    title: 'Supply',
+    href: '/supply',
     icon: TrendingUp,
     description: 'Yield Optimization',
   },
   {
-    title: 'Borrowing',
-    href: '/borrowing',
+    title: 'Borrow',
+    href: '/borrow',
     icon: Wallet,
     description: 'Cost Minimization',
   },

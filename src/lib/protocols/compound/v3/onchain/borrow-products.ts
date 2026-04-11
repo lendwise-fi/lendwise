@@ -1,21 +1,21 @@
 import { cache } from 'react'
 
 import { CHAIN_NAME_MAPPING } from '@/lib/protocols/utils'
-import { SupplyMarket } from '@/types'
+import { BorrowProduct } from '@/types'
 
 import { getChainClients } from '.'
 import { COMPOUND_CONFIG } from '../../config'
-import { SLUG_MAPPING } from '../utils'
-import { ListBorrowingProductsQuery } from './generated/graphql'
-import { LIST_BORROWING_PRODUCTS } from './queries'
+import { SLUG_MAPPING, buildProductId } from '../utils'
+import { ListBorrowProductsQuery } from './generated/graphql'
+import { LIST_BORROW_PRODUCTS } from './queries'
 
 // CPU-heavy transformation memoized
-const _formatBorrowingMarkets = cache(
+const _formatBorrowProducts = cache(
   (
-    markets: ListBorrowingProductsQuery['markets'],
+    markets: ListBorrowProductsQuery['markets'],
     chainName: string,
     chainId: number
-  ): SupplyMarket[] =>
+  ): BorrowProduct[] =>
     markets.map((market) => {
       const token = market.configuration.baseToken.token
       const totalSupply = BigInt(market.accounting.totalBaseSupply)
@@ -43,20 +43,18 @@ const _formatBorrowingMarkets = cache(
         ),
         collaterals: [],
         apy: market.accounting.netBorrowApr,
-        apyDaily: market.accounting.netBorrowApr,
-        apyMonthly: market.accounting.netBorrowApr,
-        apyYearly: market.accounting.netBorrowApr,
+        productId: buildProductId(market.id, { id: chainId, name: chainName! }, 'borrow'),
         link: `https://app.compound.finance/?market=${token.symbol.toLowerCase()}-${SLUG_MAPPING[chainId] ?? 'mainnet'}`,
       }
     })
 )
 
-export async function getBorrowingMarkets(): Promise<SupplyMarket[]> {
+export async function getBorrowProducts(): Promise<BorrowProduct[]> {
   const chainClients = await getChainClients()
   const results = await Promise.allSettled(
     chainClients.map(async ({ client, chainName, chainId }) => {
       const { data, error } = await client
-        .query<ListBorrowingProductsQuery>(LIST_BORROWING_PRODUCTS, {})
+        .query<ListBorrowProductsQuery>(LIST_BORROW_PRODUCTS, {})
         .toPromise()
 
       if (error) {
@@ -69,7 +67,7 @@ export async function getBorrowingMarkets(): Promise<SupplyMarket[]> {
       }
 
       return data?.markets
-        ? _formatBorrowingMarkets(data.markets, chainName!, chainId)
+        ? _formatBorrowProducts(data.markets, chainName!, chainId)
         : []
     })
   )

@@ -1,17 +1,18 @@
 import { cache } from 'react'
 
 import { CHAIN_NAME_MAPPING } from '@/lib/protocols/utils'
-import { SupplyMarket } from '@/types'
+import { BorrowProduct } from '@/types'
 
 import { client } from '.'
 import { MORPHO_CONFIG } from '../../config'
-import { ListBorrowingProductsQuery } from './generated/graphql'
-import { LIST_BORROWING_PRODUCTS } from './queries'
+import { buildMarketProductId } from '../utils'
+import { ListBorrowProductsQuery } from './generated/graphql'
+import { LIST_BORROW_PRODUCTS } from './queries'
 
 // CPU-heavy transformation memoized
-const _formatBorrowingMarkets = cache(
-  (markets: ListBorrowingProductsQuery['markets']): SupplyMarket[] =>
-    markets.items?.map((market) => {
+const _formatBorrowProducts = cache(
+  (markets: ListBorrowProductsQuery['markets']): BorrowProduct[] =>
+    markets.items?.map((market): BorrowProduct => {
       const chainIdForMarket = market.morphoBlue.chain.id
       const networkForMarket =
         CHAIN_NAME_MAPPING[chainIdForMarket] ||
@@ -41,32 +42,36 @@ const _formatBorrowingMarkets = cache(
             (market.state?.borrowAssetsUsd ?? 0)
         ),
         collaterals: market.collateralAsset
-          ? [{ symbol: market.collateralAsset.symbol }]
+          ? [
+              {
+                address: market.collateralAsset.address,
+                symbol: market.collateralAsset.symbol,
+                name: market.collateralAsset.name,
+                decimals: market.collateralAsset.decimals,
+              },
+            ]
           : [],
         apy: market.state?.netBorrowApy ?? 0,
-        apyDaily: market.state?.netBorrowApy ?? 0,
-        apyMonthly: market.state?.netBorrowApy ?? 0,
-        apyYearly: market.state?.netBorrowApy ?? 0,
+        productId: buildMarketProductId(market.morphoBlue.chain.id, market.marketId),
         link: `https://app.morpho.org/${market.morphoBlue.chain.network.toLowerCase()}/market/${market.marketId}`,
       }
     }) || []
 )
 
-export async function getBorrowingMarkets(): Promise<SupplyMarket[]> {
-  const allMarkets: SupplyMarket[] = []
+export async function getBorrowProducts(): Promise<BorrowProduct[]> {
+  const allMarkets: BorrowProduct[] = []
   let skip = 0
   let hasMore = true
 
   try {
     while (hasMore) {
       const { data, error } = await client
-        .query<ListBorrowingProductsQuery>(LIST_BORROWING_PRODUCTS, {
+        .query<ListBorrowProductsQuery>(LIST_BORROW_PRODUCTS, {
           first: 100,
           skip,
           where: {
             listed: true,
-            supplyAssetsUsd_gte: 10000,
-            utilization_lte: 0.85,
+            supplyAssetsUsd_gte: 100000,
             chainId_in: Object.keys(MORPHO_CONFIG.morpho_v1.chains).map((key) =>
               Number(key)
             ),
@@ -86,7 +91,7 @@ export async function getBorrowingMarkets(): Promise<SupplyMarket[]> {
         break
       }
 
-      allMarkets.push(..._formatBorrowingMarkets(data.markets))
+      allMarkets.push(..._formatBorrowProducts(data.markets))
 
       const pageInfo = data.markets.pageInfo
       if (pageInfo && pageInfo.countTotal > skip + pageInfo.count) {

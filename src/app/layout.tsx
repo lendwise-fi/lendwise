@@ -5,9 +5,8 @@ import { Inter } from 'next/font/google'
 import { Analytics } from '@vercel/analytics/next'
 import { Toaster } from 'sonner'
 
-import { AppSidebar } from '@/components/app-sidebar'
+import { Footer } from '@/components/footer'
 import { Navbar } from '@/components/navbar'
-import { SidebarProvider } from '@/components/ui/sidebar'
 import {
   CurrencyProvider,
   ThemeProvider,
@@ -41,13 +40,11 @@ export default function RootLayout({
           <Web3Provider>
             <CurrencyProvider defaultCurrency="USD">
               <WalletWatcherProvider>
-                <SidebarProvider>
-                  <AppSidebar />
-                  <main className="w-full">
-                    <Navbar />
-                    {children}
-                  </main>
-                </SidebarProvider>
+                <div className="flex min-h-screen flex-col">
+                  <Navbar />
+                  <main className="flex-1">{children}</main>
+                  <Footer />
+                </div>
                 <Toaster position="top-right" richColors />
               </WalletWatcherProvider>
             </CurrencyProvider>

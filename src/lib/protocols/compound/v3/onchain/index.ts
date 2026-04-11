@@ -16,7 +16,7 @@ import {
 } from '../../../shared'
 import { COMPOUND_CONFIG } from '../../config'
 import { BASE_INDEX_SCALE, SLUG_MAPPING } from '../utils'
-import { getBorrowingMarkets } from './borrowing-markets'
+import { getBorrowProducts } from './borrow-products'
 import type {
   Account_Filter,
   // MarketDailyBorrowRatesQuery,
@@ -34,7 +34,7 @@ import {
   USER_BORROW_POSITIONS,
   USER_SUPPLY_POSITIONS,
 } from './queries'
-import { getSupplyingMarkets } from './supplying-markets'
+import { getSupplyProducts } from './supply-products'
 
 // ============================================================================
 // Types
@@ -514,6 +514,6 @@ export const compoundV3OnchainAdapter: DataAdapter = {
   getUserBorrowPositions,
   getMarketBorrowHistoryRates,
   getMarketSupplyHistoryRates,
-  getSupplyingMarkets,
-  getBorrowingMarkets,
+  getSupplyProducts,
+  getBorrowProducts,
 }

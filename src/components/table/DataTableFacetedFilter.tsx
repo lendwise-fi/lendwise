@@ -32,7 +32,8 @@ interface DataTableFacetedFilter<TData, TValue> {
   column?: Column<TData, TValue>
   title?: string
   options: FilterOption[]
-  multiSelect?: boolean // New prop to enable/disable multi-selection
+  multiSelect?: boolean
+  facetCounts?: Map<string, number>
 }
 
 export function getUniqueColumnValues<TData>(
@@ -48,14 +49,17 @@ export function DataTableFacetedFilter<TData, TValue>({
   column,
   title,
   options,
-  multiSelect = true, // Default to multi-select for backward compatibility
+  multiSelect = true,
+  facetCounts,
 }: DataTableFacetedFilter<TData, TValue>) {
-  const facets = new Map(
-    Array.from(column?.getFacetedUniqueValues() ?? []).map(([key, count]) => [
-      String(key),
-      count,
-    ])
-  )
+  const facets =
+    facetCounts ??
+    new Map(
+      Array.from(column?.getFacetedUniqueValues() ?? []).map(([key, count]) => [
+        String(key),
+        count,
+      ])
+    )
 
   // Handle both single and multi-select modes
   const filterValue = column?.getFilterValue()
@@ -114,7 +118,7 @@ export function DataTableFacetedFilter<TData, TValue>({
           )}
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="w-52 p-0" align="start">
+      <PopoverContent className="w-64 p-0" align="start">
         <Command>
           <CommandInput placeholder={title} />
           <CommandList>

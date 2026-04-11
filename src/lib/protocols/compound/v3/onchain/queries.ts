@@ -169,8 +169,8 @@ export const MARKETS_ALL = gql`
   }
 `
 
-export const LIST_BORROWING_PRODUCTS = gql`
-  query ListBorrowingProducts {
+export const LIST_BORROW_PRODUCTS = gql`
+  query ListBorrowProducts {
     markets {
       id
       accounting {
@@ -194,8 +194,8 @@ export const LIST_BORROWING_PRODUCTS = gql`
   }
 `
 
-export const LIST_SUPPLYING_PRODUCTS = gql`
-  query ListSupplyingProducts {
+export const LIST_SUPPLY_PRODUCTS = gql`
+  query ListSupplyProducts {
     markets {
       id
       accounting {

@@ -5,11 +5,6 @@ import { useEffect, useMemo } from 'react'
 import { Address } from 'viem'
 import { useAccount } from 'wagmi'
 
-import {
-  PieChartDonutText,
-  PieChartDonutTextProps,
-  PieChartDonutTextSkeleton,
-} from '@/components/charts'
 import { DataTableSkeleton } from '@/components/table'
 import { WalletNotConnected } from '@/components/wallet'
 import { getProtocolVersionNameById } from '@/config'
@@ -18,6 +13,7 @@ import { useLoadUserPositions } from '@/hooks/useLoadUserPositions'
 import { useWalletStore } from '@/stores/walletStore'
 
 import { BorrowingTable, SupplyingTable } from '.'
+import PortfolioSidebar from './PortfolioSidebar'
 
 export function Portfolio() {
   const { address, isConnected } = useAccount()
@@ -41,88 +37,70 @@ export function Portfolio() {
     }
   }, [address])
 
-  const supplyPieChartDonut = useMemo(() => {
-    const chart: PieChartDonutTextProps = {
-      data: [],
-      config: {},
-    }
+  const PROTOCOL_COLORS = [
+    '#06B6D4',
+    '#8B5CF6',
+    '#F59E0B',
+    '#10B981',
+    '#EF4444',
+    '#3B82F6',
+  ]
 
-    let nbPositions = 0
-    const totalByProtocol: number[] = []
+  const portfolioSummary = useMemo(() => {
+    const supplyPositions = Object.values(userPositions.supply).flat()
+    const borrowPositions = Object.values(userPositions.borrow).flat()
 
-    Object.keys(userPositions.supply).map((protocol, idx) => {
-      if (!userPositions.supply[protocol].length) return
-      const total = userPositions.supply[protocol].reduce(
-        (acc, val) => acc + Number(val.assetAmountUsd) * rate,
-        0
-      )
-      totalByProtocol.push(total)
-      nbPositions += userPositions.supply[protocol].length
-      const protocolName = getProtocolVersionNameById(protocol)
-      chart.data.push({
-        id: protocol,
-        label: protocolName,
-        value: Number(total),
-        fill: `var(--color-${protocol})`,
+    const totalSupplyingValue = supplyPositions.reduce(
+      (acc, p) => acc + Number(p.assetAmountUsd) * rate,
+      0
+    )
+    const totalBorrowingValue = borrowPositions.reduce(
+      (acc, p) => acc + Number(p.loanAssetAmountUsd) * rate,
+      0
+    )
+
+    const supplyBreakdown = Object.entries(userPositions.supply)
+      .filter(([, positions]) => positions.length > 0)
+      .map(([protocol, positions], idx) => {
+        const total = positions.reduce(
+          (acc, p) => acc + Number(p.assetAmountUsd) * rate,
+          0
+        )
+        return {
+          name: getProtocolVersionNameById(protocol),
+          value: totalSupplyingValue > 0 ? (total / totalSupplyingValue) * 100 : 0,
+          color: PROTOCOL_COLORS[idx % PROTOCOL_COLORS.length],
+        }
       })
-      chart.config[protocol] = {
-        label: protocolName,
-        color: `var(--chart-${++idx})`,
-      }
-    })
 
-    const total = totalByProtocol.reduce((acc, val) => acc + val, 0)
-    chart.data.forEach((item) => {
-      item.percent = (item.value / total) * 100
-    })
-
-    chart['title'] = 'Total Supplying'
-    chart['description'] =
-      `${nbPositions} position${nbPositions > 1 ? 's' : ''}`
-
-    return chart
-  }, [userPositions, rate])
-
-  const borrowPieChartDonut = useMemo(() => {
-    const chart: PieChartDonutTextProps = {
-      data: [],
-      config: {},
-    }
-
-    let nbPositions = 0
-    const totalByProtocol: number[] = []
-
-    Object.keys(userPositions.borrow).map((protocol, idx) => {
-      if (!userPositions.borrow[protocol].length) return
-      const total = userPositions.borrow[protocol].reduce(
-        (acc, val) => acc + Number(val.loanAssetAmountUsd) * rate,
-        0
-      )
-      totalByProtocol.push(total)
-      nbPositions += userPositions.borrow[protocol].length
-      const protocolName = getProtocolVersionNameById(protocol)
-      chart.data.push({
-        id: protocol,
-        label: protocolName,
-        value: Number(total),
-        fill: `var(--color-${protocol})`,
+    const borrowBreakdown = Object.entries(userPositions.borrow)
+      .filter(([, positions]) => positions.length > 0)
+      .map(([protocol, positions], idx) => {
+        const total = positions.reduce(
+          (acc, p) => acc + Number(p.loanAssetAmountUsd) * rate,
+          0
+        )
+        return {
+          name: getProtocolVersionNameById(protocol),
+          value: totalBorrowingValue > 0 ? (total / totalBorrowingValue) * 100 : 0,
+          color: PROTOCOL_COLORS[idx % PROTOCOL_COLORS.length],
+        }
       })
-      chart.config[protocol] = {
-        label: protocolName,
-        color: `var(--chart-${++idx})`,
-      }
-    })
 
-    const total = totalByProtocol.reduce((acc, val) => acc + val, 0)
-    chart.data.forEach((item) => {
-      item.percent = (item.value / total) * 100
-    })
-
-    chart['title'] = 'Total Borrowing'
-    chart['description'] =
-      `${nbPositions} position${nbPositions > 1 ? 's' : ''}`
-
-    return chart
+    return {
+      totalSupplying: {
+        value: totalSupplyingValue,
+        currency: 'USD',
+        positions: supplyPositions.length,
+      },
+      totalBorrowing: {
+        value: totalBorrowingValue,
+        currency: 'USD',
+        positions: borrowPositions.length,
+      },
+      supplyBreakdown,
+      borrowBreakdown,
+    }
   }, [userPositions, rate])
 
   if (error) return <p>{error}</p>
@@ -132,56 +110,23 @@ export function Portfolio() {
   }
 
   return (
-    <div className="flex-1 space-y-8 p-4 md:p-8">
-      {/* Header */}
-      <div className="flex items-start justify-between">
-        <div className="min-w-0 flex-1">
-          <h1 className="text-foreground mb-2 text-2xl font-bold md:text-3xl">
-            Portfolio Tracker
-          </h1>
-          <p className="text-muted-foreground-400 text-sm md:text-base">
-            Monitor all your DeFi positions across protocols and chains
-          </p>
-        </div>
-      </div>
+    <div className="flex min-h-[calc(100vh-3.5rem)]">
+      <PortfolioSidebar summary={portfolioSummary} />
 
-      {/* Portfolio Summary */}
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 md:gap-6">
-        {isPending ? (
-          <>
-            <PieChartDonutTextSkeleton />
-            <PieChartDonutTextSkeleton />
-          </>
+      {/* Right: positions */}
+      <div className="flex-1 overflow-auto px-8 py-6">
+        {isPending || conversionLoading ? (
+          <div className="space-y-6">
+            <DataTableSkeleton />
+            <DataTableSkeleton />
+          </div>
         ) : (
-          <>
-            <PieChartDonutText
-              title={supplyPieChartDonut.title}
-              description={supplyPieChartDonut.description}
-              data={supplyPieChartDonut.data}
-              config={supplyPieChartDonut.config}
-            />
-            <PieChartDonutText
-              title={borrowPieChartDonut.title}
-              description={borrowPieChartDonut.description}
-              data={borrowPieChartDonut.data}
-              config={borrowPieChartDonut.config}
-            />
-          </>
+          <div className="space-y-10">
+            <SupplyingTable data={Object.values(userPositions.supply).flat()} />
+            <BorrowingTable data={Object.values(userPositions.borrow).flat()} />
+          </div>
         )}
       </div>
-
-      {/* Detailed Positions Lists */}
-      {isPending || conversionLoading ? (
-        <div className="space-y-6 md:space-y-8">
-          <DataTableSkeleton />
-          <DataTableSkeleton />
-        </div>
-      ) : (
-        <div className="mt-8 space-y-8 md:mt-12 md:space-y-12">
-          <SupplyingTable data={Object.values(userPositions.supply).flat()} />
-          <BorrowingTable data={Object.values(userPositions.borrow).flat()} />
-        </div>
-      )}
     </div>
   )
 }

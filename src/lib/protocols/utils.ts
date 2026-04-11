@@ -3,10 +3,11 @@ import { arbitrum, base, mainnet, optimism, polygon } from 'viem/chains'
 
 import type {
   BorrowPosition,
+  BorrowProduct,
   MarketRate,
   MarketStats,
-  SupplyMarket,
   SupplyPosition,
+  SupplyProduct,
   TimeframeLabel,
 } from '@/types'
 
@@ -207,7 +208,7 @@ export function createProtocolAdapter(
       return ratesAdapter.getMarketSupplyHistoryRates(params)
     },
 
-    async getSupplyingMarkets(version?: string): Promise<SupplyMarket[]> {
+    async getSupplyProducts(version?: string): Promise<SupplyProduct[]> {
       const versionAdapter = this.getVersion(version)
       // Try positions adapter first, then rates, then stats
       const adapter =
@@ -222,16 +223,16 @@ export function createProtocolAdapter(
         return []
       }
 
-      if (!adapter.getSupplyingMarkets) {
+      if (!adapter.getSupplyProducts) {
         console.warn(
-          `Adapter for ${this.protocol} ${versionAdapter.version} does not implement getSupplyingMarkets`
+          `Adapter for ${this.protocol} ${versionAdapter.version} does not implement getSupplyProducts`
         )
         return []
       }
 
-      return adapter.getSupplyingMarkets()
+      return adapter.getSupplyProducts()
     },
-    async getBorrowingMarkets(version?: string): Promise<SupplyMarket[]> {
+    async getBorrowProducts(version?: string): Promise<BorrowProduct[]> {
       const versionAdapter = this.getVersion(version)
       // Try positions adapter first, then rates, then stats
       const adapter =
@@ -246,14 +247,14 @@ export function createProtocolAdapter(
         return []
       }
 
-      if (!adapter.getBorrowingMarkets) {
+      if (!adapter.getBorrowProducts) {
         console.warn(
-          `Adapter for ${this.protocol} ${versionAdapter.version} does not implement getBorrowingMarkets`
+          `Adapter for ${this.protocol} ${versionAdapter.version} does not implement getBorrowProducts`
         )
         return []
       }
 
-      return adapter.getBorrowingMarkets()
+      return adapter.getBorrowProducts()
     },
   }
 }

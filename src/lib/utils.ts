@@ -1,6 +1,8 @@
 import { type ClassValue, clsx } from 'clsx'
 import { twMerge } from 'tailwind-merge'
 
+import { BorrowProduct, SupplyProduct } from '@/types'
+
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
 }
@@ -89,4 +91,23 @@ export function apyToAprMorpho(apy: number): number {
 export function aprToApyDaily(apr: number): number {
   if (apr <= 0) return 0
   return Math.pow(1 + apr / 365, 365) - 1
+}
+
+export const analyze = <T>(items: T[], selector: (item: T) => number) => {
+  return items.reduce(
+    (acc, item) => {
+      const val = selector(item)
+
+      acc.min = Math.min(acc.min, val)
+      acc.max = Math.max(acc.max, val)
+      acc.set.add((item as SupplyProduct | BorrowProduct).poolChainId)
+
+      return acc
+    },
+    {
+      min: Infinity,
+      max: -Infinity,
+      set: new Set<number>(),
+    }
+  )
 }

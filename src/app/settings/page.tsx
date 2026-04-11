@@ -180,7 +180,8 @@ function SettingsContent() {
 
   const handleDisconnectWallet = async (walletAddress: string) => {
     try {
-      const isActiveAddress = walletAddress.toLowerCase() === activeAddress?.toLowerCase()
+      const isActiveAddress =
+        walletAddress.toLowerCase() === activeAddress?.toLowerCase()
       const isLastAddress = wallets.length === 1
 
       // Remove from our store

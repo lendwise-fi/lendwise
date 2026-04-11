@@ -6,7 +6,7 @@ import { BorrowPosition, SupplyPosition } from '@/types'
 
 import { AAVE_CONFIG } from '../../config'
 import { getNetworkName } from '../utils'
-import { getBorrowingMarkets } from './borrowing-markets'
+import { getBorrowProducts } from './borrow-products'
 import {
   MarketsQuery,
   UserBorrowPositionsQuery,
@@ -25,7 +25,7 @@ import {
   USER_MARKET_HEALTH_FACTOR,
   USER_SUPPLY_POSITIONS,
 } from './queries'
-import { getSupplyingMarkets } from './supplying-markets'
+import { getSupplyProducts } from './supply-products'
 
 export const client = createGraphQLClient(AAVE_CONFIG.aave_v3.offchainApiUrl!)
 
@@ -328,6 +328,6 @@ export const aaveV3OffchainAdapter: DataAdapter = {
   getUserBorrowPositions,
   getMarketBorrowHistoryRates,
   getMarketSupplyHistoryRates,
-  getSupplyingMarkets,
-  getBorrowingMarkets,
+  getSupplyProducts,
+  getBorrowProducts,
 }

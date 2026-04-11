@@ -78,15 +78,15 @@ export const TokenIcon = ({
   if (error || !src) {
     return (
       <div
-        className={`bg-muted flex items-center justify-center rounded-full ${className}`}
+        className={`bg-muted border-border flex items-center justify-center rounded-full border ${className}`}
         style={{ width: size, height: size }}
         title={symbol}
       >
         <span
-          className="text-muted-foreground font-bold"
-          style={{ fontSize: size * 0.4 }}
+          className="text-foreground font-bold"
+          style={{ fontSize: size * 0.55 }}
         >
-          {symbol.slice(0, 2).toUpperCase()}
+          {symbol.charAt(0).toUpperCase()}
         </span>
       </div>
     )

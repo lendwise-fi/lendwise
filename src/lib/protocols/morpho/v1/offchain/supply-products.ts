@@ -1,21 +1,22 @@
 import { CHAIN_NAME_MAPPING } from '@/lib/protocols/utils'
 import { generateSlug } from '@/lib/utils'
-import { SupplyMarket } from '@/types'
+import { SupplyProduct } from '@/types'
 
 import { client } from '.'
 import { MORPHO_CONFIG } from '../../config'
-import { ListSupplyingProductsQuery } from './generated/graphql'
-import { LIST_SUPPLYING_PRODUCTS } from './queries'
+import { buildVaultProductId } from '../utils'
+import { ListSupplyProductsQuery } from './generated/graphql'
+import { LIST_SUPPLY_PRODUCTS } from './queries'
 
-export async function getSupplyingMarkets(): Promise<SupplyMarket[]> {
-  const allMarkets: SupplyMarket[] = []
+export async function getSupplyProducts(): Promise<SupplyProduct[]> {
+  const allMarkets: SupplyProduct[] = []
   let skip = 0
   let hasMore = true
 
   try {
     while (hasMore) {
       const { data, error } = await client
-        .query<ListSupplyingProductsQuery>(LIST_SUPPLYING_PRODUCTS, {
+        .query<ListSupplyProductsQuery>(LIST_SUPPLY_PRODUCTS, {
           first: 100,
           skip,
           where: {
@@ -65,9 +66,7 @@ export async function getSupplyingMarkets(): Promise<SupplyMarket[]> {
             : []
         ),
         apy: vault?.state?.avgNetApy ?? 0,
-        apyDaily: vault?.state?.apyDaily ?? vault?.state?.avgNetApy ?? 0,
-        apyMonthly: vault?.state?.avgNetApy ?? 0,
-        apyYearly: vault?.state?.apyYearly ?? vault?.state?.avgNetApy ?? 0,
+        productId: buildVaultProductId(vault.asset.chain.id, vault.address),
         link: `https://app.morpho.org/${vault.asset.chain.network.toLowerCase()}/vault/${vault.address}/${generateSlug(vault.name)}`,
       }))
 
