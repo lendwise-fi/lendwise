@@ -5,12 +5,18 @@ import { useEffect, useMemo } from 'react'
 import { Address } from 'viem'
 import { useAccount } from 'wagmi'
 
-import { DataTableSkeleton } from '@/components/table'
+import { PortfolioSkeleton } from './PortfolioSkeleton'
 import { WalletNotConnected } from '@/components/wallet'
 import { getProtocolVersionNameById } from '@/config'
 import { useCurrency } from '@/contexts'
 import { useLoadUserPositions } from '@/hooks/useLoadUserPositions'
 import { useWalletStore } from '@/stores/walletStore'
+import {
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
+} from '@/components/ui/tabs'
 
 import { BorrowingTable, SupplyingTable } from '.'
 import PortfolioSidebar from './PortfolioSidebar'
@@ -109,23 +115,58 @@ export function Portfolio() {
     return <WalletNotConnected />
   }
 
+  if (isPending || conversionLoading) {
+    return <PortfolioSkeleton />
+  }
+
+  const supplyData = Object.values(userPositions.supply).flat()
+  const borrowData = Object.values(userPositions.borrow).flat()
+
   return (
     <div className="flex h-full overflow-hidden">
       <PortfolioSidebar summary={portfolioSummary} />
 
-      {/* Right: positions */}
-      <div className="flex-1 overflow-y-auto px-8 py-6">
-        {isPending || conversionLoading ? (
-          <div className="space-y-6">
-            <DataTableSkeleton />
-            <DataTableSkeleton />
-          </div>
-        ) : (
-          <div className="space-y-10">
-            <SupplyingTable data={Object.values(userPositions.supply).flat()} />
-            <BorrowingTable data={Object.values(userPositions.borrow).flat()} />
-          </div>
-        )}
+      <div className="flex flex-1 flex-col overflow-hidden">
+        <Tabs defaultValue="supply" className="flex flex-1 flex-col overflow-hidden">
+          {/* Tab bar */}
+          <TabsList className="bg-muted border-border h-auto w-full justify-start gap-0 rounded-none border-b p-0">
+            <TabsTrigger
+              value="supply"
+              className="data-[state=active]:bg-card data-[state=active]:border-primary text-muted-foreground hover:text-foreground h-auto flex-col items-start rounded-none border-b-2 border-transparent px-8 py-5 transition-colors data-[state=active]:shadow-none cursor-pointer"
+            >
+              <div className="flex items-center gap-2.5">
+                <span className="text-foreground text-lg font-semibold">Supplying positions</span>
+                <span className="bg-background text-muted-foreground rounded-full px-2 py-0.5 text-[11px] font-semibold">
+                  {supplyData.length}
+                </span>
+              </div>
+              <p className="text-muted-foreground mt-0.5 text-[12px] font-normal">
+                Your active supply positions across protocols
+              </p>
+            </TabsTrigger>
+            <TabsTrigger
+              value="borrow"
+              className="data-[state=active]:bg-card data-[state=active]:border-primary text-muted-foreground hover:text-foreground h-auto flex-col items-start rounded-none border-b-2 border-transparent px-8 py-5 transition-colors data-[state=active]:shadow-none cursor-pointer"
+            >
+              <div className="flex items-center gap-2.5">
+                <span className="text-foreground text-lg font-semibold">Borrowing positions</span>
+                <span className="bg-background text-muted-foreground rounded-full px-2 py-0.5 text-[11px] font-semibold">
+                  {borrowData.length}
+                </span>
+              </div>
+              <p className="text-muted-foreground mt-0.5 text-[12px] font-normal">
+                Active loans and collateral positions
+              </p>
+            </TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="supply" className="mt-0 flex-1 overflow-y-auto">
+            <SupplyingTable data={supplyData} />
+          </TabsContent>
+          <TabsContent value="borrow" className="mt-0 flex-1 overflow-y-auto">
+            <BorrowingTable data={borrowData} />
+          </TabsContent>
+        </Tabs>
       </div>
     </div>
   )

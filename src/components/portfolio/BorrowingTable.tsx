@@ -96,7 +96,7 @@ const createColumns = (
     accessorKey: 'poolName',
     header: 'Vault / Pool',
     cell: ({ row }) => (
-      <div className="hover:bg-accent flex w-fit cursor-pointer items-center gap-2 rounded-lg px-3 py-0">
+      <div className="flex w-full items-center gap-2">
         <TokenIcon symbol={row.original.loanAssetSymbol} />
         <TableCellViewer item={row.original} />
       </div>

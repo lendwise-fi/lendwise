@@ -10,9 +10,12 @@ import {
   AlertCircle,
   ArrowUpRightFromSquare,
   Calendar,
+  CheckCircle2,
+  ChevronRight,
   Search,
   TrendingUp,
   X,
+  Zap,
 } from 'lucide-react'
 import { Area, AreaChart, CartesianGrid, XAxis, YAxis } from 'recharts'
 
@@ -21,9 +24,10 @@ import { loadBorrowProducts } from '@/app/actions/products.actions'
 import { NetworkBadge } from '@/components/badge/NetworkBadge'
 import { ProtocolBadge } from '@/components/badge/ProtocolBadge'
 import { NetworkIcon, ProtocolIcon, TokenIcon } from '@/components/icon'
-import { FilterChip } from '@/components/table'
+import { BorrowingOptimizerView } from '@/components/optimizer/BorrowingOptimizerButton'
 import { TableSkeleton } from '@/components/products/TableSkeleton'
 import { StatsBar } from '@/components/stats/StatsBar'
+import { FilterChip } from '@/components/table'
 import {
   DataTable,
   SortableHeader,
@@ -38,6 +42,13 @@ import {
   ChartTooltipContent,
 } from '@/components/ui/chart'
 import { Checkbox } from '@/components/ui/checkbox'
+import {
+  Dialog,
+  DialogClose,
+  DialogContent,
+  DialogTitle,
+  DialogTrigger,
+} from '@/components/ui/dialog'
 import {
   Drawer,
   DrawerClose,
@@ -553,6 +564,9 @@ export function BorrowTableClient() {
   const { baseCurrency, rate } = useCurrency()
   const [horizon, setHorizon] = useState<Horizon>('intraday')
   const [rowSelection, setRowSelection] = useState<Record<string, boolean>>({})
+  const [isModalOpen, setIsModalOpen] = useState(false)
+  const [modalStep, setModalStep] = useState(1)
+  const [snapshotMarkets, setSnapshotMarkets] = useState<BorrowProduct[]>([])
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([
     { id: 'assetSymbol', value: 'USDC' },
   ])
@@ -586,6 +600,10 @@ export function BorrowTableClient() {
     horizon === 'intraday'
       ? markets
       : markets.filter((m) => m[HORIZON_CONFIG[horizon].apyKey] !== undefined)
+
+  const selectedData = visibleMarkets.filter(
+    (row) => rowSelection[getRowId(row)]
+  )
 
   const isFiltered = columnFilters.length > 0 || searchValue !== ''
 
@@ -681,7 +699,7 @@ export function BorrowTableClient() {
 
   const result = analyze(markets, (i) => i.apy)
 
-  if (isPending) return <TableSkeleton />
+  if (isPending) return <TableSkeleton variant="borrow" />
 
   return (
     <div className="flex flex-col">
@@ -717,6 +735,141 @@ export function BorrowTableClient() {
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
+          {/* Optimize */}
+          {Object.keys(rowSelection).length > 0 && (
+            <Dialog
+              open={isModalOpen}
+              onOpenChange={(open) => {
+                setIsModalOpen(open)
+                if (!open) {
+                  setModalStep(1)
+                  setSnapshotMarkets([])
+                }
+              }}
+            >
+              <DialogTrigger asChild>
+                <Button size="sm" className="h-8 text-[12px]">
+                  <Zap className="h-3.5 w-3.5" />
+                  Optimize ({Object.keys(rowSelection).length})
+                </Button>
+              </DialogTrigger>
+              <DialogContent
+                showCloseButton={false}
+                className="sm:max-w-4xl gap-0 overflow-hidden p-0"
+              >
+                <DialogTitle className="sr-only">Yield Optimizer</DialogTitle>
+                {/* Custom header */}
+                <div className="border-border flex items-start justify-between border-b px-7 pt-6 pb-5">
+                  <div>
+                    <div className="mb-1 flex items-center gap-2.5">
+                      <div className="bg-primary/15 flex h-7 w-7 items-center justify-center rounded-lg">
+                        <Zap className="text-primary h-4 w-4" />
+                      </div>
+                      <h2 className="text-base font-semibold">
+                        Yield Optimizer
+                      </h2>
+                    </div>
+                    <p className="text-muted-foreground ml-9 text-[12px]">
+                      {modalStep === 1
+                        ? `${selectedData.length} market${selectedData.length !== 1 ? 's' : ''} selected — review before optimizing`
+                        : 'Set parameters and run the optimizer engine'}
+                    </p>
+                  </div>
+
+                  {/* Stepper */}
+                  <div className="mr-6 flex items-center gap-1">
+                    {[
+                      { step: 1, label: 'Selection' },
+                      { step: 2, label: 'Configure' },
+                    ].map((s, i) => (
+                      <div key={s.step} className="flex items-center gap-1">
+                        {i > 0 && (
+                          <div
+                            className={`mx-1 h-px w-8 transition-colors ${modalStep > 1 ? 'bg-primary/40' : 'bg-border'}`}
+                          />
+                        )}
+                        <div
+                          className={`flex h-6 w-6 items-center justify-center rounded-full text-[11px] font-semibold transition-all ${
+                            modalStep === s.step
+                              ? 'bg-primary text-primary-foreground'
+                              : modalStep > s.step
+                                ? 'bg-primary/20 text-primary'
+                                : 'bg-secondary text-muted-foreground'
+                          }`}
+                        >
+                          {modalStep > s.step ? (
+                            <CheckCircle2 className="h-3.5 w-3.5" />
+                          ) : (
+                            s.step
+                          )}
+                        </div>
+                        <span
+                          className={`text-[11px] font-medium ${modalStep === s.step ? 'text-foreground' : 'text-muted-foreground'}`}
+                        >
+                          {s.label}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+
+                  <DialogClose className="rounded-lg p-1.5 transition-colors hover:bg-secondary/60">
+                    <X className="text-muted-foreground h-4 w-4" />
+                  </DialogClose>
+                </div>
+
+                {/* Body */}
+                {modalStep === 1 ? (
+                  <div>
+                    <div className="max-h-72 space-y-2 overflow-y-auto px-7 py-5">
+                      {selectedData.map((pool, i) => (
+                        <div
+                          key={i}
+                          className="border-border/50 hover:border-border bg-secondary/30 flex items-center gap-4 rounded-xl border p-3.5 transition-colors"
+                        >
+                          <div className="from-primary to-primary/30 h-10 w-1 shrink-0 rounded-full bg-gradient-to-b" />
+                          <ProtocolBadge protocol={pool.protocol} />
+                          <NetworkBadge networkSlug={pool.network} />
+                          <span className="text-foreground flex-1 truncate text-[13px] font-medium">
+                            {pool.poolName}
+                          </span>
+                          <span
+                            className={`font-mono text-[13px] font-semibold ${
+                              pool.apy > 0.5
+                                ? 'text-orange-400'
+                                : pool.apy > 0.1
+                                  ? 'text-emerald-400'
+                                  : 'text-muted-foreground'
+                            }`}
+                          >
+                            {(pool.apy * 100).toFixed(2)}%
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                    <div className="flex justify-end px-7 pb-6">
+                      <Button
+                        onClick={() => {
+                          setSnapshotMarkets(selectedData)
+                          setModalStep(2)
+                        }}
+                      >
+                        Configure Optimizer
+                        <ChevronRight className="ml-1 h-4 w-4" />
+                      </Button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="px-7 py-2">
+                    <BorrowingOptimizerView
+                      markets={snapshotMarkets}
+                      onBack={() => setModalStep(1)}
+                    />
+                  </div>
+                )}
+              </DialogContent>
+            </Dialog>
+          )}
+
           {/* Horizon */}
           <Select
             value={horizon}
