@@ -22,7 +22,7 @@ export function PieChartMini({
   labelSize = 'sm',
 }: PieChartMiniProps) {
   const labelSizeMap = {
-    sm: 'text-[10px]',
+    sm: 'text-2xs',
     md: 'text-xs',
     lg: 'text-sm',
   }

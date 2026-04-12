@@ -192,7 +192,7 @@ const createColumns = (
                     {collateral.amountUsd === 0 && (
                       <Badge
                         variant="secondary"
-                        className="px-1.5 py-0 text-[10px] uppercase"
+                        className="px-1.5 py-0 text-2xs uppercase"
                       >
                         Idle
                       </Badge>
@@ -573,7 +573,7 @@ export function BorrowingTable({ data }: { data: BorrowPosition[] }) {
             <Button
               variant="ghost"
               size="sm"
-              className="h-8 px-2 text-[12px]"
+              className="h-8 px-2 text-xs"
               onClick={() => {
                 setColumnFilters([])
                 setSearchValue('')

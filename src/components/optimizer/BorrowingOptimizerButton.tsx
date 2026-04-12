@@ -187,11 +187,11 @@ export function BorrowingOptimizerView({
         <div className="flex-1 space-y-6 px-1 py-4 pr-6">
           {/* Capital */}
           <div>
-            <label className="text-muted-foreground mb-2 block text-[11px] font-semibold uppercase tracking-wider">
+            <label className="text-muted-foreground mb-2 block text-xs font-semibold uppercase tracking-wider">
               Capital to borrow
             </label>
             <div className="border-input dark:bg-input/30 focus-within:border-ring focus-within:ring-ring/50 flex items-center rounded-xl border focus-within:ring-[3px]">
-              <span className="text-muted-foreground pl-3.5 text-[13px] font-medium select-none">
+              <span className="text-muted-foreground pl-3.5 text-sm font-medium select-none">
                 $
               </span>
               <Input
@@ -205,7 +205,7 @@ export function BorrowingOptimizerView({
                 }}
                 className="border-0 font-mono shadow-none focus-visible:ring-0"
               />
-              <span className="text-muted-foreground bg-secondary mr-1 rounded-lg px-2 py-1 text-[11px] font-semibold select-none">
+              <span className="text-muted-foreground bg-secondary mr-1 rounded-lg px-2 py-1 text-xs font-semibold select-none">
                 USDC
               </span>
             </div>
@@ -213,7 +213,7 @@ export function BorrowingOptimizerView({
 
           {/* Time horizon */}
           <div>
-            <label className="text-muted-foreground mb-2 block text-[11px] font-semibold uppercase tracking-wider">
+            <label className="text-muted-foreground mb-2 block text-xs font-semibold uppercase tracking-wider">
               Time horizon
             </label>
             <div className="flex gap-1.5">
@@ -225,11 +225,10 @@ export function BorrowingOptimizerView({
                     setHorizon(h.key)
                     setRan(false)
                   }}
-                  className={`flex-1 rounded-lg border py-2 text-[12px] font-semibold transition-all ${
-                    horizon === h.key
+                  className={`flex-1 rounded-lg border py-2 text-xs font-semibold transition-all ${horizon === h.key
                       ? 'border-primary bg-primary text-primary-foreground'
                       : 'border-border bg-secondary/30 text-muted-foreground hover:text-foreground'
-                  }`}
+                    }`}
                 >
                   {h.label}
                 </button>
@@ -239,7 +238,7 @@ export function BorrowingOptimizerView({
 
           {/* Risk strategy */}
           <div>
-            <label className="text-muted-foreground mb-2 block text-[11px] font-semibold uppercase tracking-wider">
+            <label className="text-muted-foreground mb-2 block text-xs font-semibold uppercase tracking-wider">
               Risk strategy
             </label>
             <div className="space-y-2">
@@ -253,16 +252,14 @@ export function BorrowingOptimizerView({
                       setStrategy(s.id)
                       setRan(false)
                     }}
-                    className={`flex w-full items-center gap-3.5 rounded-xl border px-4 py-3 text-left transition-all duration-150 ${
-                      active
+                    className={`flex w-full items-center gap-3.5 rounded-xl border px-4 py-3 text-left transition-all duration-150 ${active
                         ? s.activeBg
                         : 'border-border bg-secondary/20 hover:border-border/80'
-                    }`}
+                      }`}
                   >
                     <div
-                      className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${
-                        active ? s.activeBg : 'bg-secondary'
-                      }`}
+                      className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${active ? s.activeBg : 'bg-secondary'
+                        }`}
                     >
                       <s.Icon
                         className={`h-4 w-4 ${active ? s.color : 'text-muted-foreground'}`}
@@ -270,16 +267,16 @@ export function BorrowingOptimizerView({
                     </div>
                     <div className="flex-1">
                       <div
-                        className={`text-[13px] font-semibold ${active ? s.color : 'text-foreground'}`}
+                        className={`text-sm font-semibold ${active ? s.color : 'text-foreground'}`}
                       >
                         {s.label}
                       </div>
-                      <div className="text-muted-foreground text-[11px]">
+                      <div className="text-muted-foreground text-xs">
                         {s.desc}
                       </div>
                     </div>
                     <div
-                      className={`font-mono text-[12px] font-semibold ${active ? s.color : 'text-muted-foreground'}`}
+                      className={`font-mono text-xs font-semibold ${active ? s.color : 'text-muted-foreground'}`}
                     >
                       {s.expectedApy}
                     </div>
@@ -296,8 +293,8 @@ export function BorrowingOptimizerView({
         </div>
 
         {/* Right — results */}
-        <div className="flex w-72 shrink-0 flex-col px-6 py-4">
-          <div className="text-muted-foreground mb-4 flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider">
+        <div className="flex w-1/2 shrink-0 flex-col px-6 py-4">
+          <div className="text-muted-foreground mb-4 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider">
             <TrendingUp className="h-3.5 w-3.5" />
             Recommended allocation
           </div>
@@ -322,7 +319,7 @@ export function BorrowingOptimizerView({
                 className="flex flex-1 flex-col items-center justify-center text-center"
               >
                 <Loader2 className="text-muted-foreground mb-2 h-5 w-5 animate-spin" />
-                <p className="text-muted-foreground text-[12px]">
+                <p className="text-muted-foreground text-xs">
                   Computing optimal allocation…
                 </p>
               </motion.div>
@@ -336,10 +333,10 @@ export function BorrowingOptimizerView({
                 {results.map((r, i) => (
                   <div key={i} className="space-y-1.5">
                     <div className="flex items-center justify-between">
-                      <span className="text-foreground max-w-[140px] truncate text-[11px] font-medium">
+                      <span className="text-foreground max-w-[140px] truncate text-xs font-medium">
                         {r.vault.poolName}
                       </span>
-                      <span className="text-muted-foreground font-mono text-[11px] font-semibold">
+                      <span className="text-muted-foreground font-mono text-xs font-semibold">
                         {r.allocationPercent.toFixed(0)}%
                       </span>
                     </div>
@@ -370,14 +367,14 @@ export function BorrowingOptimizerView({
                   transition={{ delay: 0.35 }}
                   className="border-border mt-4 space-y-2 border-t pt-3"
                 >
-                  <div className="flex items-center justify-between text-[12px]">
+                  <div className="flex items-center justify-between text-xs">
                     <span className="text-muted-foreground">Weighted APY</span>
                     <span className="font-mono font-semibold text-emerald-400">
                       {((weightedApy ?? 0) * 100).toFixed(2)}%
                     </span>
                   </div>
                   {projectedReturn !== null && amountNum > 0 && (
-                    <div className="flex items-center justify-between text-[12px]">
+                    <div className="flex items-center justify-between text-xs">
                       <span className="text-muted-foreground">
                         Est. cost ({horizonLabel})
                       </span>
@@ -399,7 +396,7 @@ export function BorrowingOptimizerView({
                 <div className="bg-secondary/60 mb-1 flex h-12 w-12 items-center justify-center rounded-2xl">
                   <Zap className="h-5 w-5 opacity-40" />
                 </div>
-                <p className="text-muted-foreground text-[12px] leading-relaxed">
+                <p className="text-muted-foreground text-xs leading-relaxed">
                   Set your parameters and run the optimizer to see recommended
                   allocations.
                 </p>
@@ -416,7 +413,7 @@ export function BorrowingOptimizerView({
             type="button"
             onClick={onBack}
             disabled={isOptimizing}
-            className="text-muted-foreground hover:text-foreground text-[13px] transition-colors disabled:opacity-40"
+            className="text-muted-foreground hover:text-foreground text-sm transition-colors disabled:opacity-40"
           >
             ← Back
           </button>
@@ -429,7 +426,7 @@ export function BorrowingOptimizerView({
             <button
               type="button"
               onClick={handleReset}
-              className="text-muted-foreground hover:text-foreground text-[13px] transition-colors"
+              className="text-muted-foreground hover:text-foreground text-sm transition-colors"
             >
               Reset
             </button>

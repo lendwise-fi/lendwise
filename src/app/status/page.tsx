@@ -237,7 +237,7 @@ function ProtocolHeatmap({ row }: { row: ProtocolRow }) {
         {/* Hour labels */}
         <div className="mt-1 flex items-center gap-2">
           <span className="w-24 shrink-0" />
-          <div className="text-muted-foreground flex flex-1 justify-between font-mono text-[10px]">
+          <div className="text-muted-foreground flex flex-1 justify-between font-mono text-2xs">
             <span>00:00</span>
             <span>06:00</span>
             <span>12:00</span>

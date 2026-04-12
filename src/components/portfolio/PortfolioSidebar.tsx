@@ -24,20 +24,20 @@ export default function PortfolioSidebar({
       : '∞'
 
   return (
-    <aside className="border-border bg-card/40 flex w-72 shrink-0 flex-col overflow-y-auto border-r">
+    <aside className="border-border bg-card/40 hidden md:flex w-72 shrink-0 flex-col overflow-y-auto border-r">
       {/* Header */}
       <div className="border-border border-b px-6 py-5">
         <h1 className="text-foreground text-lg font-semibold">
           Portfolio Tracker
         </h1>
-        <p className="text-muted-foreground mt-0.5 text-[12px]">
+        <p className="text-muted-foreground mt-0.5 text-xs">
           Monitor your DeFi positions
         </p>
       </div>
 
       {/* Net position */}
       <div className="border-border border-b px-6 py-5">
-        <p className="text-muted-foreground mb-2 text-[11px] font-medium tracking-wider uppercase">
+        <p className="text-muted-foreground mb-2 text-xs font-medium tracking-wider uppercase">
           Net Position
         </p>
         <p className="text-foreground font-mono text-3xl font-semibold">
@@ -45,7 +45,7 @@ export default function PortfolioSidebar({
         </p>
         <div className="mt-1 flex items-center gap-1.5">
           <Activity className="h-3.5 w-3.5 text-emerald-400" />
-          <span className="text-muted-foreground text-[12px]">
+          <span className="text-muted-foreground text-xs">
             Health ratio:{' '}
             <span className="font-mono font-medium text-emerald-400">
               {healthRatio}
@@ -58,10 +58,10 @@ export default function PortfolioSidebar({
       <div className="border-border border-b px-6 py-5">
         <div className="mb-3 flex items-center justify-between">
           <div>
-            <p className="text-muted-foreground text-[11px] font-medium tracking-wider uppercase">
+            <p className="text-muted-foreground text-xs font-medium tracking-wider uppercase">
               Total Supplying
             </p>
-            <p className="text-muted-foreground text-[12px]">
+            <p className="text-muted-foreground text-xs">
               {totalSupplying.positions} positions
             </p>
           </div>
@@ -79,10 +79,10 @@ export default function PortfolioSidebar({
       <div className="px-6 py-5">
         <div className="mb-3 flex items-center justify-between">
           <div>
-            <p className="text-muted-foreground text-[11px] font-medium tracking-wider uppercase">
+            <p className="text-muted-foreground text-xs font-medium tracking-wider uppercase">
               Total Borrowing
             </p>
-            <p className="text-muted-foreground text-[12px]">
+            <p className="text-muted-foreground text-xs">
               {totalBorrowing.positions} positions
             </p>
           </div>
@@ -132,11 +132,11 @@ function DonutWithLegend({ data }: { data: BreakdownItem[] }) {
                 className="h-2 w-2 shrink-0 rounded-full"
                 style={{ backgroundColor: item.color }}
               />
-              <span className="text-muted-foreground text-[12px]">
+              <span className="text-muted-foreground text-xs">
                 {item.name}
               </span>
             </div>
-            <span className="text-foreground font-mono text-[12px]">
+            <span className="text-foreground font-mono text-xs">
               {item.value.toFixed(1)}%
             </span>
           </div>

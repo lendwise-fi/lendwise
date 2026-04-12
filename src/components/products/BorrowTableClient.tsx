@@ -748,7 +748,7 @@ export function BorrowTableClient() {
               }}
             >
               <DialogTrigger asChild>
-                <Button size="sm" className="h-8 text-[12px]">
+                <Button size="sm" className="h-8 text-xs">
                   <Zap className="h-3.5 w-3.5" />
                   Optimize ({Object.keys(rowSelection).length})
                 </Button>
@@ -769,7 +769,7 @@ export function BorrowTableClient() {
                         Yield Optimizer
                       </h2>
                     </div>
-                    <p className="text-muted-foreground ml-9 text-[12px]">
+                    <p className="text-muted-foreground ml-9 text-xs">
                       {modalStep === 1
                         ? `${selectedData.length} market${selectedData.length !== 1 ? 's' : ''} selected — review before optimizing`
                         : 'Set parameters and run the optimizer engine'}
@@ -789,7 +789,7 @@ export function BorrowTableClient() {
                           />
                         )}
                         <div
-                          className={`flex h-6 w-6 items-center justify-center rounded-full text-[11px] font-semibold transition-all ${
+                          className={`flex h-6 w-6 items-center justify-center rounded-full text-xs font-semibold transition-all ${
                             modalStep === s.step
                               ? 'bg-primary text-primary-foreground'
                               : modalStep > s.step
@@ -804,7 +804,7 @@ export function BorrowTableClient() {
                           )}
                         </div>
                         <span
-                          className={`text-[11px] font-medium ${modalStep === s.step ? 'text-foreground' : 'text-muted-foreground'}`}
+                          className={`text-xs font-medium ${modalStep === s.step ? 'text-foreground' : 'text-muted-foreground'}`}
                         >
                           {s.label}
                         </span>
@@ -829,11 +829,11 @@ export function BorrowTableClient() {
                           <div className="from-primary to-primary/30 h-10 w-1 shrink-0 rounded-full bg-gradient-to-b" />
                           <ProtocolBadge protocol={pool.protocol} />
                           <NetworkBadge networkSlug={pool.network} />
-                          <span className="text-foreground flex-1 truncate text-[13px] font-medium">
+                          <span className="text-foreground flex-1 truncate text-sm font-medium">
                             {pool.poolName}
                           </span>
                           <span
-                            className={`font-mono text-[13px] font-semibold ${
+                            className={`font-mono text-sm font-semibold ${
                               pool.apy > 0.5
                                 ? 'text-orange-400'
                                 : pool.apy > 0.1
@@ -944,7 +944,7 @@ export function BorrowTableClient() {
             <Button
               variant="ghost"
               size="sm"
-              className="h-8 px-2 text-[12px]"
+              className="h-8 px-2 text-xs"
               onClick={() => {
                 setColumnFilters([])
                 setSearchValue('')

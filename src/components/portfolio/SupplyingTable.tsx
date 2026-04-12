@@ -463,7 +463,7 @@ export function SupplyingTable({ data }: { data: SupplyPosition[] }) {
             <Button
               variant="ghost"
               size="sm"
-              className="h-8 px-2 text-[12px]"
+              className="h-8 px-2 text-xs"
               onClick={() => {
                 setColumnFilters([])
                 setSearchValue('')

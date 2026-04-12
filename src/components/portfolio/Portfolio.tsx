@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo } from 'react'
 
+import { Activity, TrendingDown, TrendingUp } from 'lucide-react'
 import { Address } from 'viem'
 import { useAccount } from 'wagmi'
 
@@ -25,10 +26,8 @@ export function Portfolio() {
   const { address, isConnected } = useAccount()
   const { wallets } = useWalletStore()
 
-  // Get currency context
   const { rate, loading: conversionLoading } = useCurrency()
 
-  // Memoize addresses array to prevent unnecessary re-renders
   const addresses = useMemo(
     () => wallets.map((wallet) => wallet.address as Address),
     [wallets]
@@ -122,39 +121,85 @@ export function Portfolio() {
   const supplyData = Object.values(userPositions.supply).flat()
   const borrowData = Object.values(userPositions.borrow).flat()
 
+  const netPosition = portfolioSummary.totalSupplying.value - portfolioSummary.totalBorrowing.value
+  const healthRatio =
+    portfolioSummary.totalBorrowing.value > 0
+      ? (portfolioSummary.totalSupplying.value / portfolioSummary.totalBorrowing.value).toFixed(2)
+      : '∞'
+
   return (
     <div className="flex h-full overflow-hidden">
+      {/* Sidebar — desktop only */}
       <PortfolioSidebar summary={portfolioSummary} />
 
       <div className="flex flex-1 flex-col overflow-hidden">
+        {/* Mobile summary bar */}
+        <div className="md:hidden border-b bg-card/40 px-4 py-3 grid grid-cols-4 gap-2">
+          <div>
+            <p className="text-2xs text-muted-foreground uppercase tracking-wider mb-0.5">Net</p>
+            <p className="font-mono text-sm font-semibold truncate">${netPosition.toFixed(0)}</p>
+          </div>
+          <div>
+            <p className="text-2xs text-muted-foreground uppercase tracking-wider mb-0.5">Supply</p>
+            <div className="flex items-center gap-1">
+              <TrendingUp className="h-3 w-3 text-emerald-400 shrink-0" />
+              <p className="font-mono text-sm font-semibold text-emerald-400 truncate">
+                ${portfolioSummary.totalSupplying.value.toFixed(0)}
+              </p>
+            </div>
+          </div>
+          <div>
+            <p className="text-2xs text-muted-foreground uppercase tracking-wider mb-0.5">Borrow</p>
+            <div className="flex items-center gap-1">
+              <TrendingDown className="h-3 w-3 text-rose-400 shrink-0" />
+              <p className="font-mono text-sm font-semibold text-rose-400 truncate">
+                ${portfolioSummary.totalBorrowing.value.toFixed(0)}
+              </p>
+            </div>
+          </div>
+          <div>
+            <p className="text-2xs text-muted-foreground uppercase tracking-wider mb-0.5">Health</p>
+            <div className="flex items-center gap-1">
+              <Activity className="h-3 w-3 text-emerald-400 shrink-0" />
+              <p className="font-mono text-sm font-semibold text-emerald-400">{healthRatio}</p>
+            </div>
+          </div>
+        </div>
+
         <Tabs defaultValue="supply" className="flex flex-1 flex-col overflow-hidden">
           {/* Tab bar */}
           <TabsList className="bg-muted border-border h-auto w-full justify-start gap-0 rounded-none border-b p-0">
             <TabsTrigger
               value="supply"
-              className="data-[state=active]:bg-card data-[state=active]:border-primary text-muted-foreground hover:text-foreground h-auto flex-col items-start rounded-none border-b-2 border-transparent px-8 py-5 transition-colors data-[state=active]:shadow-none cursor-pointer"
+              className="data-[state=active]:bg-card data-[state=active]:border-primary text-muted-foreground hover:text-foreground h-auto flex-col items-start rounded-none border-b-2 border-transparent px-4 py-3 md:px-8 md:py-5 transition-colors data-[state=active]:shadow-none cursor-pointer"
             >
-              <div className="flex items-center gap-2.5">
-                <span className="text-foreground text-lg font-semibold">Supplying positions</span>
-                <span className="bg-background text-muted-foreground rounded-full px-2 py-0.5 text-[11px] font-semibold">
+              <div className="flex items-center gap-2">
+                <span className="text-foreground text-sm md:text-lg font-semibold">
+                  <span className="hidden sm:inline">Supplying positions</span>
+                  <span className="sm:hidden">Supply</span>
+                </span>
+                <span className="bg-background text-muted-foreground rounded-full px-2 py-0.5 text-xs font-semibold">
                   {supplyData.length}
                 </span>
               </div>
-              <p className="text-muted-foreground mt-0.5 text-[12px] font-normal">
+              <p className="text-muted-foreground mt-0.5 text-xs font-normal hidden sm:block">
                 Your active supply positions across protocols
               </p>
             </TabsTrigger>
             <TabsTrigger
               value="borrow"
-              className="data-[state=active]:bg-card data-[state=active]:border-primary text-muted-foreground hover:text-foreground h-auto flex-col items-start rounded-none border-b-2 border-transparent px-8 py-5 transition-colors data-[state=active]:shadow-none cursor-pointer"
+              className="data-[state=active]:bg-card data-[state=active]:border-primary text-muted-foreground hover:text-foreground h-auto flex-col items-start rounded-none border-b-2 border-transparent px-4 py-3 md:px-8 md:py-5 transition-colors data-[state=active]:shadow-none cursor-pointer"
             >
-              <div className="flex items-center gap-2.5">
-                <span className="text-foreground text-lg font-semibold">Borrowing positions</span>
-                <span className="bg-background text-muted-foreground rounded-full px-2 py-0.5 text-[11px] font-semibold">
+              <div className="flex items-center gap-2">
+                <span className="text-foreground text-sm md:text-lg font-semibold">
+                  <span className="hidden sm:inline">Borrowing positions</span>
+                  <span className="sm:hidden">Borrow</span>
+                </span>
+                <span className="bg-background text-muted-foreground rounded-full px-2 py-0.5 text-xs font-semibold">
                   {borrowData.length}
                 </span>
               </div>
-              <p className="text-muted-foreground mt-0.5 text-[12px] font-normal">
+              <p className="text-muted-foreground mt-0.5 text-xs font-normal hidden sm:block">
                 Active loans and collateral positions
               </p>
             </TabsTrigger>

@@ -114,7 +114,7 @@ export function FilterChip({
               {overflowCount > 0 && (
                 <Badge
                   variant="secondary"
-                  className="ml-0.5 rounded-full px-1 text-[10px]"
+                  className="ml-0.5 rounded-full px-1 text-2xs"
                   style={{ marginLeft: '-4px' }}
                 >
                   +{overflowCount}
@@ -122,7 +122,7 @@ export function FilterChip({
               )}
             </span>
           ) : selectedValues.size > 0 ? (
-            <Badge variant="secondary" className="rounded-sm px-1 text-[10px]">
+            <Badge variant="secondary" className="rounded-sm px-1 text-2xs">
               {selectedValues.size}
             </Badge>
           ) : null}
@@ -141,7 +141,7 @@ export function FilterChip({
                   className="text-xs"
                 >
                   <div
-                    className={`border-primary mr-2 flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded-sm border text-[10px] ${
+                    className={`border-primary mr-2 flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded-sm border text-2xs ${
                       selectedValues.has(opt.value)
                         ? 'bg-primary text-primary-foreground'
                         : 'opacity-40'
