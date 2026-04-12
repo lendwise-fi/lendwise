@@ -235,7 +235,9 @@ const createColumns = (
       const supply = BigInt(row.original.assetAmount || '0')
       const liquidity = BigInt(row.original.liquidityAmount || '0')
       const utilizationPct =
-        supply > 0n ? 100 - Number((liquidity * 10000n) / supply) / 100 : 0
+        supply > 0n
+          ? Math.min(100, Math.max(0, 100 - Number((liquidity * 10000n) / supply) / 100))
+          : 0
       return (
         <div className="flex w-full items-center gap-3">
           <span className="font-mono">

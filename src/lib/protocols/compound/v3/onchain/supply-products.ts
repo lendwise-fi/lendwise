@@ -18,6 +18,13 @@ const _formatSupplyProducts = cache(
   ): SupplyProduct[] =>
     markets.map((market) => {
       const token = market.configuration.baseToken.token
+      const totalSupply = BigInt(market.accounting.totalBaseSupply)
+      const totalBorrow = BigInt(market.accounting.totalBaseBorrow ?? 0)
+      const available = totalSupply > totalBorrow ? totalSupply - totalBorrow : 0n
+      const availableUsd = Math.max(
+        0,
+        market.accounting.totalBaseSupplyUsd - (market.accounting.totalBaseBorrowUsd ?? 0)
+      )
       return {
         protocol: COMPOUND_CONFIG.compound_v3.id,
         network: CHAIN_NAME_MAPPING[chainId] || chainName!.toLowerCase(),
@@ -29,10 +36,12 @@ const _formatSupplyProducts = cache(
         assetName: token.name,
         assetSymbol: token.symbol,
         assetDecimals: token.decimals || 18,
+        // assetAmount = total deposited (denominator), liquidityAmount = available (numerator)
+        // → pie = available / total = 1 - borrow utilization (0–100%)
         assetAmount: market.accounting.totalBaseSupply.toString(),
         assetAmountUsd: market.accounting.totalBaseSupplyUsd,
-        liquidityAmount: market.accounting.totalBaseSupply.toString(),
-        liquidityAmountUsd: market.accounting.totalBaseSupplyUsd,
+        liquidityAmount: available.toString(),
+        liquidityAmountUsd: availableUsd,
         collaterals: [],
         apy: market.accounting.netSupplyApr,
         productId: buildProductId(

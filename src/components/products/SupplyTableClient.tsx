@@ -117,176 +117,176 @@ const createColumns = (
   selectedCount: number,
   selectedAsset: string | null
 ): ColumnDef<SupplyProduct>[] => [
-  {
-    id: 'select',
-    size: 40,
-    header: '',
-    cell: ({ row }) => {
-      const isSelected = row.getIsSelected()
-      const isDisabledByAsset =
-        !isSelected &&
-        selectedAsset !== null &&
-        row.original.assetSymbol !== selectedAsset
-      const isDisabledByLimit = !isSelected && selectedCount >= 10
-      const isDisabled = isDisabledByAsset || isDisabledByLimit
+    {
+      id: 'select',
+      size: 40,
+      header: '',
+      cell: ({ row }) => {
+        const isSelected = row.getIsSelected()
+        const isDisabledByAsset =
+          !isSelected &&
+          selectedAsset !== null &&
+          row.original.assetSymbol !== selectedAsset
+        const isDisabledByLimit = !isSelected && selectedCount >= 10
+        const isDisabled = isDisabledByAsset || isDisabledByLimit
 
-      const checkbox = (
-        <Checkbox
-          checked={isSelected}
-          onCheckedChange={(value) => row.toggleSelected(!!value)}
-          aria-label="Select row"
-          disabled={isDisabled}
-        />
-      )
-
-      if (isDisabledByAsset) {
-        return (
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <span className="inline-flex cursor-not-allowed">{checkbox}</span>
-            </TooltipTrigger>
-            <TooltipContent>{selectedAsset}-only selection</TooltipContent>
-          </Tooltip>
+        const checkbox = (
+          <Checkbox
+            checked={isSelected}
+            onCheckedChange={(value) => row.toggleSelected(!!value)}
+            aria-label="Select row"
+            disabled={isDisabled}
+          />
         )
-      }
 
-      return checkbox
-    },
-    enableSorting: false,
-    enableHiding: false,
-  },
-  {
-    accessorKey: 'protocol',
-    header: ({ column }) => (
-      <SortableHeader column={column}>Protocol</SortableHeader>
-    ),
-    size: 110,
-    minSize: 110,
-    enableHiding: false,
-    enableSorting: true,
-    cell: ({ row }) => <ProtocolBadge protocol={row.original.protocol} />,
-  },
-  {
-    accessorKey: 'network',
-    header: ({ column }) => (
-      <SortableHeader column={column}>Network</SortableHeader>
-    ),
-    enableHiding: false,
-    enableSorting: true,
-    cell: ({ row }) => <NetworkBadge networkSlug={row.original.network} />,
-  },
-  {
-    accessorKey: 'poolName',
-    header: ({ column }) => (
-      <SortableHeader column={column}>Name</SortableHeader>
-    ),
-    cell: ({ row }) => (
-      <div className="flex w-full items-center gap-2">
-        <TokenIcon symbol={row.original.assetSymbol} />
-        <TableCellViewer item={row.original} />
-      </div>
-    ),
-    enableHiding: false,
-    enableSorting: true,
-  },
-  {
-    accessorKey: 'assetSymbol',
-    header: '',
-    enableSorting: false,
-    enableHiding: false,
-  },
-  {
-    accessorKey: 'assetAmountUsd',
-    header: ({ column }) => (
-      <SortableHeader column={column}>Deposits</SortableHeader>
-    ),
-    cell: ({ row }) => (
-      <div className="flex w-full items-center gap-3">
-        <span className="font-mono">
-          {formatCompactCurrency(
-            row.original.assetAmount,
-            row.original.assetSymbol,
-            row.original.assetDecimals
-          )}
-        </span>
-        <Badge variant="secondary" className="font-mono">
-          {formatCompactCurrency(row.original.assetAmountUsd * rate, currency)}
-        </Badge>
-      </div>
-    ),
+        if (isDisabledByAsset) {
+          return (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span className="inline-flex cursor-not-allowed">{checkbox}</span>
+              </TooltipTrigger>
+              <TooltipContent>{selectedAsset}-only selection</TooltipContent>
+            </Tooltip>
+          )
+        }
 
-    enableHiding: false,
-  },
-  {
-    accessorKey: 'liquidityAmountUsd',
-    header: ({ column }) => (
-      <SortableHeader column={column}>Liquidity</SortableHeader>
-    ),
-    cell: ({ row }) => (
-      <div className="flex w-full items-center gap-3">
-        <span className="font-mono">
-          {formatCompactCurrency(
-            row.original.liquidityAmount,
-            row.original.assetSymbol,
-            row.original.assetDecimals
-          )}
-        </span>
-        <Badge variant="secondary" className="font-mono">
-          {formatCompactCurrency(
-            row.original.liquidityAmountUsd * rate,
-            currency
-          )}
-        </Badge>
-        <PieChartMini
-          percentage={
-            Number(
-              (BigInt(row.original.liquidityAmount) * 10000n) /
-                BigInt(row.original.assetAmount)
-            ) / 100
-          }
-        />
-      </div>
-    ),
-    enableHiding: false,
-  },
-  {
-    accessorKey: HORIZON_CONFIG[horizon].apyKey,
-    header: ({ column }) => (
-      <SortableHeader column={column}>
-        {HORIZON_CONFIG[horizon].headerLabel}
-      </SortableHeader>
-    ),
-    size: 60,
-    enableSorting: true,
-    sortingFn: 'basic',
-    cell: ({ row }) => {
-      const apyValue = row.original[HORIZON_CONFIG[horizon].apyKey] as
-        | number
-        | undefined
-      return (
-        <span className="font-mono">
-          {apyValue !== undefined ? `${(apyValue * 100).toFixed(2)}%` : '-'}
-        </span>
-      )
+        return checkbox
+      },
+      enableSorting: false,
+      enableHiding: false,
     },
-    enableHiding: false,
-  },
-  {
-    id: 'actions',
-    size: 80,
-    minSize: 80,
-    cell: ({ row }) =>
-      row.original.link ? (
-        <Link
-          target="_blank"
-          href={row.original.link}
-          className="flex w-full items-center justify-center"
-        >
-          <ArrowUpRightFromSquare size={15} />
-        </Link>
-      ) : null,
-  },
-]
+    {
+      accessorKey: 'protocol',
+      header: ({ column }) => (
+        <SortableHeader column={column}>Protocol</SortableHeader>
+      ),
+      size: 110,
+      minSize: 110,
+      enableHiding: false,
+      enableSorting: true,
+      cell: ({ row }) => <ProtocolBadge protocol={row.original.protocol} />,
+    },
+    {
+      accessorKey: 'network',
+      header: ({ column }) => (
+        <SortableHeader column={column}>Network</SortableHeader>
+      ),
+      enableHiding: false,
+      enableSorting: true,
+      cell: ({ row }) => <NetworkBadge networkSlug={row.original.network} />,
+    },
+    {
+      accessorKey: 'poolName',
+      header: ({ column }) => (
+        <SortableHeader column={column}>Name</SortableHeader>
+      ),
+      cell: ({ row }) => (
+        <div className="flex w-full items-center gap-2">
+          <TokenIcon symbol={row.original.assetSymbol} />
+          <TableCellViewer item={row.original} />
+        </div>
+      ),
+      enableHiding: false,
+      enableSorting: true,
+    },
+    {
+      accessorKey: 'assetSymbol',
+      header: '',
+      enableSorting: false,
+      enableHiding: false,
+    },
+    {
+      accessorKey: 'assetAmountUsd',
+      header: ({ column }) => (
+        <SortableHeader column={column}>Deposits</SortableHeader>
+      ),
+      cell: ({ row }) => (
+        <div className="flex w-full items-center gap-3">
+          <span className="font-mono">
+            {formatCompactCurrency(
+              row.original.assetAmount,
+              row.original.assetSymbol,
+              row.original.assetDecimals
+            )}
+          </span>
+          <Badge variant="secondary" className="font-mono">
+            {formatCompactCurrency(row.original.assetAmountUsd * rate, currency)}
+          </Badge>
+        </div>
+      ),
+
+      enableHiding: false,
+    },
+    {
+      accessorKey: 'liquidityAmountUsd',
+      header: ({ column }) => (
+        <SortableHeader column={column}>Liquidity</SortableHeader>
+      ),
+      cell: ({ row }) => (
+        <div className="flex w-full items-center gap-3">
+          <span className="font-mono">
+            {formatCompactCurrency(
+              row.original.liquidityAmount,
+              row.original.assetSymbol,
+              row.original.assetDecimals
+            )}
+          </span>
+          <Badge variant="secondary" className="font-mono">
+            {formatCompactCurrency(
+              row.original.liquidityAmountUsd * rate,
+              currency
+            )}
+          </Badge>
+          <PieChartMini
+            percentage={(() => {
+              const cap = BigInt(row.original.assetAmount)
+              if (cap === 0n) return 0
+              const pct = Number(BigInt(row.original.liquidityAmount) * 10000n / cap) / 100
+              return Math.min(100, pct)
+            })()}
+          />
+        </div>
+      ),
+      enableHiding: false,
+    },
+    {
+      accessorKey: HORIZON_CONFIG[horizon].apyKey,
+      header: ({ column }) => (
+        <SortableHeader column={column}>
+          {HORIZON_CONFIG[horizon].headerLabel}
+        </SortableHeader>
+      ),
+      size: 60,
+      enableSorting: true,
+      sortingFn: 'basic',
+      cell: ({ row }) => {
+        const apyValue = row.original[HORIZON_CONFIG[horizon].apyKey] as
+          | number
+          | undefined
+        return (
+          <span className="font-mono">
+            {apyValue !== undefined ? apyValue < 0.0001 ? '<0.01%' : apyValue > 0.1 ? '>1000%' : `${(apyValue * 100).toFixed(2)}%` : '-'}
+          </span>
+        )
+      },
+      enableHiding: false,
+    },
+    {
+      id: 'actions',
+      size: 80,
+      minSize: 80,
+      cell: ({ row }) =>
+        row.original.link ? (
+          <Link
+            target="_blank"
+            href={row.original.link}
+            className="flex w-full items-center justify-center"
+          >
+            <ArrowUpRightFromSquare size={15} />
+          </Link>
+        ) : null,
+    },
+  ]
 
 const chartConfig = {
   rate: {
@@ -748,13 +748,12 @@ export function SupplyTableClient() {
                           />
                         )}
                         <div
-                          className={`flex h-6 w-6 items-center justify-center rounded-full text-xs font-semibold transition-all ${
-                            modalStep === s.step
-                              ? 'bg-primary text-primary-foreground'
-                              : modalStep > s.step
-                                ? 'bg-primary/20 text-primary'
-                                : 'bg-secondary text-muted-foreground'
-                          }`}
+                          className={`flex h-6 w-6 items-center justify-center rounded-full text-xs font-semibold transition-all ${modalStep === s.step
+                            ? 'bg-primary text-primary-foreground'
+                            : modalStep > s.step
+                              ? 'bg-primary/20 text-primary'
+                              : 'bg-secondary text-muted-foreground'
+                            }`}
                         >
                           {modalStep > s.step ? (
                             <CheckCircle2 className="h-3.5 w-3.5" />
@@ -792,13 +791,12 @@ export function SupplyTableClient() {
                             {pool.poolName}
                           </span>
                           <span
-                            className={`font-mono text-sm font-semibold ${
-                              pool.apy > 0.5
-                                ? 'text-orange-400'
-                                : pool.apy > 0.1
-                                  ? 'text-emerald-400'
-                                  : 'text-muted-foreground'
-                            }`}
+                            className={`font-mono text-sm font-semibold ${pool.apy > 0.5
+                              ? 'text-orange-400'
+                              : pool.apy > 0.1
+                                ? 'text-emerald-400'
+                                : 'text-muted-foreground'
+                              }`}
                           >
                             {(pool.apy * 100).toFixed(2)}%
                           </span>

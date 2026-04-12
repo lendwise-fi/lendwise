@@ -201,6 +201,8 @@ export const LIST_SUPPLY_PRODUCTS = gql`
       accounting {
         totalBaseSupply
         totalBaseSupplyUsd
+        totalBaseBorrow
+        totalBaseBorrowUsd
         totalReserveBalanceUsd
         collateralization
         netSupplyApr
