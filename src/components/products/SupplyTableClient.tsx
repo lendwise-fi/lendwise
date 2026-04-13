@@ -46,6 +46,7 @@ import {
   Dialog,
   DialogClose,
   DialogContent,
+  DialogDescription,
   DialogTitle,
   DialogTrigger,
 } from '@/components/ui/dialog'
@@ -717,6 +718,9 @@ export function SupplyTableClient() {
                 className="sm:max-w-4xl gap-0 overflow-hidden p-0"
               >
                 <DialogTitle className="sr-only">Yield Optimizer</DialogTitle>
+                <DialogDescription className="sr-only">
+                  Review selected markets and configure optimizer parameters
+                </DialogDescription>
                 {/* Custom header */}
                 <div className="border-border flex items-start justify-between border-b px-7 pt-6 pb-5">
                   <div>

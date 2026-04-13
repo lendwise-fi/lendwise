@@ -13,9 +13,6 @@ const _formatSupplyProducts = cache(
     (markets: ListSupplyProductsQuery['markets']): SupplyProduct[] =>
         markets.flatMap((market) =>
             market.reserves
-                // Skip markets where the API returns an invalid supply cap (cap < deposits)
-                // This catches data anomalies where supplyCap is 0 or a sentinel value
-                .filter((reserve) => reserve.supplyInfo.supplyCap.usd >= reserve.size.usd)
                 .map((reserve) => ({
                     protocol: AAVE_CONFIG.aave_v3.id,
                     network: getNetworkName(market.name),

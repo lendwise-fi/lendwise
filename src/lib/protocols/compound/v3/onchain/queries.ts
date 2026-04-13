@@ -189,6 +189,14 @@ export const LIST_BORROW_PRODUCTS = gql`
             address
           }
         }
+        collateralTokens {
+          token {
+            symbol
+            name
+            decimals
+            address
+          }
+        }
       }
     }
   }

@@ -344,6 +344,9 @@ export const LIST_BORROW_PRODUCTS = gql`
             }
           }
         }
+        supplyInfo {
+          canBeCollateral
+        }
         size {
           usd
           amount {

@@ -46,6 +46,7 @@ import {
   Dialog,
   DialogClose,
   DialogContent,
+  DialogDescription,
   DialogTitle,
   DialogTrigger,
 } from '@/components/ui/dialog'
@@ -116,187 +117,210 @@ const createColumns = (
   horizon: Horizon,
   selectedCount: number
 ): ColumnDef<BorrowProduct>[] => [
-  {
-    id: 'select',
-    size: 40,
-    header: '',
-    cell: ({ row }) => (
-      <Checkbox
-        checked={row.getIsSelected()}
-        onCheckedChange={(value) => row.toggleSelected(!!value)}
-        aria-label="Select row"
-        disabled={!row.getIsSelected() && selectedCount >= 10}
-      />
-    ),
-    enableSorting: false,
-    enableHiding: false,
-  },
-  {
-    accessorKey: 'protocol',
-    header: ({ column }) => (
-      <SortableHeader column={column}>Protocol</SortableHeader>
-    ),
-    size: 110,
-    minSize: 110,
-    enableHiding: false,
-    enableSorting: true,
-    cell: ({ row }) => <ProtocolBadge protocol={row.original.protocol} />,
-  },
-  {
-    accessorKey: 'network',
-    header: ({ column }) => (
-      <SortableHeader column={column}>Network</SortableHeader>
-    ),
-    enableHiding: false,
-    enableSorting: true,
-    cell: ({ row }) => <NetworkBadge networkSlug={row.original.network} />,
-  },
-  {
-    accessorKey: 'poolName',
-    header: '',
-    enableSorting: false,
-    enableHiding: false,
-  },
-  {
-    accessorKey: 'assetSymbol',
-    header: ({ column }) => (
-      <SortableHeader column={column}>Loan</SortableHeader>
-    ),
-    cell: ({ row }) => (
-      <div className="flex w-full items-center gap-2">
-        <TokenIcon symbol={row.original.assetSymbol} />
-        <TableCellViewer item={row.original} />
-      </div>
-    ),
-    enableHiding: false,
-    enableSorting: true,
-  },
-  {
-    accessorKey: 'collaterals',
-    header: ({ column }) => (
-      <SortableHeader column={column}>Collaterals</SortableHeader>
-    ),
-    cell: ({ row }) => {
-      const collaterals = row.original.collaterals
-      if (collaterals.length === 0) return null
-      if (collaterals.length === 1) {
+    {
+      id: 'select',
+      size: 40,
+      header: '',
+      cell: ({ row }) => (
+        <Checkbox
+          checked={row.getIsSelected()}
+          onCheckedChange={(value) => row.toggleSelected(!!value)}
+          aria-label="Select row"
+          disabled={!row.getIsSelected() && selectedCount >= 10}
+        />
+      ),
+      enableSorting: false,
+      enableHiding: false,
+    },
+    {
+      accessorKey: 'protocol',
+      header: ({ column }) => (
+        <SortableHeader column={column}>Protocol</SortableHeader>
+      ),
+      size: 110,
+      minSize: 110,
+      enableHiding: false,
+      enableSorting: true,
+      cell: ({ row }) => <ProtocolBadge protocol={row.original.protocol} />,
+    },
+    {
+      accessorKey: 'network',
+      header: ({ column }) => (
+        <SortableHeader column={column}>Network</SortableHeader>
+      ),
+      enableHiding: false,
+      enableSorting: true,
+      cell: ({ row }) => <NetworkBadge networkSlug={row.original.network} />,
+    },
+    {
+      accessorKey: 'poolName',
+      header: '',
+      enableSorting: false,
+      enableHiding: false,
+    },
+    {
+      accessorKey: 'assetSymbol',
+      header: ({ column }) => (
+        <SortableHeader column={column}>Loan</SortableHeader>
+      ),
+      cell: ({ row }) => (
+        <div className="flex w-full items-center gap-2">
+          <TokenIcon symbol={row.original.assetSymbol} />
+          <TableCellViewer item={row.original} />
+        </div>
+      ),
+      enableHiding: false,
+      enableSorting: true,
+    },
+    {
+      accessorKey: 'collaterals',
+      header: ({ column }) => (
+        <SortableHeader column={column}>Collaterals</SortableHeader>
+      ),
+      cell: ({ row }) => {
+        const collaterals = row.original.collaterals
+        if (collaterals.length === 0) return null
+        if (collaterals.length === 1) {
+          return (
+            <div className="flex w-full items-center gap-2">
+              <TokenIcon symbol={collaterals[0].symbol} />
+              <span>{collaterals[0].symbol}</span>
+            </div>
+          )
+        }
+        const MAX_VISIBLE = 4
+        const visible = collaterals.slice(0, MAX_VISIBLE)
+        const overflow = collaterals.slice(MAX_VISIBLE)
         return (
-          <div className="flex w-full items-center gap-2">
-            <TokenIcon symbol={collaterals[0].symbol} />
-            <span>{collaterals[0].symbol}</span>
+          <div className="flex w-full items-center gap-1">
+            {visible.map((collateral) => (
+              <Tooltip key={collateral.symbol}>
+                <TooltipTrigger asChild>
+                  <span>
+                    <TokenIcon symbol={collateral.symbol} />
+                  </span>
+                </TooltipTrigger>
+                <TooltipContent>{collateral.symbol}</TooltipContent>
+              </Tooltip>
+            ))}
+            {overflow.length > 0 && (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <span className="text-muted-foreground hover:text-foreground inline-flex h-5 cursor-default items-center rounded-md border border-dashed px-1.5 text-xs font-medium transition-colors">
+                    +{overflow.length}
+                  </span>
+                </TooltipTrigger>
+                <TooltipContent className="bg-secondary text-secondary-foreground border-border min-w-36 border p-2">
+                  <div className="flex max-h-40 flex-col gap-1 overflow-y-auto">
+                    {collaterals.map((collateral) => (
+                      <div key={collateral.symbol} className="flex items-center gap-2 py-0.5">
+                        <TokenIcon symbol={collateral.symbol} />
+                        <span className="text-xs">{collateral.symbol}</span>
+                      </div>
+                    ))}
+                  </div>
+                </TooltipContent>
+              </Tooltip>
+            )}
           </div>
         )
-      }
-      return (
-        <div className="flex w-full items-center gap-1">
-          {collaterals.map((collateral) => (
-            <Tooltip key={collateral.symbol}>
-              <TooltipTrigger asChild>
-                <span>
-                  <TokenIcon symbol={collateral.symbol} />
-                </span>
-              </TooltipTrigger>
-              <TooltipContent>{collateral.symbol}</TooltipContent>
-            </Tooltip>
-          ))}
-        </div>
-      )
+      },
+      enableHiding: false,
+      enableSorting: false,
     },
-    enableHiding: false,
-    enableSorting: false,
-  },
-  {
-    accessorKey: 'assetAmountUsd',
-    header: ({ column }) => (
-      <SortableHeader column={column}>Deposits</SortableHeader>
-    ),
-    cell: ({ row }) => (
-      <div className="flex w-full items-center gap-3">
-        <span className="font-mono">
-          {formatCompactCurrency(
-            row.original.assetAmount,
-            row.original.assetSymbol,
-            row.original.assetDecimals
-          )}
-        </span>
-        <Badge variant="secondary" className="font-mono">
-          {formatCompactCurrency(row.original.assetAmountUsd * rate, currency)}
-        </Badge>
-      </div>
-    ),
-    enableHiding: false,
-  },
-  {
-    accessorKey: 'liquidityAmountUsd',
-    header: ({ column }) => (
-      <SortableHeader column={column}>Liquidity</SortableHeader>
-    ),
-    cell: ({ row }) => {
-      const supply = BigInt(row.original.assetAmount || '0')
-      const liquidity = BigInt(row.original.liquidityAmount || '0')
-      const utilizationPct =
-        supply > 0n
-          ? Math.min(100, Math.max(0, 100 - Number((liquidity * 10000n) / supply) / 100))
-          : 0
-      return (
+    {
+      accessorKey: 'assetAmountUsd',
+      header: ({ column }) => (
+        <SortableHeader column={column}>Deposits</SortableHeader>
+      ),
+      cell: ({ row }) => (
         <div className="flex w-full items-center gap-3">
           <span className="font-mono">
             {formatCompactCurrency(
-              row.original.liquidityAmount,
+              row.original.assetAmount,
               row.original.assetSymbol,
               row.original.assetDecimals
             )}
           </span>
           <Badge variant="secondary" className="font-mono">
-            {formatCompactCurrency(
-              row.original.liquidityAmountUsd * rate,
-              currency
-            )}
+            {formatCompactCurrency(row.original.assetAmountUsd * rate, currency)}
           </Badge>
-          <PieChartMini percentage={utilizationPct} />
         </div>
-      )
+      ),
+      enableHiding: false,
     },
-    enableHiding: false,
-  },
-  {
-    accessorKey: HORIZON_CONFIG[horizon].apyKey,
-    header: ({ column }) => (
-      <SortableHeader column={column}>
-        {HORIZON_CONFIG[horizon].headerLabel}
-      </SortableHeader>
-    ),
-    size: 60,
-    enableSorting: true,
-    sortingFn: 'basic',
-    cell: ({ row }) => {
-      const apyValue = row.original[HORIZON_CONFIG[horizon].apyKey] as
-        | number
-        | undefined
-      return (
-        <span className="font-mono">
-          {apyValue !== undefined ? `${(apyValue * 100).toFixed(2)}%` : '-'}
-        </span>
-      )
+    {
+      accessorKey: 'liquidityAmountUsd',
+      header: ({ column }) => (
+        <SortableHeader column={column}>Liquidity</SortableHeader>
+      ),
+      cell: ({ row }) => {
+        const supply = BigInt(row.original.assetAmount || '0')
+        const liquidity = BigInt(row.original.liquidityAmount || '0')
+        return (
+          <div className="flex w-full items-center gap-3">
+            <span className="font-mono">
+              {formatCompactCurrency(
+                row.original.liquidityAmount,
+                row.original.assetSymbol,
+                row.original.assetDecimals
+              )}
+            </span>
+            <Badge variant="secondary" className="font-mono">
+              {formatCompactCurrency(
+                row.original.liquidityAmountUsd * rate,
+                currency
+              )}
+            </Badge>
+            <PieChartMini percentage={(() => {
+              const cap = BigInt(row.original.assetAmount)
+              if (cap === 0n) return 0
+              const pct = Number(BigInt(row.original.liquidityAmount) * 10000n / cap) / 100
+              return Math.min(100, pct)
+            })()} />
+          </div>
+        )
+      },
+      enableHiding: false,
     },
-    enableHiding: false,
-  },
-  {
-    id: 'actions',
-    size: 80,
-    minSize: 80,
-    cell: ({ row }) =>
-      row.original.link ? (
-        <Link
-          target="_blank"
-          href={row.original.link}
-          className="flex w-full items-center justify-center"
-        >
-          <ArrowUpRightFromSquare size={15} />
-        </Link>
-      ) : null,
-  },
-]
+    {
+      accessorKey: HORIZON_CONFIG[horizon].apyKey,
+      header: ({ column }) => (
+        <SortableHeader column={column}>
+          {HORIZON_CONFIG[horizon].headerLabel}
+        </SortableHeader>
+      ),
+      size: 60,
+      enableSorting: true,
+      sortingFn: 'basic',
+      cell: ({ row }) => {
+        const apyValue = row.original[HORIZON_CONFIG[horizon].apyKey] as
+          | number
+          | undefined
+        return (
+          <span className="font-mono">
+            {apyValue !== undefined ? apyValue < 0.0001 ? '<0.01%' : apyValue > 0.1 ? '>1000%' : `${(apyValue * 100).toFixed(2)}%` : '-'}
+          </span>
+        )
+      },
+      enableHiding: false,
+    },
+    {
+      id: 'actions',
+      size: 80,
+      minSize: 80,
+      cell: ({ row }) =>
+        row.original.link ? (
+          <Link
+            target="_blank"
+            href={row.original.link}
+            className="flex w-full items-center justify-center"
+          >
+            <ArrowUpRightFromSquare size={15} />
+          </Link>
+        ) : null,
+    },
+  ]
 
 const chartConfig = {
   rate: {
@@ -591,7 +615,7 @@ export function BorrowTableClient() {
   const sortColumn = HORIZON_CONFIG[horizon].apyKey as string
 
   const getRowId = useCallback(
-    (row: BorrowProduct) => `${row.protocol}-${row.poolChainId}-${row.poolId}`,
+    (row: BorrowProduct) => `${row.protocol}-${row.poolChainId}-${row.poolId}-${row.assetAddress}`,
     []
   )
 
@@ -760,6 +784,9 @@ export function BorrowTableClient() {
                 className="sm:max-w-4xl gap-0 overflow-hidden p-0"
               >
                 <DialogTitle className="sr-only">Yield Optimizer</DialogTitle>
+                <DialogDescription className="sr-only">
+                  Review selected markets and configure optimizer parameters
+                </DialogDescription>
                 {/* Custom header */}
                 <div className="border-border flex items-start justify-between border-b px-7 pt-6 pb-5">
                   <div>
@@ -791,13 +818,12 @@ export function BorrowTableClient() {
                           />
                         )}
                         <div
-                          className={`flex h-6 w-6 items-center justify-center rounded-full text-xs font-semibold transition-all ${
-                            modalStep === s.step
-                              ? 'bg-primary text-primary-foreground'
-                              : modalStep > s.step
-                                ? 'bg-primary/20 text-primary'
-                                : 'bg-secondary text-muted-foreground'
-                          }`}
+                          className={`flex h-6 w-6 items-center justify-center rounded-full text-xs font-semibold transition-all ${modalStep === s.step
+                            ? 'bg-primary text-primary-foreground'
+                            : modalStep > s.step
+                              ? 'bg-primary/20 text-primary'
+                              : 'bg-secondary text-muted-foreground'
+                            }`}
                         >
                           {modalStep > s.step ? (
                             <CheckCircle2 className="h-3.5 w-3.5" />
@@ -822,26 +848,33 @@ export function BorrowTableClient() {
                 {/* Body */}
                 {modalStep === 1 ? (
                   <div>
-                    <div className="max-h-72 space-y-2 overflow-y-auto px-7 py-5">
+                    <div className="max-h-64 space-y-2 overflow-y-auto px-7 py-4">
+                      {/* Column headers */}
+                      <div className="flex items-center gap-4 px-3.5 pb-1">
+                        <div className="w-1 shrink-0" />
+                        <span className="text-muted-foreground/80 w-24 shrink-0 pl-3 text-xs">Protocol</span>
+                        <span className="text-muted-foreground/80 w-24 shrink-0 pl-3 text-xs">Network</span>
+                        <span className="text-muted-foreground/80 flex-1 text-xs">Market</span>
+                        <span className="text-muted-foreground/80 pr-4 text-xs">APY</span>
+                      </div>
                       {selectedData.map((pool, i) => (
                         <div
                           key={i}
                           className="border-border/50 hover:border-border bg-secondary/30 flex items-center gap-4 rounded-xl border p-3.5 transition-colors"
                         >
                           <div className="from-primary to-primary/30 h-10 w-1 shrink-0 rounded-full bg-gradient-to-b" />
-                          <ProtocolBadge protocol={pool.protocol} />
-                          <NetworkBadge networkSlug={pool.network} />
+                          <div className="w-24 shrink-0"><ProtocolBadge protocol={pool.protocol} /></div>
+                          <div className="w-24 shrink-0"><NetworkBadge networkSlug={pool.network} /></div>
                           <span className="text-foreground flex-1 truncate text-sm font-medium">
                             {pool.poolName}
                           </span>
                           <span
-                            className={`font-mono text-sm font-semibold ${
-                              pool.apy > 0.5
-                                ? 'text-orange-400'
-                                : pool.apy > 0.1
-                                  ? 'text-emerald-400'
-                                  : 'text-muted-foreground'
-                            }`}
+                            className={`font-mono text-sm font-semibold ${pool.apy > 0.5
+                              ? 'text-orange-400'
+                              : pool.apy > 0.1
+                                ? 'text-emerald-400'
+                                : 'text-muted-foreground'
+                              }`}
                           >
                             {(pool.apy * 100).toFixed(2)}%
                           </span>

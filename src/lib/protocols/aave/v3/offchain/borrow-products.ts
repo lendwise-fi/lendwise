@@ -11,8 +11,17 @@ import { LIST_BORROW_PRODUCTS } from './queries'
 // CPU-heavy transformation memoized
 const _formatBorrowProducts = cache(
   (markets: ListBorrowProductsQuery['markets']): BorrowProduct[] =>
-    markets.flatMap((market) =>
-      market.reserves
+    markets.flatMap((market) => {
+      const collateralReserves = market.reserves
+        .filter((r) => r.supplyInfo?.canBeCollateral === true)
+        .map((r) => ({
+          address: r.underlyingToken.address,
+          symbol: r.underlyingToken.symbol,
+          name: r.underlyingToken.name,
+          decimals: r.underlyingToken.decimals,
+        }))
+
+      return market.reserves
         .filter(
           (reserve) =>
             reserve.borrowInfo !== null &&
@@ -43,13 +52,13 @@ const _formatBorrowProducts = cache(
               0,
               reserve.size.usd - (reserve.borrowInfo?.total.usd || 0)
             ),
-            collaterals: [],
+            collaterals: collateralReserves,
             apy: reserve.borrowInfo?.apy.value || 0,
             productId: buildReserveProductId(market.chain.chainId, reserve.underlyingToken.address, 'borrow'),
             link: `https://app.aave.com/reserve-overview/?underlyingAsset=${reserve.underlyingToken.address.toLowerCase()}&marketName=proto_${market.chain.name.toLowerCase()}_v3`,
           }
         })
-    )
+    })
 )
 
 export async function getBorrowProducts(): Promise<BorrowProduct[]> {
