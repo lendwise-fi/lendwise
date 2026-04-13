@@ -98,7 +98,7 @@ export function SupplyingOptimizerView({
   markets,
   onBack,
 }: SupplyingOptimizerViewProps) {
-  const [amount, setAmount] = useState('')
+  const [amount, setAmount] = useState('100')
   const [horizon, setHorizon] = useState<HorizonKey>('medium')
   const [strategy, setStrategy] = useState<StrategyId>('balanced')
   const [results, setResults] = useState<OptimizationResult[] | null>(null)
@@ -153,7 +153,7 @@ export function SupplyingOptimizerView({
   }
 
   const handleReset = () => {
-    setAmount('')
+    setAmount('100')
     setHorizon('medium')
     setStrategy('balanced')
     setResults(null)

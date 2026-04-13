@@ -37,7 +37,7 @@ function TextCell({ w = 140 }: { w?: number }) {
 
 function ValueCell() {
   return (
-    <div className="flex items-center gap-2">
+    <div className="flex flex-1 items-center gap-2">
       <Skeleton className="h-4 w-20" />
       <Skeleton className="h-5 w-14 rounded-md" />
     </div>
@@ -46,7 +46,7 @@ function ValueCell() {
 
 function LiquidityCell() {
   return (
-    <div className="flex items-center gap-2">
+    <div className="flex flex-1 items-center gap-2">
       <Skeleton className="h-4 w-20" />
       <Skeleton className="h-5 w-14 rounded-md" />
       <Skeleton className="h-5 w-5 shrink-0 rounded-full" />
@@ -56,7 +56,7 @@ function LiquidityCell() {
 
 function NameCell() {
   return (
-    <div className="flex items-center gap-2">
+    <div className="flex flex-1 items-center gap-2">
       <Skeleton className="h-5 w-5 shrink-0 rounded-full" />
       <Skeleton className="h-4 w-36" />
     </div>
@@ -83,27 +83,29 @@ function LinkCell() {
 
 // ─── Table header labels ──────────────────────────────────────────────────────
 
-const SUPPLY_HEADERS = [
-  '', // checkbox
-  'PROTOCOL',
-  'NETWORK',
-  'NAME',
-  'DEPOSITS',
-  'LIQUIDITY',
-  'APY',
-  '',
+type HeaderCol = { label: string; flex?: boolean }
+
+const SUPPLY_HEADERS: HeaderCol[] = [
+  { label: '' }, // checkbox
+  { label: 'PROTOCOL' },
+  { label: 'NETWORK' },
+  { label: 'NAME', flex: true },
+  { label: 'DEPOSITS', flex: true },
+  { label: 'LIQUIDITY', flex: true },
+  { label: 'APY' },
+  { label: '' },
 ]
 
-const BORROW_HEADERS = [
-  '', // checkbox
-  'PROTOCOL',
-  'NETWORK',
-  'LOAN',
-  'COLLATERAL',
-  'DEPOSITS',
-  'LIQUIDITY',
-  'APY',
-  '',
+const BORROW_HEADERS: HeaderCol[] = [
+  { label: '' }, // checkbox
+  { label: 'PROTOCOL' },
+  { label: 'NETWORK' },
+  { label: 'LOAN', flex: true },
+  { label: 'COLLATERAL' },
+  { label: 'DEPOSITS', flex: true },
+  { label: 'LIQUIDITY', flex: true },
+  { label: 'APY' },
+  { label: '' },
 ]
 
 // ─── Row cells per variant ────────────────────────────────────────────────────
@@ -176,9 +178,9 @@ export function TableSkeleton({
 
       {/* Table header row */}
       <div className="border-border/50 flex items-center gap-4 border-b px-8 py-3">
-        {headers.map((label, i) =>
+        {headers.map(({ label, flex }, i) =>
           label ? (
-            <Skeleton key={i} className="h-2.5 w-12" />
+            <Skeleton key={i} className={`h-2.5 w-12${flex ? ' flex-1' : ' shrink-0'}`} />
           ) : (
             <div key={i} className="h-2.5 w-4 shrink-0" />
           )
