@@ -30,14 +30,14 @@ export function WalletNotConnected() {
   const [hoveredWallet, setHoveredWallet] = useState<string | null>(null)
 
   return (
-    <div className="relative flex flex-1 flex-col items-center justify-center overflow-hidden px-6 py-16">
+    <div className="relative flex h-full flex-col items-center justify-center overflow-hidden px-6 py-6">
       {/* Background glow */}
       <div className="pointer-events-none absolute inset-0">
         <div className="absolute top-1/2 left-1/2 h-[600px] w-[600px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-primary/5 blur-3xl" />
         <div className="absolute top-1/3 left-1/3 h-[300px] w-[300px] rounded-full bg-accent/5 blur-3xl" />
       </div>
 
-      <div className="relative z-10 flex w-full max-w-3xl flex-col items-center gap-12">
+      <div className="relative z-10 flex w-full max-w-3xl flex-col items-center gap-7">
         {/* Hero */}
         <motion.div
           initial={{ opacity: 0, y: 16 }}

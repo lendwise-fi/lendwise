@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useState, useTransition } from 'react'
+import { useCallback, useEffect, useRef, useState, useTransition } from 'react'
 
 import Link from 'next/link'
 
@@ -242,7 +242,7 @@ const createColumns = (
               row.original.assetDecimals
             )}
           </span>
-          <Badge variant="secondary" className="font-mono">
+          <Badge variant="outline" className="font-mono bg-background">
             {formatCompactCurrency(row.original.assetAmountUsd * rate, currency)}
           </Badge>
         </div>
@@ -266,7 +266,7 @@ const createColumns = (
                 row.original.assetDecimals
               )}
             </span>
-            <Badge variant="secondary" className="font-mono">
+            <Badge variant="outline" className="font-mono bg-background">
               {formatCompactCurrency(
                 row.original.liquidityAmountUsd * rate,
                 currency
@@ -598,6 +598,13 @@ export function BorrowTableClient() {
   ])
   const [searchValue, setSearchValue] = useState('')
 
+  const getRowId = useCallback(
+    (row: BorrowProduct) => `${row.protocol}-${row.poolChainId}-${row.poolId}-${row.assetAddress}`,
+    []
+  )
+
+  const hasPreselected = useRef(false)
+
   const { data, isPending } = useQuery<BorrowProduct[]>({
     queryKey: ['borrowProducts'],
     queryFn: loadBorrowProducts,
@@ -606,6 +613,22 @@ export function BorrowTableClient() {
     gcTime: 5 * 60 * 1000,
   })
 
+  useEffect(() => {
+    if (hasPreselected.current || !data || data.length === 0) return
+    hasPreselected.current = true
+
+    const filtered = data.filter((row) => row.assetSymbol === 'USDC')
+    const sorted = [...filtered].sort((a, b) => (b.apy ?? 0) - (a.apy ?? 0))
+    const top3 = sorted.slice(0, 3)
+    if (top3.length === 0) return
+
+    const selection: Record<string, boolean> = {}
+    for (const row of top3) {
+      selection[getRowId(row)] = true
+    }
+    setRowSelection(selection)
+  }, [data, getRowId])
+
   const columns = createColumns(
     baseCurrency,
     rate,
@@ -613,11 +636,6 @@ export function BorrowTableClient() {
     Object.keys(rowSelection).length
   )
   const sortColumn = HORIZON_CONFIG[horizon].apyKey as string
-
-  const getRowId = useCallback(
-    (row: BorrowProduct) => `${row.protocol}-${row.poolChainId}-${row.poolId}-${row.assetAddress}`,
-    []
-  )
 
   const markets = data || []
 
