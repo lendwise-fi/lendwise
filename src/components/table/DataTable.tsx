@@ -133,6 +133,7 @@ interface DataTableProps<TData, TValue> {
   >
   globalFilter?: string
   onGlobalFilterChange?: (value: string) => void
+  getRowClassName?: (row: TData) => string
 }
 
 export function DataTable<TData, TValue>({
@@ -155,6 +156,7 @@ export function DataTable<TData, TValue>({
   onColumnFiltersChange: controlledOnColumnFiltersChange,
   globalFilter: controlledGlobalFilter,
   onGlobalFilterChange: controlledOnGlobalFilterChange,
+  getRowClassName,
 }: DataTableProps<TData, TValue>) {
   const [internalRowSelection, setInternalRowSelection] =
     useState<RowSelectionState>({})
@@ -348,7 +350,8 @@ export function DataTable<TData, TValue>({
                   key={row.index}
                   data-state={row.getIsSelected() && 'selected'}
                   className={cn(
-                    'border-border/30 hover:bg-secondary/20 border-b transition-colors duration-150'
+                    'border-border/30 hover:bg-secondary/20 border-b transition-colors duration-150',
+                    getRowClassName?.(row.original)
                   )}
                 >
                   {row.getVisibleCells().map((cell) => (

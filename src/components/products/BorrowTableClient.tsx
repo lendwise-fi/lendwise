@@ -8,6 +8,8 @@ import { useQuery } from '@tanstack/react-query'
 import { ColumnDef, ColumnFiltersState } from '@tanstack/react-table'
 import {
   AlertCircle,
+  AlertTriangle,
+  ArrowLeftRight,
   ArrowUpRightFromSquare,
   CheckCircle2,
   ChevronRight,
@@ -89,6 +91,13 @@ import {
 
 export type Horizon = HorizonKey
 
+const getUtilizationPct = (row: BorrowProduct) => {
+  if (!row.assetAmountUsd) return 0
+  return ((row.assetAmountUsd - row.liquidityAmountUsd) / row.assetAmountUsd) * 100
+}
+
+const isOverutilized = (row: BorrowProduct) => getUtilizationPct(row) > 99
+
 const createColumns = (
   currency: string,
   rate: number,
@@ -99,14 +108,34 @@ const createColumns = (
     id: 'select',
     size: 40,
     header: '',
-    cell: ({ row }) => (
-      <Checkbox
-        checked={row.getIsSelected()}
-        onCheckedChange={(value) => row.toggleSelected(!!value)}
-        aria-label="Select row"
-        disabled={!row.getIsSelected() && selectedCount >= 10}
-      />
-    ),
+    cell: ({ row }) => {
+      const isSelected = row.getIsSelected()
+      const isDisabledByUtilization = !isSelected && isOverutilized(row.original)
+      const isDisabledByLimit = !isSelected && !isDisabledByUtilization && selectedCount >= 10
+      const isDisabled = isDisabledByUtilization || isDisabledByLimit
+
+      const checkbox = (
+        <Checkbox
+          checked={isSelected}
+          onCheckedChange={(value) => row.toggleSelected(!!value)}
+          aria-label="Select row"
+          disabled={isDisabled}
+        />
+      )
+
+      if (isDisabledByUtilization) {
+        return (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <span className="inline-flex cursor-not-allowed">{checkbox}</span>
+            </TooltipTrigger>
+            <TooltipContent>Utilization &gt;99% — unhealthy market</TooltipContent>
+          </Tooltip>
+        )
+      }
+
+      return checkbox
+    },
     enableSorting: false,
     enableHiding: false,
   },
@@ -260,6 +289,18 @@ const createColumns = (
               return Math.min(100, pct)
             })()}
           />
+          {isOverutilized(row.original) && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span className="inline-flex items-center">
+                  <AlertTriangle className="h-3.5 w-3.5 text-red-500" />
+                </span>
+              </TooltipTrigger>
+              <TooltipContent>
+                Utilization &gt;99% — unhealthy market, cannot be optimized
+              </TooltipContent>
+            </Tooltip>
+          )}
         </div>
       )
     },
@@ -831,27 +872,27 @@ export function BorrowTableClient() {
               </DialogTrigger>
               <DialogContent
                 showCloseButton={false}
-                className="gap-0 overflow-hidden p-0 sm:max-w-4xl"
+                className="gap-0 overflow-hidden p-0 sm:max-w-4xl sm:max-h-[90vh]"
               >
-                <DialogTitle className="sr-only">Yield Optimizer</DialogTitle>
+                <DialogTitle className="sr-only">Borrow Optimizer</DialogTitle>
                 <DialogDescription className="sr-only">
-                  Review selected markets and configure optimizer parameters
+                  Review selected markets and configure your borrowing objective
                 </DialogDescription>
                 {/* Custom header */}
                 <div className="border-border flex items-start justify-between border-b px-7 pt-6 pb-5">
                   <div>
                     <div className="mb-1 flex items-center gap-2.5">
                       <div className="bg-primary/15 flex h-7 w-7 items-center justify-center rounded-lg">
-                        <Zap className="text-primary h-4 w-4" />
+                        <ArrowLeftRight className="text-primary h-4 w-4" />
                       </div>
                       <h2 className="text-base font-semibold">
-                        Yield Optimizer
+                        Borrow Optimizer
                       </h2>
                     </div>
                     <p className="text-muted-foreground ml-9 text-xs">
                       {modalStep === 1
                         ? `${selectedData.length} market${selectedData.length !== 1 ? 's' : ''} selected — review before optimizing`
-                        : 'Set parameters and run the optimizer engine'}
+                        : 'Configure your borrowing objective'}
                     </p>
                   </div>
 
@@ -898,54 +939,68 @@ export function BorrowTableClient() {
 
                 {/* Body */}
                 {modalStep === 1 ? (
-                  <div>
-                    <div className="max-h-64 space-y-2 overflow-y-auto px-7 py-4">
-                      {/* Column headers */}
-                      <div className="flex items-center gap-4 px-3.5 pb-1">
-                        <div className="w-1 shrink-0" />
-                        <span className="text-muted-foreground/80 w-24 shrink-0 pl-3 text-xs">
-                          Protocol
-                        </span>
-                        <span className="text-muted-foreground/80 w-24 shrink-0 pl-3 text-xs">
-                          Network
-                        </span>
-                        <span className="text-muted-foreground/80 flex-1 text-xs">
-                          Market
-                        </span>
-                        <span className="text-muted-foreground/80 pr-4 text-xs">
-                          APY
-                        </span>
-                      </div>
-                      {selectedData.map((pool, i) => (
-                        <div
-                          key={i}
-                          className="border-border/50 hover:border-border bg-secondary/30 flex items-center gap-4 rounded-xl border p-3.5 transition-colors"
-                        >
-                          <div className="from-primary to-primary/30 h-10 w-1 shrink-0 rounded-full bg-linear-to-b" />
-                          <div className="w-24 shrink-0">
-                            <ProtocolBadge protocol={pool.protocol} />
-                          </div>
-                          <div className="w-24 shrink-0">
-                            <NetworkBadge networkSlug={pool.network} />
-                          </div>
-                          <span className="text-foreground flex-1 truncate text-sm font-medium">
-                            {pool.poolName}
-                          </span>
-                          <span
-                            className={`font-mono text-sm font-semibold ${
-                              pool.apy > 0.5
-                                ? 'text-orange-400'
-                                : pool.apy > 0.1
-                                  ? 'text-emerald-400'
-                                  : 'text-muted-foreground'
-                            }`}
-                          >
-                            {(pool.apy * 100).toFixed(2)}%
-                          </span>
-                        </div>
+                  <div className="flex flex-col">
+                    {/* Sticky column headers */}
+                    <div className="flex items-center gap-4 border-b border-border/40 px-7 pt-4 pb-2.5">
+                      <div className="w-1 shrink-0" />
+                      <span className="text-muted-foreground/70 w-24 shrink-0 text-[11px] font-semibold uppercase tracking-wider">Protocol</span>
+                      <span className="text-muted-foreground/70 w-24 shrink-0 text-[11px] font-semibold uppercase tracking-wider">Network</span>
+                      <span className="text-muted-foreground/70 flex-1 text-[11px] font-semibold uppercase tracking-wider">Market</span>
+                      {['1D', '7D', '1M', '1Y'].map((label) => (
+                        <span key={label} className="text-muted-foreground/70 w-16 text-right text-[11px] font-semibold uppercase tracking-wider">{label}</span>
                       ))}
                     </div>
-                    <div className="flex justify-end px-7 pb-6">
+                    {/* Scrollable rows */}
+                    <div className="max-h-[30rem] space-y-2 overflow-y-auto px-7 py-4">
+                      {selectedData.map((pool, i) => {
+                        const apyCols = [
+                          { key: '1d', value: pool.apy },
+                          { key: '7d', value: pool.apyDaily },
+                          { key: '1m', value: pool.apyMonthly },
+                          { key: '1y', value: pool.apyYearly },
+                        ]
+                        return (
+                          <div
+                            key={i}
+                            className="border-border/50 hover:border-border bg-secondary/30 flex items-center gap-4 rounded-xl border p-3.5 transition-colors"
+                          >
+                            <div className="from-primary to-primary/30 h-10 w-1 shrink-0 rounded-full bg-linear-to-b" />
+                            <div className="w-24 shrink-0">
+                              <ProtocolBadge protocol={pool.protocol} />
+                            </div>
+                            <div className="w-24 shrink-0">
+                              <NetworkBadge networkSlug={pool.network} />
+                            </div>
+                            <span className="text-foreground flex-1 truncate text-sm font-medium">
+                              {pool.poolName}
+                            </span>
+                            {apyCols.map(({ key, value }) => (
+                              <span
+                                key={key}
+                                className={`w-16 text-right font-mono text-xs font-semibold ${
+                                  value === undefined
+                                    ? 'text-muted-foreground/40'
+                                    : value > 0.5
+                                      ? 'text-orange-400'
+                                      : value > 0.1
+                                        ? 'text-emerald-400'
+                                        : 'text-muted-foreground'
+                                }`}
+                              >
+                                {value === undefined
+                                  ? '—'
+                                  : value < 0.0001
+                                    ? '<0.01%'
+                                    : value > 10
+                                      ? '>1000%'
+                                      : `${(value * 100).toFixed(2)}%`}
+                              </span>
+                            ))}
+                          </div>
+                        )
+                      })}
+                    </div>
+                    <div className="flex justify-end border-t border-border/40 px-7 py-4">
                       <Button
                         onClick={() => {
                           setSnapshotMarkets(selectedData)
@@ -1081,6 +1136,7 @@ export function BorrowTableClient() {
         onColumnFiltersChange={setColumnFilters}
         globalFilter={searchValue}
         onGlobalFilterChange={setSearchValue}
+        getRowClassName={(row) => isOverutilized(row) ? 'bg-red-500/8 hover:bg-red-500/12' : ''}
       />
     </div>
   )

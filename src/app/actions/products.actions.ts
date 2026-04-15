@@ -71,7 +71,11 @@ async function fetchApyEnrichments(
 
   try {
     const db = await getDb()
+    // Normalize to midnight UTC so cutoffs align with the date field in apy.daily
+    // (documents are stored at 00:00:00.000Z — a sub-midnight cutoff would
+    //  exclude the oldest day in the window, causing count7 = 6 instead of 7)
     const now = new Date()
+    now.setUTCHours(0, 0, 0, 0)
     const date365dAgo = new Date(
       now.getTime() - THRESHOLDS.yearly * 24 * 60 * 60 * 1000
     )

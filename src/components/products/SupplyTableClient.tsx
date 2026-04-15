@@ -8,6 +8,7 @@ import { useQuery } from '@tanstack/react-query'
 import { ColumnDef, ColumnFiltersState } from '@tanstack/react-table'
 import {
   AlertCircle,
+  AlertTriangle,
   ArrowUpRightFromSquare,
   CheckCircle2,
   ChevronRight,
@@ -89,6 +90,13 @@ import {
 
 export type Horizon = HorizonKey
 
+const getUtilizationPct = (row: SupplyProduct) => {
+  if (!row.assetAmountUsd) return 0
+  return ((row.assetAmountUsd - row.liquidityAmountUsd) / row.assetAmountUsd) * 100
+}
+
+const isOverutilized = (row: SupplyProduct) => getUtilizationPct(row) > 99
+
 const createColumns = (
   currency: string,
   rate: number,
@@ -102,12 +110,14 @@ const createColumns = (
       header: '',
       cell: ({ row }) => {
         const isSelected = row.getIsSelected()
+        const isDisabledByUtilization = !isSelected && isOverutilized(row.original)
         const isDisabledByAsset =
           !isSelected &&
+          !isDisabledByUtilization &&
           selectedAsset !== null &&
           row.original.assetSymbol !== selectedAsset
-        const isDisabledByLimit = !isSelected && selectedCount >= 10
-        const isDisabled = isDisabledByAsset || isDisabledByLimit
+        const isDisabledByLimit = !isSelected && !isDisabledByUtilization && selectedCount >= 10
+        const isDisabled = isDisabledByUtilization || isDisabledByAsset || isDisabledByLimit
 
         const checkbox = (
           <Checkbox
@@ -117,6 +127,17 @@ const createColumns = (
             disabled={isDisabled}
           />
         )
+
+        if (isDisabledByUtilization) {
+          return (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span className="inline-flex cursor-not-allowed">{checkbox}</span>
+              </TooltipTrigger>
+              <TooltipContent>Utilization &gt;99% — unhealthy market</TooltipContent>
+            </Tooltip>
+          )
+        }
 
         if (isDisabledByAsset) {
           return (
@@ -225,6 +246,18 @@ const createColumns = (
               return Math.min(100, pct)
             })()}
           />
+          {isOverutilized(row.original) && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span className="inline-flex items-center">
+                  <AlertTriangle className="h-3.5 w-3.5 text-red-500" />
+                </span>
+              </TooltipTrigger>
+              <TooltipContent>
+                Utilization &gt;99% — unhealthy market, cannot be optimized
+              </TooltipContent>
+            </Tooltip>
+          )}
         </div>
       ),
       enableHiding: false,
@@ -755,11 +788,11 @@ export function SupplyTableClient() {
               </DialogTrigger>
               <DialogContent
                 showCloseButton={false}
-                className="gap-0 overflow-hidden p-0 sm:max-w-4xl"
+                className="gap-0 overflow-hidden p-0 sm:max-w-4xl sm:max-h-[90vh]"
               >
-                <DialogTitle className="sr-only">Yield Optimizer</DialogTitle>
+                <DialogTitle className="sr-only">Supply Optimizer</DialogTitle>
                 <DialogDescription className="sr-only">
-                  Review selected markets and configure optimizer parameters
+                  Review selected markets and configure your supply objective
                 </DialogDescription>
                 {/* Custom header */}
                 <div className="border-border flex items-start justify-between border-b px-7 pt-6 pb-5">
@@ -769,13 +802,13 @@ export function SupplyTableClient() {
                         <Zap className="text-primary h-4 w-4" />
                       </div>
                       <h2 className="text-base font-semibold">
-                        Yield Optimizer
+                        Supply Optimizer
                       </h2>
                     </div>
                     <p className="text-muted-foreground ml-9 text-xs">
                       {modalStep === 1
                         ? `${selectedData.length} pool${selectedData.length !== 1 ? 's' : ''} selected — review before optimizing`
-                        : 'Set parameters and run the optimizer engine'}
+                        : 'Configure your supply objective'}
                     </p>
                   </div>
 
@@ -821,33 +854,64 @@ export function SupplyTableClient() {
 
                 {/* Body */}
                 {modalStep === 1 ? (
-                  <div>
-                    <div className="max-h-72 space-y-2 overflow-y-auto px-7 py-5">
-                      {selectedData.map((pool, i) => (
-                        <div
-                          key={i}
-                          className="border-border/50 hover:border-border bg-secondary/30 flex items-center gap-4 rounded-xl border p-3.5 transition-colors"
-                        >
-                          <div className="from-primary to-primary/30 h-10 w-1 shrink-0 rounded-full bg-gradient-to-b" />
-                          <ProtocolBadge protocol={pool.protocol} />
-                          <NetworkBadge networkSlug={pool.network} />
-                          <span className="text-foreground flex-1 truncate text-sm font-medium">
-                            {pool.poolName}
-                          </span>
-                          <span
-                            className={`font-mono text-sm font-semibold ${pool.apy > 0.5
-                                ? 'text-orange-400'
-                                : pool.apy > 0.1
-                                  ? 'text-emerald-400'
-                                  : 'text-muted-foreground'
-                              }`}
-                          >
-                            {(pool.apy * 100).toFixed(2)}%
-                          </span>
-                        </div>
+                  <div className="flex flex-col">
+                    {/* Sticky column headers */}
+                    <div className="flex items-center gap-4 border-b border-border/40 px-7 pt-4 pb-2.5">
+                      <div className="w-1 shrink-0" />
+                      <span className="text-muted-foreground/70 w-24 shrink-0 text-[11px] font-semibold uppercase tracking-wider">Protocol</span>
+                      <span className="text-muted-foreground/70 w-24 shrink-0 text-[11px] font-semibold uppercase tracking-wider">Network</span>
+                      <span className="text-muted-foreground/70 flex-1 text-[11px] font-semibold uppercase tracking-wider">Pool</span>
+                      {['1D', '7D', '1M', '1Y'].map((label) => (
+                        <span key={label} className="text-muted-foreground/70 w-16 text-right text-[11px] font-semibold uppercase tracking-wider">{label}</span>
                       ))}
                     </div>
-                    <div className="flex justify-end px-7 pb-6">
+                    {/* Scrollable rows */}
+                    <div className="max-h-[30rem] space-y-2 overflow-y-auto px-7 py-4">
+                      {selectedData.map((pool, i) => {
+                        const apyCols = [
+                          { key: '1d', value: pool.apy },
+                          { key: '7d', value: pool.apyDaily },
+                          { key: '1m', value: pool.apyMonthly },
+                          { key: '1y', value: pool.apyYearly },
+                        ]
+                        return (
+                          <div
+                            key={i}
+                            className="border-border/50 hover:border-border bg-secondary/30 flex items-center gap-4 rounded-xl border p-3.5 transition-colors"
+                          >
+                            <div className="from-primary to-primary/30 h-10 w-1 shrink-0 rounded-full bg-gradient-to-b" />
+                            <div className="w-24 shrink-0"><ProtocolBadge protocol={pool.protocol} /></div>
+                            <div className="w-24 shrink-0"><NetworkBadge networkSlug={pool.network} /></div>
+                            <span className="text-foreground flex-1 truncate text-sm font-medium">
+                              {pool.poolName}
+                            </span>
+                            {apyCols.map(({ key, value }) => (
+                              <span
+                                key={key}
+                                className={`w-16 text-right font-mono text-xs font-semibold ${
+                                  value === undefined
+                                    ? 'text-muted-foreground/40'
+                                    : value > 0.5
+                                      ? 'text-orange-400'
+                                      : value > 0.1
+                                        ? 'text-emerald-400'
+                                        : 'text-muted-foreground'
+                                }`}
+                              >
+                                {value === undefined
+                                  ? '—'
+                                  : value < 0.0001
+                                    ? '<0.01%'
+                                    : value > 10
+                                      ? '>1000%'
+                                      : `${(value * 100).toFixed(2)}%`}
+                              </span>
+                            ))}
+                          </div>
+                        )
+                      })}
+                    </div>
+                    <div className="flex justify-end border-t border-border/40 px-7 py-4">
                       <Button
                         onClick={() => {
                           setSnapshotMarkets(selectedData)
@@ -951,6 +1015,7 @@ export function SupplyTableClient() {
         columnFilters={columnFilters}
         onColumnFiltersChange={setColumnFilters}
         globalFilter={searchValue}
+        getRowClassName={(row) => isOverutilized(row) ? 'bg-red-500/8 hover:bg-red-500/12' : ''}
         filterableColumns={[
           { column: 'protocol', title: 'Protocol', options: protocolOptions },
           { column: 'network', title: 'Network', options: networkOptions },
