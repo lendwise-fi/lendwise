@@ -13,6 +13,7 @@ import {
   Zap,
 } from 'lucide-react'
 import { AnimatePresence, motion } from 'motion/react'
+import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from 'recharts'
 
 import { HORIZON_OPTIONS, HorizonKey } from '@/config/horizon'
 import { Button } from '@/components/ui/button'
@@ -70,6 +71,16 @@ const GOALS: Record<BorrowMode, { id: GoalId; label: string; Icon: typeof Shield
 }
 
 const ALLOCATION_COLORS = ['#3b82f6', '#06b6d4', '#8b5cf6', '#10b981', '#f59e0b']
+
+function AllocationTooltip({ active, payload }: { active?: boolean; payload?: { name: string; value: number }[] }) {
+  if (!active || !payload?.length) return null
+  return (
+    <div className="rounded-lg border border-border bg-popover px-3 py-2 text-xs shadow-md">
+      <p className="font-medium text-foreground truncate max-w-[160px]">{payload[0].name}</p>
+      <p className="font-mono text-muted-foreground">{payload[0].value.toFixed(0)}%</p>
+    </div>
+  )
+}
 
 // ============================================================================
 // Types
@@ -410,35 +421,52 @@ export function BorrowingOptimizerView({
                   )}
                 </div>
 
-                {/* Allocation list */}
+                {/* Pie chart */}
+                <div className="relative h-44">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                      <Pie
+                        data={allocations.map((a) => ({
+                          name: a.market.poolName,
+                          pct: total && total > 0 ? (a.value / total) * 100 : 0,
+                        }))}
+                        dataKey="pct"
+                        nameKey="name"
+                        cx="50%"
+                        cy="50%"
+                        innerRadius={48}
+                        outerRadius={72}
+                        paddingAngle={3}
+                        isAnimationActive={true}
+                        animationBegin={0}
+                        animationDuration={700}
+                        animationEasing="ease-out"
+                      >
+                        {allocations.map((_, i) => (
+                          <Cell key={i} fill={ALLOCATION_COLORS[i % ALLOCATION_COLORS.length]} stroke="transparent" />
+                        ))}
+                      </Pie>
+                      <Tooltip content={<AllocationTooltip />} />
+                    </PieChart>
+                  </ResponsiveContainer>
+                  {/* Center label */}
+                  {weightedRate !== null && (
+                    <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
+                      <span className="font-mono text-lg font-bold text-foreground">{(weightedRate * 100).toFixed(1)}%</span>
+                      <span className="text-[10px] uppercase tracking-wider text-muted-foreground">Avg rate</span>
+                    </div>
+                  )}
+                </div>
+
+                {/* Legend */}
                 <div className="space-y-2">
                   {allocations.map((a, i) => {
                     const pct = total && total > 0 ? (a.value / total) * 100 : 0
                     return (
-                      <div
-                        key={i}
-                        className="border-border/50 bg-secondary/20 flex items-center gap-2.5 rounded-lg border p-2.5"
-                      >
-                        <div
-                          className="h-2 w-2 shrink-0 rounded-sm"
-                          style={{ background: ALLOCATION_COLORS[i % ALLOCATION_COLORS.length] }}
-                        />
-                        <div className="min-w-0 flex-1">
-                          <div className="truncate text-xs font-medium text-foreground">
-                            {a.market.poolName}
-                          </div>
-                          <div className="text-muted-foreground text-[10px]">
-                            {(a.market.apy * 100).toFixed(2)}% APY
-                          </div>
-                        </div>
-                        <div className="shrink-0 text-right">
-                          <div className="font-mono text-xs font-semibold text-foreground">
-                            {pct.toFixed(0)}%
-                          </div>
-                          <div className="font-mono text-[10px] text-muted-foreground">
-                            {formatCompactCurrency(a.value, 'USD')}
-                          </div>
-                        </div>
+                      <div key={i} className="flex items-center gap-2">
+                        <div className="h-2.5 w-2.5 shrink-0 rounded-sm" style={{ background: ALLOCATION_COLORS[i % ALLOCATION_COLORS.length] }} />
+                        <span className="flex-1 truncate text-[11px] text-foreground">{a.market.poolName}</span>
+                        <span className="font-mono text-[11px] text-muted-foreground">{pct.toFixed(0)}%</span>
                       </div>
                     )
                   })}
