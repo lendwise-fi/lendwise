@@ -583,7 +583,9 @@ export function SupplyTableClient() {
     if (!data || data.length === 0) return
     if (hasUserInteracted.current) return
 
-    const filtered = data.filter((row) => row.assetSymbol === 'USDC')
+    const filtered = data.filter(
+      (row) => row.assetSymbol === 'USDC' && !isOverutilized(row)
+    )
     const sorted = [...filtered].sort((a, b) => (b.apy ?? 0) - (a.apy ?? 0))
     const top3 = sorted.slice(0, 3)
     if (top3.length === 0) return
