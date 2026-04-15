@@ -41,34 +41,29 @@ export async function getSupplyProducts(): Promise<SupplyProduct[]> {
         break
       }
 
-      const markets = data.vaults.items.map((vault) => ({
-        protocol: MORPHO_CONFIG.morpho_v1.id,
-        network:
-          CHAIN_NAME_MAPPING[vault.asset.chain.id] ||
-          vault.asset.chain.network.toLowerCase(),
-        poolName: vault.name,
-        poolId: vault.address,
-        poolAddress: vault.address,
-        poolChainId: vault.asset.chain.id,
-        assetAddress: vault.asset.address,
-        assetName: vault.asset.name,
-        assetSymbol: vault.asset.symbol,
-        assetDecimals: vault.asset.decimals,
-        assetAmount: (vault.state?.totalAssets ?? 0).toString(),
-        assetAmountUsd: vault.state?.totalAssetsUsd ?? 0,
-        liquidityAmount: (vault.liquidity?.underlying ?? 0).toString(),
-        liquidityAmountUsd: vault.liquidity?.usd ?? 0,
-        collaterals: vault.state?.allocation?.map((allocation) =>
-          allocation.market.collateralAsset
-            ? {
-                symbol: allocation.market.collateralAsset.symbol ?? '',
-              }
-            : []
-        ),
-        apy: vault?.state?.avgNetApy ?? 0,
-        productId: buildVaultProductId(vault.asset.chain.id, vault.address),
-        link: `https://app.morpho.org/${vault.asset.chain.network.toLowerCase()}/vault/${vault.address}/${generateSlug(vault.name)}`,
-      }))
+      const markets = data.vaults.items.map(
+        (vault): SupplyProduct => ({
+          protocol: MORPHO_CONFIG.morpho_v1.id,
+          network:
+            CHAIN_NAME_MAPPING[vault.asset.chain.id] ||
+            vault.asset.chain.network.toLowerCase(),
+          poolName: vault.name,
+          poolId: vault.address,
+          poolAddress: vault.address,
+          poolChainId: vault.asset.chain.id,
+          assetAddress: vault.asset.address,
+          assetName: vault.asset.name,
+          assetSymbol: vault.asset.symbol,
+          assetDecimals: vault.asset.decimals,
+          assetAmount: (vault.state?.totalAssets ?? 0).toString(),
+          assetAmountUsd: vault.state?.totalAssetsUsd ?? 0,
+          liquidityAmount: (vault.liquidity?.underlying ?? 0).toString(),
+          liquidityAmountUsd: vault.liquidity?.usd ?? 0,
+          apy: vault?.state?.avgNetApy ?? 0,
+          productId: buildVaultProductId(vault.asset.chain.id, vault.address),
+          link: `https://app.morpho.org/${vault.asset.chain.network.toLowerCase()}/vault/${vault.address}/${generateSlug(vault.name)}`,
+        })
+      )
 
       allMarkets.push(...markets)
 

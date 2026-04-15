@@ -3,7 +3,11 @@
 import { unstable_cache } from 'next/cache'
 
 import { getProtocolAdapter, getProtocolIds } from '@/config/protocols'
-import { MONGODB_COLLECTION_DAILY, getDb } from '@/lib/db/mongodb'
+import {
+  MONGODB_COLLECTION_DAILY,
+  MONGODB_COLLECTION_HOURLY,
+  getDb,
+} from '@/lib/db/mongodb'
 import { BorrowProduct, SupplyProduct } from '@/types'
 
 // Minimum data point thresholds per horizon
@@ -17,6 +21,42 @@ interface ApyEnrichment {
   apyDaily?: number // 7-day avg from apy.daily (short term)
   apyMonthly?: number // 6-month avg from apy.daily (medium term)
   apyYearly?: number // 12-month avg from apy.daily (long term)
+}
+
+/**
+ * Fetch the most recent hourly APY (apy.net) per productId from apy.hourly.
+ * Uses the compound index { productId: 1, hour: -1 } for efficiency.
+ */
+async function fetchLatestHourlyApy(
+  productIds: string[]
+): Promise<Map<string, number>> {
+  const map = new Map<string, number>()
+  if (productIds.length === 0) return map
+
+  try {
+    const db = await getDb()
+    const docs = await db
+      .collection(MONGODB_COLLECTION_HOURLY!)
+      .aggregate([
+        { $match: { productId: { $in: productIds } } },
+        { $sort: { productId: 1, hour: -1 } },
+        { $group: { _id: '$productId', latestNet: { $first: '$apy.net' } } },
+      ])
+      .toArray()
+
+    for (const doc of docs) {
+      if (typeof doc.latestNet === 'number') {
+        map.set(doc._id as string, doc.latestNet)
+      }
+    }
+  } catch (err) {
+    console.error(
+      '[products] Failed to fetch latest hourly APY from MongoDB:',
+      err
+    )
+  }
+
+  return map
 }
 
 /**
@@ -125,28 +165,25 @@ async function _loadSupplyProducts(): Promise<SupplyProduct[]> {
     }
   })
 
-  // Enrich with MongoDB APY averages
+  // Enrich with MongoDB APY data (all horizons)
   const productIds = allSupplyProducts
     .map((p) => p.productId)
     .filter(Boolean) as string[]
 
-  const enrichments = await fetchApyEnrichments(productIds)
+  const [enrichments, latestHourly] = await Promise.all([
+    fetchApyEnrichments(productIds),
+    fetchLatestHourlyApy(productIds),
+  ])
 
   const enriched = allSupplyProducts.map((p) => {
     if (!p.productId) return p
     const e = enrichments.get(p.productId)
-    if (!e)
-      return {
-        ...p,
-        apyDaily: undefined,
-        apyMonthly: undefined,
-        apyYearly: undefined,
-      }
     return {
       ...p,
-      apyDaily: e.apyDaily,
-      apyMonthly: e.apyMonthly,
-      apyYearly: e.apyYearly,
+      apy: latestHourly.get(p.productId) ?? p.apy,
+      apyDaily: e?.apyDaily,
+      apyMonthly: e?.apyMonthly,
+      apyYearly: e?.apyYearly,
     }
   })
 
@@ -183,28 +220,25 @@ async function _loadBorrowProducts(): Promise<BorrowProduct[]> {
     }
   })
 
-  // Enrich with MongoDB APY averages
+  // Enrich with MongoDB APY data (all horizons)
   const productIds = allBorrowProducts
     .map((p) => p.productId)
     .filter(Boolean) as string[]
 
-  const enrichments = await fetchApyEnrichments(productIds)
+  const [enrichments, latestHourly] = await Promise.all([
+    fetchApyEnrichments(productIds),
+    fetchLatestHourlyApy(productIds),
+  ])
 
   const enriched = allBorrowProducts.map((p) => {
     if (!p.productId) return p
     const e = enrichments.get(p.productId)
-    if (!e)
-      return {
-        ...p,
-        apyDaily: undefined,
-        apyMonthly: undefined,
-        apyYearly: undefined,
-      }
     return {
       ...p,
-      apyDaily: e.apyDaily,
-      apyMonthly: e.apyMonthly,
-      apyYearly: e.apyYearly,
+      apy: latestHourly.get(p.productId) ?? p.apy,
+      apyDaily: e?.apyDaily,
+      apyMonthly: e?.apyMonthly,
+      apyYearly: e?.apyYearly,
     }
   })
 

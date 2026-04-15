@@ -9,7 +9,6 @@ import { ColumnDef, ColumnFiltersState } from '@tanstack/react-table'
 import {
   AlertCircle,
   ArrowUpRightFromSquare,
-  Calendar,
   CheckCircle2,
   ChevronRight,
   Search,
@@ -27,7 +26,7 @@ import { NetworkIcon, ProtocolIcon, TokenIcon } from '@/components/icon'
 import { SupplyingOptimizerView } from '@/components/optimizer/SupplyingOptimizerButton'
 import { TableSkeleton } from '@/components/products/TableSkeleton'
 import { StatsBar } from '@/components/stats/StatsBar'
-import { FilterChip } from '@/components/table'
+import { FilterChip, HorizonPicker } from '@/components/table'
 import {
   DataTable,
   SortableHeader,
@@ -75,6 +74,7 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from '@/components/ui/tooltip'
+import { HORIZON_CONFIG, HorizonKey } from '@/config/horizon'
 import { getProtocolVersionNameById } from '@/config/protocols'
 import { useCurrency } from '@/contexts'
 import { useIsMobile } from '@/hooks/useMobile'
@@ -87,34 +87,12 @@ import {
   TimeframeLabel,
 } from '@/types'
 
-export type Horizon = 'intraday' | 'short' | 'medium' | 'long'
-
-export const HORIZON_CONFIG: Record<
-  Horizon,
-  { label: string; apyKey: keyof SupplyProduct; headerLabel: string }
-> = {
-  intraday: { label: 'Intraday', apyKey: 'apy', headerLabel: 'APY' },
-  short: {
-    label: 'Short term',
-    apyKey: 'apyDaily',
-    headerLabel: 'APY (daily)',
-  },
-  medium: {
-    label: 'Medium term',
-    apyKey: 'apyMonthly',
-    headerLabel: 'APY (monthly)',
-  },
-  long: {
-    label: 'Long term',
-    apyKey: 'apyYearly',
-    headerLabel: 'APY (yearly)',
-  },
-}
+export type Horizon = HorizonKey
 
 const createColumns = (
   currency: string,
   rate: number,
-  horizon: Horizon,
+  horizon: HorizonKey,
   selectedCount: number,
   selectedAsset: string | null
 ): ColumnDef<SupplyProduct>[] => [
@@ -210,7 +188,7 @@ const createColumns = (
               row.original.assetDecimals
             )}
           </span>
-          <Badge variant="outline" className="font-mono bg-background">
+          <Badge variant="outline" className="bg-background font-mono">
             {formatCompactCurrency(row.original.assetAmountUsd * rate, currency)}
           </Badge>
         </div>
@@ -232,7 +210,7 @@ const createColumns = (
               row.original.assetDecimals
             )}
           </span>
-          <Badge variant="outline" className="font-mono bg-background">
+          <Badge variant="outline" className="bg-background font-mono">
             {formatCompactCurrency(
               row.original.liquidityAmountUsd * rate,
               currency
@@ -240,9 +218,10 @@ const createColumns = (
           </Badge>
           <PieChartMini
             percentage={(() => {
-              const cap = BigInt(row.original.assetAmount)
-              if (cap === 0n) return 0
-              const pct = Number(BigInt(row.original.liquidityAmount) * 10000n / cap) / 100
+              if (!row.original.liquidityAmountUsd) return 100
+              const used =
+                row.original.assetAmountUsd - row.original.liquidityAmountUsd
+              const pct = (used / row.original.assetAmountUsd) * 100
               return Math.min(100, pct)
             })()}
           />
@@ -254,7 +233,7 @@ const createColumns = (
       accessorKey: HORIZON_CONFIG[horizon].apyKey,
       header: ({ column }) => (
         <SortableHeader column={column}>
-          {HORIZON_CONFIG[horizon].headerLabel}
+          {HORIZON_CONFIG[horizon].columnHeader}
         </SortableHeader>
       ),
       size: 60,
@@ -266,7 +245,13 @@ const createColumns = (
           | undefined
         return (
           <span className="font-mono">
-            {apyValue !== undefined ? apyValue < 0.0001 ? '<0.01%' : apyValue > 0.1 ? '>1000%' : `${(apyValue * 100).toFixed(2)}%` : '-'}
+            {apyValue !== undefined
+              ? apyValue < 0.0001
+                ? '<0.01%'
+                : apyValue > 10
+                  ? '>1000%'
+                  : `${(apyValue * 100).toFixed(2)}%`
+              : '-'}
           </span>
         )
       },
@@ -547,7 +532,11 @@ export function SupplyTableClient() {
     []
   )
 
-  const hasPreselected = useRef(false)
+  // One-way flag: once the user touches any filter/search, auto-selection is disabled forever
+  const hasUserInteracted = useRef(false)
+  const autoSelectedIds = useRef<Set<string>>(new Set())
+  const rowSelectionRef = useRef(rowSelection)
+  rowSelectionRef.current = rowSelection
 
   const { data, isPending } = useQuery<SupplyProduct[]>({
     queryKey: ['supplyProducts'],
@@ -558,20 +547,49 @@ export function SupplyTableClient() {
   })
 
   useEffect(() => {
-    if (hasPreselected.current || !data || data.length === 0) return
-    hasPreselected.current = true
+    if (!data || data.length === 0) return
+    if (hasUserInteracted.current) return
 
     const filtered = data.filter((row) => row.assetSymbol === 'USDC')
     const sorted = [...filtered].sort((a, b) => (b.apy ?? 0) - (a.apy ?? 0))
     const top3 = sorted.slice(0, 3)
     if (top3.length === 0) return
 
-    const selection: Record<string, boolean> = {}
-    for (const row of top3) {
-      selection[getRowId(row)] = true
+    const newTopIds = new Set(top3.map(getRowId))
+
+    if (autoSelectedIds.current.size === 0) {
+      // First load: always auto-select top 3
+      autoSelectedIds.current = newTopIds
+      const selection: Record<string, boolean> = {}
+      for (const id of newTopIds) selection[id] = true
+      setRowSelection(selection)
+      return
     }
-    setRowSelection(selection)
+
+    // Refetch: only update if the user hasn't changed the selection via checkboxes
+    const currentIds = new Set(
+      Object.keys(rowSelectionRef.current).filter(
+        (k) => rowSelectionRef.current[k]
+      )
+    )
+    const isStillAutoSelection =
+      currentIds.size === autoSelectedIds.current.size &&
+      [...currentIds].every((id) => autoSelectedIds.current.has(id))
+
+    if (isStillAutoSelection) {
+      autoSelectedIds.current = newTopIds
+      const selection: Record<string, boolean> = {}
+      for (const id of newTopIds) selection[id] = true
+      setRowSelection(selection)
+    }
   }, [data, getRowId])
+
+  // Wrap filter setter: marks user interaction and clears selection
+  const handleFiltersChange = useCallback((newFilters: ColumnFiltersState) => {
+    hasUserInteracted.current = true
+    setRowSelection({})
+    setColumnFilters(newFilters)
+  }, [])
 
   const selectedAsset = (() => {
     if (!data) return null
@@ -692,14 +710,18 @@ export function SupplyTableClient() {
           },
           {
             label: 'Worst rate',
-            value: `${result.min.toFixed(2)}%`,
-            sub: 'AaveV3 WETH',
+            value: result.min === Infinity ? '-' : `${(result.min * 100).toFixed(2)}%`,
+            sub: result.minItem
+              ? `${result.minItem.poolName} · ${getProtocolVersionNameById(result.minItem.protocol)}`
+              : undefined,
             accent: true,
           },
           {
             label: 'Best rate',
-            value: `${result.max.toFixed(2)}%`,
-            sub: 'all networks',
+            value: result.max === -Infinity ? '-' : `${(result.max * 100).toFixed(2)}%`,
+            sub: result.maxItem
+              ? `${result.maxItem.poolName} · ${getProtocolVersionNameById(result.maxItem.protocol)}`
+              : undefined,
           },
         ]}
       />
@@ -733,7 +755,7 @@ export function SupplyTableClient() {
               </DialogTrigger>
               <DialogContent
                 showCloseButton={false}
-                className="sm:max-w-4xl gap-0 overflow-hidden p-0"
+                className="gap-0 overflow-hidden p-0 sm:max-w-4xl"
               >
                 <DialogTitle className="sr-only">Yield Optimizer</DialogTitle>
                 <DialogDescription className="sr-only">
@@ -771,10 +793,10 @@ export function SupplyTableClient() {
                         )}
                         <div
                           className={`flex h-6 w-6 items-center justify-center rounded-full text-xs font-semibold transition-all ${modalStep === s.step
-                            ? 'bg-primary text-primary-foreground'
-                            : modalStep > s.step
-                              ? 'bg-primary/20 text-primary'
-                              : 'bg-secondary text-muted-foreground'
+                              ? 'bg-primary text-primary-foreground'
+                              : modalStep > s.step
+                                ? 'bg-primary/20 text-primary'
+                                : 'bg-secondary text-muted-foreground'
                             }`}
                         >
                           {modalStep > s.step ? (
@@ -792,7 +814,7 @@ export function SupplyTableClient() {
                     ))}
                   </div>
 
-                  <DialogClose className="rounded-lg p-1.5 transition-colors hover:bg-secondary/60">
+                  <DialogClose className="hover:bg-secondary/60 rounded-lg p-1.5 transition-colors">
                     <X className="text-muted-foreground h-4 w-4" />
                   </DialogClose>
                 </div>
@@ -814,10 +836,10 @@ export function SupplyTableClient() {
                           </span>
                           <span
                             className={`font-mono text-sm font-semibold ${pool.apy > 0.5
-                              ? 'text-orange-400'
-                              : pool.apy > 0.1
-                                ? 'text-emerald-400'
-                                : 'text-muted-foreground'
+                                ? 'text-orange-400'
+                                : pool.apy > 0.1
+                                  ? 'text-emerald-400'
+                                  : 'text-muted-foreground'
                               }`}
                           >
                             {(pool.apy * 100).toFixed(2)}%
@@ -849,35 +871,23 @@ export function SupplyTableClient() {
             </Dialog>
           )}
 
-          {/* Horizon */}
-          <Select
-            value={horizon}
-            onValueChange={(value) => setHorizon(value as Horizon)}
-          >
-            <SelectTrigger className="border-border h-8 w-48 text-xs">
-              <Calendar className="h-3 w-3" />
-              <span className="text-muted-foreground">Horizon:</span>
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {Object.entries(HORIZON_CONFIG).map(([value, config]) => (
-                <SelectItem key={value} value={value}>
-                  {config.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-
           {/* Search */}
           <div className="relative">
             <Search className="text-muted-foreground absolute top-1/2 left-2 h-3.5 w-3.5 -translate-y-1/2" />
             <Input
               placeholder="Filter..."
               value={searchValue}
-              onChange={(e) => setSearchValue(e.target.value)}
+              onChange={(e) => {
+                hasUserInteracted.current = true
+                setRowSelection({})
+                setSearchValue(e.target.value)
+              }}
               className="h-9 w-36 pl-7 text-xs placeholder:text-xs"
             />
           </div>
+
+          {/* Horizon */}
+          <HorizonPicker value={horizon} onChange={setHorizon} />
 
           {/* Filter chips */}
           <FilterChip
@@ -885,7 +895,7 @@ export function SupplyTableClient() {
             columnId="protocol"
             options={protocolOptions}
             columnFilters={columnFilters}
-            onColumnFiltersChange={setColumnFilters}
+            onColumnFiltersChange={handleFiltersChange}
             renderIcon={(v) => <ProtocolIcon protocol={v} />}
             counts={protocolCounts}
           />
@@ -894,7 +904,7 @@ export function SupplyTableClient() {
             columnId="network"
             options={networkOptions}
             columnFilters={columnFilters}
-            onColumnFiltersChange={setColumnFilters}
+            onColumnFiltersChange={handleFiltersChange}
             renderIcon={(v) => <NetworkIcon networkSlug={v} />}
             counts={networkCounts}
           />
@@ -904,25 +914,26 @@ export function SupplyTableClient() {
             options={tokenOptions}
             multiSelect={false}
             columnFilters={columnFilters}
-            onColumnFiltersChange={setColumnFilters}
+            onColumnFiltersChange={handleFiltersChange}
             renderIcon={(v) => <TokenIcon symbol={v} />}
             counts={tokenCounts}
           />
 
           {/* Reset */}
-          {isFiltered && (
-            <Button
-              variant="ghost"
-              size="sm"
-              className="h-8 px-2 text-xs"
-              onClick={() => {
-                setColumnFilters([])
-                setSearchValue('')
-              }}
-            >
-              Reset <X className="ml-1 h-3 w-3" />
-            </Button>
-          )}
+          <Button
+            variant="ghost"
+            size="sm"
+            className="bg-input/50 border-border h-9 cursor-pointer border px-2 text-xs"
+            onClick={() => {
+              hasUserInteracted.current = true
+              setRowSelection({})
+              setColumnFilters([])
+              setSearchValue('')
+            }}
+            disabled={isFiltered ? false : true}
+          >
+            <X className="h-4 w-4" />
+          </Button>
         </div>
       </div>
 

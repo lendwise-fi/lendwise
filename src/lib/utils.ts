@@ -42,24 +42,28 @@ export function normalizeSlotTimestamp(date: Date = new Date()): Date {
 const SECONDS_PER_YEAR = 365 * 24 * 60 * 60
 
 /**
- * AAVE: per-second compounding.
+ * Per-second compounding (Aave V3, Compound V3).
  * APY = (1 + APR / seconds_per_year)^seconds_per_year - 1
- *
- * Used for AAVE base rates and AAVE native incentive APRs.
  */
-export function aprToApyAave(apr: number): number {
+export function aprToApyPerSecond(apr: number): number {
   if (apr <= 0) return 0
   return Math.pow(1 + apr / SECONDS_PER_YEAR, SECONDS_PER_YEAR) - 1
 }
 
+/** @deprecated use aprToApyPerSecond */
+export const aprToApyAave = aprToApyPerSecond
+
 /**
- * AAVE: per-second compounding (inverse).
+ * Per-second compounding (inverse).
  * APR = seconds_per_year * ((1 + APY)^(1/seconds_per_year) - 1)
  */
-export function apyToAprAave(apy: number): number {
+export function apyToAprPerSecond(apy: number): number {
   if (apy <= 0) return 0
   return SECONDS_PER_YEAR * (Math.pow(1 + apy, 1 / SECONDS_PER_YEAR) - 1)
 }
+
+/** @deprecated use apyToAprPerSecond */
+export const apyToAprAave = apyToAprPerSecond
 
 /**
  * Morpho: continuous compounding.
@@ -98,16 +102,24 @@ export const analyze = <T>(items: T[], selector: (item: T) => number) => {
     (acc, item) => {
       const val = selector(item)
 
-      acc.min = Math.min(acc.min, val)
-      acc.max = Math.max(acc.max, val)
-      acc.set.add((item as SupplyProduct | BorrowProduct).poolChainId)
+      if (val < acc.min) {
+        acc.min = val
+        acc.minItem = item
+      }
+      if (val > acc.max) {
+        acc.max = val
+        acc.maxItem = item
+      }
+      acc.set.add((item as SupplyProduct | BorrowProduct).protocol)
 
       return acc
     },
     {
       min: Infinity,
       max: -Infinity,
-      set: new Set<number>(),
+      minItem: null as T | null,
+      maxItem: null as T | null,
+      set: new Set<string>(),
     }
   )
 }

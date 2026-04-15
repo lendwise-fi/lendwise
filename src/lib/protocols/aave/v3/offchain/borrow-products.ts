@@ -27,13 +27,7 @@ const _formatBorrowProducts = cache(
             reserve.borrowInfo !== null &&
             reserve.borrowInfo?.borrowingState !== 'DISABLED'
         )
-        .map((reserve) => {
-          const totalSupply = BigInt(reserve.size.amount.raw)
-          const totalBorrow = BigInt(
-            reserve.borrowInfo?.total.amount.raw || '0'
-          )
-          const available =
-            totalSupply > totalBorrow ? totalSupply - totalBorrow : 0n
+        .map((reserve): BorrowProduct => {
           return {
             protocol: AAVE_CONFIG.aave_v3.id,
             network: getNetworkName(market.chain.name),
@@ -45,16 +39,21 @@ const _formatBorrowProducts = cache(
             assetName: reserve.underlyingToken.name,
             assetSymbol: reserve.underlyingToken.symbol,
             assetDecimals: reserve.underlyingToken.decimals,
-            assetAmount: totalSupply.toString(),
+            assetAmount: reserve.size.amount.raw.toString(),
             assetAmountUsd: reserve.size.usd,
-            liquidityAmount: available.toString(),
-            liquidityAmountUsd: Math.max(
-              0,
-              reserve.size.usd - (reserve.borrowInfo?.total.usd || 0)
+            liquidityAmount: String(
+              (reserve.supplyInfo.total.raw ?? 0) -
+                (reserve.borrowInfo?.total?.amount?.raw ?? 0)
             ),
+            liquidityAmountUsd:
+              reserve.size.usd - (reserve.borrowInfo?.total?.usd ?? 0),
             collaterals: collateralReserves,
             apy: reserve.borrowInfo?.apy.value || 0,
-            productId: buildReserveProductId(market.chain.chainId, reserve.underlyingToken.address, 'borrow'),
+            productId: buildReserveProductId(
+              market.chain.chainId,
+              reserve.underlyingToken.address,
+              'borrow'
+            ),
             link: `https://app.aave.com/reserve-overview/?underlyingAsset=${reserve.underlyingToken.address.toLowerCase()}&marketName=proto_${market.chain.name.toLowerCase()}_v3`,
           }
         })

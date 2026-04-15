@@ -14,7 +14,7 @@ import {
 import { AnimatePresence, motion } from 'motion/react'
 import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from 'recharts'
 
-import { HORIZON_CONFIG } from '@/components/products/SupplyTableClient'
+import { HORIZON_CONFIG, HORIZON_OPTIONS, HorizonKey } from '@/config/horizon'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import {
@@ -29,14 +29,6 @@ import type { SupplyProduct } from '@/types'
 // Constants
 // ============================================================================
 
-const HORIZON_BUTTONS = [
-  { label: '1D', key: 'intraday', days: 1 },
-  { label: '7D', key: 'short', days: 7 },
-  { label: '1M', key: 'medium', days: 30 },
-  { label: '1Y', key: 'long', days: 365 },
-] as const
-
-type HorizonKey = (typeof HORIZON_BUTTONS)[number]['key']
 
 const STRATEGIES = [
   {
@@ -183,11 +175,11 @@ export function SupplyingOptimizerView({
 
   const projectedReturn = useMemo(() => {
     if (!weightedApy || !amountNum) return null
-    const days = HORIZON_BUTTONS.find((h) => h.key === horizon)?.days ?? 30
+    const days = HORIZON_OPTIONS.find((h) => h.key === horizon)?.days ?? 30
     return amountNum * weightedApy * (days / 365)
   }, [weightedApy, amountNum, horizon])
 
-  const horizonLabel = HORIZON_BUTTONS.find((h) => h.key === horizon)?.label ?? ''
+  const horizonLabel = HORIZON_OPTIONS.find((h) => h.key === horizon)?.label ?? ''
 
   return (
     <div className="flex flex-col">
@@ -227,7 +219,7 @@ export function SupplyingOptimizerView({
               Time horizon
             </label>
             <div className="flex gap-1.5">
-              {HORIZON_BUTTONS.map((h) => (
+              {HORIZON_OPTIONS.map((h) => (
                 <button
                   key={h.key}
                   type="button"

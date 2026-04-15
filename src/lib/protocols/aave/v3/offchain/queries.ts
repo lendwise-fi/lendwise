@@ -332,6 +332,21 @@ export const LIST_BORROW_PRODUCTS = gql`
         chainId
       }
       reserves {
+        size {
+          amount {
+            raw
+          }
+          usd
+          usdPerToken
+        }
+        supplyInfo {
+          canBeCollateral
+          total {
+            decimals
+            value
+            raw
+          }
+        }
         borrowInfo {
           borrowingState
           apy {
@@ -340,17 +355,10 @@ export const LIST_BORROW_PRODUCTS = gql`
           total {
             usd
             amount {
+              decimals
+              value
               raw
             }
-          }
-        }
-        supplyInfo {
-          canBeCollateral
-        }
-        size {
-          usd
-          amount {
-            raw
           }
         }
         underlyingToken {
@@ -374,21 +382,27 @@ export const LIST_SUPPLY_PRODUCTS = gql`
         chainId
       }
       reserves {
+        size {
+          usd
+          usdPerToken
+        }
         supplyInfo {
           apy {
             value
           }
-          supplyCap {
+          total {
+            decimals
+            value
+            raw
+          }
+        }
+        borrowInfo {
+          total {
             usd
             amount {
               raw
+              value
             }
-          }
-        }
-        size {
-          usd
-          amount {
-            raw
           }
         }
         underlyingToken {

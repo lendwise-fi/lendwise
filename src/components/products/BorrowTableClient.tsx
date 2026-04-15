@@ -9,7 +9,6 @@ import { ColumnDef, ColumnFiltersState } from '@tanstack/react-table'
 import {
   AlertCircle,
   ArrowUpRightFromSquare,
-  Calendar,
   CheckCircle2,
   ChevronRight,
   Search,
@@ -27,7 +26,7 @@ import { NetworkIcon, ProtocolIcon, TokenIcon } from '@/components/icon'
 import { BorrowingOptimizerView } from '@/components/optimizer/BorrowingOptimizerButton'
 import { TableSkeleton } from '@/components/products/TableSkeleton'
 import { StatsBar } from '@/components/stats/StatsBar'
-import { FilterChip } from '@/components/table'
+import { FilterChip, HorizonPicker } from '@/components/table'
 import {
   DataTable,
   SortableHeader,
@@ -75,6 +74,7 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from '@/components/ui/tooltip'
+import { HORIZON_CONFIG, HorizonKey } from '@/config/horizon'
 import { getProtocolVersionNameById } from '@/config/protocols'
 import { useCurrency } from '@/contexts'
 import { useIsMobile } from '@/hooks/useMobile'
@@ -87,240 +87,228 @@ import {
   TimeframeLabel,
 } from '@/types'
 
-export type Horizon = 'intraday' | 'short' | 'medium' | 'long'
-
-export const HORIZON_CONFIG: Record<
-  Horizon,
-  { label: string; apyKey: keyof BorrowProduct; headerLabel: string }
-> = {
-  intraday: { label: 'Intraday', apyKey: 'apy', headerLabel: 'APY' },
-  short: {
-    label: 'Short term',
-    apyKey: 'apyDaily',
-    headerLabel: 'APY (daily)',
-  },
-  medium: {
-    label: 'Medium term',
-    apyKey: 'apyMonthly',
-    headerLabel: 'APY (monthly)',
-  },
-  long: {
-    label: 'Long term',
-    apyKey: 'apyYearly',
-    headerLabel: 'APY (yearly)',
-  },
-}
+export type Horizon = HorizonKey
 
 const createColumns = (
   currency: string,
   rate: number,
-  horizon: Horizon,
+  horizon: HorizonKey,
   selectedCount: number
 ): ColumnDef<BorrowProduct>[] => [
-    {
-      id: 'select',
-      size: 40,
-      header: '',
-      cell: ({ row }) => (
-        <Checkbox
-          checked={row.getIsSelected()}
-          onCheckedChange={(value) => row.toggleSelected(!!value)}
-          aria-label="Select row"
-          disabled={!row.getIsSelected() && selectedCount >= 10}
-        />
-      ),
-      enableSorting: false,
-      enableHiding: false,
-    },
-    {
-      accessorKey: 'protocol',
-      header: ({ column }) => (
-        <SortableHeader column={column}>Protocol</SortableHeader>
-      ),
-      size: 110,
-      minSize: 110,
-      enableHiding: false,
-      enableSorting: true,
-      cell: ({ row }) => <ProtocolBadge protocol={row.original.protocol} />,
-    },
-    {
-      accessorKey: 'network',
-      header: ({ column }) => (
-        <SortableHeader column={column}>Network</SortableHeader>
-      ),
-      enableHiding: false,
-      enableSorting: true,
-      cell: ({ row }) => <NetworkBadge networkSlug={row.original.network} />,
-    },
-    {
-      accessorKey: 'poolName',
-      header: '',
-      enableSorting: false,
-      enableHiding: false,
-    },
-    {
-      accessorKey: 'assetSymbol',
-      header: ({ column }) => (
-        <SortableHeader column={column}>Loan</SortableHeader>
-      ),
-      cell: ({ row }) => (
-        <div className="flex w-full items-center gap-2">
-          <TokenIcon symbol={row.original.assetSymbol} />
-          <TableCellViewer item={row.original} />
-        </div>
-      ),
-      enableHiding: false,
-      enableSorting: true,
-    },
-    {
-      accessorKey: 'collaterals',
-      header: ({ column }) => (
-        <SortableHeader column={column}>Collaterals</SortableHeader>
-      ),
-      cell: ({ row }) => {
-        const collaterals = row.original.collaterals
-        if (collaterals.length === 0) return null
-        if (collaterals.length === 1) {
-          return (
-            <div className="flex w-full items-center gap-2">
-              <TokenIcon symbol={collaterals[0].symbol} />
-              <span>{collaterals[0].symbol}</span>
-            </div>
-          )
-        }
-        const MAX_VISIBLE = 4
-        const visible = collaterals.slice(0, MAX_VISIBLE)
-        const overflow = collaterals.slice(MAX_VISIBLE)
+  {
+    id: 'select',
+    size: 40,
+    header: '',
+    cell: ({ row }) => (
+      <Checkbox
+        checked={row.getIsSelected()}
+        onCheckedChange={(value) => row.toggleSelected(!!value)}
+        aria-label="Select row"
+        disabled={!row.getIsSelected() && selectedCount >= 10}
+      />
+    ),
+    enableSorting: false,
+    enableHiding: false,
+  },
+  {
+    accessorKey: 'protocol',
+    header: ({ column }) => (
+      <SortableHeader column={column}>Protocol</SortableHeader>
+    ),
+    size: 110,
+    minSize: 110,
+    enableHiding: false,
+    enableSorting: true,
+    cell: ({ row }) => <ProtocolBadge protocol={row.original.protocol} />,
+  },
+  {
+    accessorKey: 'network',
+    header: ({ column }) => (
+      <SortableHeader column={column}>Network</SortableHeader>
+    ),
+    enableHiding: false,
+    enableSorting: true,
+    cell: ({ row }) => <NetworkBadge networkSlug={row.original.network} />,
+  },
+  {
+    accessorKey: 'poolName',
+    header: '',
+    enableSorting: false,
+    enableHiding: false,
+  },
+  {
+    accessorKey: 'assetSymbol',
+    header: ({ column }) => (
+      <SortableHeader column={column}>Loan</SortableHeader>
+    ),
+    cell: ({ row }) => (
+      <div className="flex w-full items-center gap-2">
+        <TokenIcon symbol={row.original.assetSymbol} />
+        <TableCellViewer item={row.original} />
+      </div>
+    ),
+    enableHiding: false,
+    enableSorting: true,
+  },
+  {
+    accessorKey: 'collaterals',
+    header: ({ column }) => (
+      <SortableHeader column={column}>Collaterals</SortableHeader>
+    ),
+    cell: ({ row }) => {
+      const collaterals = row.original.collaterals
+      if (collaterals.length === 0) return null
+      if (collaterals.length === 1) {
         return (
-          <div className="flex w-full items-center gap-1">
-            {visible.map((collateral) => (
-              <Tooltip key={collateral.symbol}>
-                <TooltipTrigger asChild>
-                  <span>
-                    <TokenIcon symbol={collateral.symbol} />
-                  </span>
-                </TooltipTrigger>
-                <TooltipContent>{collateral.symbol}</TooltipContent>
-              </Tooltip>
-            ))}
-            {overflow.length > 0 && (
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <span className="text-muted-foreground hover:text-foreground inline-flex h-5 cursor-default items-center rounded-md border border-dashed px-1.5 text-xs font-medium transition-colors">
-                    +{overflow.length}
-                  </span>
-                </TooltipTrigger>
-                <TooltipContent className="bg-secondary text-secondary-foreground border-border min-w-36 border p-2">
-                  <div className="flex max-h-40 flex-col gap-1 overflow-y-auto">
-                    {collaterals.map((collateral) => (
-                      <div key={collateral.symbol} className="flex items-center gap-2 py-0.5">
-                        <TokenIcon symbol={collateral.symbol} />
-                        <span className="text-xs">{collateral.symbol}</span>
-                      </div>
-                    ))}
-                  </div>
-                </TooltipContent>
-              </Tooltip>
-            )}
+          <div className="flex w-full items-center gap-2">
+            <TokenIcon symbol={collaterals[0].symbol} />
+            <span>{collaterals[0].symbol}</span>
           </div>
         )
-      },
-      enableHiding: false,
-      enableSorting: false,
+      }
+      const MAX_VISIBLE = 4
+      const visible = collaterals.slice(0, MAX_VISIBLE)
+      const overflow = collaterals.slice(MAX_VISIBLE)
+      return (
+        <div className="flex w-full items-center gap-1">
+          {visible.map((collateral) => (
+            <Tooltip key={collateral.symbol}>
+              <TooltipTrigger asChild>
+                <span>
+                  <TokenIcon symbol={collateral.symbol} />
+                </span>
+              </TooltipTrigger>
+              <TooltipContent>{collateral.symbol}</TooltipContent>
+            </Tooltip>
+          ))}
+          {overflow.length > 0 && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span className="text-muted-foreground hover:text-foreground inline-flex h-5 cursor-default items-center rounded-md border border-dashed px-1.5 text-xs font-medium transition-colors">
+                  +{overflow.length}
+                </span>
+              </TooltipTrigger>
+              <TooltipContent className="bg-secondary text-secondary-foreground border-border min-w-36 border p-2">
+                <div className="flex max-h-40 flex-col gap-1 overflow-y-auto">
+                  {collaterals.map((collateral) => (
+                    <div
+                      key={collateral.symbol}
+                      className="flex items-center gap-2 py-0.5"
+                    >
+                      <TokenIcon symbol={collateral.symbol} />
+                      <span className="text-xs">{collateral.symbol}</span>
+                    </div>
+                  ))}
+                </div>
+              </TooltipContent>
+            </Tooltip>
+          )}
+        </div>
+      )
     },
-    {
-      accessorKey: 'assetAmountUsd',
-      header: ({ column }) => (
-        <SortableHeader column={column}>Deposits</SortableHeader>
-      ),
-      cell: ({ row }) => (
+    enableHiding: false,
+    enableSorting: false,
+  },
+  {
+    accessorKey: 'assetAmountUsd',
+    header: ({ column }) => (
+      <SortableHeader column={column}>Deposits</SortableHeader>
+    ),
+    cell: ({ row }) => (
+      <div className="flex w-full items-center gap-3">
+        <span className="font-mono">
+          {formatCompactCurrency(
+            row.original.assetAmount,
+            row.original.assetSymbol,
+            row.original.assetDecimals
+          )}
+        </span>
+        <Badge variant="outline" className="bg-background font-mono">
+          {formatCompactCurrency(row.original.assetAmountUsd * rate, currency)}
+        </Badge>
+      </div>
+    ),
+    enableHiding: false,
+  },
+  {
+    accessorKey: 'liquidityAmountUsd',
+    header: ({ column }) => (
+      <SortableHeader column={column}>Liquidity</SortableHeader>
+    ),
+    cell: ({ row }) => {
+      return (
         <div className="flex w-full items-center gap-3">
           <span className="font-mono">
             {formatCompactCurrency(
-              row.original.assetAmount,
+              row.original.liquidityAmount,
               row.original.assetSymbol,
               row.original.assetDecimals
             )}
           </span>
-          <Badge variant="outline" className="font-mono bg-background">
-            {formatCompactCurrency(row.original.assetAmountUsd * rate, currency)}
+          <Badge variant="outline" className="bg-background font-mono">
+            {formatCompactCurrency(
+              row.original.liquidityAmountUsd * rate,
+              currency
+            )}
           </Badge>
-        </div>
-      ),
-      enableHiding: false,
-    },
-    {
-      accessorKey: 'liquidityAmountUsd',
-      header: ({ column }) => (
-        <SortableHeader column={column}>Liquidity</SortableHeader>
-      ),
-      cell: ({ row }) => {
-        const supply = BigInt(row.original.assetAmount || '0')
-        const liquidity = BigInt(row.original.liquidityAmount || '0')
-        return (
-          <div className="flex w-full items-center gap-3">
-            <span className="font-mono">
-              {formatCompactCurrency(
-                row.original.liquidityAmount,
-                row.original.assetSymbol,
-                row.original.assetDecimals
-              )}
-            </span>
-            <Badge variant="outline" className="font-mono bg-background">
-              {formatCompactCurrency(
-                row.original.liquidityAmountUsd * rate,
-                currency
-              )}
-            </Badge>
-            <PieChartMini percentage={(() => {
-              const cap = BigInt(row.original.assetAmount)
-              if (cap === 0n) return 0
-              const pct = Number(BigInt(row.original.liquidityAmount) * 10000n / cap) / 100
+          <PieChartMini
+            percentage={(() => {
+              if (!row.original.liquidityAmountUsd) return 100
+              const used =
+                row.original.assetAmountUsd - row.original.liquidityAmountUsd
+              const pct = (used / row.original.assetAmountUsd) * 100
               return Math.min(100, pct)
-            })()} />
-          </div>
-        )
-      },
-      enableHiding: false,
+            })()}
+          />
+        </div>
+      )
     },
-    {
-      accessorKey: HORIZON_CONFIG[horizon].apyKey,
-      header: ({ column }) => (
-        <SortableHeader column={column}>
-          {HORIZON_CONFIG[horizon].headerLabel}
-        </SortableHeader>
-      ),
-      size: 60,
-      enableSorting: true,
-      sortingFn: 'basic',
-      cell: ({ row }) => {
-        const apyValue = row.original[HORIZON_CONFIG[horizon].apyKey] as
-          | number
-          | undefined
-        return (
-          <span className="font-mono">
-            {apyValue !== undefined ? apyValue < 0.0001 ? '<0.01%' : apyValue > 0.1 ? '>1000%' : `${(apyValue * 100).toFixed(2)}%` : '-'}
-          </span>
-        )
-      },
-      enableHiding: false,
+    enableHiding: false,
+  },
+  {
+    accessorKey: HORIZON_CONFIG[horizon].apyKey,
+    header: ({ column }) => (
+      <SortableHeader column={column}>
+        {HORIZON_CONFIG[horizon].columnHeader}
+      </SortableHeader>
+    ),
+    size: 60,
+    enableSorting: true,
+    sortingFn: 'basic',
+    cell: ({ row }) => {
+      const apyValue = row.original[HORIZON_CONFIG[horizon].apyKey] as
+        | number
+        | undefined
+      return (
+        <span className="font-mono">
+          {apyValue !== undefined
+            ? apyValue < 0.0001
+              ? '<0.01%'
+              : apyValue > 10
+                ? '>1000%'
+                : `${(apyValue * 100).toFixed(2)}%`
+            : '-'}
+        </span>
+      )
     },
-    {
-      id: 'actions',
-      size: 80,
-      minSize: 80,
-      cell: ({ row }) =>
-        row.original.link ? (
-          <Link
-            target="_blank"
-            href={row.original.link}
-            className="flex w-full items-center justify-center"
-          >
-            <ArrowUpRightFromSquare size={15} />
-          </Link>
-        ) : null,
-    },
-  ]
+    enableHiding: false,
+  },
+  {
+    id: 'actions',
+    size: 80,
+    minSize: 80,
+    cell: ({ row }) =>
+      row.original.link ? (
+        <Link
+          target="_blank"
+          href={row.original.link}
+          className="flex w-full items-center justify-center"
+        >
+          <ArrowUpRightFromSquare size={15} />
+        </Link>
+      ) : null,
+  },
+]
 
 const chartConfig = {
   rate: {
@@ -599,11 +587,16 @@ export function BorrowTableClient() {
   const [searchValue, setSearchValue] = useState('')
 
   const getRowId = useCallback(
-    (row: BorrowProduct) => `${row.protocol}-${row.poolChainId}-${row.poolId}-${row.assetAddress}`,
+    (row: BorrowProduct) =>
+      `${row.protocol}-${row.poolChainId}-${row.poolId}-${row.assetAddress}`,
     []
   )
 
-  const hasPreselected = useRef(false)
+  // One-way flag: once the user touches any filter/search, auto-selection is disabled forever
+  const hasUserInteracted = useRef(false)
+  const autoSelectedIds = useRef<Set<string>>(new Set())
+  const rowSelectionRef = useRef(rowSelection)
+  rowSelectionRef.current = rowSelection
 
   const { data, isPending } = useQuery<BorrowProduct[]>({
     queryKey: ['borrowProducts'],
@@ -614,20 +607,49 @@ export function BorrowTableClient() {
   })
 
   useEffect(() => {
-    if (hasPreselected.current || !data || data.length === 0) return
-    hasPreselected.current = true
+    if (!data || data.length === 0) return
+    if (hasUserInteracted.current) return
 
     const filtered = data.filter((row) => row.assetSymbol === 'USDC')
     const sorted = [...filtered].sort((a, b) => (b.apy ?? 0) - (a.apy ?? 0))
     const top3 = sorted.slice(0, 3)
     if (top3.length === 0) return
 
-    const selection: Record<string, boolean> = {}
-    for (const row of top3) {
-      selection[getRowId(row)] = true
+    const newTopIds = new Set(top3.map(getRowId))
+
+    if (autoSelectedIds.current.size === 0) {
+      // First load: always auto-select top 3
+      autoSelectedIds.current = newTopIds
+      const selection: Record<string, boolean> = {}
+      for (const id of newTopIds) selection[id] = true
+      setRowSelection(selection)
+      return
     }
-    setRowSelection(selection)
+
+    // Refetch: only update if the user hasn't changed the selection via checkboxes
+    const currentIds = new Set(
+      Object.keys(rowSelectionRef.current).filter(
+        (k) => rowSelectionRef.current[k]
+      )
+    )
+    const isStillAutoSelection =
+      currentIds.size === autoSelectedIds.current.size &&
+      [...currentIds].every((id) => autoSelectedIds.current.has(id))
+
+    if (isStillAutoSelection) {
+      autoSelectedIds.current = newTopIds
+      const selection: Record<string, boolean> = {}
+      for (const id of newTopIds) selection[id] = true
+      setRowSelection(selection)
+    }
   }, [data, getRowId])
+
+  // Wrap filter setter: marks user interaction and clears selection
+  const handleFiltersChange = useCallback((newFilters: ColumnFiltersState) => {
+    hasUserInteracted.current = true
+    setRowSelection({})
+    setColumnFilters(newFilters)
+  }, [])
 
   const columns = createColumns(
     baseCurrency,
@@ -758,14 +780,24 @@ export function BorrowTableClient() {
           },
           {
             label: 'Worst rate',
-            value: `${result.min.toFixed(2)}%`,
-            sub: 'AaveV3 WETH',
+            value:
+              result.min === Infinity
+                ? '-'
+                : `${(result.min * 100).toFixed(2)}%`,
+            sub: result.minItem
+              ? `${result.minItem.poolName} · ${getProtocolVersionNameById(result.minItem.protocol)}`
+              : undefined,
             accent: true,
           },
           {
             label: 'Best rate',
-            value: `${result.max.toFixed(2)}%`,
-            sub: 'all networks',
+            value:
+              result.max === -Infinity
+                ? '-'
+                : `${(result.max * 100).toFixed(2)}%`,
+            sub: result.maxItem
+              ? `${result.maxItem.poolName} · ${getProtocolVersionNameById(result.maxItem.protocol)}`
+              : undefined,
           },
         ]}
       />
@@ -799,7 +831,7 @@ export function BorrowTableClient() {
               </DialogTrigger>
               <DialogContent
                 showCloseButton={false}
-                className="sm:max-w-4xl gap-0 overflow-hidden p-0"
+                className="gap-0 overflow-hidden p-0 sm:max-w-4xl"
               >
                 <DialogTitle className="sr-only">Yield Optimizer</DialogTitle>
                 <DialogDescription className="sr-only">
@@ -836,12 +868,13 @@ export function BorrowTableClient() {
                           />
                         )}
                         <div
-                          className={`flex h-6 w-6 items-center justify-center rounded-full text-xs font-semibold transition-all ${modalStep === s.step
-                            ? 'bg-primary text-primary-foreground'
-                            : modalStep > s.step
-                              ? 'bg-primary/20 text-primary'
-                              : 'bg-secondary text-muted-foreground'
-                            }`}
+                          className={`flex h-6 w-6 items-center justify-center rounded-full text-xs font-semibold transition-all ${
+                            modalStep === s.step
+                              ? 'bg-primary text-primary-foreground'
+                              : modalStep > s.step
+                                ? 'bg-primary/20 text-primary'
+                                : 'bg-secondary text-muted-foreground'
+                          }`}
                         >
                           {modalStep > s.step ? (
                             <CheckCircle2 className="h-3.5 w-3.5" />
@@ -858,7 +891,7 @@ export function BorrowTableClient() {
                     ))}
                   </div>
 
-                  <DialogClose className="rounded-lg p-1.5 transition-colors hover:bg-secondary/60">
+                  <DialogClose className="hover:bg-secondary/60 rounded-lg p-1.5 transition-colors">
                     <X className="text-muted-foreground h-4 w-4" />
                   </DialogClose>
                 </div>
@@ -870,29 +903,42 @@ export function BorrowTableClient() {
                       {/* Column headers */}
                       <div className="flex items-center gap-4 px-3.5 pb-1">
                         <div className="w-1 shrink-0" />
-                        <span className="text-muted-foreground/80 w-24 shrink-0 pl-3 text-xs">Protocol</span>
-                        <span className="text-muted-foreground/80 w-24 shrink-0 pl-3 text-xs">Network</span>
-                        <span className="text-muted-foreground/80 flex-1 text-xs">Market</span>
-                        <span className="text-muted-foreground/80 pr-4 text-xs">APY</span>
+                        <span className="text-muted-foreground/80 w-24 shrink-0 pl-3 text-xs">
+                          Protocol
+                        </span>
+                        <span className="text-muted-foreground/80 w-24 shrink-0 pl-3 text-xs">
+                          Network
+                        </span>
+                        <span className="text-muted-foreground/80 flex-1 text-xs">
+                          Market
+                        </span>
+                        <span className="text-muted-foreground/80 pr-4 text-xs">
+                          APY
+                        </span>
                       </div>
                       {selectedData.map((pool, i) => (
                         <div
                           key={i}
                           className="border-border/50 hover:border-border bg-secondary/30 flex items-center gap-4 rounded-xl border p-3.5 transition-colors"
                         >
-                          <div className="from-primary to-primary/30 h-10 w-1 shrink-0 rounded-full bg-gradient-to-b" />
-                          <div className="w-24 shrink-0"><ProtocolBadge protocol={pool.protocol} /></div>
-                          <div className="w-24 shrink-0"><NetworkBadge networkSlug={pool.network} /></div>
+                          <div className="from-primary to-primary/30 h-10 w-1 shrink-0 rounded-full bg-linear-to-b" />
+                          <div className="w-24 shrink-0">
+                            <ProtocolBadge protocol={pool.protocol} />
+                          </div>
+                          <div className="w-24 shrink-0">
+                            <NetworkBadge networkSlug={pool.network} />
+                          </div>
                           <span className="text-foreground flex-1 truncate text-sm font-medium">
                             {pool.poolName}
                           </span>
                           <span
-                            className={`font-mono text-sm font-semibold ${pool.apy > 0.5
-                              ? 'text-orange-400'
-                              : pool.apy > 0.1
-                                ? 'text-emerald-400'
-                                : 'text-muted-foreground'
-                              }`}
+                            className={`font-mono text-sm font-semibold ${
+                              pool.apy > 0.5
+                                ? 'text-orange-400'
+                                : pool.apy > 0.1
+                                  ? 'text-emerald-400'
+                                  : 'text-muted-foreground'
+                            }`}
                           >
                             {(pool.apy * 100).toFixed(2)}%
                           </span>
@@ -923,35 +969,23 @@ export function BorrowTableClient() {
             </Dialog>
           )}
 
-          {/* Horizon */}
-          <Select
-            value={horizon}
-            onValueChange={(value) => setHorizon(value as Horizon)}
-          >
-            <SelectTrigger className="border-border h-8 w-48 text-xs">
-              <Calendar className="h-3 w-3" />
-              <span className="text-muted-foreground">Horizon:</span>
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {Object.entries(HORIZON_CONFIG).map(([value, config]) => (
-                <SelectItem key={value} value={value}>
-                  {config.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-
           {/* Search */}
           <div className="relative">
             <Search className="text-muted-foreground absolute top-1/2 left-2 h-3.5 w-3.5 -translate-y-1/2" />
             <Input
               placeholder="Filter..."
               value={searchValue}
-              onChange={(e) => setSearchValue(e.target.value)}
+              onChange={(e) => {
+                hasUserInteracted.current = true
+                setRowSelection({})
+                setSearchValue(e.target.value)
+              }}
               className="h-9 w-36 pl-7 text-xs placeholder:text-xs"
             />
           </div>
+
+          {/* Horizon */}
+          <HorizonPicker value={horizon} onChange={setHorizon} />
 
           {/* Filter chips */}
           <FilterChip
@@ -959,7 +993,7 @@ export function BorrowTableClient() {
             columnId="protocol"
             options={protocolOptions}
             columnFilters={columnFilters}
-            onColumnFiltersChange={setColumnFilters}
+            onColumnFiltersChange={handleFiltersChange}
             renderIcon={(v) => <ProtocolIcon protocol={v} />}
             counts={protocolCounts}
           />
@@ -968,7 +1002,7 @@ export function BorrowTableClient() {
             columnId="network"
             options={networkOptions}
             columnFilters={columnFilters}
-            onColumnFiltersChange={setColumnFilters}
+            onColumnFiltersChange={handleFiltersChange}
             renderIcon={(v) => <NetworkIcon networkSlug={v} />}
             counts={networkCounts}
           />
@@ -978,7 +1012,7 @@ export function BorrowTableClient() {
             options={tokenOptions}
             multiSelect={false}
             columnFilters={columnFilters}
-            onColumnFiltersChange={setColumnFilters}
+            onColumnFiltersChange={handleFiltersChange}
             renderIcon={(v) => <TokenIcon symbol={v} />}
             counts={tokenCounts}
           />
@@ -988,24 +1022,26 @@ export function BorrowTableClient() {
             options={collateralOptions}
             multiSelect={false}
             columnFilters={columnFilters}
-            onColumnFiltersChange={setColumnFilters}
+            onColumnFiltersChange={handleFiltersChange}
             renderIcon={(v) => <TokenIcon symbol={v} />}
             counts={collateralCounts}
           />
 
-          {isFiltered && (
-            <Button
-              variant="ghost"
-              size="sm"
-              className="h-8 px-2 text-xs"
-              onClick={() => {
-                setColumnFilters([])
-                setSearchValue('')
-              }}
-            >
-              Reset <X className="ml-1 h-3 w-3" />
-            </Button>
-          )}
+          {/* Reset */}
+          <Button
+            variant="ghost"
+            size="sm"
+            className="bg-input/50 border-border h-9 cursor-pointer border px-2 text-xs"
+            onClick={() => {
+              hasUserInteracted.current = true
+              setRowSelection({})
+              setColumnFilters([])
+              setSearchValue('')
+            }}
+            disabled={isFiltered ? false : true}
+          >
+            <X className="h-4 w-4" />
+          </Button>
         </div>
       </div>
 

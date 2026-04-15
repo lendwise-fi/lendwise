@@ -141,10 +141,10 @@ export function FilterChip({
                   className="text-xs"
                 >
                   <div
-                    className={`border-primary mr-2 flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded-sm border text-2xs ${
+                    className={`mr-2 flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded-sm border text-2xs ${
                       selectedValues.has(opt.value)
-                        ? 'bg-primary text-primary-foreground'
-                        : 'opacity-40'
+                        ? 'border-primary bg-primary text-primary-foreground'
+                        : 'border-muted-foreground/50 bg-transparent'
                     }`}
                   >
                     {selectedValues.has(opt.value) && '✓'}
