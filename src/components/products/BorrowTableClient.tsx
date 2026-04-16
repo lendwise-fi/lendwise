@@ -624,6 +624,7 @@ export function BorrowTableClient() {
   const [snapshotMarkets, setSnapshotMarkets] = useState<BorrowProduct[]>([])
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([
     { id: 'assetSymbol', value: 'USDC' },
+    { id: 'collaterals', value: 'WBTC' },
   ])
   const [searchValue, setSearchValue] = useState('')
 
@@ -651,8 +652,13 @@ export function BorrowTableClient() {
     if (!data || data.length === 0) return
     if (hasUserInteracted.current) return
 
+    const collateralFilter = columnFilters.find((f) => f.id === 'collaterals')?.value as string | undefined
+
     const filtered = data.filter(
-      (row) => row.assetSymbol === 'USDC' && !isOverutilized(row)
+      (row) =>
+        row.assetSymbol === 'USDC' &&
+        !isOverutilized(row) &&
+        (!collateralFilter || row.collaterals.some((c) => c.symbol === collateralFilter))
     )
     const sorted = [...filtered].sort((a, b) => (b.apy ?? 0) - (a.apy ?? 0))
     const top3 = sorted.slice(0, 3)
@@ -685,7 +691,7 @@ export function BorrowTableClient() {
       for (const id of newTopIds) selection[id] = true
       setRowSelection(selection)
     }
-  }, [data, getRowId])
+  }, [data, getRowId, columnFilters])
 
   // Wrap filter setter: marks user interaction and clears selection
   const handleFiltersChange = useCallback((newFilters: ColumnFiltersState) => {
