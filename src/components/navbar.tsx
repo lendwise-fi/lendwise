@@ -17,9 +17,9 @@ import { ThemeSwitcher } from './theme/ThemeSwitcher'
 import { UserMenu } from './user/UserMenu'
 
 const navItems = [
+  { label: 'Portfolio', href: '/portfolio' },
   { label: 'Supply', href: '/supply' },
   { label: 'Borrow', href: '/borrow' },
-  { label: 'Portfolio', href: '/portfolio' },
 ]
 
 export function Navbar() {

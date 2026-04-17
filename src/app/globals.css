@@ -136,11 +136,6 @@
   * {
     @apply border-border outline-ring/50;
   }
-  html,
-  body {
-    height: 100%;
-    overflow: hidden;
-  }
   body {
     @apply bg-background text-foreground font-sans;
   }
@@ -320,4 +315,13 @@
       0 0 calc(var(--glow-spread, 12px) * 1.5) 2px var(--glow-color),
       0 0 calc(var(--glow-spread, 12px) * 2.5) 0 var(--glow-color);
   }
+}
+
+@keyframes pulse-glow {
+  0%, 100% { opacity: 0.6; transform: scale(1); }
+  50% { opacity: 1; transform: scale(1.05); }
+}
+
+@utility animate-pulse-glow {
+  animation: pulse-glow 4s ease-in-out infinite;
 }

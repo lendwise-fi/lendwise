@@ -3,16 +3,8 @@ import type { Metadata } from 'next'
 import { Inter, JetBrains_Mono } from 'next/font/google'
 
 import { Analytics } from '@vercel/analytics/next'
-import { Toaster } from 'sonner'
 
-import { Footer } from '@/components/footer'
-import { Navbar } from '@/components/navbar'
-import {
-  CurrencyProvider,
-  ThemeProvider,
-  WalletWatcherProvider,
-  Web3Provider,
-} from '@/contexts'
+import { ThemeProvider } from '@/contexts'
 
 import './globals.css'
 
@@ -48,18 +40,7 @@ export default function RootLayout({
           enableSystem
           disableTransitionOnChange
         >
-          <Web3Provider>
-            <CurrencyProvider defaultCurrency="USD">
-              <WalletWatcherProvider>
-                <div className="flex h-screen flex-col overflow-hidden">
-                  <Navbar />
-                  <main className="min-h-0 flex-1 overflow-y-auto">{children}</main>
-                  <Footer />
-                </div>
-                <Toaster position="top-right" richColors />
-              </WalletWatcherProvider>
-            </CurrencyProvider>
-          </Web3Provider>
+          {children}
         </ThemeProvider>
         <Analytics />
       </body>
