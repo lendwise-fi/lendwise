@@ -621,6 +621,7 @@ export function BorrowTableClient() {
   const [rowSelection, setRowSelection] = useState<Record<string, boolean>>({})
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [modalStep, setModalStep] = useState(1)
+  const [optimizerViewStep, setOptimizerViewStep] = useState<'threshold' | 'configure'>('threshold')
   const [snapshotMarkets, setSnapshotMarkets] = useState<BorrowProduct[]>([])
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([
     { id: 'assetSymbol', value: 'USDC' },
@@ -868,6 +869,7 @@ export function BorrowTableClient() {
                 setIsModalOpen(open)
                 if (!open) {
                   setModalStep(1)
+                  setOptimizerViewStep('threshold')
                   setSnapshotMarkets([])
                 }
               }}
@@ -900,45 +902,57 @@ export function BorrowTableClient() {
                     <p className="text-muted-foreground ml-9 text-xs">
                       {modalStep === 1
                         ? `${selectedData.length} market${selectedData.length !== 1 ? 's' : ''} selected — review before optimizing`
-                        : 'Configure your borrowing objective'}
+                        : optimizerViewStep === 'threshold'
+                          ? 'Set your liquidation threshold and buffer'
+                          : 'Configure your objective — results update on the right'}
                     </p>
                   </div>
 
                   {/* Stepper */}
-                  <div className="mr-6 flex items-center gap-1">
-                    {[
+                  {(() => {
+                    const currentStep =
+                      modalStep === 1 ? 1
+                      : optimizerViewStep === 'threshold' ? 2
+                      : 3
+                    const steps = [
                       { step: 1, label: 'Selection' },
-                      { step: 2, label: 'Configure' },
-                    ].map((s, i) => (
-                      <div key={s.step} className="flex items-center gap-1">
-                        {i > 0 && (
-                          <div
-                            className={`mx-1 h-px w-8 transition-colors ${modalStep > 1 ? 'bg-primary/40' : 'bg-border'}`}
-                          />
-                        )}
-                        <div
-                          className={`flex h-6 w-6 items-center justify-center rounded-full text-xs font-semibold transition-all ${
-                            modalStep === s.step
-                              ? 'bg-primary text-primary-foreground'
-                              : modalStep > s.step
-                                ? 'bg-primary/20 text-primary'
-                                : 'bg-secondary text-muted-foreground'
-                          }`}
-                        >
-                          {modalStep > s.step ? (
-                            <CheckCircle2 className="h-3.5 w-3.5" />
-                          ) : (
-                            s.step
-                          )}
-                        </div>
-                        <span
-                          className={`text-xs font-medium ${modalStep === s.step ? 'text-foreground' : 'text-muted-foreground'}`}
-                        >
-                          {s.label}
-                        </span>
+                      { step: 2, label: 'Threshold' },
+                      { step: 3, label: 'Configure' },
+                    ]
+                    return (
+                      <div className="mr-6 flex items-center gap-1">
+                        {steps.map((s, i) => (
+                          <div key={s.step} className="flex items-center gap-1">
+                            {i > 0 && (
+                              <div
+                                className={`mx-1 h-px w-8 transition-colors ${currentStep > s.step - 1 ? 'bg-primary/40' : 'bg-border'}`}
+                              />
+                            )}
+                            <div
+                              className={`flex h-6 w-6 items-center justify-center rounded-full text-xs font-semibold transition-all ${
+                                currentStep === s.step
+                                  ? 'bg-primary text-primary-foreground'
+                                  : currentStep > s.step
+                                    ? 'bg-primary/20 text-primary'
+                                    : 'bg-secondary text-muted-foreground'
+                              }`}
+                            >
+                              {currentStep > s.step ? (
+                                <CheckCircle2 className="h-3.5 w-3.5" />
+                              ) : (
+                                s.step
+                              )}
+                            </div>
+                            <span
+                              className={`text-xs font-medium ${currentStep === s.step ? 'text-foreground' : 'text-muted-foreground'}`}
+                            >
+                              {s.label}
+                            </span>
+                          </div>
+                        ))}
                       </div>
-                    ))}
-                  </div>
+                    )
+                  })()}
 
                   <DialogClose className="hover:bg-secondary/60 rounded-lg p-1.5 transition-colors">
                     <X className="text-muted-foreground h-4 w-4" />
@@ -954,6 +968,7 @@ export function BorrowTableClient() {
                       <span className="text-muted-foreground/70 w-24 shrink-0 text-[11px] font-semibold uppercase tracking-wider">Protocol</span>
                       <span className="text-muted-foreground/70 w-24 shrink-0 text-[11px] font-semibold uppercase tracking-wider">Network</span>
                       <span className="text-muted-foreground/70 flex-1 text-[11px] font-semibold uppercase tracking-wider">Market</span>
+                      <span className="text-muted-foreground/70 w-24 text-right text-[11px] font-semibold uppercase tracking-wider">Liquidity</span>
                       {['1D', '7D', '1M', '1Y'].map((label) => (
                         <span key={label} className="text-muted-foreground/70 w-16 text-right text-[11px] font-semibold uppercase tracking-wider">{label}</span>
                       ))}
@@ -981,6 +996,9 @@ export function BorrowTableClient() {
                             </div>
                             <span className="text-foreground flex-1 truncate text-sm font-medium">
                               {pool.poolName}
+                            </span>
+                            <span className="text-muted-foreground w-24 text-right font-mono text-xs">
+                              {formatCompactCurrency(pool.liquidityAmountUsd * rate, baseCurrency)}
                             </span>
                             {apyCols.map(({ key, value }) => (
                               <span
@@ -1024,7 +1042,11 @@ export function BorrowTableClient() {
                   <div className="px-7 py-2">
                     <BorrowingOptimizerView
                       markets={snapshotMarkets}
-                      onBack={() => setModalStep(1)}
+                      selectedCollateralSymbol={
+                        columnFilters.find((f) => f.id === 'collaterals')?.value as string | undefined
+                      }
+                      onBack={() => { setModalStep(1); setOptimizerViewStep('configure') }}
+                      onViewStepChange={setOptimizerViewStep}
                     />
                   </div>
                 )}

@@ -1,23 +1,36 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 
 import {
   ArrowLeftRight,
   CheckCircle2,
   CreditCard,
   Loader2,
-  Shield,
-  TrendingDown,
   Wallet,
   Zap,
 } from 'lucide-react'
 import { AnimatePresence, motion } from 'motion/react'
-import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from 'recharts'
+import {
+  Area,
+  AreaChart,
+  CartesianGrid,
+  Cell,
+  Pie,
+  PieChart,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from 'recharts'
 
-import { HORIZON_OPTIONS, HorizonKey } from '@/config/horizon'
+import {
+  type PricePoint,
+  loadPriceRatioHistory,
+} from '@/app/actions/price-ratio-history.actions'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { HORIZON_OPTIONS, HorizonKey } from '@/config/horizon'
 import {
   type OptimizationResponse,
   optimizeBorrow,
@@ -27,18 +40,13 @@ import { formatCompactCurrency } from '@/lib/format-currency'
 import type { BorrowProduct } from '@/types'
 
 // ============================================================================
-// Constants
+// Constants & types
 // ============================================================================
 
-// Default LTV used when market-specific data is unavailable
 const DEFAULT_MAX_LTV = 0.8
 
 type BorrowMode = 'collateral_target' | 'loan_target'
-type GoalId =
-  | 'maximize_loan'
-  | 'minimize_cost_borrow'
-  | 'minimize_collateral'
-  | 'minimize_cost_collateral'
+type ViewStep = 'threshold' | 'configure'
 
 const BORROW_MODES = [
   {
@@ -59,58 +67,261 @@ const BORROW_MODES = [
   },
 ]
 
-const GOALS: Record<BorrowMode, { id: GoalId; label: string; Icon: typeof Shield; omega: number }[]> = {
-  collateral_target: [
-    { id: 'maximize_loan', label: 'Maximize loan size', Icon: TrendingDown, omega: 1 },
-    { id: 'minimize_cost_borrow', label: 'Minimize borrow cost', Icon: Shield, omega: 0 },
-  ],
-  loan_target: [
-    { id: 'minimize_collateral', label: 'Minimize collateral required', Icon: Wallet, omega: 1 },
-    { id: 'minimize_cost_collateral', label: 'Minimize borrow cost', Icon: Shield, omega: 0 },
-  ],
+const OBJECTIVE_BREAKPOINTS = [
+  { label: 'Min cost', description: 'Minimize interest paid', omega: 0 },
+  { label: 'Balanced', description: 'Balance cost and loan size', omega: 0.33 },
+  { label: 'Growth', description: 'Favor larger positions', omega: 0.67 },
+  { label: 'Max size', description: 'Maximize position size', omega: 1 },
+] as const
+
+const ALLOCATION_COLORS = [
+  '#3b82f6',
+  '#06b6d4',
+  '#8b5cf6',
+  '#10b981',
+  '#f59e0b',
+]
+
+// ============================================================================
+// Price chart helpers
+// ============================================================================
+
+// Generous top/bottom margins give the data visual breathing room while
+// keeping the plot area's exact bounds at [minRatio, maxRatio].
+const CHART_MARGIN = { top: 30, right: 4, left: 4, bottom: 36 }
+const CHART_HEIGHT = 290
+// Padding (in px) applied INSIDE the plot area by the YAxis. minRatio is
+// rendered `Y_AXIS_PADDING.bottom` px above the plot bottom and maxRatio is
+// rendered `Y_AXIS_PADDING.top` px below the plot top. The cursor uses the
+// same offsets so 0% / 100% sit exactly on the data extremes.
+const Y_AXIS_PADDING = { top: 8, bottom: 8 }
+const TICK_COLOR = '#94a3b8'
+const GRID_COLOR = '#334155'
+const YAXIS_WIDTH = 68
+
+function formatRatio(v: number): string {
+  const abs = Math.abs(v)
+  if (abs >= 10000)
+    return v.toLocaleString('en-US', { maximumFractionDigits: 0 })
+  if (abs >= 1000) return v.toFixed(0)
+  if (abs >= 100) return v.toFixed(1)
+  if (abs >= 10) return v.toFixed(2)
+  if (abs >= 1) return v.toFixed(3)
+  if (abs >= 0.01) return v.toFixed(4)
+  return v.toFixed(5)
 }
 
-const ALLOCATION_COLORS = ['#3b82f6', '#06b6d4', '#8b5cf6', '#10b981', '#f59e0b']
-
-function AllocationTooltip({ active, payload }: { active?: boolean; payload?: { name: string; value: number }[] }) {
+function AllocationTooltip({
+  active,
+  payload,
+}: {
+  active?: boolean
+  payload?: { name: string; value: number }[]
+}) {
   if (!active || !payload?.length) return null
   return (
-    <div className="rounded-lg border border-border bg-popover px-3 py-2 text-xs shadow-md">
-      <p className="font-medium text-foreground truncate max-w-[160px]">{payload[0].name}</p>
-      <p className="font-mono text-muted-foreground">{payload[0].value.toFixed(0)}%</p>
+    <div className="border-border bg-popover rounded-lg border px-3 py-2 text-xs shadow-md">
+      <p className="text-foreground max-w-[160px] truncate font-medium">
+        {payload[0].name}
+      </p>
+      <p className="text-muted-foreground font-mono">
+        {payload[0].value.toFixed(0)}%
+      </p>
     </div>
   )
 }
 
-// ============================================================================
-// Types
-// ============================================================================
-
-interface BorrowingOptimizerViewProps {
-  markets: BorrowProduct[]
-  onBack?: () => void
+function PriceRatioTooltip({
+  active,
+  payload,
+  pairLabel,
+}: {
+  active?: boolean
+  payload?: { value: number; payload: { date: string; ratio: number } }[]
+  pairLabel: string
+}) {
+  if (!active || !payload?.length) return null
+  const point = payload[0].payload
+  return (
+    <div className="border-border bg-popover/95 rounded-lg border px-3 py-2 text-xs shadow-md backdrop-blur-sm">
+      <p className="text-muted-foreground mb-0.5 text-[10px] tracking-wider uppercase">
+        {point.date}
+      </p>
+      <p className="text-foreground font-mono text-sm font-semibold">
+        {formatRatio(point.ratio)}{' '}
+        <span className="text-muted-foreground text-[10px] font-normal">
+          {pairLabel}
+        </span>
+      </p>
+    </div>
+  )
 }
 
 // ============================================================================
 // Component
 // ============================================================================
 
+interface BorrowingOptimizerViewProps {
+  markets: BorrowProduct[]
+  selectedCollateralSymbol?: string
+  onBack?: () => void
+  onViewStepChange?: (step: ViewStep) => void
+}
+
 export function BorrowingOptimizerView({
   markets,
+  selectedCollateralSymbol,
   onBack,
+  onViewStepChange,
 }: BorrowingOptimizerViewProps) {
+  // --- Optimizer state ---
   const [mode, setMode] = useState<BorrowMode>('collateral_target')
-  const [goal, setGoal] = useState<GoalId>('maximize_loan')
+  const [objectiveIndex, setObjectiveIndex] = useState(0)
   const [amount, setAmount] = useState('100')
   const [horizon, setHorizon] = useState<HorizonKey>('medium')
   const [result, setResult] = useState<OptimizationResponse | null>(null)
   const [isOptimizing, setIsOptimizing] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [ran, setRan] = useState(false)
+  const [viewStep, setViewStep] = useState<ViewStep>('threshold')
 
+  // --- Objective slider drag ---
+  const sliderTrackRef = useRef<HTMLDivElement>(null)
+  const [isSliderDragging, setIsSliderDragging] = useState(false)
+
+  // --- Price threshold state ---
+  const [priceData, setPriceData] = useState<PricePoint[]>([])
+  const [isPriceLoading, setIsPriceLoading] = useState(false)
+
+  const { domainMin, domainMax, minRatio, maxRatio, recommendedThreshold } =
+    useMemo(() => {
+      const vals = priceData.map((p) => p.ratio)
+      const minVal = vals.length > 0 ? Math.min(...vals) : 0
+      const maxVal = vals.length > 0 ? Math.max(...vals) : 1
+      // Domain matches data extremes exactly so:
+      //  - data minimum sits at plot bottom  -> 0% risk cursor lands on it
+      //  - data maximum sits at plot top     -> 100% risk cursor lands on it
+      // Visual breathing room is provided by CHART_MARGIN, not domain padding.
+      return {
+        minRatio: minVal,
+        maxRatio: maxVal,
+        domainMin: minVal,
+        domainMax: maxVal,
+        // Recommended = 20% risk above the historical low (data-space)
+        recommendedThreshold: minVal + 0.2 * (maxVal - minVal),
+      }
+    }, [priceData])
+
+  const [threshold, setThreshold] = useState(0)
+  const [isDragging, setIsDragging] = useState(false)
+  const chartRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    const collateralSymbol =
+      selectedCollateralSymbol ?? markets[0]?.collaterals[0]?.symbol
+    const loanSymbol = markets[0]?.assetSymbol
+    if (!collateralSymbol || !loanSymbol) return
+    setIsPriceLoading(true)
+    loadPriceRatioHistory(collateralSymbol, loanSymbol)
+      .then((data) => {
+        setPriceData(data)
+      })
+      .finally(() => setIsPriceLoading(false))
+  }, [markets])
+
+  useEffect(() => {
+    if (viewStep === 'threshold') setThreshold(recommendedThreshold)
+  }, [viewStep, recommendedThreshold])
+
+  useEffect(() => {
+    onViewStepChange?.(viewStep)
+  }, [viewStep, onViewStepChange])
+
+  // Objective slider drag
+  useEffect(() => {
+    if (!isSliderDragging) return
+    const getIndex = (clientX: number) => {
+      if (!sliderTrackRef.current) return objectiveIndex
+      const rect = sliderTrackRef.current.getBoundingClientRect()
+      const ratio = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width))
+      return Math.round(ratio * (OBJECTIVE_BREAKPOINTS.length - 1))
+    }
+    const onMove = (e: MouseEvent) => {
+      setObjectiveIndex(getIndex(e.clientX))
+      setRan(false)
+    }
+    const onUp = () => setIsSliderDragging(false)
+    document.addEventListener('mousemove', onMove)
+    document.addEventListener('mouseup', onUp)
+    return () => {
+      document.removeEventListener('mousemove', onMove)
+      document.removeEventListener('mouseup', onUp)
+    }
+  }, [isSliderDragging, objectiveIndex])
+
+  // Document-level drag listeners
+  useEffect(() => {
+    if (!isDragging) return
+
+    const onMove = (e: MouseEvent) => {
+      if (!chartRef.current) return
+      const rect = chartRef.current.getBoundingClientRect()
+      const effectiveTop = rect.top + CHART_MARGIN.top + Y_AXIS_PADDING.top
+      const effectiveHeight =
+        rect.height -
+        CHART_MARGIN.top -
+        CHART_MARGIN.bottom -
+        Y_AXIS_PADDING.top -
+        Y_AXIS_PADDING.bottom
+      const ratio =
+        1 -
+        Math.max(0, Math.min(1, (e.clientY - effectiveTop) / effectiveHeight))
+      const raw = domainMin + ratio * (domainMax - domainMin)
+      setThreshold(Math.max(minRatio, Math.min(maxRatio, raw)))
+    }
+
+    const onUp = () => setIsDragging(false)
+
+    document.addEventListener('mousemove', onMove)
+    document.addEventListener('mouseup', onUp)
+    return () => {
+      document.removeEventListener('mousemove', onMove)
+      document.removeEventListener('mouseup', onUp)
+    }
+  }, [isDragging, domainMin, domainMax, minRatio, maxRatio])
+
+  // Overlay positions (px from top of chart container) — both use the same
+  // coordinate system as recharts (accounting for YAxis padding) so they stay
+  // perfectly aligned with the data line at equivalent risk %.
+  const valueToPx = (v: number) => {
+    const ratio = (v - domainMin) / (domainMax - domainMin)
+    const plotHeight = CHART_HEIGHT - CHART_MARGIN.top - CHART_MARGIN.bottom
+    const effectiveTop = CHART_MARGIN.top + Y_AXIS_PADDING.top
+    const effectiveHeight =
+      plotHeight - Y_AXIS_PADDING.top - Y_AXIS_PADDING.bottom
+    return effectiveTop + (1 - ratio) * effectiveHeight
+  }
+  const thresholdPx = useMemo(
+    () => valueToPx(threshold),
+    [threshold, domainMin, domainMax]
+  )
+  const recommendedPx = useMemo(
+    () => valueToPx(recommendedThreshold),
+    [recommendedThreshold, domainMin, domainMax]
+  )
+
+  // Risk % : 0% = at historical low (minRatio), 100% = at historical high (maxRatio)
+  const riskPct = useMemo(() => {
+    if (maxRatio === minRatio) return 0
+    return Math.round(((threshold - minRatio) / (maxRatio - minRatio)) * 100)
+  }, [threshold, minRatio, maxRatio])
+
+  const thresholdColor = riskPct <= 20 ? '#10b981' : '#ef4444'
+
+  // --- Optimizer handlers ---
   const handleModeChange = (m: BorrowMode) => {
     setMode(m)
-    setGoal(GOALS[m][0].id)
+    setObjectiveIndex(0)
     setRan(false)
     setResult(null)
   }
@@ -123,7 +334,6 @@ export function BorrowingOptimizerView({
 
     try {
       if (markets.length === 0) throw new Error('No markets selected')
-
       const amountNum = parseFloat(amount)
       if (!amountNum || amountNum <= 0) throw new Error('Enter a valid amount')
 
@@ -140,8 +350,7 @@ export function BorrowingOptimizerView({
         price: 1,
       }
 
-      const currentGoal = GOALS[mode].find((g) => g.id === goal)
-      const omega = currentGoal?.omega ?? 0
+      const omega = OBJECTIVE_BREAKPOINTS[objectiveIndex]?.omega ?? 0
 
       let response: OptimizationResponse
       if (mode === 'collateral_target') {
@@ -159,7 +368,6 @@ export function BorrowingOptimizerView({
       }
 
       if (!response.success) throw new Error('Optimization failed')
-
       setResult(response)
       setRan(true)
     } catch (err) {
@@ -171,17 +379,26 @@ export function BorrowingOptimizerView({
 
   const handleReset = () => {
     setMode('collateral_target')
-    setGoal('maximize_loan')
+    setObjectiveIndex(0)
     setAmount('100')
     setHorizon('medium')
     setResult(null)
     setRan(false)
     setError(null)
+    setViewStep('threshold')
+    setThreshold(recommendedThreshold || 0)
   }
 
   const amountNum = parseFloat(amount) || 0
 
-  // Allocations filtered to non-zero
+  const totalLiquidityUsd = useMemo(
+    () => markets.reduce((sum, m) => sum + m.liquidityAmountUsd, 0),
+    [markets]
+  )
+
+  const loanExceedsLiquidity =
+    mode === 'loan_target' && amountNum > 0 && amountNum > totalLiquidityUsd
+
   const allocations = useMemo(() => {
     if (!result) return []
     return result.allocations
@@ -196,344 +413,760 @@ export function BorrowingOptimizerView({
       .sort((a, b) => b.value - a.value)
   }, [result, mode, markets])
 
-  const total = mode === 'collateral_target' ? result?.total_borrow : result?.total_collateral
+  const total =
+    mode === 'collateral_target'
+      ? result?.total_borrow
+      : result?.total_collateral
 
   const weightedRate = useMemo(() => {
     if (!result || !total || total === 0) return null
-    return allocations.reduce((acc, a) => {
-      const pct = a.value / total
-      return acc + a.market.apy * pct
-    }, 0)
+    return allocations.reduce(
+      (acc, a) => acc + a.market.apy * (a.value / total),
+      0
+    )
   }, [result, total, allocations])
 
   const projectedCost = useMemo(() => {
     if (!weightedRate || !result) return null
-    const loanAmt = mode === 'collateral_target' ? (result.total_borrow ?? 0) : amountNum
+    const loanAmt =
+      mode === 'collateral_target' ? (result.total_borrow ?? 0) : amountNum
     const days = HORIZON_OPTIONS.find((h) => h.key === horizon)?.days ?? 30
     return loanAmt * weightedRate * (days / 365)
   }, [weightedRate, result, mode, amountNum, horizon])
 
-  const horizonLabel = HORIZON_OPTIONS.find((h) => h.key === horizon)?.label ?? ''
+  const horizonLabel =
+    HORIZON_OPTIONS.find((h) => h.key === horizon)?.label ?? ''
 
   return (
     <div className="flex flex-col">
-      {/* Main content */}
-      <div className="flex divide-x divide-border">
-        {/* Left — parameters */}
-        <div className="flex-1 space-y-5 px-1 py-4 pr-6">
-
-          {/* Optimization mode */}
-          <div>
-            <label className="text-muted-foreground mb-2 block text-xs font-semibold uppercase tracking-wider">
-              Optimization mode
-            </label>
-            <div className="space-y-2">
-              {BORROW_MODES.map((m) => {
-                const active = mode === m.id
-                return (
-                  <button
-                    key={m.id}
-                    type="button"
-                    onClick={() => handleModeChange(m.id)}
-                    className={`flex w-full items-start gap-3 rounded-xl border px-4 py-3 text-left transition-all duration-150 ${
-                      active
-                        ? m.activeBg
-                        : 'border-border bg-secondary/20 hover:border-border/80'
-                    }`}
-                  >
-                    <div
-                      className={`mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${
-                        active ? m.activeBg : 'bg-secondary'
-                      }`}
-                    >
-                      <m.Icon
-                        className={`h-4 w-4 ${active ? m.color : 'text-muted-foreground'}`}
-                      />
-                    </div>
-                    <div className="flex-1">
-                      <div className={`text-sm font-semibold ${active ? m.color : 'text-foreground'}`}>
-                        {m.label}
-                      </div>
-                      <div className="text-muted-foreground text-xs leading-relaxed">
-                        {m.desc}
-                      </div>
-                    </div>
-                    {active && (
-                      <CheckCircle2 className={`mt-1 h-4 w-4 shrink-0 ${m.color}`} />
-                    )}
-                  </button>
-                )
-              })}
-            </div>
-          </div>
-
-          {/* Objective */}
-          <div>
-            <label className="text-muted-foreground mb-2 block text-xs font-semibold uppercase tracking-wider">
-              Objective
-            </label>
-            <div className="flex gap-2">
-              {GOALS[mode].map((g) => {
-                const active = goal === g.id
-                return (
-                  <button
-                    key={g.id}
-                    type="button"
-                    onClick={() => {
-                      setGoal(g.id)
-                      setRan(false)
-                    }}
-                    className={`flex flex-1 items-center gap-2 rounded-xl border px-3 py-2.5 text-xs font-semibold transition-all ${
-                      active
-                        ? 'border-primary/40 bg-primary/10 text-primary'
-                        : 'border-border bg-secondary/20 text-muted-foreground hover:text-foreground'
-                    }`}
-                  >
-                    <g.Icon className="h-3.5 w-3.5 shrink-0" />
-                    {g.label}
-                  </button>
-                )
-              })}
-            </div>
-          </div>
-
-          {/* Amount input */}
-          <div>
-            <label className="text-muted-foreground mb-2 block text-xs font-semibold uppercase tracking-wider">
-              {mode === 'collateral_target' ? 'Collateral amount' : 'Loan amount needed'}
-            </label>
-            <div className="border-input dark:bg-input/30 focus-within:border-ring focus-within:ring-ring/50 flex items-center rounded-xl border focus-within:ring-[3px]">
-              <span className="text-muted-foreground pl-3.5 text-sm font-medium select-none">
-                $
-              </span>
-              <Input
-                type="number"
-                inputMode="decimal"
-                placeholder="0.00"
-                value={amount}
-                onChange={(e) => {
-                  setAmount(e.target.value)
-                  setRan(false)
-                }}
-                className="border-0 font-mono shadow-none focus-visible:ring-0"
-              />
-              <span className="text-muted-foreground bg-secondary mr-1 rounded-lg px-2 py-1 text-xs font-semibold select-none">
-                USDC
-              </span>
-            </div>
-          </div>
-
-          {/* Time horizon */}
-          <div>
-            <label className="text-muted-foreground mb-2 block text-xs font-semibold uppercase tracking-wider">
-              Time horizon
-            </label>
-            <div className="flex gap-1.5">
-              {HORIZON_OPTIONS.map((h) => (
-                <button
-                  key={h.key}
-                  type="button"
-                  onClick={() => {
-                    setHorizon(h.key)
-                    setRan(false)
-                  }}
-                  className={`flex-1 rounded-lg border py-2 text-xs font-semibold transition-all ${
-                    horizon === h.key
-                      ? 'border-primary bg-primary text-primary-foreground'
-                      : 'border-border bg-secondary/30 text-muted-foreground hover:text-foreground'
-                  }`}
-                >
-                  {h.label}
-                </button>
-              ))}
-            </div>
-          </div>
-        </div>
-
-        {/* Right — results */}
-        <div className="flex w-1/2 shrink-0 flex-col px-6 py-4">
-          <div className="text-muted-foreground mb-4 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider">
-            <ArrowLeftRight className="h-3.5 w-3.5" />
-            Recommended allocation
-          </div>
-
-          <AnimatePresence mode="wait">
-            {error ? (
-              <motion.div
-                key="error"
-                initial={{ opacity: 0, y: 4 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0 }}
-                className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700 dark:border-red-800 dark:bg-red-950 dark:text-red-300"
-              >
-                {error}
-              </motion.div>
-            ) : isOptimizing ? (
-              <motion.div
-                key="loading"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                className="flex flex-1 flex-col items-center justify-center text-center"
-              >
-                <Loader2 className="text-muted-foreground mb-2 h-5 w-5 animate-spin" />
-                <p className="text-muted-foreground text-xs">
-                  Computing optimal allocation…
-                </p>
-              </motion.div>
-            ) : ran && result && allocations.length > 0 ? (
-              <motion.div
-                key="results"
-                initial={{ opacity: 0, y: 6 }}
-                animate={{ opacity: 1, y: 0 }}
-                className="flex flex-1 flex-col gap-4"
-              >
-                {/* Key metric card */}
-                <div className="rounded-xl border border-border bg-secondary/40 p-4 text-center">
-                  {mode === 'collateral_target' ? (
-                    <>
-                      <div className="text-muted-foreground mb-1 text-xs uppercase tracking-wider">
-                        {goal === 'maximize_loan' ? 'Max loan size' : 'Optimal loan size'}
-                      </div>
-                      <div className="font-mono text-2xl font-bold text-foreground">
-                        {formatCompactCurrency(result.total_borrow ?? 0, 'USD')}
-                      </div>
-                      {amountNum > 0 && (
-                        <div className="text-muted-foreground mt-1 text-xs">
-                          {(((result.total_borrow ?? 0) / amountNum) * 100).toFixed(1)}% of collateral
-                        </div>
-                      )}
-                    </>
-                  ) : (
-                    <>
-                      <div className="text-muted-foreground mb-1 text-xs uppercase tracking-wider">
-                        {goal === 'minimize_collateral' ? 'Min collateral required' : 'Optimal collateral'}
-                      </div>
-                      <div className="font-mono text-2xl font-bold text-foreground">
-                        {formatCompactCurrency(result.total_collateral ?? 0, 'USD')}
-                      </div>
-                      {amountNum > 0 && (
-                        <div className="text-muted-foreground mt-1 text-xs">
-                          {(((result.total_collateral ?? 0) / amountNum) * 100).toFixed(1)}% of loan value
-                        </div>
-                      )}
-                    </>
-                  )}
-                </div>
-
-                {/* Pie chart */}
-                <div className="relative h-44">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <PieChart>
-                      <Pie
-                        data={allocations.map((a) => ({
-                          name: a.market.poolName,
-                          pct: total && total > 0 ? (a.value / total) * 100 : 0,
-                        }))}
-                        dataKey="pct"
-                        nameKey="name"
-                        cx="50%"
-                        cy="50%"
-                        innerRadius={48}
-                        outerRadius={72}
-                        paddingAngle={3}
-                        isAnimationActive={true}
-                        animationBegin={0}
-                        animationDuration={700}
-                        animationEasing="ease-out"
-                      >
-                        {allocations.map((_, i) => (
-                          <Cell key={i} fill={ALLOCATION_COLORS[i % ALLOCATION_COLORS.length]} stroke="transparent" />
-                        ))}
-                      </Pie>
-                      <Tooltip content={<AllocationTooltip />} />
-                    </PieChart>
-                  </ResponsiveContainer>
-                  {/* Center label */}
-                  {weightedRate !== null && (
-                    <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
-                      <span className="font-mono text-lg font-bold text-foreground">{(weightedRate * 100).toFixed(1)}%</span>
-                      <span className="text-[10px] uppercase tracking-wider text-muted-foreground">Avg rate</span>
-                    </div>
-                  )}
-                </div>
-
-                {/* Legend */}
+      <AnimatePresence mode="wait" initial={false}>
+        {/* ================================================================
+            STEP 1 — Configure
+        ================================================================ */}
+        {viewStep === 'configure' && (
+          <motion.div
+            key="configure"
+            initial={{ opacity: 0, x: -16 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: -16 }}
+            transition={{ duration: 0.2 }}
+            className="divide-border flex divide-x"
+          >
+            {/* Left — parameters */}
+            <div className="flex-1 space-y-5 px-1 py-4 pr-6">
+              {/* Optimization mode */}
+              <div>
+                <label className="text-muted-foreground mb-2 block text-xs font-semibold tracking-wider uppercase">
+                  Optimization mode
+                </label>
                 <div className="space-y-2">
-                  {allocations.map((a, i) => {
-                    const pct = total && total > 0 ? (a.value / total) * 100 : 0
+                  {BORROW_MODES.map((m) => {
+                    const active = mode === m.id
                     return (
-                      <div key={i} className="flex items-center gap-2">
-                        <div className="h-2.5 w-2.5 shrink-0 rounded-sm" style={{ background: ALLOCATION_COLORS[i % ALLOCATION_COLORS.length] }} />
-                        <span className="flex-1 truncate text-[11px] text-foreground">{a.market.poolName}</span>
-                        <span className="font-mono text-[11px] text-muted-foreground">{pct.toFixed(0)}%</span>
-                      </div>
+                      <button
+                        key={m.id}
+                        type="button"
+                        onClick={() => handleModeChange(m.id)}
+                        className={`flex w-full items-start gap-3 rounded-xl border px-4 py-3 text-left transition-all duration-150 ${
+                          active
+                            ? m.activeBg
+                            : 'border-border bg-secondary/20 hover:border-border/80'
+                        }`}
+                      >
+                        <div
+                          className={`mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${
+                            active ? m.activeBg : 'bg-secondary'
+                          }`}
+                        >
+                          <m.Icon
+                            className={`h-4 w-4 ${active ? m.color : 'text-muted-foreground'}`}
+                          />
+                        </div>
+                        <div className="flex-1">
+                          <div
+                            className={`text-sm font-semibold ${active ? m.color : 'text-foreground'}`}
+                          >
+                            {m.label}
+                          </div>
+                          <div className="text-muted-foreground text-xs leading-relaxed">
+                            {m.desc}
+                          </div>
+                        </div>
+                        {active && (
+                          <CheckCircle2
+                            className={`mt-1 h-4 w-4 shrink-0 ${m.color}`}
+                          />
+                        )}
+                      </button>
                     )
                   })}
                 </div>
+              </div>
 
-                {/* Summary */}
-                <motion.div
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  transition={{ delay: 0.4 }}
-                  className="mt-auto space-y-1.5 border-t border-border pt-3"
+              {/* Amount input */}
+              <div>
+                <label className="text-muted-foreground mb-2 block text-xs font-semibold tracking-wider uppercase">
+                  {mode === 'collateral_target'
+                    ? 'Collateral amount'
+                    : 'Loan amount needed'}
+                </label>
+                <div
+                  className={`border-input dark:bg-input/30 focus-within:border-ring focus-within:ring-ring/50 flex items-center rounded-xl border focus-within:ring-[3px] ${loanExceedsLiquidity ? 'border-red-500 focus-within:border-red-500 focus-within:ring-red-500/50' : ''}`}
                 >
-                  {weightedRate !== null && (
-                    <div className="flex justify-between text-xs">
-                      <span className="text-muted-foreground">Weighted rate</span>
-                      <span className="font-mono font-semibold text-emerald-400">
-                        {(weightedRate * 100).toFixed(2)}%
-                      </span>
-                    </div>
-                  )}
-                  {projectedCost !== null && amountNum > 0 && (
-                    <div className="flex justify-between text-xs">
-                      <span className="text-muted-foreground">Est. cost ({horizonLabel})</span>
-                      <span className="font-mono font-semibold text-rose-400">
-                        -{formatCompactCurrency(projectedCost, 'USD')}
-                      </span>
-                    </div>
-                  )}
-                </motion.div>
-              </motion.div>
-            ) : (
-              <motion.div
-                key="empty"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                className="flex flex-1 flex-col items-center justify-center space-y-2 text-center"
-              >
-                <div className="bg-secondary/60 mb-1 flex h-12 w-12 items-center justify-center rounded-2xl">
-                  <ArrowLeftRight className="h-5 w-5 opacity-40" />
+                  <span className="text-muted-foreground px-3.5 text-sm font-medium select-none">
+                    $
+                  </span>
+                  <Input
+                    type="number"
+                    inputMode="decimal"
+                    placeholder="0.00"
+                    value={amount}
+                    onChange={(e) => {
+                      setAmount(e.target.value)
+                      setRan(false)
+                    }}
+                    className="border-0 font-mono shadow-none focus-visible:ring-0"
+                  />
+                  <span className="px-4 py-1 text-xs font-semibold select-none">
+                    USD
+                  </span>
                 </div>
-                <p className="text-muted-foreground text-xs leading-relaxed">
-                  Set your mode, objective and amount, then run the optimizer.
-                </p>
-              </motion.div>
-            )}
-          </AnimatePresence>
-        </div>
-      </div>
+                {loanExceedsLiquidity && (
+                  <p className="mt-1.5 text-xs text-red-500">
+                    Exceeds available liquidity (
+                    {formatCompactCurrency(totalLiquidityUsd, 'USD')} across{' '}
+                    {markets.length} pool{markets.length !== 1 ? 's' : ''})
+                  </p>
+                )}
+              </div>
+
+              {/* Time horizon */}
+              <div>
+                <label className="text-muted-foreground mb-2 block text-xs font-semibold tracking-wider uppercase">
+                  Time horizon
+                </label>
+                <div className="flex gap-1.5">
+                  {HORIZON_OPTIONS.map((h) => (
+                    <button
+                      key={h.key}
+                      type="button"
+                      onClick={() => {
+                        setHorizon(h.key)
+                        setRan(false)
+                      }}
+                      className={`flex-1 rounded-lg border py-2 text-xs font-semibold transition-all ${
+                        horizon === h.key
+                          ? 'border-primary bg-primary text-primary-foreground'
+                          : 'border-border bg-secondary/30 text-muted-foreground hover:text-foreground'
+                      }`}
+                    >
+                      {h.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Objective — slider with breakpoints */}
+              <div>
+                <label className="text-muted-foreground mb-3 block text-xs font-semibold tracking-wider uppercase">
+                  Objective
+                </label>
+                <div className="px-1 pt-1 pb-0.5">
+                  {/* Track */}
+                  <div
+                    ref={sliderTrackRef}
+                    className="bg-secondary relative h-1.5 w-full cursor-pointer rounded-full"
+                    onMouseDown={(e) => {
+                      e.preventDefault()
+                      setIsSliderDragging(true)
+                      if (!sliderTrackRef.current) return
+                      const rect =
+                        sliderTrackRef.current.getBoundingClientRect()
+                      const ratio = Math.max(
+                        0,
+                        Math.min(1, (e.clientX - rect.left) / rect.width)
+                      )
+                      const idx = Math.round(
+                        ratio * (OBJECTIVE_BREAKPOINTS.length - 1)
+                      )
+                      setObjectiveIndex(idx)
+                      setRan(false)
+                    }}
+                  >
+                    {/* Fill */}
+                    <div
+                      className="bg-primary pointer-events-none absolute top-0 left-0 h-full rounded-full transition-all duration-150"
+                      style={{
+                        width: `${(objectiveIndex / (OBJECTIVE_BREAKPOINTS.length - 1)) * 100}%`,
+                      }}
+                    />
+
+                    {/* Breakpoint dots */}
+                    {OBJECTIVE_BREAKPOINTS.map((bp, i) => {
+                      const pct = (i / (OBJECTIVE_BREAKPOINTS.length - 1)) * 100
+                      const active = i === objectiveIndex
+                      const past = i < objectiveIndex
+                      return (
+                        <button
+                          key={bp.label}
+                          type="button"
+                          onMouseDown={(e) => {
+                            e.stopPropagation()
+                            setObjectiveIndex(i)
+                            setRan(false)
+                          }}
+                          className="absolute top-1/2 -translate-x-1/2 -translate-y-1/2 focus:outline-none"
+                          style={{ left: `${pct}%` }}
+                        >
+                          <div
+                            className={`rounded-full border-2 transition-all duration-150 ${
+                              active
+                                ? 'border-background bg-primary shadow-primary/40 h-4 w-4 scale-110 shadow-sm'
+                                : past
+                                  ? 'border-background bg-primary/70 h-2.5 w-2.5'
+                                  : 'border-muted-foreground/30 bg-secondary h-2.5 w-2.5'
+                            }`}
+                          />
+                        </button>
+                      )
+                    })}
+                  </div>
+
+                  {/* Labels */}
+                  <div className="relative mt-4">
+                    {OBJECTIVE_BREAKPOINTS.map((bp, i) => {
+                      const pct = (i / (OBJECTIVE_BREAKPOINTS.length - 1)) * 100
+                      const active = i === objectiveIndex
+                      return (
+                        <button
+                          key={bp.label}
+                          type="button"
+                          onClick={() => {
+                            setObjectiveIndex(i)
+                            setRan(false)
+                          }}
+                          className={`absolute -translate-x-1/2 text-[10px] transition-colors ${
+                            active
+                              ? 'text-primary font-semibold'
+                              : 'text-muted-foreground hover:text-foreground'
+                          }`}
+                          style={{ left: `${pct}%` }}
+                        >
+                          {bp.label}
+                        </button>
+                      )
+                    })}
+                    {/* Spacer so the parent has height */}
+                    <div className="h-4" />
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Right — results */}
+            <div className="flex w-1/2 shrink-0 flex-col px-6 py-4">
+              <div className="text-muted-foreground mb-4 flex items-center gap-1.5 text-xs font-semibold tracking-wider uppercase">
+                <ArrowLeftRight className="h-3.5 w-3.5" />
+                Recommended allocation
+              </div>
+
+              <AnimatePresence mode="wait">
+                {error ? (
+                  <motion.div
+                    key="error"
+                    initial={{ opacity: 0, y: 4 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0 }}
+                    className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700 dark:border-red-800 dark:bg-red-950 dark:text-red-300"
+                  >
+                    {error}
+                  </motion.div>
+                ) : isOptimizing ? (
+                  <motion.div
+                    key="loading"
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    className="flex flex-1 flex-col items-center justify-center text-center"
+                  >
+                    <Loader2 className="text-muted-foreground mb-2 h-5 w-5 animate-spin" />
+                    <p className="text-muted-foreground text-xs">
+                      Computing optimal allocation…
+                    </p>
+                  </motion.div>
+                ) : ran && result && allocations.length > 0 ? (
+                  <motion.div
+                    key="allocs"
+                    initial={{ opacity: 0, y: 6 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="flex flex-1 flex-col gap-4"
+                  >
+                    {/* Key metric */}
+                    <div className="border-border bg-secondary/40 rounded-xl border p-4 text-center">
+                      {mode === 'collateral_target' ? (
+                        <>
+                          <div className="text-muted-foreground mb-1 text-xs tracking-wider uppercase">
+                            {objectiveIndex >= 2
+                              ? 'Max loan size'
+                              : 'Optimal loan size'}
+                          </div>
+                          <div className="text-foreground font-mono text-2xl font-bold">
+                            {formatCompactCurrency(
+                              result.total_borrow ?? 0,
+                              'USD'
+                            )}
+                          </div>
+                          {amountNum > 0 && (
+                            <div className="text-muted-foreground mt-1 text-xs">
+                              {(
+                                ((result.total_borrow ?? 0) / amountNum) *
+                                100
+                              ).toFixed(1)}
+                              % of collateral
+                            </div>
+                          )}
+                        </>
+                      ) : (
+                        <>
+                          <div className="text-muted-foreground mb-1 text-xs tracking-wider uppercase">
+                            {objectiveIndex >= 2
+                              ? 'Min collateral required'
+                              : 'Optimal collateral'}
+                          </div>
+                          <div className="text-foreground font-mono text-2xl font-bold">
+                            {formatCompactCurrency(
+                              result.total_collateral ?? 0,
+                              'USD'
+                            )}
+                          </div>
+                          {amountNum > 0 && (
+                            <div className="text-muted-foreground mt-1 text-xs">
+                              {(
+                                ((result.total_collateral ?? 0) / amountNum) *
+                                100
+                              ).toFixed(1)}
+                              % of loan
+                            </div>
+                          )}
+                        </>
+                      )}
+                    </div>
+
+                    {/* Pie chart */}
+                    <div className="relative h-44">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <PieChart>
+                          <Pie
+                            data={allocations.map((a) => ({
+                              name: a.market.poolName,
+                              pct:
+                                total && total > 0
+                                  ? (a.value / total) * 100
+                                  : 0,
+                            }))}
+                            dataKey="pct"
+                            nameKey="name"
+                            cx="50%"
+                            cy="50%"
+                            innerRadius={48}
+                            outerRadius={72}
+                            paddingAngle={3}
+                            isAnimationActive
+                            animationBegin={0}
+                            animationDuration={700}
+                            animationEasing="ease-out"
+                          >
+                            {allocations.map((_, i) => (
+                              <Cell
+                                key={i}
+                                fill={
+                                  ALLOCATION_COLORS[
+                                    i % ALLOCATION_COLORS.length
+                                  ]
+                                }
+                                stroke="transparent"
+                              />
+                            ))}
+                          </Pie>
+                          <Tooltip content={<AllocationTooltip />} />
+                        </PieChart>
+                      </ResponsiveContainer>
+                      {weightedRate !== null && (
+                        <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
+                          <span className="text-foreground font-mono text-lg font-bold">
+                            {(weightedRate * 100).toFixed(1)}%
+                          </span>
+                          <span className="text-muted-foreground text-[10px] tracking-wider uppercase">
+                            Avg rate
+                          </span>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Legend */}
+                    <div className="space-y-2">
+                      {allocations.map((a, i) => {
+                        const pct =
+                          total && total > 0 ? (a.value / total) * 100 : 0
+                        return (
+                          <div key={i} className="flex items-center gap-2">
+                            <div
+                              className="h-2.5 w-2.5 shrink-0 rounded-sm"
+                              style={{
+                                background:
+                                  ALLOCATION_COLORS[
+                                    i % ALLOCATION_COLORS.length
+                                  ],
+                              }}
+                            />
+                            <span className="text-foreground flex-1 truncate text-[11px]">
+                              {a.market.poolName}
+                            </span>
+                            <span className="text-muted-foreground font-mono text-[11px]">
+                              {pct.toFixed(0)}%
+                            </span>
+                          </div>
+                        )
+                      })}
+                    </div>
+
+                    {/* Summary */}
+                    <motion.div
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      transition={{ delay: 0.4 }}
+                      className="border-border mt-auto space-y-1.5 border-t pt-3"
+                    >
+                      {weightedRate !== null && (
+                        <div className="flex justify-between text-xs">
+                          <span className="text-muted-foreground">
+                            Weighted rate
+                          </span>
+                          <span className="font-mono font-semibold text-emerald-400">
+                            {(weightedRate * 100).toFixed(2)}%
+                          </span>
+                        </div>
+                      )}
+                      {projectedCost !== null && amountNum > 0 && (
+                        <div className="flex justify-between text-xs">
+                          <span className="text-muted-foreground">
+                            Est. cost ({horizonLabel})
+                          </span>
+                          <span className="font-mono font-semibold text-rose-400">
+                            -{formatCompactCurrency(projectedCost, 'USD')}
+                          </span>
+                        </div>
+                      )}
+                    </motion.div>
+                  </motion.div>
+                ) : (
+                  <motion.div
+                    key="hint"
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    className="flex flex-1 flex-col items-center justify-center text-center"
+                  >
+                    <div className="bg-secondary/60 mb-3 flex h-12 w-12 items-center justify-center rounded-2xl">
+                      <Zap className="h-5 w-5 opacity-40" />
+                    </div>
+                    <p className="text-muted-foreground max-w-[160px] text-xs leading-relaxed">
+                      Configure your parameters and run the optimizer to see the
+                      allocation.
+                    </p>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
+          </motion.div>
+        )}
+
+        {/* ================================================================
+            STEP 2 — Liquidation threshold
+        ================================================================ */}
+        {viewStep === 'threshold' && (
+          <motion.div
+            key="threshold"
+            initial={{ opacity: 0, x: 16 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: 16 }}
+            transition={{ duration: 0.2 }}
+            className="flex flex-col gap-3 py-4"
+          >
+            {/* Header */}
+            <div className="px-1">
+              <div className="flex items-baseline gap-2">
+                <div className="text-muted-foreground text-[10px] font-semibold tracking-wider uppercase">
+                  Liquidation threshold
+                </div>
+                <span className="text-foreground font-mono text-xs font-semibold">
+                  {selectedCollateralSymbol ??
+                    markets[0]?.collaterals[0]?.symbol ??
+                    '?'}
+                  /{markets[0]?.assetSymbol ?? '?'}
+                </span>
+              </div>
+              <p className="text-muted-foreground mt-1 text-xs">
+                Drag the line to set your risk level.{' '}
+                <span className="font-semibold text-emerald-400">0%</span> =
+                liquidation only at the historical low ·{' '}
+                <span className="font-semibold text-red-400">100%</span> =
+                liquidation at the historical high. Recommended:{' '}
+                <span className="font-semibold">20%</span>.
+              </p>
+              {/* Legend */}
+              <div className="mt-2 flex items-center gap-5">
+                <div className="flex items-center gap-2">
+                  <svg width="24" height="8" className="shrink-0">
+                    <line
+                      x1="0"
+                      y1="4"
+                      x2="24"
+                      y2="4"
+                      stroke="#94a3b8"
+                      strokeWidth="1.5"
+                      strokeDasharray="4 3"
+                    />
+                  </svg>
+                  <span className="text-muted-foreground text-[10px]">
+                    Recommended{' '}
+                    <span className="font-mono font-semibold text-slate-400">
+                      20% risk
+                    </span>
+                  </span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <svg width="24" height="8" className="shrink-0">
+                    <line
+                      x1="0"
+                      y1="4"
+                      x2="24"
+                      y2="4"
+                      stroke={thresholdColor}
+                      strokeWidth="2"
+                    />
+                  </svg>
+                  <span className="text-muted-foreground text-[10px] transition-colors duration-150">
+                    Your threshold{' '}
+                    <span
+                      className="font-mono font-semibold transition-colors duration-150"
+                      style={{ color: thresholdColor }}
+                    >
+                      {priceData.length > 0 ? `${riskPct}%` : '—'}
+                    </span>
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* Chart */}
+            <div
+              ref={chartRef}
+              className="relative select-none"
+              style={{
+                height: CHART_HEIGHT,
+                cursor: isPriceLoading
+                  ? 'default'
+                  : isDragging
+                    ? 'grabbing'
+                    : 'ns-resize',
+              }}
+              onMouseDown={(e) => {
+                if (isPriceLoading || priceData.length === 0) return
+                e.preventDefault()
+                setIsDragging(true)
+                const rect = chartRef.current!.getBoundingClientRect()
+                const effectiveTop =
+                  rect.top + CHART_MARGIN.top + Y_AXIS_PADDING.top
+                const effectiveHeight =
+                  rect.height -
+                  CHART_MARGIN.top -
+                  CHART_MARGIN.bottom -
+                  Y_AXIS_PADDING.top -
+                  Y_AXIS_PADDING.bottom
+                const ratio =
+                  1 -
+                  Math.max(
+                    0,
+                    Math.min(1, (e.clientY - effectiveTop) / effectiveHeight)
+                  )
+                const raw = domainMin + ratio * (domainMax - domainMin)
+                setThreshold(Math.max(minRatio, Math.min(maxRatio, raw)))
+              }}
+            >
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart data={priceData} margin={CHART_MARGIN}>
+                  <defs>
+                    <linearGradient id="priceGrad" x1="0" y1="0" x2="0" y2="1">
+                      <stop
+                        offset="5%"
+                        stopColor="#06b6d4"
+                        stopOpacity={0.18}
+                      />
+                      <stop offset="95%" stopColor="#06b6d4" stopOpacity={0} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid
+                    strokeDasharray="3 3"
+                    stroke={GRID_COLOR}
+                    strokeOpacity={0.8}
+                    vertical={false}
+                  />
+                  <XAxis
+                    dataKey="date"
+                    tick={{ fontSize: 9, fill: TICK_COLOR }}
+                    tickLine={false}
+                    axisLine={false}
+                    interval={Math.max(1, Math.floor(priceData.length / 8))}
+                  />
+                  <YAxis
+                    orientation="right"
+                    domain={[domainMin, domainMax]}
+                    padding={Y_AXIS_PADDING}
+                    width={YAXIS_WIDTH}
+                    tick={{ fontSize: 9, fill: TICK_COLOR }}
+                    tickLine={false}
+                    axisLine={false}
+                    tickFormatter={formatRatio}
+                    tickCount={6}
+                    label={{
+                      value: markets[0]?.assetSymbol ?? '',
+                      position: 'top',
+                      offset: 12,
+                      fontSize: 10,
+                      fontWeight: 600,
+                      fill: TICK_COLOR,
+                    }}
+                  />
+                  <Area
+                    type="monotone"
+                    dataKey="ratio"
+                    stroke="#06b6d4"
+                    strokeWidth={2}
+                    fill="url(#priceGrad)"
+                    dot={false}
+                    isAnimationActive={false}
+                  />
+                  <Tooltip
+                    cursor={{
+                      stroke: '#94a3b8',
+                      strokeWidth: 1,
+                      strokeDasharray: '3 3',
+                    }}
+                    content={
+                      <PriceRatioTooltip
+                        pairLabel={`${selectedCollateralSymbol ?? markets[0]?.collaterals[0]?.symbol ?? ''}/${markets[0]?.assetSymbol ?? ''}`}
+                      />
+                    }
+                    isAnimationActive={false}
+                  />
+                </AreaChart>
+              </ResponsiveContainer>
+
+              {/* Loading overlay */}
+              {isPriceLoading && (
+                <div className="bg-background/60 absolute inset-0 flex items-center justify-center backdrop-blur-sm">
+                  <Loader2 className="text-muted-foreground h-5 w-5 animate-spin" />
+                </div>
+              )}
+
+              {/* Recommended + threshold overlays — share the same coord system */}
+              {!isPriceLoading &&
+                priceData.length > 0 &&
+                (() => {
+                  // Badge sits ABOVE the line by default (with a small gap), and
+                  // flips BELOW only when there isn't enough room above. The line
+                  // therefore never crosses the badge, keeping the % risk legible.
+                  const BADGE_HEIGHT = 26
+                  const GAP = 4
+                  const plotTopPx = CHART_MARGIN.top
+                  const plotBottomPx = CHART_HEIGHT - CHART_MARGIN.bottom
+                  const flipBelow = thresholdPx - GAP - BADGE_HEIGHT < plotTopPx
+                  const rawBadgeTop = flipBelow
+                    ? thresholdPx + GAP
+                    : thresholdPx - GAP - BADGE_HEIGHT
+                  const badgeTop = Math.max(
+                    plotTopPx,
+                    Math.min(plotBottomPx - BADGE_HEIGHT, rawBadgeTop)
+                  )
+                  return (
+                    <>
+                      {/* Recommended dashed line */}
+                      <div
+                        className="pointer-events-none absolute left-0"
+                        style={{
+                          top: recommendedPx,
+                          right: YAXIS_WIDTH,
+                          borderTop: '1.5px dashed #94a3b8',
+                          transform: 'translateY(-1px)',
+                        }}
+                      />
+                      <div
+                        className="pointer-events-none absolute text-[9px] text-slate-400"
+                        style={{ top: recommendedPx + 2, left: 4 }}
+                      >
+                        Recommended
+                      </div>
+
+                      {/* Threshold full-width line */}
+                      <div
+                        className="pointer-events-none absolute left-0 transition-colors duration-150"
+                        style={{
+                          top: thresholdPx,
+                          right: YAXIS_WIDTH,
+                          borderTop: `2px solid ${thresholdColor}`,
+                          transform: 'translateY(-1px)',
+                        }}
+                      />
+                      {/* Threshold badge — sits above (or below) the line, never on it */}
+                      <div
+                        className="pointer-events-none absolute left-0"
+                        style={{ top: badgeTop }}
+                      >
+                        <div
+                          className="flex shrink-0 items-center gap-1.5 rounded px-2 py-1 font-mono text-[10px] font-semibold transition-colors duration-150"
+                          style={{
+                            color: thresholdColor,
+                            background: 'hsla(var(--background) / 0.92)',
+                            border: `1px solid ${thresholdColor}50`,
+                          }}
+                        >
+                          <div className="flex flex-col gap-[2.5px]">
+                            {[0, 1, 2].map((k) => (
+                              <div
+                                key={k}
+                                className="h-px w-2.5 rounded-full transition-colors duration-150"
+                                style={{ background: thresholdColor }}
+                              />
+                            ))}
+                          </div>
+                          {riskPct}% risk
+                        </div>
+                      </div>
+                    </>
+                  )
+                })()}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Footer */}
       <div className="border-border bg-secondary/10 flex items-center justify-between border-t px-1 py-4 pt-4">
-        {onBack ? (
-          <button
-            type="button"
-            onClick={onBack}
-            disabled={isOptimizing}
-            className="text-muted-foreground hover:text-foreground text-sm transition-colors disabled:opacity-40"
-          >
-            ← Back
-          </button>
-        ) : (
-          <div />
-        )}
+        <button
+          type="button"
+          onClick={() => {
+            if (viewStep === 'configure') setViewStep('threshold')
+            else onBack?.()
+          }}
+          disabled={isOptimizing}
+          className="text-muted-foreground hover:text-foreground text-sm transition-colors disabled:opacity-40"
+        >
+          ← Back
+        </button>
 
         <div className="flex items-center gap-3">
-          {ran && (
+          {viewStep === 'configure' && ran && (
             <button
               type="button"
               onClick={handleReset}
@@ -542,28 +1175,45 @@ export function BorrowingOptimizerView({
               Reset
             </button>
           )}
-          <Button
-            onClick={ran ? onBack : handleRun}
-            disabled={isOptimizing || (!ran && !amount)}
-            className={ran ? 'bg-emerald-500 text-white hover:bg-emerald-500/90' : undefined}
-          >
-            {isOptimizing ? (
-              <>
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Optimizing…
-              </>
-            ) : ran ? (
-              <>
-                <CheckCircle2 className="mr-2 h-4 w-4" />
-                Apply Allocation
-              </>
-            ) : (
-              <>
-                <Zap className="mr-2 h-4 w-4" />
-                Run Optimizer
-              </>
-            )}
-          </Button>
+
+          {viewStep === 'threshold' && (
+            <Button onClick={() => setViewStep('configure')}>Continue →</Button>
+          )}
+
+          {viewStep === 'configure' && (
+            <>
+              <Button
+                onClick={handleRun}
+                disabled={
+                  !amount ||
+                  parseFloat(amount) <= 0 ||
+                  loanExceedsLiquidity ||
+                  isOptimizing
+                }
+              >
+                {isOptimizing ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Optimizing…
+                  </>
+                ) : (
+                  <>
+                    <Zap className="mr-2 h-4 w-4" />
+                    Run Optimizer
+                  </>
+                )}
+              </Button>
+              {ran && !isOptimizing && (
+                <Button
+                  onClick={onBack}
+                  className="bg-emerald-500 text-white hover:bg-emerald-500/90"
+                >
+                  <CheckCircle2 className="mr-2 h-4 w-4" />
+                  Apply
+                </Button>
+              )}
+            </>
+          )}
         </div>
       </div>
     </div>
