@@ -6,6 +6,7 @@ import {
   ArrowLeftRight,
   CheckCircle2,
   CreditCard,
+  GripVertical,
   Loader2,
   Wallet,
   Zap,
@@ -18,6 +19,7 @@ import {
   Cell,
   Pie,
   PieChart,
+  ReferenceLine,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -26,8 +28,8 @@ import {
 
 import {
   type PricePoint,
-  loadPriceRatioHistory,
-} from '@/app/actions/price-ratio-history.actions'
+  loadPriceReturnHistory,
+} from '@/app/actions/price-return-history.actions'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { HORIZON_OPTIONS, HorizonKey } from '@/config/horizon'
@@ -86,29 +88,22 @@ const ALLOCATION_COLORS = [
 // Price chart helpers
 // ============================================================================
 
-// Generous top/bottom margins give the data visual breathing room while
-// keeping the plot area's exact bounds at [minRatio, maxRatio].
+// Plot area's vertical bounds = [margin.top, CHART_HEIGHT - margin.bottom].
+// No YAxis padding is used: data extremes (minReturn / maxReturn) render at
+// exactly these edges, keeping recharts ReferenceLine overlays perfectly
+// aligned with the rendered data line.
 const CHART_MARGIN = { top: 30, right: 4, left: 4, bottom: 36 }
 const CHART_HEIGHT = 290
-// Padding (in px) applied INSIDE the plot area by the YAxis. minRatio is
-// rendered `Y_AXIS_PADDING.bottom` px above the plot bottom and maxRatio is
-// rendered `Y_AXIS_PADDING.top` px below the plot top. The cursor uses the
-// same offsets so 0% / 100% sit exactly on the data extremes.
-const Y_AXIS_PADDING = { top: 8, bottom: 8 }
 const TICK_COLOR = '#94a3b8'
 const GRID_COLOR = '#334155'
 const YAXIS_WIDTH = 68
 
-function formatRatio(v: number): string {
+function formatReturnPct(v: number): string {
   const abs = Math.abs(v)
-  if (abs >= 10000)
-    return v.toLocaleString('en-US', { maximumFractionDigits: 0 })
-  if (abs >= 1000) return v.toFixed(0)
-  if (abs >= 100) return v.toFixed(1)
-  if (abs >= 10) return v.toFixed(2)
-  if (abs >= 1) return v.toFixed(3)
-  if (abs >= 0.01) return v.toFixed(4)
-  return v.toFixed(5)
+  const sign = v > 0 ? '+' : v < 0 ? '-' : ''
+  if (abs >= 100) return `${sign}${abs.toFixed(0)}%`
+  if (abs >= 10) return `${sign}${abs.toFixed(1)}%`
+  return `${sign}${abs.toFixed(2)}%`
 }
 
 function AllocationTooltip({
@@ -131,24 +126,33 @@ function AllocationTooltip({
   )
 }
 
-function PriceRatioTooltip({
+function ReturnTooltip({
   active,
   payload,
   pairLabel,
 }: {
   active?: boolean
-  payload?: { value: number; payload: { date: string; ratio: number } }[]
+  payload?: { value: number; payload: { date: string; returnPct: number } }[]
   pairLabel: string
 }) {
   if (!active || !payload?.length) return null
   const point = payload[0].payload
+  const color =
+    point.returnPct > 0
+      ? '#10b981'
+      : point.returnPct < 0
+        ? '#ef4444'
+        : undefined
   return (
     <div className="border-border bg-popover/95 rounded-lg border px-3 py-2 text-xs shadow-md backdrop-blur-sm">
       <p className="text-muted-foreground mb-0.5 text-[10px] tracking-wider uppercase">
         {point.date}
       </p>
-      <p className="text-foreground font-mono text-sm font-semibold">
-        {formatRatio(point.ratio)}{' '}
+      <p
+        className="font-mono text-sm font-semibold"
+        style={color ? { color } : undefined}
+      >
+        {formatReturnPct(point.returnPct)}{' '}
         <span className="text-muted-foreground text-[10px] font-normal">
           {pairLabel}
         </span>
@@ -193,25 +197,29 @@ export function BorrowingOptimizerView({
   const [priceData, setPriceData] = useState<PricePoint[]>([])
   const [isPriceLoading, setIsPriceLoading] = useState(false)
 
-  const { domainMin, domainMax, minRatio, maxRatio, recommendedThreshold } =
-    useMemo(() => {
-      const vals = priceData.map((p) => p.ratio)
-      const minVal = vals.length > 0 ? Math.min(...vals) : 0
-      const maxVal = vals.length > 0 ? Math.max(...vals) : 1
-      // Domain matches data extremes exactly so:
-      //  - data minimum sits at plot bottom  -> 0% risk cursor lands on it
-      //  - data maximum sits at plot top     -> 100% risk cursor lands on it
-      // Visual breathing room is provided by CHART_MARGIN, not domain padding.
-      return {
-        minRatio: minVal,
-        maxRatio: maxVal,
-        domainMin: minVal,
-        domainMax: maxVal,
-        // Recommended = 20% risk above the historical low (data-space)
-        recommendedThreshold: minVal + 0.2 * (maxVal - minVal),
-      }
-    }, [priceData])
+  const { domainMin, domainMax, recommendedThreshold } = useMemo(() => {
+    const vals = priceData.map((p) => p.returnPct)
+    const minVal = vals.length > 0 ? Math.min(...vals) : 0
+    const maxVal = vals.length > 0 ? Math.max(...vals) : 1
+    // Extend the Y domain by 20% of the data range on each side so the min
+    // and max data points don't touch the plot edges. Using domain padding
+    // (not YAxis `padding` prop, which recharts v2 interprets as data units
+    // with unreliable pixel conversion) keeps the scale fully under control.
+    const range = Math.max(maxVal - minVal, 0.01)
+    const pad = range * 0.2
+    return {
+      minReturn: minVal,
+      maxReturn: maxVal,
+      domainMin: minVal - pad,
+      domainMax: maxVal + pad,
+      // Recommended threshold = buffer = min(0%, worst observed daily return).
+      // In practice, the worst daily return is negative so the recommended
+      // line sits at the lowest point of the curve (most conservative).
+      recommendedThreshold: Math.min(0, minVal),
+    }
+  }, [priceData])
 
+  // --- User-adjustable threshold (defaults to recommendedThreshold) ---
   const [threshold, setThreshold] = useState(0)
   const [isDragging, setIsDragging] = useState(false)
   const chartRef = useRef<HTMLDivElement>(null)
@@ -222,20 +230,49 @@ export function BorrowingOptimizerView({
     const loanSymbol = markets[0]?.assetSymbol
     if (!collateralSymbol || !loanSymbol) return
     setIsPriceLoading(true)
-    loadPriceRatioHistory(collateralSymbol, loanSymbol)
+    loadPriceReturnHistory(collateralSymbol, loanSymbol)
       .then((data) => {
         setPriceData(data)
       })
       .finally(() => setIsPriceLoading(false))
   }, [markets])
 
+  // Reset threshold to recommended whenever new data arrives.
   useEffect(() => {
-    if (viewStep === 'threshold') setThreshold(recommendedThreshold)
-  }, [viewStep, recommendedThreshold])
+    setThreshold(recommendedThreshold)
+  }, [recommendedThreshold])
 
   useEffect(() => {
     onViewStepChange?.(viewStep)
   }, [viewStep, onViewStepChange])
+
+  // Document-level drag listeners — translate mouseY into a threshold value
+  // using the same domain recharts uses for the Y axis, so the line always
+  // follows the cursor exactly.
+  useEffect(() => {
+    if (!isDragging) return
+
+    const onMove = (e: MouseEvent) => {
+      if (!chartRef.current) return
+      const rect = chartRef.current.getBoundingClientRect()
+      const effectiveTop = rect.top + CHART_MARGIN.top
+      const effectiveHeight =
+        rect.height - CHART_MARGIN.top - CHART_MARGIN.bottom
+      const ratio =
+        1 -
+        Math.max(0, Math.min(1, (e.clientY - effectiveTop) / effectiveHeight))
+      setThreshold(domainMin + ratio * (domainMax - domainMin))
+    }
+
+    const onUp = () => setIsDragging(false)
+
+    document.addEventListener('mousemove', onMove)
+    document.addEventListener('mouseup', onUp)
+    return () => {
+      document.removeEventListener('mousemove', onMove)
+      document.removeEventListener('mouseup', onUp)
+    }
+  }, [isDragging, domainMin, domainMax])
 
   // Objective slider drag
   useEffect(() => {
@@ -258,65 +295,6 @@ export function BorrowingOptimizerView({
       document.removeEventListener('mouseup', onUp)
     }
   }, [isSliderDragging, objectiveIndex])
-
-  // Document-level drag listeners
-  useEffect(() => {
-    if (!isDragging) return
-
-    const onMove = (e: MouseEvent) => {
-      if (!chartRef.current) return
-      const rect = chartRef.current.getBoundingClientRect()
-      const effectiveTop = rect.top + CHART_MARGIN.top + Y_AXIS_PADDING.top
-      const effectiveHeight =
-        rect.height -
-        CHART_MARGIN.top -
-        CHART_MARGIN.bottom -
-        Y_AXIS_PADDING.top -
-        Y_AXIS_PADDING.bottom
-      const ratio =
-        1 -
-        Math.max(0, Math.min(1, (e.clientY - effectiveTop) / effectiveHeight))
-      const raw = domainMin + ratio * (domainMax - domainMin)
-      setThreshold(Math.max(minRatio, Math.min(maxRatio, raw)))
-    }
-
-    const onUp = () => setIsDragging(false)
-
-    document.addEventListener('mousemove', onMove)
-    document.addEventListener('mouseup', onUp)
-    return () => {
-      document.removeEventListener('mousemove', onMove)
-      document.removeEventListener('mouseup', onUp)
-    }
-  }, [isDragging, domainMin, domainMax, minRatio, maxRatio])
-
-  // Overlay positions (px from top of chart container) — both use the same
-  // coordinate system as recharts (accounting for YAxis padding) so they stay
-  // perfectly aligned with the data line at equivalent risk %.
-  const valueToPx = (v: number) => {
-    const ratio = (v - domainMin) / (domainMax - domainMin)
-    const plotHeight = CHART_HEIGHT - CHART_MARGIN.top - CHART_MARGIN.bottom
-    const effectiveTop = CHART_MARGIN.top + Y_AXIS_PADDING.top
-    const effectiveHeight =
-      plotHeight - Y_AXIS_PADDING.top - Y_AXIS_PADDING.bottom
-    return effectiveTop + (1 - ratio) * effectiveHeight
-  }
-  const thresholdPx = useMemo(
-    () => valueToPx(threshold),
-    [threshold, domainMin, domainMax]
-  )
-  const recommendedPx = useMemo(
-    () => valueToPx(recommendedThreshold),
-    [recommendedThreshold, domainMin, domainMax]
-  )
-
-  // Risk % : 0% = at historical low (minRatio), 100% = at historical high (maxRatio)
-  const riskPct = useMemo(() => {
-    if (maxRatio === minRatio) return 0
-    return Math.round(((threshold - minRatio) / (maxRatio - minRatio)) * 100)
-  }, [threshold, minRatio, maxRatio])
-
-  const thresholdColor = riskPct <= 20 ? '#10b981' : '#ef4444'
 
   // --- Optimizer handlers ---
   const handleModeChange = (m: BorrowMode) => {
@@ -386,7 +364,7 @@ export function BorrowingOptimizerView({
     setRan(false)
     setError(null)
     setViewStep('threshold')
-    setThreshold(recommendedThreshold || 0)
+    setThreshold(recommendedThreshold)
   }
 
   const amountNum = parseFloat(amount) || 0
@@ -398,6 +376,26 @@ export function BorrowingOptimizerView({
 
   const loanExceedsLiquidity =
     mode === 'loan_target' && amountNum > 0 && amountNum > totalLiquidityUsd
+
+  // Threshold visuals: red when user chose a riskier buffer than recommended
+  // (line above Recommended on chart), green when equal or safer (line below).
+  // `badgeTop` mirrors recharts' internal scale so the HTML badge lines up
+  // exactly with the SVG ReferenceLine at the same y value.
+  const { thresholdColor, badgeTop } = useMemo(() => {
+    const color = threshold > recommendedThreshold ? '#ef4444' : '#10b981'
+    const plotTop = CHART_MARGIN.top
+    const plotBottom = CHART_HEIGHT - CHART_MARGIN.bottom
+    const ratio = (threshold - domainMin) / (domainMax - domainMin)
+    const px = plotTop + (1 - ratio) * (plotBottom - plotTop)
+    const BH = 22
+    const GAP = 4
+    const aboveRaw = px - GAP - BH
+    const rawTop = aboveRaw < plotTop ? px + GAP : aboveRaw
+    return {
+      thresholdColor: color,
+      badgeTop: Math.max(plotTop, Math.min(plotBottom - BH, rawTop)),
+    }
+  }, [threshold, recommendedThreshold, domainMin, domainMax])
 
   const allocations = useMemo(() => {
     if (!result) return []
@@ -907,12 +905,13 @@ export function BorrowingOptimizerView({
                 </span>
               </div>
               <p className="text-muted-foreground mt-1 text-xs">
-                Drag the line to set your risk level.{' '}
-                <span className="font-semibold text-emerald-400">0%</span> =
-                liquidation only at the historical low ·{' '}
-                <span className="font-semibold text-red-400">100%</span> =
-                liquidation at the historical high. Recommended:{' '}
-                <span className="font-semibold">20%</span>.
+                Drag the solid line vertically to set your liquidation buffer.
+                The dashed line marks the{' '}
+                <span className="font-semibold text-slate-300">
+                  Recommended
+                </span>{' '}
+                value — the worst daily return observed over the period (buffer
+                = min(0%, minimum return)), the most conservative choice.
               </p>
               {/* Legend */}
               <div className="mt-2 flex items-center gap-5">
@@ -924,14 +923,16 @@ export function BorrowingOptimizerView({
                       x2="24"
                       y2="4"
                       stroke="#94a3b8"
-                      strokeWidth="1.5"
+                      strokeWidth="1"
                       strokeDasharray="4 3"
                     />
                   </svg>
                   <span className="text-muted-foreground text-[10px]">
                     Recommended{' '}
                     <span className="font-mono font-semibold text-slate-400">
-                      20% risk
+                      {priceData.length > 0
+                        ? formatReturnPct(recommendedThreshold)
+                        : '—'}
                     </span>
                   </span>
                 </div>
@@ -946,13 +947,13 @@ export function BorrowingOptimizerView({
                       strokeWidth="2"
                     />
                   </svg>
-                  <span className="text-muted-foreground text-[10px] transition-colors duration-150">
+                  <span className="text-muted-foreground text-[10px]">
                     Your threshold{' '}
                     <span
                       className="font-mono font-semibold transition-colors duration-150"
                       style={{ color: thresholdColor }}
                     >
-                      {priceData.length > 0 ? `${riskPct}%` : '—'}
+                      {priceData.length > 0 ? formatReturnPct(threshold) : '—'}
                     </span>
                   </span>
                 </div>
@@ -976,22 +977,16 @@ export function BorrowingOptimizerView({
                 e.preventDefault()
                 setIsDragging(true)
                 const rect = chartRef.current!.getBoundingClientRect()
-                const effectiveTop =
-                  rect.top + CHART_MARGIN.top + Y_AXIS_PADDING.top
+                const effectiveTop = rect.top + CHART_MARGIN.top
                 const effectiveHeight =
-                  rect.height -
-                  CHART_MARGIN.top -
-                  CHART_MARGIN.bottom -
-                  Y_AXIS_PADDING.top -
-                  Y_AXIS_PADDING.bottom
+                  rect.height - CHART_MARGIN.top - CHART_MARGIN.bottom
                 const ratio =
                   1 -
                   Math.max(
                     0,
                     Math.min(1, (e.clientY - effectiveTop) / effectiveHeight)
                   )
-                const raw = domainMin + ratio * (domainMax - domainMin)
-                setThreshold(Math.max(minRatio, Math.min(maxRatio, raw)))
+                setThreshold(domainMin + ratio * (domainMax - domainMin))
               }}
             >
               <ResponsiveContainer width="100%" height="100%">
@@ -1022,15 +1017,14 @@ export function BorrowingOptimizerView({
                   <YAxis
                     orientation="right"
                     domain={[domainMin, domainMax]}
-                    padding={Y_AXIS_PADDING}
                     width={YAXIS_WIDTH}
                     tick={{ fontSize: 9, fill: TICK_COLOR }}
                     tickLine={false}
                     axisLine={false}
-                    tickFormatter={formatRatio}
+                    tickFormatter={formatReturnPct}
                     tickCount={6}
                     label={{
-                      value: markets[0]?.assetSymbol ?? '',
+                      value: 'Return (%)',
                       position: 'top',
                       offset: 12,
                       fontSize: 10,
@@ -1039,14 +1033,42 @@ export function BorrowingOptimizerView({
                     }}
                   />
                   <Area
-                    type="monotone"
-                    dataKey="ratio"
+                    type="linear"
+                    dataKey="returnPct"
                     stroke="#06b6d4"
-                    strokeWidth={2}
+                    strokeWidth={1.25}
                     fill="url(#priceGrad)"
                     dot={false}
                     isAnimationActive={false}
                   />
+                  {!isPriceLoading && priceData.length > 0 && (
+                    <ReferenceLine
+                      y={recommendedThreshold}
+                      stroke="#94a3b8"
+                      strokeDasharray="4 3"
+                      strokeWidth={1}
+                      ifOverflow="extendDomain"
+                      label={(props: {
+                        viewBox?: { x?: number; y?: number; width?: number }
+                      }) => {
+                        const x = props.viewBox?.x ?? 0
+                        const y = props.viewBox?.y ?? 0
+                        return (
+                          <text x={x + 2} y={y - 4} fill="#94a3b8" fontSize={9}>
+                            Recommended
+                          </text>
+                        )
+                      }}
+                    />
+                  )}
+                  {!isPriceLoading && priceData.length > 0 && (
+                    <ReferenceLine
+                      y={threshold}
+                      stroke={thresholdColor}
+                      strokeWidth={2}
+                      ifOverflow="extendDomain"
+                    />
+                  )}
                   <Tooltip
                     cursor={{
                       stroke: '#94a3b8',
@@ -1054,7 +1076,7 @@ export function BorrowingOptimizerView({
                       strokeDasharray: '3 3',
                     }}
                     content={
-                      <PriceRatioTooltip
+                      <ReturnTooltip
                         pairLabel={`${selectedCollateralSymbol ?? markets[0]?.collaterals[0]?.symbol ?? ''}/${markets[0]?.assetSymbol ?? ''}`}
                       />
                     }
@@ -1070,82 +1092,33 @@ export function BorrowingOptimizerView({
                 </div>
               )}
 
-              {/* Recommended + threshold overlays — share the same coord system */}
-              {!isPriceLoading &&
-                priceData.length > 0 &&
-                (() => {
-                  // Badge sits ABOVE the line by default (with a small gap), and
-                  // flips BELOW only when there isn't enough room above. The line
-                  // therefore never crosses the badge, keeping the % risk legible.
-                  const BADGE_HEIGHT = 26
-                  const GAP = 4
-                  const plotTopPx = CHART_MARGIN.top
-                  const plotBottomPx = CHART_HEIGHT - CHART_MARGIN.bottom
-                  const flipBelow = thresholdPx - GAP - BADGE_HEIGHT < plotTopPx
-                  const rawBadgeTop = flipBelow
-                    ? thresholdPx + GAP
-                    : thresholdPx - GAP - BADGE_HEIGHT
-                  const badgeTop = Math.max(
-                    plotTopPx,
-                    Math.min(plotBottomPx - BADGE_HEIGHT, rawBadgeTop)
-                  )
-                  return (
-                    <>
-                      {/* Recommended dashed line */}
-                      <div
-                        className="pointer-events-none absolute left-0"
-                        style={{
-                          top: recommendedPx,
-                          right: YAXIS_WIDTH,
-                          borderTop: '1.5px dashed #94a3b8',
-                          transform: 'translateY(-1px)',
-                        }}
-                      />
-                      <div
-                        className="pointer-events-none absolute text-[9px] text-slate-400"
-                        style={{ top: recommendedPx + 2, left: 4 }}
-                      >
-                        Recommended
-                      </div>
-
-                      {/* Threshold full-width line */}
-                      <div
-                        className="pointer-events-none absolute left-0 transition-colors duration-150"
-                        style={{
-                          top: thresholdPx,
-                          right: YAXIS_WIDTH,
-                          borderTop: `2px solid ${thresholdColor}`,
-                          transform: 'translateY(-1px)',
-                        }}
-                      />
-                      {/* Threshold badge — sits above (or below) the line, never on it */}
-                      <div
-                        className="pointer-events-none absolute left-0"
-                        style={{ top: badgeTop }}
-                      >
-                        <div
-                          className="flex shrink-0 items-center gap-1.5 rounded px-2 py-1 font-mono text-[10px] font-semibold transition-colors duration-150"
-                          style={{
-                            color: thresholdColor,
-                            background: 'hsla(var(--background) / 0.92)',
-                            border: `1px solid ${thresholdColor}50`,
-                          }}
-                        >
-                          <div className="flex flex-col gap-[2.5px]">
-                            {[0, 1, 2].map((k) => (
-                              <div
-                                key={k}
-                                className="h-px w-2.5 rounded-full transition-colors duration-150"
-                                style={{ background: thresholdColor }}
-                              />
-                            ))}
-                          </div>
-                          {riskPct}% risk
-                        </div>
-                      </div>
-                    </>
-                  )
-                })()}
+              {/* Threshold badge — sits above (or below) the line, draggable */}
+              {!isPriceLoading && priceData.length > 0 && (
+                <div
+                  role="slider"
+                  aria-label="Liquidation threshold"
+                  aria-valuenow={Math.round(threshold * 100) / 100}
+                  aria-valuemin={Math.round(domainMin * 100) / 100}
+                  aria-valuemax={Math.round(domainMax * 100) / 100}
+                  className={`bg-background/95 absolute flex items-center gap-1 rounded border px-1.5 py-0.5 font-mono text-[10px] font-semibold shadow-sm transition-colors duration-150 ${
+                    isDragging ? 'cursor-grabbing' : 'cursor-pointer'
+                  }`}
+                  style={{
+                    top: badgeTop,
+                    right: YAXIS_WIDTH + 4,
+                    color: thresholdColor,
+                    borderColor: thresholdColor,
+                  }}
+                  onMouseDown={(e) => {
+                    e.preventDefault()
+                    e.stopPropagation()
+                    setIsDragging(true)
+                  }}
+                >
+                  <GripVertical className="h-3 w-3" />
+                  Threshold {formatReturnPct(threshold)}
+                </div>
+              )}
             </div>
           </motion.div>
         )}

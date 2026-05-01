@@ -10,7 +10,14 @@ import {
 
 export interface PricePoint {
   date: string
-  ratio: number
+  /**
+   * Daily return of the pair price, in percent.
+   * Pair price at day t: p_t = collateralUsd_t / loanUsd_t
+   * Return:               r_t = 100 * (p_t - p_{t-1}) / p_{t-1}
+   * The series starts at the second available day so every point is a
+   * real computed return (no synthetic 0).
+   */
+  returnPct: number
 }
 
 async function getBestProductId(
@@ -67,7 +74,7 @@ async function getBestProductId(
   return fallback?._id ?? ids[0]
 }
 
-async function _loadPriceRatioHistory(
+async function _loadPriceReturnHistory(
   collateralSymbol: string,
   loanSymbol: string,
   days = 730
@@ -112,40 +119,49 @@ async function _loadPriceRatioHistory(
         .toArray(),
     ])
 
+    // Intraday pair price p_t = collateralUsd_t / loanUsd_t, keyed by day.
     const loanByDate = new Map<string, number>()
     for (const doc of loanDocs) {
       const key = (doc.date as Date).toISOString().slice(0, 10)
       loanByDate.set(key, doc['market']['assetPriceUsd'] as number)
     }
 
-    const ratios: { date: Date; ratio: number }[] = []
+    const pairs: { date: Date; price: number }[] = []
     for (const doc of collateralDocs) {
       const key = (doc.date as Date).toISOString().slice(0, 10)
       const loanPrice = loanByDate.get(key)
       if (!loanPrice) continue
-      ratios.push({
+      pairs.push({
         date: doc.date as Date,
-        ratio: (doc['market']['assetPriceUsd'] as number) / loanPrice,
+        price: (doc['market']['assetPriceUsd'] as number) / loanPrice,
       })
     }
 
-    if (ratios.length === 0) return []
+    if (pairs.length < 2) return []
 
-    return ratios.map((r) => ({
-      date: r.date.toLocaleDateString('en-US', {
-        month: 'short',
-        day: 'numeric',
-      }),
-      ratio: r.ratio,
-    }))
+    // Daily return of the pair price. Skip the first point (no prior day).
+    const out: PricePoint[] = []
+    for (let i = 1; i < pairs.length; i++) {
+      const prev = pairs[i - 1].price
+      const curr = pairs[i].price
+      if (prev <= 0) continue
+      out.push({
+        date: pairs[i].date.toLocaleDateString('en-US', {
+          month: 'short',
+          day: 'numeric',
+        }),
+        returnPct: ((curr - prev) / prev) * 100,
+      })
+    }
+    return out
   } catch (err) {
-    console.error('[price-ratio-history] Failed to load:', err)
+    console.error('[price-return-history] Failed to load:', err)
     return []
   }
 }
 
-export const loadPriceRatioHistory = unstable_cache(
-  _loadPriceRatioHistory,
-  ['price-ratio-history'],
+export const loadPriceReturnHistory = unstable_cache(
+  _loadPriceReturnHistory,
+  ['price-return-history'],
   { revalidate: 3600 }
 )
