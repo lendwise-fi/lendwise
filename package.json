@@ -12,6 +12,7 @@
     "db:init": "tsx scripts/db-init.ts",
     "products:sync": "tsx scripts/products-sync.ts",
     "apy:backfill": "tsx scripts/apy-history-backfill.ts",
+    "apy:enrich-market": "tsx scripts/apy-market-enrich.ts",
     "dev": "next dev",
     "build": "pnpm codegen && next build",
     "start": "next start",
