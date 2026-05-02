@@ -288,6 +288,7 @@ export const MARKETS_WITH_TOKENS = gql`
   query MarketsWithTokens($request: MarketsRequest!) {
     markets(request: $request) {
       address
+      name
       chain {
         name
         chainId

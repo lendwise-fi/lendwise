@@ -33,6 +33,6 @@ export function buildProductId(
     reserve: NonNullable<MarketsApyQuery['markets']>[number]['reserves'][number],
     kind: Kind
 ): string {
-    const network = buildProductNetworkSlug(reserve.market.chain.name)
+    const network = buildProductNetworkSlug(reserve.market.name)
     return `aave:v3:${network}:reserve:${reserve.underlyingToken.address.toLowerCase()}:${kind}`
 }

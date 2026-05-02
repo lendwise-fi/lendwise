@@ -16,6 +16,7 @@ import { createGraphQLClient, processBatches } from '@/lib/protocols/shared'
 type MarketsWithTokensQuery = {
   markets: {
     address: string
+    name: string
     chain: { name: string; chainId: number }
     reserves: {
       underlyingToken: { address: string; symbol: string }
@@ -119,7 +120,7 @@ export async function fetchAaveHistory(opts?: {
         marketAddress: market.address,
         chainId: market.chain.chainId,
         chainName: market.chain.name.toLowerCase(),
-        marketChainName: market.chain.name,
+        marketChainName: market.name,
         tokenAddress: reserve.underlyingToken.address,
         tokenSymbol: reserve.underlyingToken.symbol,
       })

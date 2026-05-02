@@ -30,7 +30,7 @@ const _formatBorrowProducts = cache(
         .map((reserve): BorrowProduct => {
           return {
             protocol: AAVE_CONFIG.aave_v3.id,
-            network: getNetworkName(market.chain.name),
+            network: getNetworkName(market.name),
             poolName: reserve.underlyingToken.name,
             poolId: market.address,
             poolAddress: market.address,
@@ -49,7 +49,7 @@ const _formatBorrowProducts = cache(
               reserve.size.usd - (reserve.borrowInfo?.total?.usd ?? 0),
             collaterals: collateralReserves,
             apy: reserve.borrowInfo?.apy.value || 0,
-            productId: `aave:v3:${buildProductNetworkSlug(market.chain.name)}:reserve:${reserve.underlyingToken.address.toLowerCase()}:borrow`,
+            productId: `aave:v3:${buildProductNetworkSlug(market.name)}:reserve:${reserve.underlyingToken.address.toLowerCase()}:borrow`,
             link: `https://app.aave.com/reserve-overview/?underlyingAsset=${reserve.underlyingToken.address.toLowerCase()}&marketName=proto_${market.chain.name.toLowerCase()}_v3`,
           }
         })
