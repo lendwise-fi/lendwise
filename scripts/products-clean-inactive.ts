@@ -53,7 +53,9 @@ async function main(): Promise<void> {
     await client.connect()
     const db = client.db(dbName)
 
-    const products = db.collection(MONGODB_COLLECTION_PRODUCTS!)
+    const products = db.collection<{ _id: string; active: boolean }>(
+      MONGODB_COLLECTION_PRODUCTS!
+    )
     const daily = db.collection(MONGODB_COLLECTION_DAILY!)
     const hourly = db.collection(MONGODB_COLLECTION_HOURLY!)
 

@@ -4,7 +4,7 @@ import { SupplyProduct } from '@/types'
 
 import { client } from '.'
 import { AAVE_CONFIG } from '../../config'
-import { buildReserveProductId, getNetworkName } from '../utils'
+import { buildProductNetworkSlug, getNetworkName } from '../utils'
 import { ListSupplyProductsQuery } from './generated/graphql'
 import { LIST_SUPPLY_PRODUCTS } from './queries'
 
@@ -33,11 +33,7 @@ const _formatSupplyProducts = cache(
           liquidityAmountUsd:
             reserve.size.usd - (reserve.borrowInfo?.total?.usd ?? 0),
           apy: reserve.supplyInfo.apy.value,
-          productId: buildReserveProductId(
-            market.chain.chainId,
-            reserve.underlyingToken.address,
-            'supply'
-          ),
+          productId: `aave:v3:${buildProductNetworkSlug(market.name)}:reserve:${reserve.underlyingToken.address.toLowerCase()}:supply`,
           link: `https://app.aave.com/reserve-overview/?underlyingAsset=${reserve.underlyingToken.address.toLowerCase()}&marketName=proto_${market.chain.name.toLowerCase()}_v3`,
         })
       )

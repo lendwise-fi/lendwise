@@ -8,7 +8,7 @@ import {
   APY_HISTORY,
   MARKETS_WITH_TOKENS,
 } from '@/lib/protocols/aave/v3/offchain/queries'
-import { buildReserveProductId } from '@/lib/protocols/aave/v3/utils'
+import { buildProductNetworkSlug } from '@/lib/protocols/aave/v3/utils'
 import { createGraphQLClient, processBatches } from '@/lib/protocols/shared'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -107,6 +107,7 @@ export async function fetchAaveHistory(opts?: {
     marketAddress: string
     chainId: number
     chainName: string
+    marketChainName: string // Aave deployment name, e.g. 'AaveV3EthereumLido'
     tokenAddress: string
     tokenSymbol: string
   }
@@ -118,6 +119,7 @@ export async function fetchAaveHistory(opts?: {
         marketAddress: market.address,
         chainId: market.chain.chainId,
         chainName: market.chain.name.toLowerCase(),
+        marketChainName: market.chain.name,
         tokenAddress: reserve.underlyingToken.address,
         tokenSymbol: reserve.underlyingToken.symbol,
       })
@@ -176,16 +178,9 @@ export async function fetchAaveHistory(opts?: {
         dateMap.set(entry.date, existing)
       }
 
-      const supplyProductId = buildReserveProductId(
-        reserve.chainId,
-        reserve.tokenAddress,
-        'supply'
-      )
-      const borrowProductId = buildReserveProductId(
-        reserve.chainId,
-        reserve.tokenAddress,
-        'borrow'
-      )
+      const network = buildProductNetworkSlug(reserve.marketChainName)
+      const supplyProductId = `aave:v3:${network}:reserve:${reserve.tokenAddress.toLowerCase()}:supply`
+      const borrowProductId = `aave:v3:${network}:reserve:${reserve.tokenAddress.toLowerCase()}:borrow`
 
       const points: HistoryDataPoint[] = []
       for (const [date, rates] of dateMap) {

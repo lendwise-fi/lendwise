@@ -4,7 +4,7 @@ import { BorrowProduct } from '@/types'
 
 import { client } from '.'
 import { AAVE_CONFIG } from '../../config'
-import { buildReserveProductId, getNetworkName } from '../utils'
+import { buildProductNetworkSlug, getNetworkName } from '../utils'
 import { ListBorrowProductsQuery } from './generated/graphql'
 import { LIST_BORROW_PRODUCTS } from './queries'
 
@@ -49,11 +49,7 @@ const _formatBorrowProducts = cache(
               reserve.size.usd - (reserve.borrowInfo?.total?.usd ?? 0),
             collaterals: collateralReserves,
             apy: reserve.borrowInfo?.apy.value || 0,
-            productId: buildReserveProductId(
-              market.chain.chainId,
-              reserve.underlyingToken.address,
-              'borrow'
-            ),
+            productId: `aave:v3:${buildProductNetworkSlug(market.chain.name)}:reserve:${reserve.underlyingToken.address.toLowerCase()}:borrow`,
             link: `https://app.aave.com/reserve-overview/?underlyingAsset=${reserve.underlyingToken.address.toLowerCase()}&marketName=proto_${market.chain.name.toLowerCase()}_v3`,
           }
         })

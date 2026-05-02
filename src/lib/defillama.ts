@@ -3,6 +3,9 @@ const COINS_API = 'https://coins.llama.fi'
 
 const YIELDS_CHAIN_MAP: Record<string, string> = {
   ethereum: 'Ethereum',
+  'ethereum-lido': 'Ethereum',
+  'ethereum-etherfi': 'Ethereum',
+  'ethereum-horizon': 'Ethereum',
   polygon: 'Polygon',
   arbitrum: 'Arbitrum',
   base: 'Base',
@@ -14,6 +17,9 @@ const YIELDS_CHAIN_MAP: Record<string, string> = {
 
 const COINS_CHAIN_MAP: Record<string, string> = {
   ethereum: 'ethereum',
+  'ethereum-lido': 'ethereum',
+  'ethereum-etherfi': 'ethereum',
+  'ethereum-horizon': 'ethereum',
   polygon: 'polygon',
   arbitrum: 'arbitrum',
   base: 'base',
