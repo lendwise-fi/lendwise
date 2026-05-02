@@ -1,7 +1,8 @@
 import { arbitrum, base, mainnet, optimism, polygon } from 'viem/chains'
 
 import type { ProtocolConfig } from '@/config/protocols'
-import { CHAIN_SLUG_MAP } from '@/lib/protocols/chain-slugs'
+
+import { CHAIN_SLUG_MAP } from '../chain-slugs'
 
 /**
  * Centralized configuration for all Morpho versions and chains.

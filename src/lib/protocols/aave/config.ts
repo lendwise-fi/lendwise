@@ -15,7 +15,8 @@ import {
 } from 'viem/chains'
 
 import type { ProtocolConfig } from '@/config/protocols'
-import { CHAIN_SLUG_MAP } from '@/lib/protocols/chain-slugs'
+
+import { CHAIN_SLUG_MAP } from '../chain-slugs'
 
 export const AAVE_CONFIG: Record<string, ProtocolConfig> = {
   aave_v3: {
