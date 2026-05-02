@@ -1,10 +1,13 @@
 /**
  * @file scripts/apy-rename-productid.ts
- * Rename productId slugs in apy.hourly and apy.daily.
+ * Fix _id values in apy.hourly that contain old productId slugs.
  *
- * Fixes a historical bug where chain.name (e.g. 'EthereumLido') was used
- * instead of the Aave deployment name (e.g. 'AaveV3EthereumLido'), producing
- * productIds like 'aave:v3:ethereumlido:...' instead of 'aave:v3:ethereum-lido:...'.
+ * apy.hourly : _id = "{productId}:{YYYY-MM-DDTHH}" (string)
+ *   → old format: "aave:v3:ethereumlido:..." must become "aave:v3:ethereum-lido:..."
+ *   → _id is immutable, so migration = insert new doc + delete old
+ *   → productId field is already correct — do not touch it
+ *
+ * apy.daily : _id = ObjectId (unrelated to productId) — nothing to do.
  *
  * Usage:
  *   pnpm apy:rename-productid
@@ -14,7 +17,6 @@
 import { MongoClient } from 'mongodb'
 
 import {
-  MONGODB_COLLECTION_DAILY,
   MONGODB_COLLECTION_HOURLY,
   MONGODB_DB_NAME,
   MONGODB_URI,
@@ -42,46 +44,22 @@ const RENAMES: [string, string][] = [
   ['aave:v3:ethereumhorizon:', 'aave:v3:ethereum-horizon:'],
 ]
 
-// ─── Migration ────────────────────────────────────────────────────────────────
-
-async function migrateCollection(
-  client: MongoClient,
-  dbName: string,
-  collectionName: string,
-  dryRun: boolean,
-  log: (msg: string) => void
-): Promise<number> {
-  const col = client.db(dbName).collection(collectionName)
-  let total = 0
-
+function renameId(id: string): string {
   for (const [from, to] of RENAMES) {
-    const filter = { productId: new RegExp('^' + from.replace(/:/g, '\\:')) }
-    const count = await col.countDocuments(filter)
-
-    if (count === 0) continue
-
-    log(`  ${collectionName}: ${count} docs  ${from}* → ${to}*`)
-
-    if (dryRun) { total += count; continue }
-
-    const result = await col.updateMany(filter, [
-      { $set: { productId: { $replaceAll: { input: '$productId', find: from, replacement: to } } } },
-    ])
-
-    log(`    → ${result.modifiedCount} updated`)
-    total += result.modifiedCount
+    if (id.startsWith(from)) return to + id.slice(from.length)
   }
-
-  return total
+  return id
 }
 
-// ─── Main ─────────────────────────────────────────────────────────────────────
+// ─── Migration ────────────────────────────────────────────────────────────────
+
+const BATCH_SIZE = 200
 
 async function main(): Promise<void> {
   const { dbName, dryRun } = parseArgs()
   const log = console.log
 
-  log('\n🔄 Aave ProductId Rename Migration\n')
+  log('\n🔄 apy.hourly _id Rename Migration\n')
   log(`  Database: ${dbName}`)
   log(`  Dry run:  ${dryRun}\n`)
 
@@ -89,18 +67,66 @@ async function main(): Promise<void> {
 
   try {
     await client.connect()
+    const col = client
+      .db(dbName)
+      .collection<{ _id: string }>(MONGODB_COLLECTION_HOURLY!)
 
-    const hourly = await migrateCollection(client, dbName, MONGODB_COLLECTION_HOURLY!, dryRun, log)
-    const daily = await migrateCollection(client, dbName, MONGODB_COLLECTION_DAILY!, dryRun, log)
+    let found = 0
+    let renamed = 0
 
-    log()
-    if (dryRun) {
-      log(`🔒 Dry run — no changes written`)
-      log(`   Would rename: ${hourly + daily} documents total`)
-    } else {
-      log(`✅ Done — ${hourly} hourly + ${daily} daily documents updated`)
+    for (const [from] of RENAMES) {
+      // Match on _id directly — no secondary index needed, pure primary key scan
+      const filter = { _id: new RegExp('^' + from.replace(/:/g, '\\:')) } as unknown as Parameters<typeof col.find>[0]
+      const count = await col.countDocuments(filter)
+      if (count === 0) continue
+
+      log(`  ${count} docs with _id starting "${from}"`)
+      found += count
+      if (dryRun) continue
+
+      const cursor = col.find(filter).batchSize(BATCH_SIZE)
+      const batch: Record<string, unknown>[] = []
+
+      async function flush() {
+        if (batch.length === 0) return
+
+        const newDocs = batch.map((doc) => ({ ...doc, _id: renameId(doc._id as string) }))
+        const oldIds = batch.map((doc) => doc._id as string)
+
+        // Insert new docs (ignore duplicate key if already migrated)
+        try {
+          await col.insertMany(
+            newDocs as unknown as { _id: string }[],
+            { ordered: false }
+          )
+        } catch (err: unknown) {
+          if ((err as { code?: number })?.code !== 11000) throw err
+        }
+
+        const del = await col.deleteMany(
+          { _id: { $in: oldIds } } as unknown as Parameters<typeof col.deleteMany>[0]
+        )
+        renamed += del.deletedCount
+        batch.length = 0
+      }
+
+      for await (const doc of cursor) {
+        batch.push(doc as Record<string, unknown>)
+        if (batch.length >= BATCH_SIZE) await flush()
+      }
+      await flush()
+
+      log(`    → ${renamed} renamed`)
     }
+
     log()
+    if (found === 0) {
+      log('✅ Nothing to rename — apy.hourly _id values are up to date.\n')
+    } else if (dryRun) {
+      log(`🔒 Dry run — ${found} docs would be renamed\n`)
+    } else {
+      log(`✅ Done — ${renamed} / ${found} docs renamed\n`)
+    }
   } catch (err) {
     console.error('\n❌ Migration failed:', err)
     process.exit(1)

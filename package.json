@@ -17,6 +17,7 @@
     "products:clean-inactive": "dotenv -- tsx scripts/products-clean-inactive.ts",
     "apy:fix-quality": "dotenv -- tsx scripts/apy-daily-fix-quality.ts",
     "apy:rename-productid": "dotenv -- tsx scripts/apy-rename-productid.ts",
+    "apy:daily-migrate-ids": "dotenv -- tsx scripts/apy-daily-migrate-ids.ts",
     "dev": "next dev",
     "build": "pnpm codegen && next build",
     "start": "next start",

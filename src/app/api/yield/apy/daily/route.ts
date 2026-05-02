@@ -47,7 +47,7 @@ async function aggregatePool(
   windowStart: Date,
   windowEnd: Date,
   computedAt: Date
-): Promise<ApyDaily | null> {
+): Promise<Omit<ApyDaily, '_id'> | null> {
   const db = await getDb()
   const collection = db.collection<ApySlot>(MONGODB_COLLECTION_HOURLY)
 
@@ -112,7 +112,7 @@ async function aggregatePool(
       computedAt,
     }
 
-    const doc: SupplyApyDaily = {
+    const doc: Omit<SupplyApyDaily, '_id'> = {
       date: windowStart,
       productId,
       apy,
@@ -156,7 +156,7 @@ async function aggregatePool(
     computedAt,
   }
 
-  const doc: BorrowApyDaily = {
+  const doc: Omit<BorrowApyDaily, '_id'> = {
     date: windowStart,
     productId,
     apy,
@@ -167,18 +167,32 @@ async function aggregatePool(
   return doc
 }
 
+// ─── Composite _id ────────────────────────────────────────────────────────────
+
+/**
+ * Build a deterministic _id for a daily document.
+ * Enables idempotent primary-key upserts without a secondary unique index.
+ *
+ * Example: "aave:v3:ethereum:reserve:0x1111...:supply:2026-03-20"
+ */
+function buildDailyId(productId: string, date: Date): string {
+  return `${productId}:${date.toISOString().slice(0, 10)}`
+}
+
 // ─── Upsert ───────────────────────────────────────────────────────────────────
 
-async function upsertDailyDoc(doc: ApyDaily): Promise<void> {
+async function upsertDailyDoc(doc: Omit<ApyDaily, '_id'>): Promise<void> {
   const db = await getDb()
   const collection = db.collection<ApyDaily>(MONGODB_COLLECTION_DAILY)
+
+  const id = buildDailyId(doc.productId, doc.date)
 
   // Separate revision from the rest so $inc handles it atomically.
   // Use dot notation for quality fields to avoid spreading them at root level.
   const { quality, ...rest } = doc
 
   await collection.updateOne(
-    { productId: doc.productId, date: doc.date },
+    { _id: id } as Parameters<typeof collection.updateOne>[0],
     {
       $set: {
         ...rest,

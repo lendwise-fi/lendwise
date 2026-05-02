@@ -383,11 +383,9 @@ export interface DailyQuality {
 }
 
 export interface SupplyApyDaily {
-  /**
-   * Midnight UTC of the day covered.
-   * 2025-03-12 → 2025-03-12T00:00:00.000Z
-   * Upsert key: (productId, date).
-   */
+  /** "{productId}:{YYYY-MM-DD}" — deterministic primary key, enables idempotent upserts. */
+  _id: string
+  /** Midnight UTC of the day covered. 2025-03-12 → 2025-03-12T00:00:00.000Z */
   date: Date
   productId: string
   apy: ApyBreakdown
@@ -396,11 +394,9 @@ export interface SupplyApyDaily {
 }
 
 export interface BorrowApyDaily {
-  /**
-   * Midnight UTC of the day covered.
-   * 2025-03-12 → 2025-03-12T00:00:00.000Z
-   * Upsert key: (productId, date).
-   */
+  /** "{productId}:{YYYY-MM-DD}" — deterministic primary key, enables idempotent upserts. */
+  _id: string
+  /** Midnight UTC of the day covered. 2025-03-12 → 2025-03-12T00:00:00.000Z */
   date: Date
   productId: string
   apy: ApyBreakdown
