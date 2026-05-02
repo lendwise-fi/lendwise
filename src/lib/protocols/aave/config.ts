@@ -15,6 +15,7 @@ import {
 } from 'viem/chains'
 
 import type { ProtocolConfig } from '@/config/protocols'
+import { CHAIN_SLUG_MAP } from '@/lib/protocols/chain-slugs'
 
 export const AAVE_CONFIG: Record<string, ProtocolConfig> = {
   aave_v3: {
@@ -25,6 +26,7 @@ export const AAVE_CONFIG: Record<string, ProtocolConfig> = {
       [mainnet.id]: {
         ...mainnet,
         custom: {
+          slug: CHAIN_SLUG_MAP[mainnet.id],
           subgraphUrl:
             'https://gateway.thegraph.com/api/subgraphs/id/JCNWRypm7FYwV8fx5HhzZPSFaMxgkPuw4TnR3Gpi81zk',
           clientPath: 'ethereum',
@@ -33,6 +35,7 @@ export const AAVE_CONFIG: Record<string, ProtocolConfig> = {
       [polygon.id]: {
         ...polygon,
         custom: {
+          slug: CHAIN_SLUG_MAP[polygon.id],
           subgraphUrl:
             'https://gateway.thegraph.com/api/subgraphs/id/6yuf1C49aWEscgk5n9D1DekeG1BCk5Z9imJYJT3sVmAT',
           clientPath: 'polygon',
@@ -41,6 +44,7 @@ export const AAVE_CONFIG: Record<string, ProtocolConfig> = {
       [arbitrum.id]: {
         ...arbitrum,
         custom: {
+          slug: CHAIN_SLUG_MAP[arbitrum.id],
           subgraphUrl:
             'https://gateway.thegraph.com/api/subgraphs/id/4xyasjQeREe7PxnF6wVdobZvCw5mhoHZq3T7guRpuNPf',
           clientPath: 'arbitrum',
@@ -49,6 +53,7 @@ export const AAVE_CONFIG: Record<string, ProtocolConfig> = {
       [linea.id]: {
         ...linea,
         custom: {
+          slug: CHAIN_SLUG_MAP[linea.id],
           // subgraphUrl:
           //   'https://gateway.thegraph.com/api/subgraphs/id/5Yykt9vDGxjfQE7Rcmw5B5fezoVA4mnL3rDKN27JvYQb',
           // clientPath: 'linea',
@@ -57,6 +62,7 @@ export const AAVE_CONFIG: Record<string, ProtocolConfig> = {
       [base.id]: {
         ...base,
         custom: {
+          slug: CHAIN_SLUG_MAP[base.id],
           subgraphUrl:
             'https://gateway.thegraph.com/api/subgraphs/id/D7mapexM5ZsQckLJai2FawTKXJ7CqYGKM8PErnS3cJi9',
           clientPath: 'base',
@@ -73,6 +79,7 @@ export const AAVE_CONFIG: Record<string, ProtocolConfig> = {
       [optimism.id]: {
         ...optimism,
         custom: {
+          slug: CHAIN_SLUG_MAP[optimism.id],
           subgraphUrl:
             'https://gateway.thegraph.com/api/subgraphs/id/3RWFxWNstn4nP3dXiDfKi9GgBoHx7xzc7APkXs1MLEgi',
           clientPath: 'optimism',
@@ -81,6 +88,7 @@ export const AAVE_CONFIG: Record<string, ProtocolConfig> = {
       [avalanche.id]: {
         ...avalanche,
         custom: {
+          slug: CHAIN_SLUG_MAP[avalanche.id],
           subgraphUrl:
             'https://gateway.thegraph.com/api/subgraphs/id/72Cez54APnySAn6h8MswzYkwaL9KjvuuKnKArnPJ8yxb',
           clientPath: 'avalanche',
@@ -129,6 +137,7 @@ export const AAVE_CONFIG: Record<string, ProtocolConfig> = {
       [bsc.id]: {
         ...bsc,
         custom: {
+          slug: CHAIN_SLUG_MAP[bsc.id],
           subgraphUrl:
             'https://gateway.thegraph.com/api/subgraphs/id/43jbGkvSw55sMvYyF6MZieksmJbajMu3hNGF8PN9ucuP',
           clientPath: 'bsc',

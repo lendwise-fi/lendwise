@@ -1,6 +1,7 @@
 import { arbitrum, base, mainnet, optimism, polygon } from 'viem/chains'
 
 import type { ProtocolConfig } from '@/config/protocols'
+import { CHAIN_SLUG_MAP } from '@/lib/protocols/chain-slugs'
 
 /**
  * Centralized configuration for all Compound versions and chains.
@@ -14,6 +15,7 @@ export const COMPOUND_CONFIG: Record<string, ProtocolConfig> = {
       [mainnet.id]: {
         ...mainnet,
         custom: {
+          slug: CHAIN_SLUG_MAP[mainnet.id],
           subgraphUrl:
             'https://gateway.thegraph.com/api/subgraphs/id/5nwMCSHaTqG3Kd2gHznbTXEnZ9QNWsssQfbHhDqQSQFp',
           // 'https://gateway.thegraph.com/api/subgraphs/id/AwoxEZbiWLvv6e3QdvdMZw4WDURdGbvPfHmZRc8Dpfz9', # MESSARI SUBGRAPH
@@ -23,6 +25,7 @@ export const COMPOUND_CONFIG: Record<string, ProtocolConfig> = {
       [polygon.id]: {
         ...polygon,
         custom: {
+          slug: CHAIN_SLUG_MAP[polygon.id],
           subgraphUrl:
             'https://gateway.thegraph.com/api/subgraphs/id/AaFtUWKfFdj2x8nnE3RxTSJkHwGHvawH3VWFBykCGzLs',
           // 'https://gateway.thegraph.com/api/subgraphs/id/5wfoWBpfYv59b99wDxJmyFiKBu9brXESeqJAzw8WP5Cz', # MESSARI SUBGRAPH
@@ -32,6 +35,7 @@ export const COMPOUND_CONFIG: Record<string, ProtocolConfig> = {
       [arbitrum.id]: {
         ...arbitrum,
         custom: {
+          slug: CHAIN_SLUG_MAP[arbitrum.id],
           subgraphUrl:
             'https://gateway.thegraph.com/api/subgraphs/id/Ff7ha9ELmpmg81D6nYxy4t8aGP26dPztqD1LDJNPqjLS',
           // 'https://gateway.thegraph.com/api/subgraphs/id/5MjRndNWGhqvNX7chUYLQDnvEgc8DaH8eisEkcJt71SR', # MESSARI SUBGRAPH
@@ -41,6 +45,7 @@ export const COMPOUND_CONFIG: Record<string, ProtocolConfig> = {
       [base.id]: {
         ...base,
         custom: {
+          slug: CHAIN_SLUG_MAP[base.id],
           subgraphUrl:
             'https://gateway.thegraph.com/api/subgraphs/id/2hcXhs36pTBDVUmk5K2Zkr6N4UYGwaHuco2a6jyTsijo',
           // 'https://gateway.thegraph.com/api/subgraphs/id/99XPkR9F1exRDdCNyfXrCfEon4K34YoTDn6dgXKmxC72', # MESSARI SUBGRAPH
@@ -50,6 +55,7 @@ export const COMPOUND_CONFIG: Record<string, ProtocolConfig> = {
       [optimism.id]: {
         ...optimism,
         custom: {
+          slug: CHAIN_SLUG_MAP[optimism.id],
           subgraphUrl:
             'https://gateway.thegraph.com/api/subgraphs/id/FhHNkfh5z6Z2WCEBxB6V3s8RPxnJfWZ9zAfM5bVvbvbb',
           clientPath: 'optimism',

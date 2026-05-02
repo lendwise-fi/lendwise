@@ -173,14 +173,21 @@ async function upsertDailyDoc(doc: ApyDaily): Promise<void> {
   const db = await getDb()
   const collection = db.collection<ApyDaily>(MONGODB_COLLECTION_DAILY)
 
-  // Separate revision from the rest so $inc handles it atomically
+  // Separate revision from the rest so $inc handles it atomically.
+  // Use dot notation for quality fields to avoid spreading them at root level.
   const { quality, ...rest } = doc
-  const { revision: _revision, ...qualityWithoutRevision } = quality
 
   await collection.updateOne(
     { productId: doc.productId, date: doc.date },
     {
-      $set: { ...rest, ...qualityWithoutRevision },
+      $set: {
+        ...rest,
+        'quality.actualCount': quality.actualCount,
+        'quality.expectedCount': quality.expectedCount,
+        'quality.completeness': quality.completeness,
+        'quality.status': quality.status,
+        'quality.computedAt': quality.computedAt,
+      },
       $inc: { 'quality.revision': 1 },
     },
     { upsert: true }

@@ -82,29 +82,31 @@ async function getUserSupplyPositions({
           return balance > 0n
         })
         .map(
-          (position): SupplyPosition => ({
-            id: position.id,
-            protocol: MORPHO_CONFIG.morpho_v1.id,
-            network:
-              CHAIN_NAME_MAPPING[position.vault.chain.id] ||
-              position.vault.chain.network.toLowerCase(),
-            userAddress: position.user.address.toLowerCase(),
-            poolName: position.vault.name,
-            poolAddress: position.vault.address,
-            poolId: position.vault.address,
-            poolChainId: Number(position.vault.chain.id),
-            assetAddress: position.vault.asset.address,
-            assetName: position.vault.asset.name,
-            assetSymbol: position.vault.asset.symbol,
-            assetDecimals: position.vault.asset.decimals,
-            assetAmount: (position.state?.assets ?? 0).toString(),
-            assetAmountUsd: position.state?.assetsUsd ?? 0,
-            assetLiveAmountUsd: position.state?.assetsUsd ?? 0,
-            apy: position.vault.state?.avgNetApy
-              ? position.vault.state.avgNetApy * 100
-              : 0,
-            link: `https://app.morpho.org/${position.vault.chain.network.toLowerCase()}/vault/${position.vault.address}/${generateSlug(position.vault.name)}?subTab=yourPosition`,
-          })
+          (position): SupplyPosition => {
+            const network = CHAIN_NAME_MAPPING[position.vault.chain.id]
+            if (!network) throw new Error(`No slug registered for chainId ${position.vault.chain.id} — add it to chain-slugs.ts`)
+            return {
+              id: position.id,
+              protocol: MORPHO_CONFIG.morpho_v1.id,
+              network,
+              userAddress: position.user.address.toLowerCase(),
+              poolName: position.vault.name,
+              poolAddress: position.vault.address,
+              poolId: position.vault.address,
+              poolChainId: Number(position.vault.chain.id),
+              assetAddress: position.vault.asset.address,
+              assetName: position.vault.asset.name,
+              assetSymbol: position.vault.asset.symbol,
+              assetDecimals: position.vault.asset.decimals,
+              assetAmount: (position.state?.assets ?? 0).toString(),
+              assetAmountUsd: position.state?.assetsUsd ?? 0,
+              assetLiveAmountUsd: position.state?.assetsUsd ?? 0,
+              apy: position.vault.state?.avgNetApy
+                ? position.vault.state.avgNetApy * 100
+                : 0,
+              link: `https://app.morpho.org/${position.vault.chain.network.toLowerCase()}/vault/${position.vault.address}/${generateSlug(position.vault.name)}?subTab=yourPosition`,
+            }
+          }
         )
 
       allPositions.push(...positions)
@@ -170,44 +172,46 @@ async function getUserBorrowPositions({
       }
 
       const positions = data.marketPositions.items.map(
-        (position): BorrowPosition => ({
-          id: position.id,
-          protocol: MORPHO_CONFIG.morpho_v1.id,
-          network:
-            CHAIN_NAME_MAPPING[position.market.morphoBlue.chain.id] ||
-            position.market.morphoBlue.chain.network.toLowerCase(),
-          healthFactor: Number(position.healthFactor),
-          userAddress: position.user.address.toLowerCase(),
-          poolId: position.market.id,
-          poolName: `${position.market.collateralAsset?.symbol}/${position.market.loanAsset?.symbol}`,
-          poolAddress: position.market.marketId,
-          poolChainId: position.market.morphoBlue.chain.id,
-          loanAssetAddress: position.market.loanAsset.address,
-          loanAssetName: position.market.loanAsset.name,
-          loanAssetSymbol: position.market.loanAsset.symbol,
-          loanAssetDecimals: position.market.loanAsset.decimals,
-          loanAssetAmount: position.state
-            ? position.state.borrowAssets /
-              Number(`1e${position.market.loanAsset.decimals}`)
-            : 0,
-          loanAssetAmountUsd: position.state?.borrowAssetsUsd ?? 0,
-          loanLiveAssetAmountUsd: position.state?.borrowAssetsUsd ?? 0,
-          loanTimestamp: 0,
-          collaterals: [
-            {
-              address: position.market.collateralAsset?.address,
-              name: position.market.collateralAsset?.name ?? '',
-              symbol: position.market.collateralAsset?.symbol ?? '',
-              decimals: position.market.collateralAsset?.decimals ?? 0,
-              amount: position.state?.collateral,
-              amountUsd: position.state?.collateralUsd ?? 0,
-            },
-          ],
-          apy: position.market.state?.avgBorrowApy
-            ? Number((position.market.state.avgBorrowApy * 100).toFixed(2))
-            : 0,
-          link: `https://app.morpho.org/${position.market.morphoBlue.chain.network.toLowerCase()}/market/${position.market.marketId}/${generateSlug(position.market.collateralAsset?.symbol + '-' + position.market.loanAsset?.symbol)}?subTab=yourPosition`,
-        })
+        (position): BorrowPosition => {
+          const network = CHAIN_NAME_MAPPING[position.market.morphoBlue.chain.id]
+          if (!network) throw new Error(`No slug registered for chainId ${position.market.morphoBlue.chain.id} — add it to chain-slugs.ts`)
+          return {
+            id: position.id,
+            protocol: MORPHO_CONFIG.morpho_v1.id,
+            network,
+            healthFactor: Number(position.healthFactor),
+            userAddress: position.user.address.toLowerCase(),
+            poolId: position.market.id,
+            poolName: `${position.market.collateralAsset?.symbol}/${position.market.loanAsset?.symbol}`,
+            poolAddress: position.market.marketId,
+            poolChainId: position.market.morphoBlue.chain.id,
+            loanAssetAddress: position.market.loanAsset.address,
+            loanAssetName: position.market.loanAsset.name,
+            loanAssetSymbol: position.market.loanAsset.symbol,
+            loanAssetDecimals: position.market.loanAsset.decimals,
+            loanAssetAmount: position.state
+              ? position.state.borrowAssets /
+                Number(`1e${position.market.loanAsset.decimals}`)
+              : 0,
+            loanAssetAmountUsd: position.state?.borrowAssetsUsd ?? 0,
+            loanLiveAssetAmountUsd: position.state?.borrowAssetsUsd ?? 0,
+            loanTimestamp: 0,
+            collaterals: [
+              {
+                address: position.market.collateralAsset?.address,
+                name: position.market.collateralAsset?.name ?? '',
+                symbol: position.market.collateralAsset?.symbol ?? '',
+                decimals: position.market.collateralAsset?.decimals ?? 0,
+                amount: position.state?.collateral,
+                amountUsd: position.state?.collateralUsd ?? 0,
+              },
+            ],
+            apy: position.market.state?.avgBorrowApy
+              ? Number((position.market.state.avgBorrowApy * 100).toFixed(2))
+              : 0,
+            link: `https://app.morpho.org/${position.market.morphoBlue.chain.network.toLowerCase()}/market/${position.market.marketId}/${generateSlug(position.market.collateralAsset?.symbol + '-' + position.market.loanAsset?.symbol)}?subTab=yourPosition`,
+          }
+        }
       )
 
       allPositions.push(...positions)

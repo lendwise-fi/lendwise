@@ -111,11 +111,12 @@ function buildDailyDoc(point: HistoryDataPoint): Document {
     apy: point.apy,
     market: point.market,
     quality: {
-      count: 1,
+      actualCount: 1,
       expectedCount: 24,
-      firstSlot: date,
-      lastSlot: date,
+      completeness: 1 / 24,
       status: 'historical',
+      revision: 0,
+      computedAt: date,
     },
   }
 }
@@ -363,7 +364,9 @@ async function main(): Promise<void> {
   }
 }
 
-main().catch((err) => {
-  console.error('❌ Unexpected error:', err)
-  process.exit(1)
-})
+main()
+  .then(() => process.exit(0))
+  .catch((err) => {
+    console.error('❌ Unexpected error:', err)
+    process.exit(1)
+  })

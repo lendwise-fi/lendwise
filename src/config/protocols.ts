@@ -17,6 +17,8 @@ export type ProtocolChain = Prettify<
     Chain<undefined>,
     Chain & {
       custom: {
+        /** Canonical slug used in productId (e.g. 'ethereum', 'polygon'). Must match CHAIN_SLUG_MAP. */
+        slug: string
         subgraphUrl?: string
         /**
          * Optional path to the chain client module for automatic registration.

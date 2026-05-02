@@ -8,14 +8,18 @@ import { CHAIN_NAME_MAPPING } from '@/lib/protocols/utils'
 // ─── Primitive Product ID builders ───────────────────────────────────────────
 
 export function buildVaultProductId(chainId: number, address: string): string {
-  return `metamorpho:v1:${CHAIN_NAME_MAPPING[chainId] ?? chainId}:vault:${address.toLowerCase()}`
+  const network = CHAIN_NAME_MAPPING[chainId]
+  if (!network) throw new Error(`No slug registered for chainId ${chainId} — add it to chain-slugs.ts`)
+  return `metamorpho:v1:${network}:vault:${address.toLowerCase()}`
 }
 
 export function buildMarketProductId(
   chainId: number,
   marketId: string
 ): string {
-  return `morphoblue:v1:${CHAIN_NAME_MAPPING[chainId] ?? chainId}:market:${marketId}`
+  const network = CHAIN_NAME_MAPPING[chainId]
+  if (!network) throw new Error(`No slug registered for chainId ${chainId} — add it to chain-slugs.ts`)
+  return `morphoblue:v1:${network}:market:${marketId}`
 }
 
 // ─── Market Product ID builder ──────────────────────────────────────────────────────────

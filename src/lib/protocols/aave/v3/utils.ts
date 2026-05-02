@@ -19,7 +19,8 @@ export function buildReserveProductId(
     tokenAddress: string,
     kind: Kind
 ): string {
-    const network = CHAIN_NAME_MAPPING[chainId] ?? String(chainId)
+    const network = CHAIN_NAME_MAPPING[chainId]
+    if (!network) throw new Error(`No slug registered for chainId ${chainId} — add it to chain-slugs.ts`)
     return `aave:v3:${network}:reserve:${tokenAddress.toLowerCase()}:${kind}`
 }
 

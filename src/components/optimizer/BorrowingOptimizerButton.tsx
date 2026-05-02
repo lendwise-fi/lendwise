@@ -30,6 +30,8 @@ import {
   type PricePoint,
   loadPriceReturnHistory,
 } from '@/app/actions/price-return-history.actions'
+import { NetworkBadge } from '@/components/badge/NetworkBadge'
+import { ProtocolBadge } from '@/components/badge/ProtocolBadge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { HORIZON_OPTIONS, HorizonKey } from '@/config/horizon'
@@ -48,7 +50,15 @@ import type { BorrowProduct } from '@/types'
 const DEFAULT_MAX_LTV = 0.8
 
 type BorrowMode = 'collateral_target' | 'loan_target'
-type ViewStep = 'threshold' | 'configure'
+type ViewStep = 'buffer' | 'recommendedLtv' | 'configure'
+
+// Token typing in BorrowProduct.collaterals omits LTV fields, but data
+// returned from the protocol layer carries `ltv` and `lltv`.
+type CollateralWithLtv = {
+  symbol: string
+  ltv?: number | null
+  lltv?: number | null
+}
 
 const BORROW_MODES = [
   {
@@ -187,42 +197,78 @@ export function BorrowingOptimizerView({
   const [isOptimizing, setIsOptimizing] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [ran, setRan] = useState(false)
-  const [viewStep, setViewStep] = useState<ViewStep>('threshold')
+  const [viewStep, setViewStep] = useState<ViewStep>('buffer')
 
   // --- Objective slider drag ---
   const sliderTrackRef = useRef<HTMLDivElement>(null)
   const [isSliderDragging, setIsSliderDragging] = useState(false)
 
-  // --- Price threshold state ---
+  // --- Price buffer state ---
   const [priceData, setPriceData] = useState<PricePoint[]>([])
   const [isPriceLoading, setIsPriceLoading] = useState(false)
 
-  const { domainMin, domainMax, recommendedThreshold } = useMemo(() => {
+  const { domainMin, domainMax, recommendedBuffer } = useMemo(() => {
     const vals = priceData.map((p) => p.returnPct)
     const minVal = vals.length > 0 ? Math.min(...vals) : 0
     const maxVal = vals.length > 0 ? Math.max(...vals) : 1
-    // Extend the Y domain by 20% of the data range on each side so the min
-    // and max data points don't touch the plot edges. Using domain padding
-    // (not YAxis `padding` prop, which recharts v2 interprets as data units
-    // with unreliable pixel conversion) keeps the scale fully under control.
+    // Extend the Y domain well below the observed minimum so the user has
+    // room to drag the buffer into very conservative territory (much lower
+    // than the worst observed return). The top of the domain is pinned to
+    // maxVal so the highest point sits exactly on the upper bound of the
+    // chart. Using domain padding (not YAxis `padding` prop, which recharts
+    // v2 interprets as data units with unreliable pixel conversion) keeps
+    // the scale fully under control.
     const range = Math.max(maxVal - minVal, 0.01)
-    const pad = range * 0.2
+    const padBottom = range * 1.5
     return {
       minReturn: minVal,
       maxReturn: maxVal,
-      domainMin: minVal - pad,
-      domainMax: maxVal + pad,
-      // Recommended threshold = buffer = min(0%, worst observed daily return).
+      domainMin: minVal - padBottom,
+      domainMax: maxVal,
+      // Recommended buffer = buffer = min(0%, worst observed daily return).
       // In practice, the worst daily return is negative so the recommended
       // line sits at the lowest point of the curve (most conservative).
-      recommendedThreshold: Math.min(0, minVal),
+      recommendedBuffer: Math.min(0, minVal),
     }
   }, [priceData])
 
-  // --- User-adjustable threshold (defaults to recommendedThreshold) ---
-  const [threshold, setThreshold] = useState(0)
+  // --- User-adjustable buffer (defaults to recommendedBuffer) ---
+  const [buffer, setBuffer] = useState(0)
   const [isDragging, setIsDragging] = useState(false)
   const chartRef = useRef<HTMLDivElement>(null)
+
+  // --- Per-market LTV info & user-adjustable recommended LTV ---
+  const ltvInfo = useMemo(
+    () =>
+      markets.map((m) => {
+        const colls = m.collaterals as unknown as CollateralWithLtv[]
+        const coll =
+          colls.find((c) => c.symbol === selectedCollateralSymbol) ?? colls[0]
+        return {
+          maxLtv: coll?.ltv ?? null,
+          lltv: coll?.lltv ?? null,
+          collateralSymbol: coll?.symbol ?? '?',
+        }
+      }),
+    [markets, selectedCollateralSymbol]
+  )
+
+  const [recommendedLtvs, setRecommendedLtvs] = useState<number[]>([])
+
+  useEffect(() => {
+    setRecommendedLtvs(
+      ltvInfo.map((info) => {
+        // Default = a small safety margin below the protocol max LTV.
+        if (info.maxLtv != null && info.maxLtv > 0) {
+          return Math.max(0, info.maxLtv - 0.05)
+        }
+        if (info.lltv != null && info.lltv > 0) {
+          return Math.max(0, info.lltv - 0.05)
+        }
+        return DEFAULT_MAX_LTV
+      })
+    )
+  }, [ltvInfo])
 
   useEffect(() => {
     const collateralSymbol =
@@ -237,16 +283,16 @@ export function BorrowingOptimizerView({
       .finally(() => setIsPriceLoading(false))
   }, [markets])
 
-  // Reset threshold to recommended whenever new data arrives.
+  // Reset buffer to recommended whenever new data arrives.
   useEffect(() => {
-    setThreshold(recommendedThreshold)
-  }, [recommendedThreshold])
+    setBuffer(recommendedBuffer)
+  }, [recommendedBuffer])
 
   useEffect(() => {
     onViewStepChange?.(viewStep)
   }, [viewStep, onViewStepChange])
 
-  // Document-level drag listeners — translate mouseY into a threshold value
+  // Document-level drag listeners — translate mouseY into a buffer value
   // using the same domain recharts uses for the Y axis, so the line always
   // follows the cursor exactly.
   useEffect(() => {
@@ -261,7 +307,9 @@ export function BorrowingOptimizerView({
       const ratio =
         1 -
         Math.max(0, Math.min(1, (e.clientY - effectiveTop) / effectiveHeight))
-      setThreshold(domainMin + ratio * (domainMax - domainMin))
+      // The buffer represents an accepted drawdown before liquidation, so it
+      // can never be positive — clamp to 0 even if the cursor goes higher.
+      setBuffer(Math.min(0, domainMin + ratio * (domainMax - domainMin)))
     }
 
     const onUp = () => setIsDragging(false)
@@ -319,7 +367,7 @@ export function BorrowingOptimizerView({
       const apyKey = (horizonEntry?.apyKey ?? 'apy') as keyof BorrowProduct
 
       const marketData = {
-        max_ltv: markets.map(() => DEFAULT_MAX_LTV),
+        max_ltv: markets.map((_, i) => recommendedLtvs[i] ?? DEFAULT_MAX_LTV),
         rates: markets.map((m) => {
           const v = m[apyKey]
           return typeof v === 'number' ? v : m.apy
@@ -363,8 +411,8 @@ export function BorrowingOptimizerView({
     setResult(null)
     setRan(false)
     setError(null)
-    setViewStep('threshold')
-    setThreshold(recommendedThreshold)
+    setViewStep('buffer')
+    setBuffer(recommendedBuffer)
   }
 
   const amountNum = parseFloat(amount) || 0
@@ -377,25 +425,25 @@ export function BorrowingOptimizerView({
   const loanExceedsLiquidity =
     mode === 'loan_target' && amountNum > 0 && amountNum > totalLiquidityUsd
 
-  // Threshold visuals: red when user chose a riskier buffer than recommended
+  // Buffer visuals: red when user chose a riskier buffer than recommended
   // (line above Recommended on chart), green when equal or safer (line below).
   // `badgeTop` mirrors recharts' internal scale so the HTML badge lines up
   // exactly with the SVG ReferenceLine at the same y value.
-  const { thresholdColor, badgeTop } = useMemo(() => {
-    const color = threshold > recommendedThreshold ? '#ef4444' : '#10b981'
+  const { bufferColor, badgeTop } = useMemo(() => {
+    const color = buffer > recommendedBuffer ? '#ef4444' : '#10b981'
     const plotTop = CHART_MARGIN.top
     const plotBottom = CHART_HEIGHT - CHART_MARGIN.bottom
-    const ratio = (threshold - domainMin) / (domainMax - domainMin)
+    const ratio = (buffer - domainMin) / (domainMax - domainMin)
     const px = plotTop + (1 - ratio) * (plotBottom - plotTop)
     const BH = 22
     const GAP = 4
     const aboveRaw = px - GAP - BH
     const rawTop = aboveRaw < plotTop ? px + GAP : aboveRaw
     return {
-      thresholdColor: color,
+      bufferColor: color,
       badgeTop: Math.max(plotTop, Math.min(plotBottom - BH, rawTop)),
     }
-  }, [threshold, recommendedThreshold, domainMin, domainMax])
+  }, [buffer, recommendedBuffer, domainMin, domainMax])
 
   const allocations = useMemo(() => {
     if (!result) return []
@@ -880,11 +928,11 @@ export function BorrowingOptimizerView({
         )}
 
         {/* ================================================================
-            STEP 2 — Liquidation threshold
+            STEP 2 — Liquidation buffer
         ================================================================ */}
-        {viewStep === 'threshold' && (
+        {viewStep === 'buffer' && (
           <motion.div
-            key="threshold"
+            key="buffer"
             initial={{ opacity: 0, x: 16 }}
             animate={{ opacity: 1, x: 0 }}
             exit={{ opacity: 0, x: 16 }}
@@ -895,7 +943,7 @@ export function BorrowingOptimizerView({
             <div className="px-1">
               <div className="flex items-baseline gap-2">
                 <div className="text-muted-foreground text-[10px] font-semibold tracking-wider uppercase">
-                  Liquidation threshold
+                  Liquidation buffer
                 </div>
                 <span className="text-foreground font-mono text-xs font-semibold">
                   {selectedCollateralSymbol ??
@@ -931,7 +979,7 @@ export function BorrowingOptimizerView({
                     Recommended{' '}
                     <span className="font-mono font-semibold text-slate-400">
                       {priceData.length > 0
-                        ? formatReturnPct(recommendedThreshold)
+                        ? formatReturnPct(recommendedBuffer)
                         : '—'}
                     </span>
                   </span>
@@ -943,17 +991,19 @@ export function BorrowingOptimizerView({
                       y1="4"
                       x2="24"
                       y2="4"
-                      stroke={thresholdColor}
+                      stroke={bufferColor}
                       strokeWidth="2"
                     />
                   </svg>
                   <span className="text-muted-foreground text-[10px]">
-                    Your threshold{' '}
+                    Your buffer{' '}
                     <span
                       className="font-mono font-semibold transition-colors duration-150"
-                      style={{ color: thresholdColor }}
+                      style={{ color: bufferColor }}
                     >
-                      {priceData.length > 0 ? formatReturnPct(threshold) : '—'}
+                      {priceData.length > 0
+                        ? formatReturnPct(Math.abs(buffer))
+                        : '—'}
                     </span>
                   </span>
                 </div>
@@ -986,7 +1036,9 @@ export function BorrowingOptimizerView({
                     0,
                     Math.min(1, (e.clientY - effectiveTop) / effectiveHeight)
                   )
-                setThreshold(domainMin + ratio * (domainMax - domainMin))
+                setBuffer(
+                  Math.min(0, domainMin + ratio * (domainMax - domainMin))
+                )
               }}
             >
               <ResponsiveContainer width="100%" height="100%">
@@ -1043,7 +1095,7 @@ export function BorrowingOptimizerView({
                   />
                   {!isPriceLoading && priceData.length > 0 && (
                     <ReferenceLine
-                      y={recommendedThreshold}
+                      y={recommendedBuffer}
                       stroke="#94a3b8"
                       strokeDasharray="4 3"
                       strokeWidth={1}
@@ -1063,8 +1115,8 @@ export function BorrowingOptimizerView({
                   )}
                   {!isPriceLoading && priceData.length > 0 && (
                     <ReferenceLine
-                      y={threshold}
-                      stroke={thresholdColor}
+                      y={buffer}
+                      stroke={bufferColor}
                       strokeWidth={2}
                       ifOverflow="extendDomain"
                     />
@@ -1092,12 +1144,12 @@ export function BorrowingOptimizerView({
                 </div>
               )}
 
-              {/* Threshold badge — sits above (or below) the line, draggable */}
+              {/* Buffer badge — sits above (or below) the line, draggable */}
               {!isPriceLoading && priceData.length > 0 && (
                 <div
                   role="slider"
-                  aria-label="Liquidation threshold"
-                  aria-valuenow={Math.round(threshold * 100) / 100}
+                  aria-label="Liquidation buffer"
+                  aria-valuenow={Math.round(buffer * 100) / 100}
                   aria-valuemin={Math.round(domainMin * 100) / 100}
                   aria-valuemax={Math.round(domainMax * 100) / 100}
                   className={`bg-background/95 absolute flex items-center gap-1 rounded border px-1.5 py-0.5 font-mono text-[10px] font-semibold shadow-sm transition-colors duration-150 ${
@@ -1106,8 +1158,8 @@ export function BorrowingOptimizerView({
                   style={{
                     top: badgeTop,
                     right: YAXIS_WIDTH + 4,
-                    color: thresholdColor,
-                    borderColor: thresholdColor,
+                    color: bufferColor,
+                    borderColor: bufferColor,
                   }}
                   onMouseDown={(e) => {
                     e.preventDefault()
@@ -1116,9 +1168,130 @@ export function BorrowingOptimizerView({
                   }}
                 >
                   <GripVertical className="h-3 w-3" />
-                  Threshold {formatReturnPct(threshold)}
+                  Buffer {formatReturnPct(Math.abs(buffer))}
                 </div>
               )}
+            </div>
+          </motion.div>
+        )}
+
+        {/* ================================================================
+            STEP 3 — Recommended LTV per market
+        ================================================================ */}
+        {viewStep === 'recommendedLtv' && (
+          <motion.div
+            key="recommendedLtv"
+            initial={{ opacity: 0, x: 16 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: -16 }}
+            transition={{ duration: 0.2 }}
+            className="flex flex-col py-2"
+          >
+            {/* Sticky column headers */}
+            <div className="border-border/40 flex items-center gap-4 border-b px-1 pt-2 pb-2.5">
+              <div className="w-1 shrink-0" />
+              <span className="text-muted-foreground/70 w-24 shrink-0 text-[11px] font-semibold tracking-wider uppercase">
+                Protocol
+              </span>
+              <span className="text-muted-foreground/70 w-24 shrink-0 text-[11px] font-semibold tracking-wider uppercase">
+                Network
+              </span>
+              <span className="text-muted-foreground/70 flex-1 text-[11px] font-semibold tracking-wider uppercase">
+                Market
+              </span>
+              <span className="text-muted-foreground/70 w-20 text-right text-[11px] font-semibold tracking-wider uppercase">
+                MaxLTV
+              </span>
+              <span className="text-muted-foreground/70 w-20 text-right text-[11px] font-semibold tracking-wider uppercase">
+                LLTV
+              </span>
+              <span className="text-muted-foreground/70 w-32 text-right text-[11px] font-semibold tracking-wider uppercase">
+                Recommended LTV
+              </span>
+            </div>
+
+            {/* Scrollable rows */}
+            <div className="max-h-104 space-y-2 overflow-y-auto px-1 py-4">
+              {markets.map((m, i) => {
+                const info = ltvInfo[i]
+                const recPct = (recommendedLtvs[i] ?? 0) * 100
+                const cap =
+                  info?.lltv != null && info.lltv > 0
+                    ? info.lltv * 100
+                    : info?.maxLtv != null && info.maxLtv > 0
+                      ? info.maxLtv * 100
+                      : 100
+                const overCap = recPct > cap + 1e-6
+                return (
+                  <div
+                    key={`${m.poolId}-${i}`}
+                    className="border-border/50 hover:border-border bg-secondary/30 flex items-center gap-4 rounded-xl border p-3.5 transition-colors"
+                  >
+                    <div className="from-primary to-primary/30 h-10 w-1 shrink-0 rounded-full bg-linear-to-b" />
+                    <div className="w-24 shrink-0">
+                      <ProtocolBadge protocol={m.protocol} />
+                    </div>
+                    <div className="w-24 shrink-0">
+                      <NetworkBadge networkSlug={m.network} />
+                    </div>
+                    <span className="text-foreground flex-1 truncate text-sm font-medium">
+                      {m.poolName}
+                    </span>
+                    <span className="text-muted-foreground w-20 text-right font-mono text-xs">
+                      {info?.maxLtv != null
+                        ? `${(info.maxLtv * 100).toFixed(2)}%`
+                        : '—'}
+                    </span>
+                    <span className="text-muted-foreground w-20 text-right font-mono text-xs">
+                      {info?.lltv != null
+                        ? `${(info.lltv * 100).toFixed(2)}%`
+                        : '—'}
+                    </span>
+                    <div className="w-32 shrink-0">
+                      <div
+                        className={`border-input dark:bg-input/30 focus-within:ring-ring/50 flex items-center rounded-lg border focus-within:ring-[3px] ${
+                          overCap
+                            ? 'border-red-500 focus-within:border-red-500 focus-within:ring-red-500/50'
+                            : 'focus-within:border-ring'
+                        }`}
+                      >
+                        <Input
+                          type="number"
+                          inputMode="decimal"
+                          step="0.01"
+                          min={0}
+                          max={cap}
+                          value={
+                            Number.isFinite(recPct)
+                              ? Number(recPct.toFixed(2))
+                              : ''
+                          }
+                          onChange={(e) => {
+                            const raw = parseFloat(e.target.value)
+                            setRecommendedLtvs((prev) => {
+                              const next = [...prev]
+                              next[i] = Number.isFinite(raw)
+                                ? Math.max(0, raw / 100)
+                                : 0
+                              return next
+                            })
+                            setRan(false)
+                          }}
+                          className="h-9 border-0 text-right font-mono text-xs shadow-none focus-visible:ring-0"
+                        />
+                        <span className="text-muted-foreground pr-2 text-xs select-none">
+                          %
+                        </span>
+                      </div>
+                      {overCap && (
+                        <p className="mt-1 text-right text-[10px] text-red-500">
+                          Above LLTV cap ({cap.toFixed(2)}%)
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                )
+              })}
             </div>
           </motion.div>
         )}
@@ -1129,7 +1302,8 @@ export function BorrowingOptimizerView({
         <button
           type="button"
           onClick={() => {
-            if (viewStep === 'configure') setViewStep('threshold')
+            if (viewStep === 'configure') setViewStep('recommendedLtv')
+            else if (viewStep === 'recommendedLtv') setViewStep('buffer')
             else onBack?.()
           }}
           disabled={isOptimizing}
@@ -1149,8 +1323,28 @@ export function BorrowingOptimizerView({
             </button>
           )}
 
-          {viewStep === 'threshold' && (
-            <Button onClick={() => setViewStep('configure')}>Continue →</Button>
+          {viewStep === 'buffer' && (
+            <Button onClick={() => setViewStep('recommendedLtv')}>
+              Continue →
+            </Button>
+          )}
+
+          {viewStep === 'recommendedLtv' && (
+            <Button
+              onClick={() => setViewStep('configure')}
+              disabled={recommendedLtvs.some((v, i) => {
+                const info = ltvInfo[i]
+                const cap =
+                  info?.lltv != null && info.lltv > 0
+                    ? info.lltv
+                    : info?.maxLtv != null && info.maxLtv > 0
+                      ? info.maxLtv
+                      : 1
+                return v > cap + 1e-9
+              })}
+            >
+              Continue →
+            </Button>
           )}
 
           {viewStep === 'configure' && (

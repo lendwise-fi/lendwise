@@ -100,6 +100,7 @@ export async function fetchPoolYieldHistory(
   poolId: string
 ): Promise<DefiLlamaYieldPoint[]> {
   const res = await fetchWithRetry(`${YIELDS_API}/chart/${poolId}`)
+  if (res.status === 403 || res.status === 404) return []
   if (!res.ok)
     throw new Error(`DeFiLlama /chart/${poolId} failed: ${res.status}`)
   const json = (await res.json()) as { data: DefiLlamaYieldPoint[] }

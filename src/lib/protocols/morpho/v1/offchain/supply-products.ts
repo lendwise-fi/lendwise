@@ -41,12 +41,12 @@ export async function getSupplyProducts(): Promise<SupplyProduct[]> {
         break
       }
 
-      const markets = data.vaults.items.map(
-        (vault): SupplyProduct => ({
+      const markets = data.vaults.items.map((vault): SupplyProduct => {
+        const network = CHAIN_NAME_MAPPING[vault.asset.chain.id]
+        if (!network) throw new Error(`No slug registered for chainId ${vault.asset.chain.id} — add it to chain-slugs.ts`)
+        return {
           protocol: MORPHO_CONFIG.morpho_v1.id,
-          network:
-            CHAIN_NAME_MAPPING[vault.asset.chain.id] ||
-            vault.asset.chain.network.toLowerCase(),
+          network,
           poolName: vault.name,
           poolId: vault.address,
           poolAddress: vault.address,
@@ -62,8 +62,8 @@ export async function getSupplyProducts(): Promise<SupplyProduct[]> {
           apy: vault?.state?.avgNetApy ?? 0,
           productId: buildVaultProductId(vault.asset.chain.id, vault.address),
           link: `https://app.morpho.org/${vault.asset.chain.network.toLowerCase()}/vault/${vault.address}/${generateSlug(vault.name)}`,
-        })
-      )
+        }
+      })
 
       allMarkets.push(...markets)
 

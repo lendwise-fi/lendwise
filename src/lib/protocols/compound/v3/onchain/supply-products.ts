@@ -16,12 +16,14 @@ const _formatSupplyProducts = cache(
     markets: ListSupplyProductsQuery['markets'],
     chainName: string,
     chainId: number
-  ): SupplyProduct[] =>
-    markets.map((market): SupplyProduct => {
+  ): SupplyProduct[] => {
+    const network = CHAIN_NAME_MAPPING[chainId]
+    if (!network) throw new Error(`No slug registered for chainId ${chainId} — add it to chain-slugs.ts`)
+    return markets.map((market): SupplyProduct => {
       const token = market.configuration.baseToken.token
       return {
         protocol: COMPOUND_CONFIG.compound_v3.id,
-        network: CHAIN_NAME_MAPPING[chainId] || chainName!.toLowerCase(),
+        network,
         poolName: market.configuration.baseToken.token.name,
         poolId: market.id,
         poolAddress: market.id,
@@ -48,6 +50,7 @@ const _formatSupplyProducts = cache(
         link: `https://app.compound.finance/?market=${token.symbol.toLowerCase()}-${SLUG_MAPPING[chainId] ?? 'mainnet'}`,
       }
     })
+  }
 )
 
 export async function getSupplyProducts(): Promise<SupplyProduct[]> {

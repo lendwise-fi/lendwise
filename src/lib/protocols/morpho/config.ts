@@ -1,6 +1,7 @@
 import { arbitrum, base, mainnet, optimism, polygon } from 'viem/chains'
 
 import type { ProtocolConfig } from '@/config/protocols'
+import { CHAIN_SLUG_MAP } from '@/lib/protocols/chain-slugs'
 
 /**
  * Centralized configuration for all Morpho versions and chains.
@@ -14,6 +15,7 @@ export const MORPHO_CONFIG: Record<string, ProtocolConfig> = {
       [mainnet.id]: {
         ...mainnet,
         custom: {
+          slug: CHAIN_SLUG_MAP[mainnet.id],
           subgraphUrl:
             'https://gateway.thegraph.com/api/subgraphs/id/8Lz789DP5VKLXumTMTgygjU2xtuzx8AhbaacgN5PYCAs',
           clientPath: 'ethereum',
@@ -22,6 +24,7 @@ export const MORPHO_CONFIG: Record<string, ProtocolConfig> = {
       [base.id]: {
         ...base,
         custom: {
+          slug: CHAIN_SLUG_MAP[base.id],
           subgraphUrl:
             'https://gateway.thegraph.com/api/subgraphs/id/71ZTy1veF9twER9CLMnPWeLQ7GZcwKsjmygejrgKirqs',
           clientPath: 'base',
@@ -30,6 +33,7 @@ export const MORPHO_CONFIG: Record<string, ProtocolConfig> = {
       [arbitrum.id]: {
         ...arbitrum,
         custom: {
+          slug: CHAIN_SLUG_MAP[arbitrum.id],
           subgraphUrl:
             'https://gateway.thegraph.com/api/subgraphs/id/XsJn88DNCHJ1kgTqYeTgHMQSK4LuG1LR75339QVeQ26',
           clientPath: 'arbitrum',
@@ -38,6 +42,7 @@ export const MORPHO_CONFIG: Record<string, ProtocolConfig> = {
       [polygon.id]: {
         ...polygon,
         custom: {
+          slug: CHAIN_SLUG_MAP[polygon.id],
           subgraphUrl:
             'https://gateway.thegraph.com/api/subgraphs/id/EhFokmwryNs7qbvostceRqVdjc3petuD13mmdUiMBw8Y',
           clientPath: 'polygon',
@@ -46,6 +51,7 @@ export const MORPHO_CONFIG: Record<string, ProtocolConfig> = {
       [optimism.id]: {
         ...optimism,
         custom: {
+          slug: CHAIN_SLUG_MAP[optimism.id],
           subgraphUrl:
             'https://gateway.thegraph.com/api/subgraphs/id/5y8d3K3vVCR7r5YwANGCjupLc3hUge54XvhYMEq3Jmq1',
           clientPath: 'optimism',

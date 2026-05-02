@@ -11,7 +11,9 @@ export function buildProductId(
 ): string {
   // market prefix prevents collision — same token can exist on multiple Compound markets
   // on the same chain (e.g. different versions or deployments)
-  return `compoundcomet:v3:${CHAIN_NAME_MAPPING[chain.id] ?? chain.id}:market:${marketId}:${kind}`
+  const network = CHAIN_NAME_MAPPING[chain.id]
+  if (!network) throw new Error(`No slug registered for chainId ${chain.id} — add it to chain-slugs.ts`)
+  return `compoundcomet:v3:${network}:market:${marketId}:${kind}`
 }
 
 // ============================================================================

@@ -1,5 +1,6 @@
 import type { Address } from 'viem'
-import { arbitrum, base, mainnet, optimism, polygon } from 'viem/chains'
+
+import { CHAIN_SLUG_MAP } from '@/lib/protocols/chain-slugs'
 
 import type {
   BorrowPosition,
@@ -284,10 +285,4 @@ export function createVersionAdapter(
   }
 }
 
-export const CHAIN_NAME_MAPPING: Record<number, string> = {
-  [mainnet.id]: 'ethereum',
-  [arbitrum.id]: 'arbitrum',
-  [polygon.id]: 'polygon',
-  [base.id]: 'base',
-  [optimism.id]: 'optimism',
-}
+export const CHAIN_NAME_MAPPING: Record<number, string> = CHAIN_SLUG_MAP

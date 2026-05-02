@@ -93,7 +93,9 @@ export type Horizon = HorizonKey
 
 const getUtilizationPct = (row: BorrowProduct) => {
   if (!row.assetAmountUsd) return 0
-  return ((row.assetAmountUsd - row.liquidityAmountUsd) / row.assetAmountUsd) * 100
+  return (
+    ((row.assetAmountUsd - row.liquidityAmountUsd) / row.assetAmountUsd) * 100
+  )
 }
 
 const isOverutilized = (row: BorrowProduct) => getUtilizationPct(row) > 99
@@ -110,8 +112,10 @@ const createColumns = (
     header: '',
     cell: ({ row }) => {
       const isSelected = row.getIsSelected()
-      const isDisabledByUtilization = !isSelected && isOverutilized(row.original)
-      const isDisabledByLimit = !isSelected && !isDisabledByUtilization && selectedCount >= 10
+      const isDisabledByUtilization =
+        !isSelected && isOverutilized(row.original)
+      const isDisabledByLimit =
+        !isSelected && !isDisabledByUtilization && selectedCount >= 10
       const isDisabled = isDisabledByUtilization || isDisabledByLimit
 
       const checkbox = (
@@ -129,7 +133,9 @@ const createColumns = (
             <TooltipTrigger asChild>
               <span className="inline-flex cursor-not-allowed">{checkbox}</span>
             </TooltipTrigger>
-            <TooltipContent>Utilization &gt;99% — unhealthy market</TooltipContent>
+            <TooltipContent>
+              Utilization &gt;99% — unhealthy market
+            </TooltipContent>
           </Tooltip>
         )
       }
@@ -621,7 +627,9 @@ export function BorrowTableClient() {
   const [rowSelection, setRowSelection] = useState<Record<string, boolean>>({})
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [modalStep, setModalStep] = useState(1)
-  const [optimizerViewStep, setOptimizerViewStep] = useState<'threshold' | 'configure'>('threshold')
+  const [optimizerViewStep, setOptimizerViewStep] = useState<
+    'buffer' | 'recommendedLtv' | 'configure'
+  >('buffer')
   const [snapshotMarkets, setSnapshotMarkets] = useState<BorrowProduct[]>([])
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([
     { id: 'assetSymbol', value: 'USDC' },
@@ -653,13 +661,15 @@ export function BorrowTableClient() {
     if (!data || data.length === 0) return
     if (hasUserInteracted.current) return
 
-    const collateralFilter = columnFilters.find((f) => f.id === 'collaterals')?.value as string | undefined
+    const collateralFilter = columnFilters.find((f) => f.id === 'collaterals')
+      ?.value as string | undefined
 
     const filtered = data.filter(
       (row) =>
         row.assetSymbol === 'USDC' &&
         !isOverutilized(row) &&
-        (!collateralFilter || row.collaterals.some((c) => c.symbol === collateralFilter))
+        (!collateralFilter ||
+          row.collaterals.some((c) => c.symbol === collateralFilter))
     )
     const sorted = [...filtered].sort((a, b) => (b.apy ?? 0) - (a.apy ?? 0))
     const top3 = sorted.slice(0, 3)
@@ -869,7 +879,7 @@ export function BorrowTableClient() {
                 setIsModalOpen(open)
                 if (!open) {
                   setModalStep(1)
-                  setOptimizerViewStep('threshold')
+                  setOptimizerViewStep('buffer')
                   setSnapshotMarkets([])
                 }
               }}
@@ -882,7 +892,7 @@ export function BorrowTableClient() {
               </DialogTrigger>
               <DialogContent
                 showCloseButton={false}
-                className="gap-0 overflow-hidden p-0 sm:max-w-4xl sm:max-h-[90vh]"
+                className="gap-0 overflow-hidden p-0 sm:max-h-[90vh] sm:max-w-4xl"
               >
                 <DialogTitle className="sr-only">Borrow Optimizer</DialogTitle>
                 <DialogDescription className="sr-only">
@@ -902,22 +912,29 @@ export function BorrowTableClient() {
                     <p className="text-muted-foreground ml-9 text-xs">
                       {modalStep === 1
                         ? `${selectedData.length} market${selectedData.length !== 1 ? 's' : ''} selected — review before optimizing`
-                        : optimizerViewStep === 'threshold'
+                        : optimizerViewStep === 'buffer'
                           ? 'Set your liquidation threshold and buffer'
-                          : 'Configure your objective — results update on the right'}
+                          : optimizerViewStep === 'recommendedLtv'
+                            ? 'Set your recommended LTV per market'
+                            : 'Configure your objective — results update on the right'}
                     </p>
                   </div>
 
                   {/* Stepper */}
                   {(() => {
                     const currentStep =
-                      modalStep === 1 ? 1
-                      : optimizerViewStep === 'threshold' ? 2
-                      : 3
+                      modalStep === 1
+                        ? 1
+                        : optimizerViewStep === 'buffer'
+                          ? 2
+                          : optimizerViewStep === 'recommendedLtv'
+                            ? 3
+                            : 4
                     const steps = [
                       { step: 1, label: 'Selection' },
-                      { step: 2, label: 'Threshold' },
-                      { step: 3, label: 'Configure' },
+                      { step: 2, label: 'Buffer' },
+                      { step: 3, label: 'LTV' },
+                      { step: 4, label: 'Configure' },
                     ]
                     return (
                       <div className="mr-6 flex items-center gap-1">
@@ -963,14 +980,27 @@ export function BorrowTableClient() {
                 {modalStep === 1 ? (
                   <div className="flex flex-col">
                     {/* Sticky column headers */}
-                    <div className="flex items-center gap-4 border-b border-border/40 px-7 pt-4 pb-2.5">
+                    <div className="border-border/40 flex items-center gap-4 border-b px-7 pt-4 pb-2.5">
                       <div className="w-1 shrink-0" />
-                      <span className="text-muted-foreground/70 w-24 shrink-0 text-[11px] font-semibold uppercase tracking-wider">Protocol</span>
-                      <span className="text-muted-foreground/70 w-24 shrink-0 text-[11px] font-semibold uppercase tracking-wider">Network</span>
-                      <span className="text-muted-foreground/70 flex-1 text-[11px] font-semibold uppercase tracking-wider">Market</span>
-                      <span className="text-muted-foreground/70 w-24 text-right text-[11px] font-semibold uppercase tracking-wider">Liquidity</span>
+                      <span className="text-muted-foreground/70 w-24 shrink-0 text-[11px] font-semibold tracking-wider uppercase">
+                        Protocol
+                      </span>
+                      <span className="text-muted-foreground/70 w-24 shrink-0 text-[11px] font-semibold tracking-wider uppercase">
+                        Network
+                      </span>
+                      <span className="text-muted-foreground/70 flex-1 text-[11px] font-semibold tracking-wider uppercase">
+                        Market
+                      </span>
+                      <span className="text-muted-foreground/70 w-24 text-right text-[11px] font-semibold tracking-wider uppercase">
+                        Liquidity
+                      </span>
                       {['1D', '7D', '1M', '1Y'].map((label) => (
-                        <span key={label} className="text-muted-foreground/70 w-16 text-right text-[11px] font-semibold uppercase tracking-wider">{label}</span>
+                        <span
+                          key={label}
+                          className="text-muted-foreground/70 w-16 text-right text-[11px] font-semibold tracking-wider uppercase"
+                        >
+                          {label}
+                        </span>
                       ))}
                     </div>
                     {/* Scrollable rows */}
@@ -998,7 +1028,10 @@ export function BorrowTableClient() {
                               {pool.poolName}
                             </span>
                             <span className="text-muted-foreground w-24 text-right font-mono text-xs">
-                              {formatCompactCurrency(pool.liquidityAmountUsd * rate, baseCurrency)}
+                              {formatCompactCurrency(
+                                pool.liquidityAmountUsd * rate,
+                                baseCurrency
+                              )}
                             </span>
                             {apyCols.map(({ key, value }) => (
                               <span
@@ -1026,7 +1059,7 @@ export function BorrowTableClient() {
                         )
                       })}
                     </div>
-                    <div className="flex justify-end border-t border-border/40 px-7 py-4">
+                    <div className="border-border/40 flex justify-end border-t px-7 py-4">
                       <Button
                         onClick={() => {
                           setSnapshotMarkets(selectedData)
@@ -1043,9 +1076,13 @@ export function BorrowTableClient() {
                     <BorrowingOptimizerView
                       markets={snapshotMarkets}
                       selectedCollateralSymbol={
-                        columnFilters.find((f) => f.id === 'collaterals')?.value as string | undefined
+                        columnFilters.find((f) => f.id === 'collaterals')
+                          ?.value as string | undefined
                       }
-                      onBack={() => { setModalStep(1); setOptimizerViewStep('configure') }}
+                      onBack={() => {
+                        setModalStep(1)
+                        setOptimizerViewStep('configure')
+                      }}
                       onViewStepChange={setOptimizerViewStep}
                     />
                   </div>
@@ -1166,7 +1203,9 @@ export function BorrowTableClient() {
         onColumnFiltersChange={setColumnFilters}
         globalFilter={searchValue}
         onGlobalFilterChange={setSearchValue}
-        getRowClassName={(row) => isOverutilized(row) ? 'bg-red-500/8 hover:bg-red-500/12' : ''}
+        getRowClassName={(row) =>
+          isOverutilized(row) ? 'bg-red-500/8 hover:bg-red-500/12' : ''
+        }
       />
     </div>
   )

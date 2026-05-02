@@ -14,9 +14,8 @@ const _formatBorrowProducts = cache(
   (markets: ListBorrowProductsQuery['markets']): BorrowProduct[] =>
     markets.items?.map((market): BorrowProduct => {
       const chainIdForMarket = market.morphoBlue.chain.id
-      const networkForMarket =
-        CHAIN_NAME_MAPPING[chainIdForMarket] ||
-        market.morphoBlue.chain.network.toLowerCase()
+      const networkForMarket = CHAIN_NAME_MAPPING[chainIdForMarket]
+      if (!networkForMarket) throw new Error(`No slug registered for chainId ${chainIdForMarket} — add it to chain-slugs.ts`)
       const totalSupply = BigInt(market.state?.supplyAssets ?? 0)
       const totalBorrow = BigInt(market.state?.borrowAssets ?? 0)
       const available =
