@@ -64,7 +64,7 @@ export function OptimizerVisual() {
         <div className="mb-6 flex h-3 gap-1 overflow-hidden rounded-full">
           {allocations.map((a, i) => (
             <motion.div
-              key={i}
+              key={a.name}
               initial={{ width: 0 }}
               whileInView={{ width: `${a.share}%` }}
               viewport={{ once: true }}
@@ -81,7 +81,7 @@ export function OptimizerVisual() {
         <div className="space-y-3">
           {allocations.map((a, i) => (
             <motion.div
-              key={i}
+              key={a.name}
               initial={{ opacity: 0, y: 10 }}
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true }}

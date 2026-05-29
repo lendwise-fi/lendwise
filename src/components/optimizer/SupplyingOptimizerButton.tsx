@@ -370,9 +370,9 @@ export function SupplyingOptimizerView({
                         animationDuration={700}
                         animationEasing="ease-out"
                       >
-                        {results.map((_, i) => (
+                        {results.map((r, i) => (
                           <Cell
-                            key={i}
+                            key={r.vault.poolName}
                             fill={
                               ALLOCATION_COLORS[i % ALLOCATION_COLORS.length]
                             }
@@ -399,7 +399,7 @@ export function SupplyingOptimizerView({
                 {/* Legend */}
                 <div className="space-y-2">
                   {results.map((r, i) => (
-                    <div key={i} className="flex items-center gap-2">
+                    <div key={r.vault.poolName} className="flex items-center gap-2">
                       <div
                         className="h-2.5 w-2.5 shrink-0 rounded-sm"
                         style={{

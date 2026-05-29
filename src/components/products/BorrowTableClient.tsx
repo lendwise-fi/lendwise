@@ -828,7 +828,7 @@ export function BorrowTableClient() {
   if (isPending) return <TableSkeleton variant="borrow" />
 
   return (
-    <div className="flex flex-col">
+    <div className="flex h-full min-h-0 flex-col">
       {/* Stats bar */}
 
       <StatsBar
@@ -863,7 +863,7 @@ export function BorrowTableClient() {
       />
 
       {/* Page header: title left + all controls right */}
-      <div className="border-border/50 flex flex-wrap items-center justify-between gap-3 border-b px-8 py-5">
+      <div className="border-border/50 flex shrink-0 flex-wrap items-center justify-between gap-3 border-b px-8 py-5">
         <div>
           <h1 className="text-foreground text-xl font-bold">Borrow products</h1>
           <p className="text-muted-foreground text-xs">
@@ -1005,7 +1005,7 @@ export function BorrowTableClient() {
                     </div>
                     {/* Scrollable rows */}
                     <div className="max-h-[30rem] space-y-2 overflow-y-auto px-7 py-4">
-                      {selectedData.map((pool, i) => {
+                      {selectedData.map((pool) => {
                         const apyCols = [
                           { key: '1d', value: pool.apy },
                           { key: '7d', value: pool.apyDaily },
@@ -1014,7 +1014,7 @@ export function BorrowTableClient() {
                         ]
                         return (
                           <div
-                            key={i}
+                            key={`${pool.protocol}-${pool.poolChainId}-${pool.poolId}-${pool.assetAddress}`}
                             className="border-border/50 hover:border-border bg-secondary/30 flex items-center gap-4 rounded-xl border p-3.5 transition-colors"
                           >
                             <div className="from-primary to-primary/30 h-10 w-1 shrink-0 rounded-full bg-linear-to-b" />
@@ -1169,6 +1169,7 @@ export function BorrowTableClient() {
 
       <DataTable
         key={horizon}
+        fillHeight
         rowSelection={rowSelection}
         onRowSelectionChange={setRowSelection}
         hiddenColumns={['poolName']}

@@ -63,7 +63,7 @@ export function APYNormVisual() {
 
         {rows.map((row, i) => (
           <motion.div
-            key={i}
+            key={row.protocol}
             initial={{ opacity: 0, x: -20 }}
             whileInView={{ opacity: 1, x: 0 }}
             viewport={{ once: true }}

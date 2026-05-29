@@ -53,8 +53,8 @@ function DonutSkeleton() {
     <div className="flex items-center gap-4">
       <Skeleton className="h-20 w-20 shrink-0 rounded-full" />
       <div className="flex-1 space-y-2.5">
-        {Array.from({ length: 3 }).map((_, i) => (
-          <div key={i} className="flex items-center justify-between">
+        {Array.from({ length: 3 }).map(() => (
+          <div key={Math.random()} className="flex items-center justify-between">
             <div className="flex items-center gap-1.5">
               <Skeleton className="h-2 w-2 shrink-0 rounded-full" />
               <Skeleton className="h-3 w-16" />
@@ -72,8 +72,8 @@ function DonutSkeleton() {
 function MobileSummarySkeleton() {
   return (
     <div className="bg-card/40 grid grid-cols-4 gap-2 border-b px-4 py-3 md:hidden">
-      {Array.from({ length: 4 }).map((_, i) => (
-        <div key={i} className="space-y-1.5">
+      {Array.from({ length: 4 }).map(() => (
+        <div key={Math.random()} className="space-y-1.5">
           <Skeleton className="h-2 w-8" />
           <Skeleton className="h-4 w-14" />
         </div>
@@ -87,8 +87,8 @@ function MobileSummarySkeleton() {
 function TabBarSkeleton() {
   return (
     <div className="border-border flex border-b">
-      {Array.from({ length: 2 }).map((_, i) => (
-        <div key={i} className="space-y-1.5 px-4 py-3 md:px-8 md:py-5">
+      {Array.from({ length: 2 }).map(() => (
+        <div key={Math.random()} className="space-y-1.5 px-4 py-3 md:px-8 md:py-5">
           <div className="flex items-center gap-2">
             <Skeleton className="h-4 w-12 sm:h-6 sm:w-36" />
             <Skeleton className="h-4 w-5 rounded-full" />
@@ -147,8 +147,8 @@ function TableSectionSkeleton({
         <Skeleton className="hidden h-2.5 w-12 sm:block" />
       </div>
       {/* Rows */}
-      {Array.from({ length: rows }).map((_, i) => (
-        <Row key={i} />
+      {Array.from({ length: rows }).map(() => (
+        <Row key={Math.random()} />
       ))}
     </div>
   )

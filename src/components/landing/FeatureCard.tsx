@@ -79,7 +79,7 @@ export function FeatureCard({
             <div className="space-y-4">
               {features.map((feature, i) => (
                 <motion.div
-                  key={i}
+                  key={feature.label}
                   initial={{ opacity: 0, x: -20 }}
                   whileInView={{ opacity: 1, x: 0 }}
                   viewport={{ once: true }}

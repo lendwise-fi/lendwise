@@ -117,16 +117,16 @@ function DonutWithLegend({ data }: { data: BreakdownItem[] }) {
               dataKey="value"
               strokeWidth={0}
             >
-              {data.map((entry, i) => (
-                <Cell key={i} fill={entry.color} />
+              {data.map((entry) => (
+                <Cell key={entry.name} fill={entry.color} />
               ))}
             </Pie>
           </PieChart>
         </ResponsiveContainer>
       </div>
       <div className="flex-1 space-y-2">
-        {data.map((item, i) => (
-          <div key={i} className="flex items-center justify-between">
+        {data.map((item) => (
+          <div key={item.name} className="flex items-center justify-between">
             <div className="flex items-center gap-1.5">
               <span
                 className="h-2 w-2 shrink-0 rounded-full"

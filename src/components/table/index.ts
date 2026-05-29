@@ -1,6 +1,8 @@
-export { DataTableSkeleton } from './DataTableSkeleton'
-export { DataTable, SortableHeader } from './DataTable'
-export { DataTableFacetedFilter } from './DataTableFacetedFilter'
-export { getUniqueColumnValues } from './DataTableFacetedFilter'
-export { FilterChip } from './FilterChip'
-export { HorizonPicker } from './HorizonPicker'
+export { DataTable, SortableHeader } from "./DataTable";
+export {
+	DataTableFacetedFilter,
+	getUniqueColumnValues,
+} from "./DataTableFacetedFilter";
+export { DataTableSkeleton } from "./DataTableSkeleton";
+export { FilterChip } from "./FilterChip";
+export { HorizonPicker } from "./HorizonPicker";

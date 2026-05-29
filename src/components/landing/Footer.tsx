@@ -4,6 +4,8 @@ import Link from 'next/link'
 
 import { Zap } from 'lucide-react'
 
+import { ThemeSwitcher } from '@/components/theme/ThemeSwitcher'
+
 const links = {
   Product: ['Features', 'Pricing', 'API Docs', 'Changelog'],
   Resources: ['Documentation', 'Blog', 'Tutorials', 'Status'],
@@ -74,6 +76,7 @@ export function Footer() {
             >
               Cookies
             </Link>
+            <ThemeSwitcher />
           </div>
         </div>
       </div>

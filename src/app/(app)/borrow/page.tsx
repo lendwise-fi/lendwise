@@ -7,7 +7,7 @@ export const dynamic = 'force-dynamic'
 
 export default async function BorrowPage() {
   return (
-    <div className="flex flex-col">
+    <div className="flex h-full min-h-0 flex-col">
       <Suspense fallback={<TableSkeleton />}>
         <BorrowTableServer />
       </Suspense>

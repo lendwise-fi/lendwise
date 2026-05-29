@@ -7,9 +7,9 @@ import { Skeleton } from '@/components/ui/skeleton'
 export function StatsBarSkeleton({ cards = 3 }: { cards?: number }) {
   return (
     <div className="bg-card border-border flex items-stretch overflow-x-auto border-b">
-      {Array.from({ length: cards }).map((_, i) => (
+      {Array.from({ length: cards }).map(() => (
         <div
-          key={i}
+          key={Math.random()}
           className="border-border flex flex-col gap-2 border-r px-6 py-4 last:border-r-0"
         >
           <Skeleton className="h-2.5 w-20" />
@@ -174,21 +174,21 @@ export function TableSkeleton({
 
       {/* Table header row */}
       <div className="border-border/50 flex items-center gap-4 border-b px-8 py-3">
-        {headers.map(({ label, flex }, i) =>
+        {headers.map(({ label, flex }) =>
           label ? (
             <Skeleton
-              key={i}
+              key={Math.random()}
               className={`h-2.5 w-12${flex ? 'flex-1' : 'shrink-0'}`}
             />
           ) : (
-            <div key={i} className="h-2.5 w-4 shrink-0" />
+            <div key={Math.random()} className="h-2.5 w-4 shrink-0" />
           )
         )}
       </div>
 
       {/* Table body */}
-      {Array.from({ length: 10 }).map((_, i) => (
-        <Row key={i} />
+      {Array.from({ length: 10 }).map(() => (
+        <Row key={Math.random()} />
       ))}
     </div>
   )

@@ -8,7 +8,7 @@ import { useTheme } from 'next-themes'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 
-export const ThemeSwitcher = () => {
+export const ThemeSwitcher = ({ className }: { className?: string }) => {
   const { theme, setTheme } = useTheme()
   const [mounted, setMounted] = useState(false)
 
@@ -23,7 +23,7 @@ export const ThemeSwitcher = () => {
   }
 
   if (!mounted) {
-    return <div className="h-8 w-8 rounded-md" />
+    return <div className={cn('h-8 w-8 rounded-md', className)} />
   }
 
   const Icon = theme === 'dark' ? Moon : theme === 'light' ? Sun : Monitor
@@ -33,7 +33,7 @@ export const ThemeSwitcher = () => {
       variant="ghost"
       size="icon"
       onClick={cycleTheme}
-      className={cn('text-muted-foreground hover:text-foreground h-8 w-8')}
+      className={cn('text-muted-foreground hover:text-foreground h-8 w-8', className)}
       title={`Theme: ${theme}`}
     >
       <Icon className="h-4 w-4" />

@@ -122,9 +122,9 @@ export function WalletNotConnected() {
           transition={{ duration: 0.5, delay: 0.15 }}
           className="grid w-full grid-cols-1 gap-4 sm:grid-cols-3"
         >
-          {FEATURES.map((f, i) => (
+          {FEATURES.map((f) => (
             <div
-              key={i}
+              key={f.title}
               className="group border-border/60 bg-card hover:border-primary/25 hover:bg-card/80 flex flex-col gap-3 rounded-2xl border p-5 transition-all"
             >
               <div className="bg-primary/10 group-hover:bg-primary/15 flex h-9 w-9 items-center justify-center rounded-lg transition-colors">

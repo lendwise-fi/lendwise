@@ -29,8 +29,8 @@ export function DataTableEmpty() {
           </TableRow>
         </TableHeader>
         <TableBody>
-          {[...Array(3)].map((_, i) => (
-            <TableRow key={i}>
+          {[...Array(3)].map(() => (
+            <TableRow key={Math.random()}>
               <TableCell>
                 <Skeleton className="h-6 w-full" />
               </TableCell>

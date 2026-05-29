@@ -113,7 +113,7 @@ export function PortfolioVisual() {
       <div className="space-y-3 p-6">
         {positions.map((pos, i) => (
           <motion.div
-            key={i}
+            key={pos.asset}
             initial={{ opacity: 0, x: 20 }}
             whileInView={{ opacity: 1, x: 0 }}
             viewport={{ once: true }}

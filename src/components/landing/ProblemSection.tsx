@@ -8,19 +8,19 @@ const problems = [
     icon: Shuffle,
     title: 'Scattered Data',
     description:
-      'Yields are spread across hundreds of protocols on dozens of chains. No single source of truth.',
+      'Lending opportunities are spread across protocols, vaults and chains, leaving investors without a unified view of the market.',
   },
   {
     icon: AlertTriangle,
-    title: 'Misleading APYs',
+    title: 'Inconsistent APYs',
     description:
-      'Different protocols calculate APY differently. Raw numbers are incomparable and misleading.',
+      'Protocols report rates using different conventions, time windows and assumptions. Raw APYs are often not directly comparable.',
   },
   {
     icon: Clock,
-    title: 'Time Wasted',
+    title: 'Manual Analysis',
     description:
-      'Hours spent jumping between dashboards, tracking yields, and comparing opportunities manually.',
+      'Investors spend hours switching between dashboards and checking market conditions before making informed decisions.',
   },
 ]
 
@@ -45,18 +45,15 @@ export function ProblemSection() {
           transition={{ duration: 0.6 }}
           className="mb-20 text-center"
         >
-          <span className="text-destructive/80 mb-4 block text-xs font-semibold tracking-widest uppercase">
-            The Problem
-          </span>
           <h2 className="font-inter text-3xl font-bold tracking-tight sm:text-5xl">
-            DeFi yields are a <span className="text-destructive">mess</span>
+            Lending markets are <span className="text-destructive">fragmented</span>
           </h2>
         </motion.div>
 
         <div className="relative mb-24">
           <div className="grid grid-cols-2 md:grid-cols-3 gap-4 max-w-2xl mx-auto mb-8">
-            {protocols.map((p, i) => (
-              <div key={i} className="relative p-4 rounded-xl border border-border bg-card/60 backdrop-blur-sm overflow-hidden group">
+            {protocols.map((p) => (
+              <div key={p.name} className="relative p-4 rounded-xl border border-border bg-card/60 backdrop-blur-sm overflow-hidden group">
                 <div className="absolute inset-0 opacity-5 group-hover:opacity-10 transition-opacity" style={{ background: p.color }} />
                 <div className="text-[11px] text-muted-foreground mb-1">{p.name}</div>
                 <div className="text-xl font-bold font-mono" style={{ color: p.color }}>{p.apy}</div>
@@ -74,7 +71,7 @@ export function ProblemSection() {
         <div className="grid gap-6 md:grid-cols-3">
           {problems.map((item, i) => (
             <motion.div
-              key={i}
+              key={item.title}
               initial={{ opacity: 0, y: 40 }}
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true, margin: '-80px' }}

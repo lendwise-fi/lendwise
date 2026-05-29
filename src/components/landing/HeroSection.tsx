@@ -27,7 +27,7 @@ export function HeroSection() {
 				>
 					<div className="bg-primary h-1.5 w-1.5 animate-pulse rounded-full" />
 					<span className="text-primary text-xs font-medium tracking-wide uppercase">
-						DeFi Yield Aggregator
+						DeFi Lending Aggregator
 					</span>
 				</motion.div>
 
@@ -36,11 +36,12 @@ export function HeroSection() {
 					initial={{ opacity: 0, y: 30 }}
 					animate={{ opacity: 1, y: 0 }}
 					transition={{ duration: 0.7, delay: 0.1 }}
-					className="font-inter mb-6 text-5xl leading-[0.95] font-bold tracking-tight sm:text-6xl lg:text-8xl"
+					className="font-inter mb-6 text-5xl leading-[0.95] font-bold tracking-tight sm:text-6xl lg:text-7xl"
 				>
-					One view for
+					Unified view for
 					<br />
-					<span className="text-primary text-glow-cyan">all DeFi</span> yields
+					<span className="text-primary text-glow-cyan">cross-chain</span> lending
+					markets
 				</motion.h1>
 
 				{/* Subtitle */}
@@ -50,8 +51,9 @@ export function HeroSection() {
 					transition={{ duration: 0.7, delay: 0.2 }}
 					className="text-muted-foreground mx-auto mb-10 max-w-2xl text-lg leading-relaxed font-light sm:text-xl"
 				>
-					Track, compare and optimize yields across hundreds of DeFi protocols.
-					Normalize APY data and find the best opportunities in seconds.
+					Track, compare and analyze lending markets across protocols and
+					chains. Transform fragmented APY data into actionable market insights
+					and smarter lending and borrowing decisions.
 				</motion.p>
 
 				{/* CTAs */}
@@ -65,7 +67,7 @@ export function HeroSection() {
 						href="/portfolio"
 						className="flex items-center gap-2 bg-primary text-primary-foreground hover:bg-primary/90 glow-cyan group px-6 py-4 rounded-xl text-sm font-semibold"
 					>
-						Start Optimizing
+						Explore Yields
 						<ArrowRight className="ml-2 h-4 w-4 transition-transform group-hover:translate-x-1" />
 					</Link>
 					<Button
@@ -74,7 +76,7 @@ export function HeroSection() {
 						className="border-border/60 text-muted-foreground hover:text-foreground hover:border-border group px-6 h-13 rounded-xl text-sm font-medium"
 					>
 						<Play className="group-hover:text-primary mr-2 h-4 w-4 transition-colors" />
-						Watch Demo
+						Start Optimizing
 					</Button>
 				</motion.div>
 
@@ -86,11 +88,11 @@ export function HeroSection() {
 					className="mt-20 flex items-center justify-center gap-8 sm:gap-16"
 				>
 					{[
-						{ value: "20+", label: "Blockchains" },
-						{ value: "6K+", label: "Protocols" },
+						{ value: "10+", label: "Blockchains" },
+						{ value: "1000+", label: "Markets" },
 						{ value: "<1s", label: "Latency" },
-					].map((stat, i) => (
-						<div key={i} className="text-center">
+					].map((stat) => (
+						<div key={stat.label} className="text-center">
 							<div className="font-inter text-foreground text-2xl font-bold sm:text-3xl">
 								{stat.value}
 							</div>
