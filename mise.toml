@@ -1,0 +1,6 @@
+[tasks.dev]
+run = "pnpm dev"
+
+[tools]
+node = "24"
+pnpm = "11.4.0"

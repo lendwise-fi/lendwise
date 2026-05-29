@@ -29,6 +29,7 @@ const chainRegistry = createChainRegistry<ChainClient>(
 ### 2. Types de Configuration
 
 #### ChainQueries
+
 Définit les requêtes GraphQL spécifiques à une chaîne :
 
 ```typescript
@@ -39,6 +40,7 @@ export type ChainQueries = {
 ```
 
 #### ChainTransformers
+
 Définit les fonctions de transformation de données spécifiques à une chaîne :
 
 ```typescript
@@ -93,6 +95,7 @@ mkdir src/lib/protocols/compound/v3/onchain/optimism
 ### Étape 2: Définir les requêtes spécifiques
 
 `optimism/queries.ts`:
+
 ```typescript
 import { gql } from 'urql'
 
@@ -138,6 +141,7 @@ export const USER_LEND_POSITIONS = gql`
 ### Étape 3: Implémenter les transformateurs
 
 `optimism/transformers.ts`:
+
 ```typescript
 export function getUserSupplyPositions(
   data: unknown,
@@ -172,8 +176,10 @@ export function getUserSupplyPositions(
 ### Étape 4: Enregistrer la chaîne
 
 `optimism/index.ts`:
+
 ```typescript
 import { optimism } from 'viem/chains'
+
 import { COMPOUND_V3_CHAINS } from '../config'
 import { createChainClient, registerChain } from '../index'
 import { USER_BORROW_POSITIONS, USER_LEND_POSITIONS } from './queries'
@@ -210,8 +216,11 @@ Lors de l'initialisation du module, chaque chaîne s'enregistre automatiquement 
 
 ```typescript
 // Import automatique des configurations de chaînes
-import './optimism'  // Déclenche l'enregistrement d'Optimism
-import './arbitrum'  // Déclenche l'enregistrement d'Arbitrum (si présent)
+// Déclenche l'enregistrement d'Optimism
+import './arbitrum'
+import './optimism'
+
+// Déclenche l'enregistrement d'Arbitrum (si présent)
 ```
 
 ### 2. Résolution des requêtes et transformateurs
@@ -243,6 +252,7 @@ const results = await Promise.allSettled(
 ### 1. Schémas de Subgraph Différents
 
 **Messari (par défaut):**
+
 ```graphql
 accounts {
   positions {
@@ -256,6 +266,7 @@ accounts {
 ```
 
 **Spencer.papercliplabs.eth (Optimism):**
+
 ```graphql
 accounts {
   positions {
@@ -287,16 +298,19 @@ Certaines chaînes peuvent nécessiter des calculs différents :
 ## Avantages
 
 ### 1. Flexibilité
+
 - Chaque chaîne peut avoir son propre schéma
 - Pas de breaking changes quand une chaîne ajoute de nouveaux fields
 - Migration progressive possible
 
 ### 2. Performance
+
 - Les chaînes sans schéma custom utilisent les requêtes par défaut
 - Pas de surcharge pour les cas standards
 - Lazy loading des configurations spécifiques
 
 ### 3. Maintenabilité
+
 - Isolement du code spécifique à chaque chaîne
 - Tests unitaires possibles par chaîne
 - Ajout facile de nouvelles chaînes
@@ -304,21 +318,25 @@ Certaines chaînes peuvent nécessiter des calculs différents :
 ## Bonnes Pratiques
 
 ### 1. Convention de Nommage
+
 - Utiliser le nom de la chaîne en minuscules pour le dossier
 - Préfixer les types avec le nom de la chaîne : `UserSupplyPositionsQuery`
 - Utiliser des noms explicites pour les transformateurs
 
 ### 2. Gestion des Erreurs
+
 - Toujours vérifier l'existence des données avant transformation
 - Logger les erreurs spécifiques à la chaîne
 - Fournir des valeurs par défaut sécurisées
 
 ### 3. Types TypeScript
+
 - Générer les types GraphQL pour chaque chaîne
 - Utiliser des guards de type pour la sécurité
 - Documenter les différences de schéma
 
 ### 4. Tests
+
 - Tester chaque transformateur avec des mock data
 - Tester les cas limites (données manquantes, schémas différents)
 - Tests d'intégration avec les vrais subgraphs
@@ -326,17 +344,21 @@ Certaines chaînes peuvent nécessiter des calculs différents :
 ## Extensibilité Future
 
 ### 1. Support de Nouvelles Fonctionnalités
+
 Le système peut être étendu pour supporter :
+
 - Des middleware de transformation
 - Du caching spécifique par chaîne
 - De la monitoring et métriques par chaîne
 
 ### 2. Gestion des Versions
+
 - Support multi-versions du même protocole sur une chaîne
 - Migration automatique entre les versions
 - Compatibility layers
 
 ### 3. Configuration Dynamique
+
 - Chargement des configurations depuis des fichiers externes
 - Mise à jour des configurations sans redéploiement
 - Feature flags par chaîne

@@ -4,10 +4,28 @@
  * AND in the optimizer's time-horizon button group.
  */
 export const HORIZON_OPTIONS = [
-  { key: 'intraday', label: '1D', days: 1,   apyKey: 'apy',        columnHeader: 'APY' },
-  { key: 'short',    label: '7D', days: 7,   apyKey: 'apyDaily',   columnHeader: 'APY (7D avg)' },
-  { key: 'medium',   label: '1M', days: 30,  apyKey: 'apyMonthly', columnHeader: 'APY (1M avg)' },
-  { key: 'long',     label: '1Y', days: 365, apyKey: 'apyYearly',  columnHeader: 'APY (1Y avg)' },
+  { key: 'intraday', label: '1D', days: 1, apyKey: 'apy', columnHeader: 'APY' },
+  {
+    key: 'short',
+    label: '7D',
+    days: 7,
+    apyKey: 'apyDaily',
+    columnHeader: 'APY (7D avg)',
+  },
+  {
+    key: 'medium',
+    label: '1M',
+    days: 30,
+    apyKey: 'apyMonthly',
+    columnHeader: 'APY (1M avg)',
+  },
+  {
+    key: 'long',
+    label: '1Y',
+    days: 365,
+    apyKey: 'apyYearly',
+    columnHeader: 'APY (1Y avg)',
+  },
 ] as const
 
 export type HorizonKey = (typeof HORIZON_OPTIONS)[number]['key']

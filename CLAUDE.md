@@ -70,17 +70,20 @@ Compound V3 subgraphs differ by chain (Messari vs Spencer schema). Override patt
 3 collections:
 
 ### `products` — static registry
+
 - One doc per market side: `_id = {protocol}-{market}-{asset}-{kind}` (e.g. `aave-AaveV3Ethereum-usdc-supply`)
 - `kind: "supply" | "borrow"` — primary discriminant
 - No real-time metrics
 
 ### `apy.hourly` — rolling averages (classic collection, upserted every 10 min)
+
 - Upsert key: `(productId, hour)` — idempotent
 - All rates stored as **APY** (reward APR converted before storage)
 - Net formula: Supply = `base - fees + rewards` / Borrow = `base + fees - rewards`
 - TTL: 180 days
 
 ### `apy.daily` — daily aggregates (classic collection)
+
 - Aggregated from `apy.hourly`, window `[D-1 00:00Z, D 00:00Z[`
 - APY/utilization = mean of day · TVL = closing value
 - Full distribution stored: `{ avg, min, max, p25, p75, stdDev }`
@@ -101,6 +104,7 @@ Compound V3 subgraphs differ by chain (Messari vs Spencer schema). Override patt
 Single component `<TokenIcon symbol="USDC" size={24} />`.
 
 Resolution priority:
+
 1. `/public/icons/native/{symbol}.svg` — instant
 2. `localStorage` — client-side persistence
 3. Server memory cache — 24h

@@ -573,7 +573,7 @@ function TableCellViewer({ item }: { item: BorrowProduct }) {
                       <ChartTooltipContent
                         indicator="line"
                         labelFormatter={(value) => {
-                          return new Date(value * 1000).toLocaleDateString(
+                          return new Date(Number(value) * 1000).toLocaleDateString(
                             'en-US',
                             {
                               month: 'short',

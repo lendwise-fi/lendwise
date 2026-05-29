@@ -4,522 +4,522 @@
  */
 
 export interface paths {
-    "/health": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Health Check
-         * @description Health check endpoint.
-         */
-        get: operations["health_check_health_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/optimize/borrow": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Optimize Borrow
-         * @description Compute optimal borrowing allocation across markets.
-         *
-         *     Given a target collateral amount, finds the optimal distribution of
-         *     borrows and collateral across markets to minimize borrowing cost
-         *     while respecting LTV and liquidity constraints.
-         */
-        post: operations["optimize_borrow_optimize_borrow_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/optimize/collateral": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Optimize Collateral
-         * @description Compute optimal collateral allocation across markets.
-         *
-         *     Given a target borrow amount, finds the optimal distribution of
-         *     borrows and collateral across markets to minimize borrowing cost
-         *     and/or collateral requirements.
-         */
-        post: operations["optimize_collateral_optimize_collateral_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/breakpoints/borrow": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Get Breakpoints Borrow
-         * @description Find omega breakpoints where optimal rate changes for borrowing.
-         *
-         *     Returns a list of omega values at which the optimal allocation
-         *     strategy changes.
-         */
-        post: operations["get_breakpoints_borrow_breakpoints_borrow_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/breakpoints/collateral": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Get Breakpoints Collateral
-         * @description Find omega breakpoints where optimal rate changes for collateral.
-         *
-         *     Returns a list of omega values at which the optimal allocation
-         *     strategy changes.
-         */
-        post: operations["get_breakpoints_collateral_breakpoints_collateral_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/optimize/vaults": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Optimize Vaults
-         * @description Compute optimal allocation across vaults maximizing yield with diversification constraint.
-         *
-         *     Diversification score categories:
-         *     - 80: Highly diversified
-         *     - 60: Moderately diversified
-         *     - 40: Low diversified
-         *     - 0: No diversification (concentrated in highest yield)
-         */
-        post: operations["optimize_vaults_optimize_vaults_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
+  '/health': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    /**
+     * Health Check
+     * @description Health check endpoint.
+     */
+    get: operations['health_check_health_get']
+    put?: never
+    post?: never
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/optimize/borrow': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    get?: never
+    put?: never
+    /**
+     * Optimize Borrow
+     * @description Compute optimal borrowing allocation across markets.
+     *
+     *     Given a target collateral amount, finds the optimal distribution of
+     *     borrows and collateral across markets to minimize borrowing cost
+     *     while respecting LTV and liquidity constraints.
+     */
+    post: operations['optimize_borrow_optimize_borrow_post']
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/optimize/collateral': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    get?: never
+    put?: never
+    /**
+     * Optimize Collateral
+     * @description Compute optimal collateral allocation across markets.
+     *
+     *     Given a target borrow amount, finds the optimal distribution of
+     *     borrows and collateral across markets to minimize borrowing cost
+     *     and/or collateral requirements.
+     */
+    post: operations['optimize_collateral_optimize_collateral_post']
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/breakpoints/borrow': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    get?: never
+    put?: never
+    /**
+     * Get Breakpoints Borrow
+     * @description Find omega breakpoints where optimal rate changes for borrowing.
+     *
+     *     Returns a list of omega values at which the optimal allocation
+     *     strategy changes.
+     */
+    post: operations['get_breakpoints_borrow_breakpoints_borrow_post']
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/breakpoints/collateral': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    get?: never
+    put?: never
+    /**
+     * Get Breakpoints Collateral
+     * @description Find omega breakpoints where optimal rate changes for collateral.
+     *
+     *     Returns a list of omega values at which the optimal allocation
+     *     strategy changes.
+     */
+    post: operations['get_breakpoints_collateral_breakpoints_collateral_post']
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/optimize/vaults': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    get?: never
+    put?: never
+    /**
+     * Optimize Vaults
+     * @description Compute optimal allocation across vaults maximizing yield with diversification constraint.
+     *
+     *     Diversification score categories:
+     *     - 80: Highly diversified
+     *     - 60: Moderately diversified
+     *     - 40: Low diversified
+     *     - 0: No diversification (concentrated in highest yield)
+     */
+    post: operations['optimize_vaults_optimize_vaults_post']
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
 }
-export type webhooks = Record<string, never>;
+export type webhooks = Record<string, never>
 export interface components {
-    schemas: {
-        /**
-         * AllocationResult
-         * @description Single market allocation result.
-         */
-        AllocationResult: {
-            /** Market Index */
-            market_index: number;
-            /** Borrow */
-            borrow: number;
-            /** Collateral */
-            collateral: number;
-        };
-        /**
-         * BreakpointsBorrowRequest
-         * @description Request for borrowing breakpoints.
-         */
-        BreakpointsBorrowRequest: {
-            /**
-             * Collateral Amount
-             * @description Target collateral amount
-             */
-            collateral_amount: number;
-            markets: components["schemas"]["MarketData"];
-        };
-        /**
-         * BreakpointsCollateralRequest
-         * @description Request for collateral breakpoints.
-         */
-        BreakpointsCollateralRequest: {
-            /**
-             * Borrow Amount
-             * @description Target borrow amount
-             */
-            borrow_amount: number;
-            markets: components["schemas"]["MarketData"];
-        };
-        /**
-         * BreakpointsResponse
-         * @description Response for breakpoints endpoints.
-         */
-        BreakpointsResponse: {
-            /** Breakpoints */
-            breakpoints: number[];
-        };
-        /** HTTPValidationError */
-        HTTPValidationError: {
-            /** Detail */
-            detail?: components["schemas"]["ValidationError"][];
-        };
-        /**
-         * MarketData
-         * @description Market parameters for optimization.
-         */
-        MarketData: {
-            /**
-             * Max Ltv
-             * @description Max LTV ratios per market (e.g., [0.9, 0.925, 0.95])
-             */
-            max_ltv: number[];
-            /**
-             * Rates
-             * @description Net APR per market (e.g., [0.05, 0.06, 0.075])
-             */
-            rates: number[];
-            /**
-             * Liquidity
-             * @description Available liquidity per market
-             */
-            liquidity: number[];
-            /**
-             * Price
-             * @description Price of collateral in loan asset units
-             * @default 1
-             */
-            price: number;
-        };
-        /**
-         * OptimalBorrowRequest
-         * @description Request for optimal borrowing allocation.
-         */
-        OptimalBorrowRequest: {
-            /**
-             * Collateral Amount
-             * @description Target collateral amount
-             */
-            collateral_amount: number;
-            /**
-             * Omega
-             * @description Trade-off: 0=minimize cost, 1=maximize capacity
-             * @default 0.001
-             */
-            omega: number;
-            markets: components["schemas"]["MarketData"];
-        };
-        /**
-         * OptimalCollateralRequest
-         * @description Request for optimal collateral allocation.
-         */
-        OptimalCollateralRequest: {
-            /**
-             * Borrow Amount
-             * @description Target borrow amount
-             */
-            borrow_amount: number;
-            /**
-             * Omega
-             * @description Trade-off: 0=minimize cost, 1=minimize collateral
-             * @default 0.001
-             */
-            omega: number;
-            markets: components["schemas"]["MarketData"];
-        };
-        /**
-         * OptimizationResponse
-         * @description Response for optimization endpoints.
-         */
-        OptimizationResponse: {
-            /** Success */
-            success: boolean;
-            /** Allocations */
-            allocations: components["schemas"]["AllocationResult"][];
-            /** Total Borrow */
-            total_borrow: number;
-            /** Total Collateral */
-            total_collateral: number;
-            /** Optimal Rate */
-            optimal_rate: number;
-            /** Optimal Rate Percent */
-            optimal_rate_percent: number;
-        };
-        /** ValidationError */
-        ValidationError: {
-            /** Location */
-            loc: (string | number)[];
-            /** Message */
-            msg: string;
-            /** Error Type */
-            type: string;
-        };
-        /**
-         * VaultAllocationRequest
-         * @description Request for optimal vault allocation.
-         */
-        VaultAllocationRequest: {
-            /**
-             * Apy
-             * @description Net APY per vault (e.g., [0.01, 0.02, 0.03])
-             */
-            apy: number[];
-            /**
-             * Diversification
-             * @description Target diversification score (0-100). 80=highly, 60=moderate, 40=low, 0=none
-             * @default 80
-             */
-            diversification: number;
-        };
-        /**
-         * VaultAllocationResponse
-         * @description Response for vault allocation endpoint.
-         */
-        VaultAllocationResponse: {
-            /** Success */
-            success: boolean;
-            /** Allocations */
-            allocations: components["schemas"]["VaultAllocationResult"][];
-            /** Resulting Diversification */
-            resulting_diversification: number;
-        };
-        /**
-         * VaultAllocationResult
-         * @description Single vault allocation result.
-         */
-        VaultAllocationResult: {
-            /** Vault Index */
-            vault_index: number;
-            /** Allocation */
-            allocation: number;
-            /** Allocation Percent */
-            allocation_percent: number;
-        };
-    };
-    responses: never;
-    parameters: never;
-    requestBodies: never;
-    headers: never;
-    pathItems: never;
+  schemas: {
+    /**
+     * AllocationResult
+     * @description Single market allocation result.
+     */
+    AllocationResult: {
+      /** Market Index */
+      market_index: number
+      /** Borrow */
+      borrow: number
+      /** Collateral */
+      collateral: number
+    }
+    /**
+     * BreakpointsBorrowRequest
+     * @description Request for borrowing breakpoints.
+     */
+    BreakpointsBorrowRequest: {
+      /**
+       * Collateral Amount
+       * @description Target collateral amount
+       */
+      collateral_amount: number
+      markets: components['schemas']['MarketData']
+    }
+    /**
+     * BreakpointsCollateralRequest
+     * @description Request for collateral breakpoints.
+     */
+    BreakpointsCollateralRequest: {
+      /**
+       * Borrow Amount
+       * @description Target borrow amount
+       */
+      borrow_amount: number
+      markets: components['schemas']['MarketData']
+    }
+    /**
+     * BreakpointsResponse
+     * @description Response for breakpoints endpoints.
+     */
+    BreakpointsResponse: {
+      /** Breakpoints */
+      breakpoints: number[]
+    }
+    /** HTTPValidationError */
+    HTTPValidationError: {
+      /** Detail */
+      detail?: components['schemas']['ValidationError'][]
+    }
+    /**
+     * MarketData
+     * @description Market parameters for optimization.
+     */
+    MarketData: {
+      /**
+       * Max Ltv
+       * @description Max LTV ratios per market (e.g., [0.9, 0.925, 0.95])
+       */
+      max_ltv: number[]
+      /**
+       * Rates
+       * @description Net APR per market (e.g., [0.05, 0.06, 0.075])
+       */
+      rates: number[]
+      /**
+       * Liquidity
+       * @description Available liquidity per market
+       */
+      liquidity: number[]
+      /**
+       * Price
+       * @description Price of collateral in loan asset units
+       * @default 1
+       */
+      price: number
+    }
+    /**
+     * OptimalBorrowRequest
+     * @description Request for optimal borrowing allocation.
+     */
+    OptimalBorrowRequest: {
+      /**
+       * Collateral Amount
+       * @description Target collateral amount
+       */
+      collateral_amount: number
+      /**
+       * Omega
+       * @description Trade-off: 0=minimize cost, 1=maximize capacity
+       * @default 0.001
+       */
+      omega: number
+      markets: components['schemas']['MarketData']
+    }
+    /**
+     * OptimalCollateralRequest
+     * @description Request for optimal collateral allocation.
+     */
+    OptimalCollateralRequest: {
+      /**
+       * Borrow Amount
+       * @description Target borrow amount
+       */
+      borrow_amount: number
+      /**
+       * Omega
+       * @description Trade-off: 0=minimize cost, 1=minimize collateral
+       * @default 0.001
+       */
+      omega: number
+      markets: components['schemas']['MarketData']
+    }
+    /**
+     * OptimizationResponse
+     * @description Response for optimization endpoints.
+     */
+    OptimizationResponse: {
+      /** Success */
+      success: boolean
+      /** Allocations */
+      allocations: components['schemas']['AllocationResult'][]
+      /** Total Borrow */
+      total_borrow: number
+      /** Total Collateral */
+      total_collateral: number
+      /** Optimal Rate */
+      optimal_rate: number
+      /** Optimal Rate Percent */
+      optimal_rate_percent: number
+    }
+    /** ValidationError */
+    ValidationError: {
+      /** Location */
+      loc: (string | number)[]
+      /** Message */
+      msg: string
+      /** Error Type */
+      type: string
+    }
+    /**
+     * VaultAllocationRequest
+     * @description Request for optimal vault allocation.
+     */
+    VaultAllocationRequest: {
+      /**
+       * Apy
+       * @description Net APY per vault (e.g., [0.01, 0.02, 0.03])
+       */
+      apy: number[]
+      /**
+       * Diversification
+       * @description Target diversification score (0-100). 80=highly, 60=moderate, 40=low, 0=none
+       * @default 80
+       */
+      diversification: number
+    }
+    /**
+     * VaultAllocationResponse
+     * @description Response for vault allocation endpoint.
+     */
+    VaultAllocationResponse: {
+      /** Success */
+      success: boolean
+      /** Allocations */
+      allocations: components['schemas']['VaultAllocationResult'][]
+      /** Resulting Diversification */
+      resulting_diversification: number
+    }
+    /**
+     * VaultAllocationResult
+     * @description Single vault allocation result.
+     */
+    VaultAllocationResult: {
+      /** Vault Index */
+      vault_index: number
+      /** Allocation */
+      allocation: number
+      /** Allocation Percent */
+      allocation_percent: number
+    }
+  }
+  responses: never
+  parameters: never
+  requestBodies: never
+  headers: never
+  pathItems: never
 }
-export type $defs = Record<string, never>;
+export type $defs = Record<string, never>
 export interface operations {
-    health_check_health_get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": unknown;
-                };
-            };
-        };
-    };
-    optimize_borrow_optimize_borrow_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["OptimalBorrowRequest"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["OptimizationResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    optimize_collateral_optimize_collateral_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["OptimalCollateralRequest"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["OptimizationResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    get_breakpoints_borrow_breakpoints_borrow_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["BreakpointsBorrowRequest"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["BreakpointsResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    get_breakpoints_collateral_breakpoints_collateral_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["BreakpointsCollateralRequest"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["BreakpointsResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    optimize_vaults_optimize_vaults_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["VaultAllocationRequest"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["VaultAllocationResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
+  health_check_health_get: {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': unknown
+        }
+      }
+    }
+  }
+  optimize_borrow_optimize_borrow_post: {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['OptimalBorrowRequest']
+      }
+    }
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['OptimizationResponse']
+        }
+      }
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['HTTPValidationError']
+        }
+      }
+    }
+  }
+  optimize_collateral_optimize_collateral_post: {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['OptimalCollateralRequest']
+      }
+    }
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['OptimizationResponse']
+        }
+      }
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['HTTPValidationError']
+        }
+      }
+    }
+  }
+  get_breakpoints_borrow_breakpoints_borrow_post: {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['BreakpointsBorrowRequest']
+      }
+    }
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['BreakpointsResponse']
+        }
+      }
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['HTTPValidationError']
+        }
+      }
+    }
+  }
+  get_breakpoints_collateral_breakpoints_collateral_post: {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['BreakpointsCollateralRequest']
+      }
+    }
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['BreakpointsResponse']
+        }
+      }
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['HTTPValidationError']
+        }
+      }
+    }
+  }
+  optimize_vaults_optimize_vaults_post: {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['VaultAllocationRequest']
+      }
+    }
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['VaultAllocationResponse']
+        }
+      }
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['HTTPValidationError']
+        }
+      }
+    }
+  }
 }

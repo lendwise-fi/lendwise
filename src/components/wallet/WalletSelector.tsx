@@ -148,7 +148,7 @@ export function WalletSelector({
           </Button>
         </div>
 
-        <div className="scrollbar-thin scrollbar-thumb-border scrollbar-track-transparent max-h-[350px] flex-1 overflow-y-auto p-1">
+        <div className="scrollbar-thumb-border max-h-[350px] flex-1 scrollbar-thin scrollbar-track-transparent overflow-y-auto p-1">
           {connectedWallets.length === 0 ? (
             <div className="text-muted-foreground px-2 py-1.5 text-sm">
               No wallets connected

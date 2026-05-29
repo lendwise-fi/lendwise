@@ -76,7 +76,9 @@ async function main(): Promise<void> {
 
     for (const [from] of RENAMES) {
       // Match on _id directly — no secondary index needed, pure primary key scan
-      const filter = { _id: new RegExp('^' + from.replace(/:/g, '\\:')) } as unknown as Parameters<typeof col.find>[0]
+      const filter = {
+        _id: new RegExp('^' + from.replace(/:/g, '\\:')),
+      } as unknown as Parameters<typeof col.find>[0]
       const count = await col.countDocuments(filter)
       if (count === 0) continue
 
@@ -90,22 +92,24 @@ async function main(): Promise<void> {
       async function flush() {
         if (batch.length === 0) return
 
-        const newDocs = batch.map((doc) => ({ ...doc, _id: renameId(doc._id as string) }))
+        const newDocs = batch.map((doc) => ({
+          ...doc,
+          _id: renameId(doc._id as string),
+        }))
         const oldIds = batch.map((doc) => doc._id as string)
 
         // Insert new docs (ignore duplicate key if already migrated)
         try {
-          await col.insertMany(
-            newDocs as unknown as { _id: string }[],
-            { ordered: false }
-          )
+          await col.insertMany(newDocs as unknown as { _id: string }[], {
+            ordered: false,
+          })
         } catch (err: unknown) {
           if ((err as { code?: number })?.code !== 11000) throw err
         }
 
-        const del = await col.deleteMany(
-          { _id: { $in: oldIds } } as unknown as Parameters<typeof col.deleteMany>[0]
-        )
+        const del = await col.deleteMany({
+          _id: { $in: oldIds },
+        } as unknown as Parameters<typeof col.deleteMany>[0])
         renamed += del.deletedCount
         batch.length = 0
       }

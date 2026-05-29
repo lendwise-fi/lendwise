@@ -81,33 +81,34 @@ async function getUserSupplyPositions({
           const balance = BigInt(position.state?.assets ?? 0)
           return balance > 0n
         })
-        .map(
-          (position): SupplyPosition => {
-            const network = CHAIN_NAME_MAPPING[position.vault.chain.id]
-            if (!network) throw new Error(`No slug registered for chainId ${position.vault.chain.id} — add it to chain-slugs.ts`)
-            return {
-              id: position.id,
-              protocol: MORPHO_CONFIG.morpho_v1.id,
-              network,
-              userAddress: position.user.address.toLowerCase(),
-              poolName: position.vault.name,
-              poolAddress: position.vault.address,
-              poolId: position.vault.address,
-              poolChainId: Number(position.vault.chain.id),
-              assetAddress: position.vault.asset.address,
-              assetName: position.vault.asset.name,
-              assetSymbol: position.vault.asset.symbol,
-              assetDecimals: position.vault.asset.decimals,
-              assetAmount: (position.state?.assets ?? 0).toString(),
-              assetAmountUsd: position.state?.assetsUsd ?? 0,
-              assetLiveAmountUsd: position.state?.assetsUsd ?? 0,
-              apy: position.vault.state?.avgNetApy
-                ? position.vault.state.avgNetApy * 100
-                : 0,
-              link: `https://app.morpho.org/${position.vault.chain.network.toLowerCase()}/vault/${position.vault.address}/${generateSlug(position.vault.name)}?subTab=yourPosition`,
-            }
+        .map((position): SupplyPosition => {
+          const network = CHAIN_NAME_MAPPING[position.vault.chain.id]
+          if (!network)
+            throw new Error(
+              `No slug registered for chainId ${position.vault.chain.id} — add it to chain-slugs.ts`
+            )
+          return {
+            id: position.id,
+            protocol: MORPHO_CONFIG.morpho_v1.id,
+            network,
+            userAddress: position.user.address.toLowerCase(),
+            poolName: position.vault.name,
+            poolAddress: position.vault.address,
+            poolId: position.vault.address,
+            poolChainId: Number(position.vault.chain.id),
+            assetAddress: position.vault.asset.address,
+            assetName: position.vault.asset.name,
+            assetSymbol: position.vault.asset.symbol,
+            assetDecimals: position.vault.asset.decimals,
+            assetAmount: (position.state?.assets ?? 0).toString(),
+            assetAmountUsd: position.state?.assetsUsd ?? 0,
+            assetLiveAmountUsd: position.state?.assetsUsd ?? 0,
+            apy: position.vault.state?.avgNetApy
+              ? position.vault.state.avgNetApy * 100
+              : 0,
+            link: `https://app.morpho.org/${position.vault.chain.network.toLowerCase()}/vault/${position.vault.address}/${generateSlug(position.vault.name)}?subTab=yourPosition`,
           }
-        )
+        })
 
       allPositions.push(...positions)
 
@@ -173,15 +174,19 @@ async function getUserBorrowPositions({
 
       const positions = data.marketPositions.items.map(
         (position): BorrowPosition => {
-          const network = CHAIN_NAME_MAPPING[position.market.morphoBlue.chain.id]
-          if (!network) throw new Error(`No slug registered for chainId ${position.market.morphoBlue.chain.id} — add it to chain-slugs.ts`)
+          const network =
+            CHAIN_NAME_MAPPING[position.market.morphoBlue.chain.id]
+          if (!network)
+            throw new Error(
+              `No slug registered for chainId ${position.market.morphoBlue.chain.id} — add it to chain-slugs.ts`
+            )
           return {
             id: position.id,
             protocol: MORPHO_CONFIG.morpho_v1.id,
             network,
             healthFactor: Number(position.healthFactor),
             userAddress: position.user.address.toLowerCase(),
-            poolId: position.market.id,
+            poolId: position.market.marketId,
             poolName: `${position.market.collateralAsset?.symbol}/${position.market.loanAsset?.symbol}`,
             poolAddress: position.market.marketId,
             poolChainId: position.market.morphoBlue.chain.id,
@@ -270,7 +275,7 @@ async function getMarketBorrowHistoryRates({
   }
 
   return (
-    data?.market.historicalState?.netBorrowApy.reverse().map((item) => ({
+    data?.marketById?.historicalState?.netBorrowApy.reverse().map((item) => ({
       timestamp: item.x,
       rate: item.y ?? 0,
     })) ?? []

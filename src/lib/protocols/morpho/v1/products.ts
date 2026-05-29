@@ -194,7 +194,7 @@ export async function fetchMorphoV1Products(
           chain,
           address: vault.address,
           meta: {
-            id: vault.id,
+            id: vault.address,
             address: vault.address,
             name: vault.name,
             symbol: vault.symbol,

@@ -82,9 +82,13 @@ async function migrateApyCollection(
       const sample = docs[0]
       log(`  [${collectionName}] Sample:`)
       log(`    _id (before):        ${sample._id}`)
-      log(`    _id (after):         ${replaceNumericChainIds(String(sample._id))}`)
+      log(
+        `    _id (after):         ${replaceNumericChainIds(String(sample._id))}`
+      )
       log(`    productId (before):  ${sample.productId}`)
-      log(`    productId (after):   ${replaceNumericChainIds(String(sample.productId))}`)
+      log(
+        `    productId (after):   ${replaceNumericChainIds(String(sample.productId))}`
+      )
     }
     return { found: docs.length, migrated: 0 }
   }
@@ -112,11 +116,7 @@ async function migrateApyCollection(
       migrated += insertResult.insertedCount
     } catch (err: unknown) {
       // BulkWriteError: some docs may already exist — count the inserted ones
-      if (
-        err &&
-        typeof err === 'object' &&
-        'insertedCount' in err
-      ) {
+      if (err && typeof err === 'object' && 'insertedCount' in err) {
         migrated += (err as { insertedCount: number }).insertedCount
       } else {
         throw err
@@ -148,9 +148,7 @@ async function migrateProductsCollection(
 
   // products._id uses buildReserveProductId: "aave:v3:59144:reserve:0x...:supply"
   // Same format as apy collections — requires delete + insert to change _id
-  const docs = await collection
-    .find({ _id: NUMERIC_CHAIN_REGEX })
-    .toArray()
+  const docs = await collection.find({ _id: NUMERIC_CHAIN_REGEX }).toArray()
 
   log(`  [${collectionName}] Found ${docs.length} documents to migrate`)
 
@@ -177,7 +175,9 @@ async function migrateProductsCollection(
     }))
 
     try {
-      const insertResult = await collection.insertMany(newDocs, { ordered: false })
+      const insertResult = await collection.insertMany(newDocs, {
+        ordered: false,
+      })
       migrated += insertResult.insertedCount
     } catch (err: unknown) {
       if (err && typeof err === 'object' && 'insertedCount' in err) {
@@ -208,7 +208,9 @@ async function main(): Promise<void> {
   log(`  Database:   ${dbName}`)
   log(`  Dry run:    ${dryRun}`)
   log(`  Collection: ${collection ?? 'all'}`)
-  const mappingPreview = Object.entries(SLUG_BY_ID).map(([k, v]) => `${k} → ${v}`).join(', ')
+  const mappingPreview = Object.entries(SLUG_BY_ID)
+    .map(([k, v]) => `${k} → ${v}`)
+    .join(', ')
   log(`\n  Chain map: ${mappingPreview}\n`)
 
   const client = new MongoClient(MONGODB_URI!)
@@ -224,7 +226,11 @@ async function main(): Promise<void> {
 
     if (runDaily) {
       const r = await migrateApyCollection(
-        client, dbName, MONGODB_COLLECTION_DAILY!, dryRun, log
+        client,
+        dbName,
+        MONGODB_COLLECTION_DAILY!,
+        dryRun,
+        log
       )
       totalFound += r.found
       totalMigrated += r.migrated
@@ -232,7 +238,11 @@ async function main(): Promise<void> {
 
     if (runHourly) {
       const r = await migrateApyCollection(
-        client, dbName, MONGODB_COLLECTION_HOURLY!, dryRun, log
+        client,
+        dbName,
+        MONGODB_COLLECTION_HOURLY!,
+        dryRun,
+        log
       )
       totalFound += r.found
       totalMigrated += r.migrated
@@ -240,7 +250,11 @@ async function main(): Promise<void> {
 
     if (runProducts) {
       const r = await migrateProductsCollection(
-        client, dbName, MONGODB_COLLECTION_PRODUCTS!, dryRun, log
+        client,
+        dbName,
+        MONGODB_COLLECTION_PRODUCTS!,
+        dryRun,
+        log
       )
       totalFound += r.found
       totalMigrated += r.migrated

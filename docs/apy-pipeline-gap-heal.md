@@ -10,10 +10,10 @@ The APY pipeline collects live protocol data every **10 minutes** and aggregates
 
 Two scheduled jobs run sequentially to detect and repair data gaps:
 
-| Job | Route | Schedule | Trigger |
-|-----|-------|----------|---------|
-| **Gap Detection** | `POST /api/yield/apy/gaps` | Daily at 01:00 UTC | QStash |
-| **Gap Healing** | `POST /api/yield/apy/heal` | After gap detection | QStash |
+| Job               | Route                      | Schedule            | Trigger |
+| ----------------- | -------------------------- | ------------------- | ------- |
+| **Gap Detection** | `POST /api/yield/apy/gaps` | Daily at 01:00 UTC  | QStash  |
+| **Gap Healing**   | `POST /api/yield/apy/heal` | After gap detection | QStash  |
 
 Both endpoints are protected by **Upstash QStash signature verification** in production. In development (`NODE_ENV=development`), the handlers are exported directly to allow local invocation via `curl`.
 
@@ -85,7 +85,7 @@ Scan the last **7 days** (168 hours, configurable up to 14 days) of `apy.hourly`
 
 ### 3.3 Product Creation Date Filter
 
-**Problem solved:** Without filtering, gap detection would flag slots for hours *before* a product existed on-chain (e.g., a new AAVE reserve listed on April 8 would generate ~144 false-positive gaps for April 2–7).
+**Problem solved:** Without filtering, gap detection would flag slots for hours _before_ a product existed on-chain (e.g., a new AAVE reserve listed on April 8 would generate ~144 false-positive gaps for April 2–7).
 
 **Rule:** For each product, gap detection skips all hours strictly before `product.createdAt` (floored to the hour boundary). This eliminates thousands of false positives for recently added products.
 
@@ -100,6 +100,7 @@ Scan the last **7 days** (168 hours, configurable up to 14 days) of `apy.hourly`
 The gap detection report is persisted in `pipeline.reports` with the full list of gaps and incomplete entries. This report is consumed by the heal job. The HTTP response returns a capped summary (max 50 items per category).
 
 Key metrics:
+
 - `collected.expectedSlots` — `collectedProducts × hours`
 - `collected.missingSlots` — slots with no document
 - `collected.incompleteSlots` — slots with `count < 6` (excluding healed)
@@ -120,10 +121,10 @@ Attempt to fill every gap and incomplete slot reported by the most recent gap de
 
 For protocols that expose historical APIs, the heal job fetches the actual on-chain data for the gap period:
 
-| Protocol | API | Window | Granularity |
-|----------|-----|--------|-------------|
-| **Morpho** (Blue + MetaMorpho) | Morpho GraphQL API | Custom start/end timestamps | `HOUR` interval |
-| **AAVE** (v3, all chains) | AAVE v3 offchain API | `LAST_WEEK` (168 hours) | Hourly data points |
+| Protocol                       | API                  | Window                      | Granularity        |
+| ------------------------------ | -------------------- | --------------------------- | ------------------ |
+| **Morpho** (Blue + MetaMorpho) | Morpho GraphQL API   | Custom start/end timestamps | `HOUR` interval    |
+| **AAVE** (v3, all chains)      | AAVE v3 offchain API | `LAST_WEEK` (168 hours)     | Hourly data points |
 
 The fetched data is normalized into `HistoryDataPoint` objects and stored in a unified lookup map keyed by `{productId}:{YYYY-MM-DDTHH}`.
 
@@ -141,12 +142,13 @@ For gaps not covered by the re-fetch (Compound, or Morpho/AAVE gaps outside the 
 
 ### 4.3 Write Semantics
 
-| Gap Kind | MongoDB Operation | Behavior |
-|----------|------------------|----------|
-| **Missing** | `updateOne` with `$setOnInsert` + `upsert: true` | Creates the doc only if it doesn't exist. Never overwrites organic data that arrived between gap detection and healing. |
-| **Incomplete** | `updateOne` with `$set` | Overwrites the existing poor-quality doc with better data. |
+| Gap Kind       | MongoDB Operation                                | Behavior                                                                                                                |
+| -------------- | ------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------- |
+| **Missing**    | `updateOne` with `$setOnInsert` + `upsert: true` | Creates the doc only if it doesn't exist. Never overwrites organic data that arrived between gap detection and healing. |
+| **Incomplete** | `updateOne` with `$set`                          | Overwrites the existing poor-quality doc with better data.                                                              |
 
 All healed documents carry traceability fields:
+
 - `healed: true`
 - `healSource: 'refetch' | 'nearest-neighbor'`
 - `healedFrom: '<ISO timestamp of source data>'`
@@ -156,12 +158,14 @@ All healed documents carry traceability fields:
 Operations are batched in **chunks of 1,000** to avoid oversized MongoDB payloads. Each chunk is executed with `ordered: false` for maximum throughput.
 
 Metrics tracked:
+
 - `healed` = `upsertedCount` + `modifiedCount` (new inserts + updated incompletes)
 - `alreadyExists` = `matchedCount` - `modifiedCount` (organic data arrived in the meantime)
 
 ### 4.5 Output
 
 The heal result is persisted in `pipeline.reports` (type: `gap-healing`) and includes:
+
 - `healedByRefetch` — slots filled with authoritative historical data
 - `healedByNeighbor` — slots filled by interpolation
 - `noDonor` — slots for which no data source was available
@@ -179,6 +183,7 @@ The `$setOnInsert` pattern for missing slots guarantees that if organic data arr
 ### 5.2 Traceability
 
 Every healed document is tagged with `healed: true`, the source type, and the exact timestamp of the donor data. This allows:
+
 - The status page to visually distinguish organic vs. healed data.
 - Gap detection to skip already-healed slots.
 - Audit and investigation of data quality.
@@ -196,6 +201,7 @@ The two-phase healing strategy ensures that protocol-native historical data (fro
 ### 5.5 No Infinite Loops
 
 The `healed` flag breaks the detection→healing cycle:
+
 1. Gap detection flags a slot as incomplete.
 2. Heal job fills it (refetch or nearest-neighbor), sets `healed: true`.
 3. Next gap detection sees `healed: true` → **skips it**.
@@ -214,16 +220,17 @@ Without this mechanism, slots healed by nearest-neighbor (which retain `count: 0
 
 The `/status` page provides a visual heatmap of data quality per protocol:
 
-| Color | Meaning |
-|-------|---------|
-| 🟢 Green (bright) | Complete — ≥95% products have 6/6 spots |
-| 🟢 Green (faded) | Healed — data restored, marked `healed: true` |
-| 🟡 Amber | Partial — avg 4–5 spots per product |
-| 🟠 Orange | Sparse — avg 1–3 spots per product |
-| 🔴 Red | Missing — no data for this slot |
-| 🔵 Blue ring | Contains at least one healed document |
+| Color             | Meaning                                       |
+| ----------------- | --------------------------------------------- |
+| 🟢 Green (bright) | Complete — ≥95% products have 6/6 spots       |
+| 🟢 Green (faded)  | Healed — data restored, marked `healed: true` |
+| 🟡 Amber          | Partial — avg 4–5 spots per product           |
+| 🟠 Orange         | Sparse — avg 1–3 spots per product            |
+| 🔴 Red            | Missing — no data for this slot               |
+| 🔵 Blue ring      | Contains at least one healed document         |
 
 The tooltip shows per-slot detail:
+
 - **Status** — Complete / Healed / Partial / Sparse / Missing
 - **Avg. spots** — average `quality.count` across products (capped at 6)
 - **Products** — `collected / expected` (expected accounts for product creation dates)
@@ -233,12 +240,12 @@ The tooltip shows per-slot detail:
 
 ## 7. Supported Protocols
 
-| Protocol | Re-fetch Source | Chains |
-|----------|----------------|--------|
-| AAVE v3 | AAVE offchain GraphQL API (`LAST_WEEK`) | Ethereum, Polygon, Arbitrum, Base, Optimism, Avalanche, Linea, BSC |
-| Morpho Blue | Morpho public API (`HOUR` interval) | Ethereum |
-| MetaMorpho | Morpho public API (`HOUR` interval) | Ethereum |
-| Compound v3 | *No historical API* — nearest-neighbor only | Ethereum |
+| Protocol    | Re-fetch Source                             | Chains                                                             |
+| ----------- | ------------------------------------------- | ------------------------------------------------------------------ |
+| AAVE v3     | AAVE offchain GraphQL API (`LAST_WEEK`)     | Ethereum, Polygon, Arbitrum, Base, Optimism, Avalanche, Linea, BSC |
+| Morpho Blue | Morpho public API (`HOUR` interval)         | Ethereum                                                           |
+| MetaMorpho  | Morpho public API (`HOUR` interval)         | Ethereum                                                           |
+| Compound v3 | _No historical API_ — nearest-neighbor only | Ethereum                                                           |
 
 ---
 
@@ -265,6 +272,7 @@ curl -s -X POST http://localhost:3000/api/yield/apy/gaps \
 ```
 
 The dev bypass is controlled by:
+
 ```typescript
 export const POST =
   process.env.NODE_ENV === 'development'
@@ -276,12 +284,12 @@ export const POST =
 
 ## 9. File Reference
 
-| File | Role |
-|------|------|
-| `src/app/api/yield/apy/gaps/route.ts` | Gap detection endpoint |
-| `src/app/api/yield/apy/heal/route.ts` | Gap healing endpoint |
-| `src/app/api/status/quality/route.ts` | Quality API for the status page |
-| `src/app/status/page.tsx` | Status page UI (heatmap) |
-| `src/lib/protocols/aave/v3/apy-history.ts` | AAVE historical data fetcher |
-| `src/lib/protocols/morpho/v1/apy-history.ts` | Morpho historical data fetcher |
-| `src/lib/db/types.ts` | MongoDB document types (`ApySlot`, `SlotQuality`, `Product`) |
+| File                                         | Role                                                         |
+| -------------------------------------------- | ------------------------------------------------------------ |
+| `src/app/api/yield/apy/gaps/route.ts`        | Gap detection endpoint                                       |
+| `src/app/api/yield/apy/heal/route.ts`        | Gap healing endpoint                                         |
+| `src/app/api/status/quality/route.ts`        | Quality API for the status page                              |
+| `src/app/status/page.tsx`                    | Status page UI (heatmap)                                     |
+| `src/lib/protocols/aave/v3/apy-history.ts`   | AAVE historical data fetcher                                 |
+| `src/lib/protocols/morpho/v1/apy-history.ts` | Morpho historical data fetcher                               |
+| `src/lib/db/types.ts`                        | MongoDB document types (`ApySlot`, `SlotQuality`, `Product`) |

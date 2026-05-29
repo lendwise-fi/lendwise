@@ -9,7 +9,7 @@ export function Footer() {
     <footer className="border-border/50 bg-background border-t">
       <div className="flex h-10 items-center justify-end px-6">
         <div className="flex items-center gap-3">
-          <Badge variant="outline" className="h-5 gap-1 px-1.5 text-2xs">
+          <Badge variant="outline" className="text-2xs h-5 gap-1 px-1.5">
             <Link
               href="/status"
               className="hover:text-primary transition-colors"

@@ -14,9 +14,9 @@ This document documents known discrepancies between Aave's official GraphQL API 
 **Market:** AaveV3Arbitrum
 
 | Data Source | canBeCollateral | Max LTV | Liquidation Threshold | Borrowing State |
-|-------------|-----------------|---------|----------------------|-----------------|
-| GraphQL API | `false` | `0` | `0.001` | `DISABLED` |
-| Aave UI | `true` (green) | - | - | - |
+| ----------- | --------------- | ------- | --------------------- | --------------- |
+| GraphQL API | `false`         | `0`     | `0.001`               | `DISABLED`      |
+| Aave UI     | `true` (green)  | -       | -                     | -               |
 
 **Last Verified:** 2026-03-17T23:52:18.568Z
 
@@ -25,6 +25,7 @@ This document documents known discrepancies between Aave's official GraphQL API 
 ### 1. API Data Consistency ✅
 
 The GraphQL API consistently returns `canBeCollateral: false` for rsETH across multiple calls:
+
 - Tested with 5 consecutive API calls
 - All returned the same result: `false`
 - No timing or cache issues detected
@@ -32,6 +33,7 @@ The GraphQL API consistently returns `canBeCollateral: false` for rsETH across m
 ### 2. Alternative Data Sources ❌
 
 Several alternative Aave data sources were investigated:
+
 - **Aave v2 API**: Not available or rsETH not found
 - **Aave Subgraph**: Requires authentication, not publicly accessible
 - **Other GraphQL endpoints**: No alternative public endpoints found
@@ -39,12 +41,13 @@ Several alternative Aave data sources were investigated:
 ### 3. Code Logic Analysis ✅
 
 The yieldoptimizer code correctly processes the API data:
+
 ```typescript
 const marketCollaterals: Collateral[] = market.reserves
-  .filter((r) => r.supplyInfo?.canBeCollateral === true)  // ✅ Correctly filters out rsETH
+  .filter((r) => r.supplyInfo?.canBeCollateral === true) // ✅ Correctly filters out rsETH
   .map((r) => ({
     // ... collateral mapping
-    canBeCollateral: true,  // ✅ Hardcoded for filtered results
+    canBeCollateral: true, // ✅ Hardcoded for filtered results
   }))
 ```
 
@@ -62,6 +65,7 @@ The filtering logic is sound and will correctly exclude rsETH from collateral li
 ### ✅ No Impact on Current Implementation
 
 The yieldoptimizer correctly:
+
 - Filters out rsETH from collateral lists based on API data
 - Prevents rsETH from being used as collateral in optimization calculations
 - Maintains data consistency with the official API
@@ -69,6 +73,7 @@ The yieldoptimizer correctly:
 ### ⚠️ Potential User Confusion
 
 Users might see:
+
 - rsETH listed as collateral in Aave UI
 - rsETH NOT available as collateral in yieldoptimizer
 - This discrepancy could cause confusion about data accuracy
@@ -78,6 +83,7 @@ Users might see:
 ### 1. Trust the Official API ✅
 
 **Continue using the official GraphQL API data** for the following reasons:
+
 - It's the documented and supported data source
 - Consistent and reliable across calls
 - Used by other DeFi applications
@@ -86,6 +92,7 @@ Users might see:
 ### 2. Add Validation Monitoring ✅
 
 **Implemented monitoring system** that:
+
 - Detects collateral discrepancies automatically
 - Logs detailed discrepancy information
 - Provides summary statistics
@@ -94,6 +101,7 @@ Users might see:
 ### 3. User Communication 📋
 
 **Consider adding user-facing explanations** when:
+
 - Assets are excluded from collateral lists
 - Known discrepancies exist
 - Users might question data accuracy
@@ -101,6 +109,7 @@ Users might see:
 ### 4. Periodic Validation 🔄
 
 **Schedule regular validation** to:
+
 - Monitor for new discrepancies
 - Track resolution of existing ones
 - Update known discrepancy lists

@@ -85,12 +85,10 @@ export async function fetchMorphoV1ApySpot(
       const productId = `metamorpho:v1:${network}:vault:${vault.address.toLowerCase()}`
 
       // ─── Rewards ────────────────────────────────────────────────────────────
-      // APR per reward = annualised token amount per supplied token × reward price
-      const rewardItems = (state.rewards ?? [])
+      // supplyApr provided by Morpho API (annualized)
+      const rewardItems = (state.allRewards ?? [])
         .map((r) => {
-          const amountPerToken =
-            Number(r.amountPerSuppliedToken) / Math.pow(10, r.asset.decimals)
-          const apr = amountPerToken * (r.asset.priceUsd ?? 0)
+          const apr = r.supplyApr ?? 0
           return {
             token: { symbol: r.asset.symbol, address: r.asset.address },
             apr,

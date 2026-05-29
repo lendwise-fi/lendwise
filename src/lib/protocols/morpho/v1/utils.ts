@@ -9,7 +9,10 @@ import { CHAIN_NAME_MAPPING } from '@/lib/protocols/utils'
 
 export function buildVaultProductId(chainId: number, address: string): string {
   const network = CHAIN_NAME_MAPPING[chainId]
-  if (!network) throw new Error(`No slug registered for chainId ${chainId} — add it to chain-slugs.ts`)
+  if (!network)
+    throw new Error(
+      `No slug registered for chainId ${chainId} — add it to chain-slugs.ts`
+    )
   return `metamorpho:v1:${network}:vault:${address.toLowerCase()}`
 }
 
@@ -18,7 +21,10 @@ export function buildMarketProductId(
   marketId: string
 ): string {
   const network = CHAIN_NAME_MAPPING[chainId]
-  if (!network) throw new Error(`No slug registered for chainId ${chainId} — add it to chain-slugs.ts`)
+  if (!network)
+    throw new Error(
+      `No slug registered for chainId ${chainId} — add it to chain-slugs.ts`
+    )
   return `morphoblue:v1:${network}:market:${marketId}`
 }
 

@@ -33,7 +33,10 @@ export default function NormalizationCanvas() {
     const draw = () => {
       const W = canvas.width
       const H = canvas.height
-      if (W === 0 || H === 0) { raf = requestAnimationFrame(draw); return }
+      if (W === 0 || H === 0) {
+        raf = requestAnimationFrame(draw)
+        return
+      }
 
       ctx.clearRect(0, 0, W, H)
       t += 0.012
@@ -46,9 +49,10 @@ export default function NormalizationCanvas() {
       const centerY = H * 0.5
 
       PROTOCOLS.forEach((p, i) => {
-        const y = H * 0.18 + i * (H * 0.64 / (PROTOCOLS.length - 1))
+        const y = H * 0.18 + i * ((H * 0.64) / (PROTOCOLS.length - 1))
         const alpha = 0.7 + 0.3 * Math.sin(t + i)
-        const bw = 100, bh = 34
+        const bw = 100,
+          bh = 34
 
         ctx.save()
         ctx.globalAlpha = alpha
@@ -85,7 +89,14 @@ export default function NormalizationCanvas() {
       })
 
       const engineR = 30 + 4 * Math.sin(t * 1.5)
-      const grd = ctx.createRadialGradient(centerX, centerY, 4, centerX, centerY, engineR)
+      const grd = ctx.createRadialGradient(
+        centerX,
+        centerY,
+        4,
+        centerX,
+        centerY,
+        engineR
+      )
       grd.addColorStop(0, '#6378ff')
       grd.addColorStop(1, '#06b6d4')
 
@@ -115,7 +126,7 @@ export default function NormalizationCanvas() {
       const maxApy = Math.max(...normalizedApys)
 
       normalizedApys.forEach((apy, i) => {
-        const y = H * 0.18 + i * (H * 0.64 / (normalizedApys.length - 1))
+        const y = H * 0.18 + i * ((H * 0.64) / (normalizedApys.length - 1))
         const barMaxW = 80
         const barLen = (apy / maxApy) * barMaxW * progress
         const col = PROTOCOLS[i].color
@@ -165,8 +176,11 @@ export default function NormalizationCanvas() {
     }
 
     draw()
-    return () => { cancelAnimationFrame(raf); ro.disconnect() }
+    return () => {
+      cancelAnimationFrame(raf)
+      ro.disconnect()
+    }
   }, [])
 
-  return <canvas ref={canvasRef} className="w-full h-full" />
+  return <canvas ref={canvasRef} className="h-full w-full" />
 }

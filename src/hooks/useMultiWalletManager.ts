@@ -104,7 +104,7 @@ export function useMultiWalletManager() {
     createClient,
     addOrUpdateClient,
     getClient,
-    
+
     // Address management
     disconnectAddress,
     recreateAllClients,

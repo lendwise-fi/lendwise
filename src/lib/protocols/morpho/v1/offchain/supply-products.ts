@@ -43,7 +43,10 @@ export async function getSupplyProducts(): Promise<SupplyProduct[]> {
 
       const markets = data.vaults.items.map((vault): SupplyProduct => {
         const network = CHAIN_NAME_MAPPING[vault.asset.chain.id]
-        if (!network) throw new Error(`No slug registered for chainId ${vault.asset.chain.id} — add it to chain-slugs.ts`)
+        if (!network)
+          throw new Error(
+            `No slug registered for chainId ${vault.asset.chain.id} — add it to chain-slugs.ts`
+          )
         return {
           protocol: MORPHO_CONFIG.morpho_v1.id,
           network,

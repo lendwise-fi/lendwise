@@ -1,7 +1,6 @@
 import type { Address } from 'viem'
 
 import { CHAIN_SLUG_MAP } from '@/lib/protocols/chain-slugs'
-
 import type {
   BorrowPosition,
   BorrowProduct,

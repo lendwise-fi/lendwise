@@ -37,4 +37,7 @@ export const CompoundAdapter = createProtocolAdapter(
 export { COMPOUND_CONFIG } from './config'
 export { fetchCompoundV3ApySpot } from './v3/apy-spot'
 export { fetchCompoundV3Products } from './v3/products'
-export { fetchCompoundDailyHistory, fetchCompoundHourlyHistory } from './v3/apy-history'
+export {
+  fetchCompoundDailyHistory,
+  fetchCompoundHourlyHistory,
+} from './v3/apy-history'

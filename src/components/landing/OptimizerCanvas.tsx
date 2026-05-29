@@ -36,14 +36,19 @@ export default function OptimizerCanvas() {
     const draw = () => {
       const W = canvas.width
       const H = canvas.height
-      if (W === 0 || H === 0) { raf = requestAnimationFrame(draw); return }
+      if (W === 0 || H === 0) {
+        raf = requestAnimationFrame(draw)
+        return
+      }
 
       ctx.clearRect(0, 0, W, H)
       t += 0.015
 
-      const animAlloc = BASE_ALLOC.map((a, i) => Math.max(0.05, a + 0.06 * Math.sin(t + i * 1.3)))
+      const animAlloc = BASE_ALLOC.map((a, i) =>
+        Math.max(0.05, a + 0.06 * Math.sin(t + i * 1.3))
+      )
       const total = animAlloc.reduce((s, v) => s + v, 0)
-      const normAlloc = animAlloc.map(v => v / total)
+      const normAlloc = animAlloc.map((v) => v / total)
 
       const cx = W * 0.46
       const cy = H * 0.5
@@ -100,7 +105,10 @@ export default function OptimizerCanvas() {
         startAngle = endAngle
       })
 
-      const weightedApy = PROTOCOLS.reduce((s, p, i) => s + p.apy * normAlloc[i], 0)
+      const weightedApy = PROTOCOLS.reduce(
+        (s, p, i) => s + p.apy * normAlloc[i],
+        0
+      )
       ctx.save()
       ctx.font = 'bold 15px monospace'
       ctx.fillStyle = '#ffffff'
@@ -115,7 +123,7 @@ export default function OptimizerCanvas() {
       const legendX = W * 0.76
       const barMaxW = W * 0.16
       PROTOCOLS.forEach((p, i) => {
-        const y = H * 0.14 + i * (H * 0.71 / (PROTOCOLS.length - 1))
+        const y = H * 0.14 + i * ((H * 0.71) / (PROTOCOLS.length - 1))
         const barLen = normAlloc[i] * barMaxW * 3
 
         ctx.save()
@@ -167,8 +175,11 @@ export default function OptimizerCanvas() {
     }
 
     draw()
-    return () => { cancelAnimationFrame(raf); ro.disconnect() }
+    return () => {
+      cancelAnimationFrame(raf)
+      ro.disconnect()
+    }
   }, [])
 
-  return <canvas ref={canvasRef} className="w-full h-full" />
+  return <canvas ref={canvasRef} className="h-full w-full" />
 }

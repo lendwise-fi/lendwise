@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useCallback } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 
 import { getCurrencyByCode } from '@/config/currencies'
 
@@ -104,7 +104,9 @@ export function useCurrencyConverter(targetCurrencyCode: string) {
         } catch (err) {
           if (mounted) {
             setError(
-              err instanceof Error ? err.message : 'Failed to fetch exchange rate'
+              err instanceof Error
+                ? err.message
+                : 'Failed to fetch exchange rate'
             )
             setLoading(false)
           }
@@ -115,7 +117,7 @@ export function useCurrencyConverter(targetCurrencyCode: string) {
       // For crypto currencies, we need to get the price in the target crypto
       // For fiat currencies, we get USD price in that fiat
       const isCrypto = targetCurrency.type === 'crypto'
-      
+
       // Build the API URL based on currency type
       let url: string
       if (isCrypto) {
@@ -153,7 +155,9 @@ export function useCurrencyConverter(targetCurrencyCode: string) {
           // Rate = direct value (how many fiat units = 1 USD)
           exchangeRate = data.tether?.[targetCurrency.coinGeckoId]
           if (!exchangeRate) {
-            throw new Error(`No exchange rate for ${targetCurrency.coinGeckoId}`)
+            throw new Error(
+              `No exchange rate for ${targetCurrency.coinGeckoId}`
+            )
           }
         }
 

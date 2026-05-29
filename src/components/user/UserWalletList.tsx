@@ -48,7 +48,8 @@ const WalletRow = ({ wallet }: { wallet: Wallet }) => {
   }
 
   const handleDisconnect = () => {
-    const isActiveAddress = wallet.address.toLowerCase() === activeAddress?.toLowerCase()
+    const isActiveAddress =
+      wallet.address.toLowerCase() === activeAddress?.toLowerCase()
     const isLastAddress = wallets.length === 1
 
     // Remove from our store

@@ -35,7 +35,13 @@ function parseDoc(raw: RawDailyDoc): ParsedAaveDoc | null {
     return null
   const kind = parts[5] as 'supply' | 'borrow'
   if (kind !== 'supply' && kind !== 'borrow') return null
-  return { ...raw, chain: parts[2], tokenAddress: parts[4], kind, dateStr: parts[6] }
+  return {
+    ...raw,
+    chain: parts[2],
+    tokenAddress: parts[4],
+    kind,
+    dateStr: parts[6],
+  }
 }
 
 // ─── Price and yield helpers ──────────────────────────────────────────────────
@@ -144,7 +150,10 @@ function createAaveV3Adapter(): EnrichAdapter {
       return `${parsed.chain}:${parsed.tokenAddress}`
     },
 
-    async enrichGroup(docs: RawDailyDoc[], log: Logger): Promise<MarketPatch[]> {
+    async enrichGroup(
+      docs: RawDailyDoc[],
+      log: Logger
+    ): Promise<MarketPatch[]> {
       const parsed = docs.map(parseDoc).filter(Boolean) as ParsedAaveDoc[]
       if (parsed.length === 0) return []
 
@@ -153,13 +162,17 @@ function createAaveV3Adapter(): EnrichAdapter {
 
       const pool = findPool(pools, chain, tokenAddress)
       if (!pool) {
-        log(`[warn] No DeFiLlama pool for ${chain}:${tokenAddress} — skipping ${parsed.length} docs`)
+        log(
+          `[warn] No DeFiLlama pool for ${chain}:${tokenAddress} — skipping ${parsed.length} docs`
+        )
         return []
       }
 
       const yieldHistory = await fetchPoolYieldHistory(pool.pool)
       if (yieldHistory.length === 0) {
-        log(`[warn] Empty yield history for pool ${pool.pool} (${pool.symbol}@${pool.chain})`)
+        log(
+          `[warn] Empty yield history for pool ${pool.pool} (${pool.symbol}@${pool.chain})`
+        )
         return []
       }
 
@@ -168,7 +181,12 @@ function createAaveV3Adapter(): EnrichAdapter {
       const endUnix = Math.floor(Math.max(...dates) / 1000)
       const days = Math.ceil((endUnix - startUnix) / 86400) + 7
 
-      const priceHistory = await fetchTokenPriceHistory(chain, tokenAddress, startUnix, days)
+      const priceHistory = await fetchTokenPriceHistory(
+        chain,
+        tokenAddress,
+        startUnix,
+        days
+      )
       const yieldMap = buildYieldMap(yieldHistory)
       const priceMap = buildPriceMap(priceHistory)
 
@@ -189,7 +207,12 @@ function createAaveV3Adapter(): EnrichAdapter {
         const market =
           doc.kind === 'supply'
             ? buildSupplyMarket(yieldPt.supplyUsd, yieldPt.utilization, price)
-            : buildBorrowMarket(yieldPt.supplyUsd, yieldPt.borrowUsd, yieldPt.utilization, price)
+            : buildBorrowMarket(
+                yieldPt.supplyUsd,
+                yieldPt.borrowUsd,
+                yieldPt.utilization,
+                price
+              )
 
         patches.push({ _id: doc._id, market })
       }

@@ -10,17 +10,20 @@ const FEATURES = [
   {
     icon: TrendingUp,
     title: 'Yield optimization',
-    description: 'Access AI-powered strategies to maximize your returns across protocols.',
+    description:
+      'Access AI-powered strategies to maximize your returns across protocols.',
   },
   {
     icon: Shield,
     title: 'Risk management',
-    description: 'Monitor health ratios and collateral in real-time across all your positions.',
+    description:
+      'Monitor health ratios and collateral in real-time across all your positions.',
   },
   {
     icon: Zap,
     title: 'One-click rebalancing',
-    description: 'Rebalance your portfolio instantly with automated liquidity routing.',
+    description:
+      'Rebalance your portfolio instantly with automated liquidity routing.',
   },
 ]
 
@@ -33,8 +36,8 @@ export function WalletNotConnected() {
     <div className="relative flex h-full flex-col items-center justify-center overflow-hidden px-6 py-6">
       {/* Background glow */}
       <div className="pointer-events-none absolute inset-0">
-        <div className="absolute top-1/2 left-1/2 h-[600px] w-[600px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-primary/5 blur-3xl" />
-        <div className="absolute top-1/3 left-1/3 h-[300px] w-[300px] rounded-full bg-accent/5 blur-3xl" />
+        <div className="bg-primary/5 absolute top-1/2 left-1/2 h-[600px] w-[600px] -translate-x-1/2 -translate-y-1/2 rounded-full blur-3xl" />
+        <div className="bg-accent/5 absolute top-1/3 left-1/3 h-[300px] w-[300px] rounded-full blur-3xl" />
       </div>
 
       <div className="relative z-10 flex w-full max-w-3xl flex-col items-center gap-7">
@@ -47,20 +50,21 @@ export function WalletNotConnected() {
         >
           {/* Icon ring */}
           <div className="relative">
-            <div className="flex h-20 w-20 items-center justify-center rounded-2xl border border-primary/20 bg-primary/10">
-              <Wallet className="h-9 w-9 text-primary" />
+            <div className="border-primary/20 bg-primary/10 flex h-20 w-20 items-center justify-center rounded-2xl border">
+              <Wallet className="text-primary h-9 w-9" />
             </div>
-            <div className="absolute -top-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full border border-border bg-card">
-              <Lock className="h-2.5 w-2.5 text-muted-foreground" />
+            <div className="border-border bg-card absolute -top-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full border">
+              <Lock className="text-muted-foreground h-2.5 w-2.5" />
             </div>
           </div>
 
           <div className="flex flex-col gap-2">
-            <h1 className="text-3xl font-semibold tracking-tight text-foreground">
+            <h1 className="text-foreground text-3xl font-semibold tracking-tight">
               Connect your wallet
             </h1>
-            <p className="max-w-sm text-sm leading-relaxed text-muted-foreground">
-              View your positions, track yields and optimize your DeFi portfolio in one place.
+            <p className="text-muted-foreground max-w-sm text-sm leading-relaxed">
+              View your positions, track yields and optimize your DeFi portfolio
+              in one place.
             </p>
           </div>
 
@@ -70,7 +74,7 @@ export function WalletNotConnected() {
               return (
                 <button
                   onClick={openConnectModal}
-                  className="group inline-flex items-center gap-2.5 rounded-xl bg-primary px-6 py-3 text-sm font-semibold text-primary-foreground shadow-lg shadow-primary/20 transition-all hover:bg-primary/90"
+                  className="group bg-primary text-primary-foreground shadow-primary/20 hover:bg-primary/90 inline-flex items-center gap-2.5 rounded-xl px-6 py-3 text-sm font-semibold shadow-lg transition-all"
                 >
                   <Wallet className="h-4 w-4" />
                   Connect wallet
@@ -82,7 +86,9 @@ export function WalletNotConnected() {
 
           {/* Supported wallets */}
           <div className="flex flex-wrap items-center justify-center gap-2">
-            <span className="text-xs uppercase tracking-wider text-muted-foreground">Supports</span>
+            <span className="text-muted-foreground text-xs tracking-wider uppercase">
+              Supports
+            </span>
             {SUPPORTED.map((w) => (
               <span
                 key={w}
@@ -102,11 +108,11 @@ export function WalletNotConnected() {
 
         {/* Divider */}
         <div className="flex w-full items-center gap-4">
-          <div className="h-px flex-1 bg-border/50" />
-          <span className="text-xs uppercase tracking-wider text-muted-foreground">
+          <div className="bg-border/50 h-px flex-1" />
+          <span className="text-muted-foreground text-xs tracking-wider uppercase">
             What you'll unlock
           </span>
-          <div className="h-px flex-1 bg-border/50" />
+          <div className="bg-border/50 h-px flex-1" />
         </div>
 
         {/* Feature cards */}
@@ -119,14 +125,21 @@ export function WalletNotConnected() {
           {FEATURES.map((f, i) => (
             <div
               key={i}
-              className="group flex flex-col gap-3 rounded-2xl border border-border/60 bg-card p-5 transition-all hover:border-primary/25 hover:bg-card/80"
+              className="group border-border/60 bg-card hover:border-primary/25 hover:bg-card/80 flex flex-col gap-3 rounded-2xl border p-5 transition-all"
             >
-              <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10 transition-colors group-hover:bg-primary/15">
-                <f.icon style={{ width: '1.05rem', height: '1.05rem' }} className="text-primary" />
+              <div className="bg-primary/10 group-hover:bg-primary/15 flex h-9 w-9 items-center justify-center rounded-lg transition-colors">
+                <f.icon
+                  style={{ width: '1.05rem', height: '1.05rem' }}
+                  className="text-primary"
+                />
               </div>
               <div className="flex flex-col gap-1">
-                <span className="text-xs font-semibold text-foreground">{f.title}</span>
-                <span className="text-xs leading-relaxed text-muted-foreground">{f.description}</span>
+                <span className="text-foreground text-xs font-semibold">
+                  {f.title}
+                </span>
+                <span className="text-muted-foreground text-xs leading-relaxed">
+                  {f.description}
+                </span>
               </div>
             </div>
           ))}

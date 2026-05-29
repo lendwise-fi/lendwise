@@ -7,7 +7,7 @@ const DEFAULT_BATCH_SIZE = 10
 export async function processBatches<T, R>(
   items: T[],
   fn: (item: T) => Promise<R | null>,
-  batchSize = DEFAULT_BATCH_SIZE,
+  batchSize = DEFAULT_BATCH_SIZE
 ): Promise<R[]> {
   const results: R[] = []
   for (let i = 0; i < items.length; i += batchSize) {

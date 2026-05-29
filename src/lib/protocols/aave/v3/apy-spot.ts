@@ -8,7 +8,7 @@ import { AAVE_CONFIG } from '@/lib/protocols/aave/config'
 import type { MarketsApyQuery } from '@/lib/protocols/aave/v3/offchain/generated/graphql'
 import { MARKETS_APY } from '@/lib/protocols/aave/v3/offchain/queries'
 import { createGraphQLClient } from '@/lib/protocols/shared'
-import { aprToApyPerSecond, aprToApyDaily } from '@/lib/utils'
+import { aprToApyDaily, aprToApyPerSecond } from '@/lib/utils'
 
 import { buildProductId } from './utils'
 

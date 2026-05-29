@@ -69,7 +69,7 @@ export function PieChartDonutText({
                   <ChartTooltip
                     cursor={false}
                     content={
-                      <ChartTooltipContent hideLabel accessibilityLayer />
+                      <ChartTooltipContent hideLabel />
                     }
                   />
                   <Pie

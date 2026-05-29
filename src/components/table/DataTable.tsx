@@ -317,7 +317,10 @@ export function DataTable<TData, TValue>({
         {!hideHeader && (
           <TableHeader className="bg-card/90 sticky top-0 z-10 backdrop-blur-sm">
             {table.getHeaderGroups().map((headerGroup) => (
-              <TableRow key={headerGroup.id} className="border-border border-b hover:bg-transparent">
+              <TableRow
+                key={headerGroup.id}
+                className="border-border border-b hover:bg-transparent"
+              >
                 {headerGroup.headers.map((header) => {
                   return (
                     <TableHead

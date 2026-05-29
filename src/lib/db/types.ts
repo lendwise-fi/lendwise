@@ -19,7 +19,11 @@ export type ProductType = 'reserve' | 'market' | 'vault'
 
 export type HourlyQualityStatus = 'building' | 'complete' | 'partial'
 export type SlotQualityStatus = 'building' | 'complete' | 'partial'
-export type DailyQualityStatus = 'complete' | 'partial' | 'missing' | 'historical'
+export type DailyQualityStatus =
+  | 'complete'
+  | 'partial'
+  | 'missing'
+  | 'historical'
 
 export interface Chain {
   id: number // EVM chain ID — 1 = Ethereum, 8453 = Base, 42161 = Arbitrum

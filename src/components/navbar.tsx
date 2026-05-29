@@ -10,7 +10,12 @@ import { Menu } from 'lucide-react'
 import { useAccount } from 'wagmi'
 
 import { Button } from '@/components/ui/button'
-import { Sheet, SheetContent, SheetTitle, SheetTrigger } from '@/components/ui/sheet'
+import {
+  Sheet,
+  SheetContent,
+  SheetTitle,
+  SheetTrigger,
+} from '@/components/ui/sheet'
 import { cn } from '@/lib/utils'
 
 import { ThemeSwitcher } from './theme/ThemeSwitcher'
@@ -29,14 +34,16 @@ export function Navbar() {
 
   return (
     <header className="border-border bg-card sticky top-0 z-50 w-full border-b">
-      <div className="flex h-14 items-center justify-between px-4 md:px-6 md:gap-8 md:justify-start">
+      <div className="flex h-14 items-center justify-between px-4 md:justify-start md:gap-8 md:px-6">
         {/* Logo */}
         <Link href="/" className="flex shrink-0 items-center">
-          <div className="text-foreground text-sm font-bold font-mono">Yield</div>
+          <span className="font-inter text-lg font-bold tracking-tight">
+            Lend<span className="text-primary">wise</span>
+          </span>
         </Link>
 
         {/* Nav links — desktop */}
-        <nav className="hidden md:flex items-center gap-1">
+        <nav className="hidden items-center gap-1 md:flex">
           {navItems.map((item) => {
             const isActive =
               pathname === item.href || pathname.startsWith(item.href + '/')
@@ -68,7 +75,11 @@ export function Navbar() {
               {({ openConnectModal, mounted }) => {
                 if (!mounted) return null
                 return (
-                  <Button size="sm" onClick={openConnectModal} className="hidden sm:flex">
+                  <Button
+                    size="sm"
+                    onClick={openConnectModal}
+                    className="hidden sm:flex"
+                  >
                     Connect wallet
                   </Button>
                 )
@@ -79,7 +90,7 @@ export function Navbar() {
           {/* Burger — mobile only */}
           <Sheet open={open} onOpenChange={setOpen}>
             <SheetTrigger asChild>
-              <Button variant="ghost" size="icon" className="md:hidden -mr-2">
+              <Button variant="ghost" size="icon" className="-mr-2 md:hidden">
                 <Menu className="h-5 w-5" />
                 <span className="sr-only">Menu</span>
               </Button>
@@ -92,7 +103,8 @@ export function Navbar() {
               <nav className="flex flex-col gap-1 p-4">
                 {navItems.map((item) => {
                   const isActive =
-                    pathname === item.href || pathname.startsWith(item.href + '/')
+                    pathname === item.href ||
+                    pathname.startsWith(item.href + '/')
                   return (
                     <Link
                       key={item.href}

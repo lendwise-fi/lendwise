@@ -24,7 +24,7 @@ export default function PortfolioSidebar({
       : '∞'
 
   return (
-    <aside className="border-border bg-card/40 hidden md:flex w-72 shrink-0 flex-col overflow-y-auto border-r">
+    <aside className="border-border bg-card/40 hidden w-72 shrink-0 flex-col overflow-y-auto border-r md:flex">
       {/* Header */}
       <div className="border-border border-b px-6 py-5">
         <h1 className="text-foreground text-lg font-semibold">
@@ -132,9 +132,7 @@ function DonutWithLegend({ data }: { data: BreakdownItem[] }) {
                 className="h-2 w-2 shrink-0 rounded-full"
                 style={{ backgroundColor: item.color }}
               />
-              <span className="text-muted-foreground text-xs">
-                {item.name}
-              </span>
+              <span className="text-muted-foreground text-xs">{item.name}</span>
             </div>
             <span className="text-foreground font-mono text-xs">
               {item.value.toFixed(1)}%

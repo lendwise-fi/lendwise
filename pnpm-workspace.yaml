@@ -1,6 +1,15 @@
 packages:
   - .
 
+allowBuilds:
+  '@mongodb-js/zstd': true
+  bufferutil: true
+  esbuild: true
+  keccak: true
+  protobufjs: true
+  sharp: true
+  utf-8-validate: true
+
 onlyBuiltDependencies:
   - '@mongodb-js/zstd'
   - '@tailwindcss/oxide'

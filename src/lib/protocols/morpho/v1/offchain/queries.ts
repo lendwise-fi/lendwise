@@ -10,11 +10,9 @@ export const USER_SUPPLY_POSITIONS = gql`
       items {
         id
         user {
-          id
           address
         }
         vault {
-          id
           address
           symbol
           name
@@ -30,10 +28,10 @@ export const USER_SUPPLY_POSITIONS = gql`
             decimals
           }
           state {
-            avgNetApy
-            dailyNetApy
-            monthlyNetApy
-            yearlyNetApy
+            avgNetApy:avgNetApy(lookback: INCEPTION)
+            dailyNetApy:avgNetApy(lookback: ONE_DAY)
+            monthlyNetApy:avgNetApy(lookback: THIRTY_DAYS)
+            yearlyNetApy:avgNetApy(lookback: ONE_YEAR)
           }
         }
         state {
@@ -64,11 +62,9 @@ export const USER_BORROW_POSITIONS = gql`
         id
         healthFactor
         user {
-          id
           address
         }
         market {
-          id
           lltv
           collateralAsset {
             address
@@ -117,9 +113,10 @@ export const USER_BORROW_POSITIONS = gql`
 export const MARKET_BORROW_HISTORY = gql`
   query MarketBorrowHistoryRates(
     $marketId: String!
+    $chainId: Int!
     $options: TimeseriesOptions
   ) {
-    market(id: $marketId) {
+    marketById(marketId: $marketId, chainId: $chainId) {
       historicalState {
         borrowApy(options: $options) {
           x
@@ -146,7 +143,6 @@ export const MARKETS_APY = gql`
   query MarketsApy($first: Int, $skip: Int, $where: MarketFilters) {
     markets(first: $first, skip: $skip, where: $where) {
       items {
-        id
         morphoBlue {
           address
           id
@@ -223,7 +219,9 @@ export const VAULTS_APY = gql`
           }
           decimals
           name
-          priceUsd
+          price {
+            usd
+          }
           symbol
           yield {
             apr
@@ -238,13 +236,15 @@ export const VAULTS_APY = gql`
           netApyExcludingRewards
           totalAssets
           totalAssetsUsd
-          rewards {
-            amountPerSuppliedToken
+          allRewards {
+            supplyApr
             asset {
               decimals
               address
               name
-              priceUsd
+              price {
+                usd
+              }
               symbol
               yield {
                 apr
@@ -310,7 +310,6 @@ export const LIST_BORROW_PRODUCTS = gql`
         skip
       }
       items {
-        id
         marketId
         creationTimestamp
         loanAsset {
@@ -370,7 +369,6 @@ export const LIST_SUPPLY_PRODUCTS = gql`
         skip
       }
       items {
-        id
         creationTimestamp
         address
         symbol

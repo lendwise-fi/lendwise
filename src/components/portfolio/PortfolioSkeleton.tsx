@@ -4,7 +4,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 
 function SidebarSkeleton() {
   return (
-    <aside className="border-border bg-card/40 hidden md:flex w-72 shrink-0 flex-col overflow-y-auto border-r">
+    <aside className="border-border bg-card/40 hidden w-72 shrink-0 flex-col overflow-y-auto border-r md:flex">
       {/* Header */}
       <div className="border-border border-b px-6 py-5">
         <Skeleton className="mb-1.5 h-5 w-36" />
@@ -71,7 +71,7 @@ function DonutSkeleton() {
 
 function MobileSummarySkeleton() {
   return (
-    <div className="md:hidden border-b bg-card/40 px-4 py-3 grid grid-cols-4 gap-2">
+    <div className="bg-card/40 grid grid-cols-4 gap-2 border-b px-4 py-3 md:hidden">
       {Array.from({ length: 4 }).map((_, i) => (
         <div key={i} className="space-y-1.5">
           <Skeleton className="h-2 w-8" />
@@ -86,14 +86,14 @@ function MobileSummarySkeleton() {
 
 function TabBarSkeleton() {
   return (
-    <div className="border-border border-b flex">
+    <div className="border-border flex border-b">
       {Array.from({ length: 2 }).map((_, i) => (
-        <div key={i} className="px-4 py-3 md:px-8 md:py-5 space-y-1.5">
+        <div key={i} className="space-y-1.5 px-4 py-3 md:px-8 md:py-5">
           <div className="flex items-center gap-2">
             <Skeleton className="h-4 w-12 sm:h-6 sm:w-36" />
             <Skeleton className="h-4 w-5 rounded-full" />
           </div>
-          <Skeleton className="hidden sm:block h-3 w-52" />
+          <Skeleton className="hidden h-3 w-52 sm:block" />
         </div>
       ))}
     </div>
@@ -104,13 +104,13 @@ function TabBarSkeleton() {
 
 function SupplyRow() {
   return (
-    <div className="border-border/30 flex items-center gap-3 border-b px-4 md:px-8 py-3.5">
+    <div className="border-border/30 flex items-center gap-3 border-b px-4 py-3.5 md:px-8">
       {/* Protocol — hidden on mobile */}
-      <Skeleton className="hidden sm:block h-6 w-[88px] shrink-0 rounded-lg" />
+      <Skeleton className="hidden h-6 w-[88px] shrink-0 rounded-lg sm:block" />
       {/* Network — hidden on mobile */}
-      <Skeleton className="hidden sm:block h-6 w-[88px] shrink-0 rounded-lg" />
+      <Skeleton className="hidden h-6 w-[88px] shrink-0 rounded-lg sm:block" />
       {/* Address — hidden on mobile */}
-      <Skeleton className="hidden md:block h-6 w-24 shrink-0 rounded-lg" />
+      <Skeleton className="hidden h-6 w-24 shrink-0 rounded-lg md:block" />
       {/* Vault/Pool */}
       <div className="flex flex-1 items-center gap-2">
         <Skeleton className="h-5 w-5 shrink-0 rounded-full" />
@@ -119,46 +119,10 @@ function SupplyRow() {
       {/* Deposits */}
       <div className="flex items-center gap-2">
         <Skeleton className="h-4 w-16 sm:w-20" />
-        <Skeleton className="hidden sm:block h-5 w-14 rounded-md" />
+        <Skeleton className="hidden h-5 w-14 rounded-md sm:block" />
       </div>
       {/* APY */}
       <Skeleton className="h-4 w-10 sm:w-12" />
-      {/* Link */}
-      <Skeleton className="h-4 w-4 shrink-0 rounded-sm" />
-    </div>
-  )
-}
-
-function BorrowRow() {
-  return (
-    <div className="border-border/30 flex items-center gap-3 border-b px-4 md:px-8 py-3.5">
-      {/* Protocol — hidden on mobile */}
-      <Skeleton className="hidden sm:block h-6 w-[88px] shrink-0 rounded-lg" />
-      {/* Network — hidden on mobile */}
-      <Skeleton className="hidden sm:block h-6 w-[88px] shrink-0 rounded-lg" />
-      {/* Address — hidden on mobile */}
-      <Skeleton className="hidden md:block h-6 w-24 shrink-0 rounded-lg" />
-      {/* Vault/Pool */}
-      <div className="flex flex-1 items-center gap-2">
-        <Skeleton className="h-5 w-5 shrink-0 rounded-full" />
-        <Skeleton className="h-4 w-24 sm:w-36" />
-      </div>
-      {/* Debt */}
-      <div className="flex flex-col gap-1">
-        <Skeleton className="h-4 w-16 sm:w-20" />
-        <Skeleton className="hidden sm:block h-3 w-14" />
-      </div>
-      {/* Collaterals — hidden on mobile */}
-      <div className="hidden sm:flex items-center gap-1">
-        <Skeleton className="h-5 w-5 shrink-0 rounded-full" />
-        <Skeleton className="h-5 w-5 -ml-1.5 shrink-0 rounded-full" />
-        <Skeleton className="h-5 w-5 -ml-1.5 shrink-0 rounded-full" />
-        <Skeleton className="h-4 w-14 ml-1" />
-      </div>
-      {/* Rate */}
-      <Skeleton className="h-4 w-10" />
-      {/* Health — hidden on mobile */}
-      <Skeleton className="hidden sm:block h-4 w-10" />
       {/* Link */}
       <Skeleton className="h-4 w-4 shrink-0 rounded-sm" />
     </div>
@@ -177,10 +141,10 @@ function TableSectionSkeleton({
   return (
     <div className="flex flex-col">
       {/* Column headers */}
-      <div className="border-border/50 flex items-center gap-4 border-b px-4 md:px-8 py-3">
+      <div className="border-border/50 flex items-center gap-4 border-b px-4 py-3 md:px-8">
         <Skeleton className="h-2.5 w-12" />
         <Skeleton className="h-2.5 w-16" />
-        <Skeleton className="hidden sm:block h-2.5 w-12" />
+        <Skeleton className="hidden h-2.5 w-12 sm:block" />
       </div>
       {/* Rows */}
       {Array.from({ length: rows }).map((_, i) => (

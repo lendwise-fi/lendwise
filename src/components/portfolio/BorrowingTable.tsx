@@ -192,7 +192,7 @@ const createColumns = (
                     {collateral.amountUsd === 0 && (
                       <Badge
                         variant="secondary"
-                        className="px-1.5 py-0 text-2xs uppercase"
+                        className="text-2xs px-1.5 py-0 uppercase"
                       >
                         Idle
                       </Badge>
@@ -415,7 +415,7 @@ function TableCellViewer({ item }: { item: BorrowPosition }) {
                       <ChartTooltipContent
                         indicator="line"
                         labelFormatter={(value) => {
-                          return new Date(value * 1000).toLocaleDateString(
+                          return new Date(Number(value) * 1000).toLocaleDateString(
                             'en-US',
                             {
                               month: 'short',

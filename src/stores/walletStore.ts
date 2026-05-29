@@ -1,6 +1,6 @@
+import type { WalletClient } from 'viem'
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
-import type { WalletClient } from 'viem'
 
 export interface Wallet {
   address: string

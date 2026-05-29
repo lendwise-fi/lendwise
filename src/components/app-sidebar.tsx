@@ -68,7 +68,7 @@ export function AppSidebar() {
           </div>
           {open && (
             <div>
-              <h1 className="text-foreground text-lg font-bold font-mono">
+              <h1 className="text-foreground font-mono text-lg font-bold">
                 Yield
               </h1>
               <p className="text-muted-foreground text-xs">DeFi Optimization</p>

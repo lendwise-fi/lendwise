@@ -14,9 +14,9 @@ import {
 import { AnimatePresence, motion } from 'motion/react'
 import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from 'recharts'
 
-import { HORIZON_CONFIG, HORIZON_OPTIONS, HorizonKey } from '@/config/horizon'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { HORIZON_CONFIG, HORIZON_OPTIONS, HorizonKey } from '@/config/horizon'
 import {
   DIVERSIFICATION_LEVELS,
   type VaultAllocationResponse,
@@ -28,7 +28,6 @@ import type { SupplyProduct } from '@/types'
 // ============================================================================
 // Constants
 // ============================================================================
-
 
 const STRATEGIES = [
   {
@@ -65,14 +64,30 @@ const STRATEGIES = [
 
 type StrategyId = (typeof STRATEGIES)[number]['id']
 
-const ALLOCATION_COLORS = ['#3b82f6', '#06b6d4', '#8b5cf6', '#10b981', '#f59e0b']
+const ALLOCATION_COLORS = [
+  '#3b82f6',
+  '#06b6d4',
+  '#8b5cf6',
+  '#10b981',
+  '#f59e0b',
+]
 
-function AllocationTooltip({ active, payload }: { active?: boolean; payload?: { name: string; value: number }[] }) {
+function AllocationTooltip({
+  active,
+  payload,
+}: {
+  active?: boolean
+  payload?: { name: string; value: number }[]
+}) {
   if (!active || !payload?.length) return null
   return (
-    <div className="rounded-lg border border-border bg-popover px-3 py-2 text-xs shadow-md">
-      <p className="font-medium text-foreground truncate max-w-[160px]">{payload[0].name}</p>
-      <p className="font-mono text-muted-foreground">{payload[0].value.toFixed(0)}%</p>
+    <div className="border-border bg-popover rounded-lg border px-3 py-2 text-xs shadow-md">
+      <p className="text-foreground max-w-[160px] truncate font-medium">
+        {payload[0].name}
+      </p>
+      <p className="text-muted-foreground font-mono">
+        {payload[0].value.toFixed(0)}%
+      </p>
     </div>
   )
 }
@@ -179,17 +194,18 @@ export function SupplyingOptimizerView({
     return amountNum * weightedApy * (days / 365)
   }, [weightedApy, amountNum, horizon])
 
-  const horizonLabel = HORIZON_OPTIONS.find((h) => h.key === horizon)?.label ?? ''
+  const horizonLabel =
+    HORIZON_OPTIONS.find((h) => h.key === horizon)?.label ?? ''
 
   return (
     <div className="flex flex-col">
       {/* Main content */}
-      <div className="flex divide-x divide-border">
+      <div className="divide-border flex divide-x">
         {/* Left — parameters */}
         <div className="flex-1 space-y-6 px-1 py-4 pr-6">
           {/* Capital */}
           <div>
-            <label className="text-muted-foreground mb-2 block text-xs font-semibold uppercase tracking-wider">
+            <label className="text-muted-foreground mb-2 block text-xs font-semibold tracking-wider uppercase">
               Capital to deploy
             </label>
             <div className="border-input dark:bg-input/30 focus-within:border-ring focus-within:ring-ring/50 flex items-center rounded-xl border focus-within:ring-[3px]">
@@ -215,7 +231,7 @@ export function SupplyingOptimizerView({
 
           {/* Time horizon */}
           <div>
-            <label className="text-muted-foreground mb-2 block text-xs font-semibold uppercase tracking-wider">
+            <label className="text-muted-foreground mb-2 block text-xs font-semibold tracking-wider uppercase">
               Time horizon
             </label>
             <div className="flex gap-1.5">
@@ -227,10 +243,11 @@ export function SupplyingOptimizerView({
                     setHorizon(h.key)
                     setRan(false)
                   }}
-                  className={`flex-1 rounded-lg border py-2 text-xs font-semibold transition-all ${horizon === h.key
+                  className={`flex-1 rounded-lg border py-2 text-xs font-semibold transition-all ${
+                    horizon === h.key
                       ? 'border-primary bg-primary text-primary-foreground'
                       : 'border-border bg-secondary/30 text-muted-foreground hover:text-foreground'
-                    }`}
+                  }`}
                 >
                   {h.label}
                 </button>
@@ -240,7 +257,7 @@ export function SupplyingOptimizerView({
 
           {/* Risk strategy */}
           <div>
-            <label className="text-muted-foreground mb-2 block text-xs font-semibold uppercase tracking-wider">
+            <label className="text-muted-foreground mb-2 block text-xs font-semibold tracking-wider uppercase">
               Risk strategy
             </label>
             <div className="space-y-2">
@@ -254,14 +271,16 @@ export function SupplyingOptimizerView({
                       setStrategy(s.id)
                       setRan(false)
                     }}
-                    className={`flex w-full items-center gap-3.5 rounded-xl border px-4 py-3 text-left transition-all duration-150 ${active
+                    className={`flex w-full items-center gap-3.5 rounded-xl border px-4 py-3 text-left transition-all duration-150 ${
+                      active
                         ? s.activeBg
                         : 'border-border bg-secondary/20 hover:border-border/80'
-                      }`}
+                    }`}
                   >
                     <div
-                      className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${active ? s.activeBg : 'bg-secondary'
-                        }`}
+                      className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${
+                        active ? s.activeBg : 'bg-secondary'
+                      }`}
                     >
                       <s.Icon
                         className={`h-4 w-4 ${active ? s.color : 'text-muted-foreground'}`}
@@ -283,9 +302,7 @@ export function SupplyingOptimizerView({
                       {s.expectedApy}
                     </div>
                     {active && (
-                      <CheckCircle2
-                        className={`h-4 w-4 shrink-0 ${s.color}`}
-                      />
+                      <CheckCircle2 className={`h-4 w-4 shrink-0 ${s.color}`} />
                     )}
                   </button>
                 )
@@ -296,7 +313,7 @@ export function SupplyingOptimizerView({
 
         {/* Right — results */}
         <div className="flex w-1/2 shrink-0 flex-col px-6 py-4">
-          <div className="text-muted-foreground mb-4 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider">
+          <div className="text-muted-foreground mb-4 flex items-center gap-1.5 text-xs font-semibold tracking-wider uppercase">
             <TrendingUp className="h-3.5 w-3.5" />
             Recommended allocation
           </div>
@@ -337,7 +354,10 @@ export function SupplyingOptimizerView({
                   <ResponsiveContainer width="100%" height="100%">
                     <PieChart>
                       <Pie
-                        data={results.map((r) => ({ name: r.vault.poolName, pct: r.allocationPercent }))}
+                        data={results.map((r) => ({
+                          name: r.vault.poolName,
+                          pct: r.allocationPercent,
+                        }))}
                         dataKey="pct"
                         nameKey="name"
                         cx="50%"
@@ -351,7 +371,13 @@ export function SupplyingOptimizerView({
                         animationEasing="ease-out"
                       >
                         {results.map((_, i) => (
-                          <Cell key={i} fill={ALLOCATION_COLORS[i % ALLOCATION_COLORS.length]} stroke="transparent" />
+                          <Cell
+                            key={i}
+                            fill={
+                              ALLOCATION_COLORS[i % ALLOCATION_COLORS.length]
+                            }
+                            stroke="transparent"
+                          />
                         ))}
                       </Pie>
                       <Tooltip content={<AllocationTooltip />} />
@@ -360,8 +386,12 @@ export function SupplyingOptimizerView({
                   {/* Center label */}
                   {weightedApy !== null && (
                     <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
-                      <span className="font-mono text-lg font-bold text-foreground">{((weightedApy) * 100).toFixed(1)}%</span>
-                      <span className="text-[10px] uppercase tracking-wider text-muted-foreground">Avg APY</span>
+                      <span className="text-foreground font-mono text-lg font-bold">
+                        {(weightedApy * 100).toFixed(1)}%
+                      </span>
+                      <span className="text-muted-foreground text-[10px] tracking-wider uppercase">
+                        Avg APY
+                      </span>
                     </div>
                   )}
                 </div>
@@ -370,9 +400,19 @@ export function SupplyingOptimizerView({
                 <div className="space-y-2">
                   {results.map((r, i) => (
                     <div key={i} className="flex items-center gap-2">
-                      <div className="h-2.5 w-2.5 shrink-0 rounded-sm" style={{ background: ALLOCATION_COLORS[i % ALLOCATION_COLORS.length] }} />
-                      <span className="flex-1 truncate text-[11px] text-foreground">{r.vault.poolName}</span>
-                      <span className="font-mono text-[11px] text-muted-foreground">{r.allocationPercent.toFixed(0)}%</span>
+                      <div
+                        className="h-2.5 w-2.5 shrink-0 rounded-sm"
+                        style={{
+                          background:
+                            ALLOCATION_COLORS[i % ALLOCATION_COLORS.length],
+                        }}
+                      />
+                      <span className="text-foreground flex-1 truncate text-[11px]">
+                        {r.vault.poolName}
+                      </span>
+                      <span className="text-muted-foreground font-mono text-[11px]">
+                        {r.allocationPercent.toFixed(0)}%
+                      </span>
                     </div>
                   ))}
                 </div>
@@ -382,16 +422,22 @@ export function SupplyingOptimizerView({
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
                   transition={{ delay: 0.5 }}
-                  className="mt-1 space-y-1.5 border-t border-border pt-3"
+                  className="border-border mt-1 space-y-1.5 border-t pt-3"
                 >
                   <div className="flex justify-between text-[12px]">
                     <span className="text-muted-foreground">Weighted APY</span>
-                    <span className="font-mono font-semibold text-emerald-400">{((weightedApy ?? 0) * 100).toFixed(2)}%</span>
+                    <span className="font-mono font-semibold text-emerald-400">
+                      {((weightedApy ?? 0) * 100).toFixed(2)}%
+                    </span>
                   </div>
                   {projectedReturn !== null && amountNum > 0 && (
                     <div className="flex justify-between text-[12px]">
-                      <span className="text-muted-foreground">Est. return ({horizonLabel})</span>
-                      <span className="font-mono font-semibold text-foreground">+{formatCompactCurrency(projectedReturn, 'USD')}</span>
+                      <span className="text-muted-foreground">
+                        Est. return ({horizonLabel})
+                      </span>
+                      <span className="text-foreground font-mono font-semibold">
+                        +{formatCompactCurrency(projectedReturn, 'USD')}
+                      </span>
                     </div>
                   )}
                 </motion.div>

@@ -34,6 +34,7 @@ export type DefiLlamaPool = {
   chain: string
   project: string
   symbol: string
+  poolMeta: string | null
   underlyingTokens: string[]
 }
 
@@ -86,6 +87,13 @@ export async function fetchAaveV3Pools(): Promise<DefiLlamaPool[]> {
   return json.data.filter((p) => p.project === 'aave-v3')
 }
 
+const POOL_META_MAP: Record<string, string | null> = {
+  ethereum: null,
+  'ethereum-lido': 'lido-market',
+  'ethereum-etherfi': 'etherfi-market',
+  'ethereum-horizon': 'horizon-market',
+}
+
 export function findPool(
   pools: DefiLlamaPool[],
   chain: string,
@@ -93,11 +101,15 @@ export function findPool(
 ): DefiLlamaPool | null {
   const targetChain = (YIELDS_CHAIN_MAP[chain] ?? chain).toLowerCase()
   const targetToken = tokenAddress.toLowerCase()
+  const hasMeta = Object.prototype.hasOwnProperty.call(POOL_META_MAP, chain)
+  const expectedMeta = POOL_META_MAP[chain]
+
   return (
     pools.find(
       (p) =>
         p.chain.toLowerCase() === targetChain &&
-        p.underlyingTokens.some((t) => t.toLowerCase() === targetToken)
+        p.underlyingTokens.some((t) => t.toLowerCase() === targetToken) &&
+        (!hasMeta || p.poolMeta === expectedMeta)
     ) ?? null
   )
 }

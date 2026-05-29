@@ -46,7 +46,10 @@ export default function ApiCanvas() {
     const draw = () => {
       const W = canvas.width
       const H = canvas.height
-      if (W === 0 || H === 0) { raf = requestAnimationFrame(draw); return }
+      if (W === 0 || H === 0) {
+        raf = requestAnimationFrame(draw)
+        return
+      }
 
       ctx.clearRect(0, 0, W, H)
       t += 0.016
@@ -60,12 +63,20 @@ export default function ApiCanvas() {
       if (packetTimer > 1.0) {
         packetTimer = 0
         const ni = Math.floor(Math.random() * NODES.length)
-        packets.push({ nodeIdx: ni, progress: 0, dir: Math.random() > 0.5 ? 1 : -1 })
+        packets.push({
+          nodeIdx: ni,
+          progress: 0,
+          dir: Math.random() > 0.5 ? 1 : -1,
+        })
       }
 
-      const nodePositions = NODES.map(n => {
+      const nodePositions = NODES.map((n) => {
         const rad = (n.angleDeg * Math.PI) / 180
-        return { x: cx + Math.cos(rad) * orbitR, y: cy + Math.sin(rad) * orbitR, ...n }
+        return {
+          x: cx + Math.cos(rad) * orbitR,
+          y: cy + Math.sin(rad) * orbitR,
+          ...n,
+        }
       })
 
       ctx.save()
@@ -76,7 +87,7 @@ export default function ApiCanvas() {
       ctx.stroke()
       ctx.restore()
 
-      nodePositions.forEach(node => {
+      nodePositions.forEach((node) => {
         ctx.save()
         ctx.beginPath()
         ctx.moveTo(cx, cy)
@@ -110,7 +121,7 @@ export default function ApiCanvas() {
         if (pkt.progress >= 1) packets.splice(idx, 1)
       }
 
-      nodePositions.forEach(node => {
+      nodePositions.forEach((node) => {
         const nodeR = 24
         ctx.save()
         ctx.beginPath()
@@ -135,7 +146,14 @@ export default function ApiCanvas() {
       })
 
       const pulse = 1 + 0.05 * Math.sin(t * 2)
-      const hubGrd = ctx.createRadialGradient(cx, cy, 2, cx, cy, centerR * pulse)
+      const hubGrd = ctx.createRadialGradient(
+        cx,
+        cy,
+        2,
+        cx,
+        cy,
+        centerR * pulse
+      )
       hubGrd.addColorStop(0, '#6378ff')
       hubGrd.addColorStop(1, '#06b6d4')
 
@@ -163,14 +181,21 @@ export default function ApiCanvas() {
 
       const qIdx = Math.floor(t / 3.5) % QUERIES.length
       const query = QUERIES[qIdx]
-      const charProgress = Math.min(((t % 3.5) / 3.5) * query.length * 1.2, query.length)
+      const charProgress = Math.min(
+        ((t % 3.5) / 3.5) * query.length * 1.2,
+        query.length
+      )
       const displayed = query.slice(0, Math.floor(charProgress))
 
       ctx.save()
       ctx.font = '8px monospace'
       ctx.fillStyle = '#6378ffaa'
       ctx.textAlign = 'center'
-      ctx.fillText(displayed + (Math.floor(t * 3) % 2 === 0 ? '|' : ''), cx, H - 16)
+      ctx.fillText(
+        displayed + (Math.floor(t * 3) % 2 === 0 ? '|' : ''),
+        cx,
+        H - 16
+      )
       ctx.restore()
 
       const rtX = W * 0.84
@@ -194,8 +219,11 @@ export default function ApiCanvas() {
     }
 
     draw()
-    return () => { cancelAnimationFrame(raf); ro.disconnect() }
+    return () => {
+      cancelAnimationFrame(raf)
+      ro.disconnect()
+    }
   }, [])
 
-  return <canvas ref={canvasRef} className="w-full h-full" />
+  return <canvas ref={canvasRef} className="h-full w-full" />
 }

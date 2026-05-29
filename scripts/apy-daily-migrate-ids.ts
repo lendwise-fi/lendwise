@@ -60,7 +60,9 @@ async function main(): Promise<void> {
     const col = client.db(dbName).collection(MONGODB_COLLECTION_DAILY!)
 
     // Only target docs with ObjectId _id
-    const filter = { _id: { $type: 'objectId' } } as Parameters<typeof col.find>[0]
+    const filter = { _id: { $type: 'objectId' } } as Parameters<
+      typeof col.find
+    >[0]
     const total = await col.countDocuments(filter)
 
     log(`  Found ${total} documents with ObjectId _id`)
@@ -102,9 +104,12 @@ async function main(): Promise<void> {
 
       // Insert new docs — ignore duplicate key (idempotent re-run)
       try {
-        await col.insertMany(newDocs as unknown as Parameters<typeof col.insertMany>[0], {
-          ordered: false,
-        })
+        await col.insertMany(
+          newDocs as unknown as Parameters<typeof col.insertMany>[0],
+          {
+            ordered: false,
+          }
+        )
       } catch (err: unknown) {
         const e = err as { code?: number; insertedCount?: number }
         if (e?.code !== 11000) throw err
@@ -124,7 +129,9 @@ async function main(): Promise<void> {
     }
     await flush()
 
-    log(`\n✅ Done — ${migrated} migrated, ${skipped} skipped (already existed)\n`)
+    log(
+      `\n✅ Done — ${migrated} migrated, ${skipped} skipped (already existed)\n`
+    )
   } catch (err) {
     console.error('\n❌ Migration failed:', err)
     process.exit(1)

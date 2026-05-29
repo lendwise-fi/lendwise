@@ -3,14 +3,59 @@
 import { useEffect, useRef } from 'react'
 
 const SUPPLY_POSITIONS = [
-  { protocol: 'Morpho', network: 'Ethereum', token: 'USDC', amount: '$124,500', apy: '6.84%', health: null, color: '#3B82F6', type: 'supply' },
-  { protocol: 'Aave v3', network: 'Arbitrum', token: 'WETH', amount: '$87,200', apy: '3.21%', health: null, color: '#B382E8', type: 'supply' },
-  { protocol: 'Compound', network: 'Ethereum', token: 'DAI', amount: '$43,100', apy: '5.93%', health: null, color: '#00D395', type: 'supply' },
+  {
+    protocol: 'Morpho',
+    network: 'Ethereum',
+    token: 'USDC',
+    amount: '$124,500',
+    apy: '6.84%',
+    health: null,
+    color: '#3B82F6',
+    type: 'supply',
+  },
+  {
+    protocol: 'Aave v3',
+    network: 'Arbitrum',
+    token: 'WETH',
+    amount: '$87,200',
+    apy: '3.21%',
+    health: null,
+    color: '#B382E8',
+    type: 'supply',
+  },
+  {
+    protocol: 'Compound',
+    network: 'Ethereum',
+    token: 'DAI',
+    amount: '$43,100',
+    apy: '5.93%',
+    health: null,
+    color: '#00D395',
+    type: 'supply',
+  },
 ]
 
 const BORROW_POSITIONS = [
-  { protocol: 'Aave v3', network: 'Ethereum', token: 'USDT', amount: '$38,000', rate: '3.18%', health: 1.82, color: '#B382E8', type: 'borrow' },
-  { protocol: 'Morpho', network: 'Linea', token: 'WBTC', amount: '$21,500', rate: '4.50%', health: 2.41, color: '#3B82F6', type: 'borrow' },
+  {
+    protocol: 'Aave v3',
+    network: 'Ethereum',
+    token: 'USDT',
+    amount: '$38,000',
+    rate: '3.18%',
+    health: 1.82,
+    color: '#B382E8',
+    type: 'borrow',
+  },
+  {
+    protocol: 'Morpho',
+    network: 'Linea',
+    token: 'WBTC',
+    amount: '$21,500',
+    rate: '4.50%',
+    health: 2.41,
+    color: '#3B82F6',
+    type: 'borrow',
+  },
 ]
 
 const COL_W = [90, 72, 56, 88, 70, 66]
@@ -26,12 +71,24 @@ function getHealthColor(h: number) {
 type RowKind = 'supply' | 'borrow'
 
 interface SupplyRow {
-  protocol: string; network: string; token: string; amount: string
-  apy: string; health: null; color: string; type: string
+  protocol: string
+  network: string
+  token: string
+  amount: string
+  apy: string
+  health: null
+  color: string
+  type: string
 }
 interface BorrowRow {
-  protocol: string; network: string; token: string; amount: string
-  rate: string; health: number; color: string; type: string
+  protocol: string
+  network: string
+  token: string
+  amount: string
+  rate: string
+  health: number
+  color: string
+  type: string
 }
 
 export default function PortfolioCanvas() {
@@ -68,7 +125,7 @@ export default function PortfolioCanvas() {
       const W = canvas.width
       const totalW = COL_W.reduce((s, v) => s + v, 0)
       const scale = Math.min(1, (W - 40) / totalW)
-      const scaledCols = COL_W.map(c => c * scale)
+      const scaledCols = COL_W.map((c) => c * scale)
       const scaledRow = ROW_H * scale
       const scaledHeader = HEADER_H * scale
 
@@ -98,17 +155,26 @@ export default function PortfolioCanvas() {
         ctx.fillStyle = '#666'
         ctx.textAlign = i === 0 ? 'left' : 'center'
         ctx.textBaseline = 'middle'
-        ctx.fillText(h.toUpperCase(), i === 0 ? cx + 10 : cx + scaledCols[i] / 2, startY + scaledHeader / 2)
+        ctx.fillText(
+          h.toUpperCase(),
+          i === 0 ? cx + 10 : cx + scaledCols[i] / 2,
+          startY + scaledHeader / 2
+        )
         ctx.restore()
         cx += scaledCols[i]
       })
 
       rows.forEach((row, ri) => {
         const ry = startY + scaledHeader + ri * scaledRow
-        const isHighlight = highlightRow === (colorKey === 'supply' ? ri : ri + 10)
+        const isHighlight =
+          highlightRow === (colorKey === 'supply' ? ri : ri + 10)
 
         ctx.save()
-        ctx.fillStyle = isHighlight ? row.color + '18' : ri % 2 === 0 ? '#ffffff04' : 'transparent'
+        ctx.fillStyle = isHighlight
+          ? row.color + '18'
+          : ri % 2 === 0
+            ? '#ffffff04'
+            : 'transparent'
         ctx.fillRect(startX, ry, totalW * scale, scaledRow)
         ctx.restore()
 
@@ -122,9 +188,24 @@ export default function PortfolioCanvas() {
         ctx.restore()
 
         let x = startX
-        const cells = colorKey === 'supply'
-          ? [row.protocol, row.network, row.token, row.amount, (row as SupplyRow).apy, '—']
-          : [row.protocol, row.network, row.token, row.amount, (row as BorrowRow).rate, (row as BorrowRow).health.toFixed(2)]
+        const cells =
+          colorKey === 'supply'
+            ? [
+                row.protocol,
+                row.network,
+                row.token,
+                row.amount,
+                (row as SupplyRow).apy,
+                '—',
+              ]
+            : [
+                row.protocol,
+                row.network,
+                row.token,
+                row.amount,
+                (row as BorrowRow).rate,
+                (row as BorrowRow).health.toFixed(2),
+              ]
 
         cells.forEach((cell, ci) => {
           const cellCx = ci === 0 ? x + 10 : x + scaledCols[ci] / 2
@@ -146,7 +227,13 @@ export default function PortfolioCanvas() {
             ctx.fillText(cell, cellCx, ry + scaledRow / 2)
           } else if (ci === 2) {
             ctx.beginPath()
-            ctx.roundRect(x + scaledCols[ci] / 2 - 18, ry + scaledRow / 2 - 9, 36, 17, 4)
+            ctx.roundRect(
+              x + scaledCols[ci] / 2 - 18,
+              ry + scaledRow / 2 - 9,
+              36,
+              17,
+              4
+            )
             ctx.fillStyle = row.color + '22'
             ctx.fill()
             ctx.font = `bold ${Math.max(7, 8 * scale)}px monospace`
@@ -194,7 +281,10 @@ export default function PortfolioCanvas() {
     const draw = () => {
       const W = canvas.width
       const H = canvas.height
-      if (W === 0 || H === 0) { raf = requestAnimationFrame(draw); return }
+      if (W === 0 || H === 0) {
+        raf = requestAnimationFrame(draw)
+        return
+      }
 
       ctx.clearRect(0, 0, W, H)
       t += 0.016
@@ -234,33 +324,60 @@ export default function PortfolioCanvas() {
         { label: 'Health', val: '2.12', color: '#F59E0B' },
       ]
       let bx = tableX + totalW * scale - 20
-      badges.slice().reverse().forEach(b => {
-        const bw = 96
-        bx -= bw
-        ctx.save()
-        ctx.beginPath()
-        ctx.roundRect(bx, 18, bw, 22, 6)
-        ctx.fillStyle = b.color + '18'
-        ctx.strokeStyle = b.color + '50'
-        ctx.lineWidth = 0.8
-        ctx.fill()
-        ctx.stroke()
-        ctx.font = `bold ${Math.max(8, 9 * scale)}px monospace`
-        ctx.fillStyle = b.color
-        ctx.textAlign = 'center'
-        ctx.textBaseline = 'middle'
-        ctx.fillText(b.val, bx + bw / 2, 29)
-        ctx.restore()
-        bx -= 8
-      })
+      badges
+        .slice()
+        .reverse()
+        .forEach((b) => {
+          const bw = 96
+          bx -= bw
+          ctx.save()
+          ctx.beginPath()
+          ctx.roundRect(bx, 18, bw, 22, 6)
+          ctx.fillStyle = b.color + '18'
+          ctx.strokeStyle = b.color + '50'
+          ctx.lineWidth = 0.8
+          ctx.fill()
+          ctx.stroke()
+          ctx.font = `bold ${Math.max(8, 9 * scale)}px monospace`
+          ctx.fillStyle = b.color
+          ctx.textAlign = 'center'
+          ctx.textBaseline = 'middle'
+          ctx.fillText(b.val, bx + bw / 2, 29)
+          ctx.restore()
+          bx -= 8
+        })
 
-      const headers = ['Protocol', 'Network', 'Token', 'Amount', 'APY / Rate', 'Health']
+      const headers = [
+        'Protocol',
+        'Network',
+        'Token',
+        'Amount',
+        'APY / Rate',
+        'Health',
+      ]
 
       let y = 74
-      y = drawTable(SUPPLY_POSITIONS, tableX, y, headers, 'supply', '↑ Supplying (3 positions)', '#00D395') + 28
-      drawTable(BORROW_POSITIONS, tableX, y, headers, 'borrow', '↓ Borrowing (2 positions)', '#F59E0B')
+      y =
+        drawTable(
+          SUPPLY_POSITIONS,
+          tableX,
+          y,
+          headers,
+          'supply',
+          '↑ Supplying (3 positions)',
+          '#00D395'
+        ) + 28
+      drawTable(
+        BORROW_POSITIONS,
+        tableX,
+        y,
+        headers,
+        'borrow',
+        '↓ Borrowing (2 positions)',
+        '#F59E0B'
+      )
 
-      const scanY = ((t * 30) % H)
+      const scanY = (t * 30) % H
       const scanGrd = ctx.createLinearGradient(0, scanY - 20, 0, scanY + 20)
       scanGrd.addColorStop(0, 'transparent')
       scanGrd.addColorStop(0.5, 'rgba(99,120,255,0.04)')
@@ -274,14 +391,19 @@ export default function PortfolioCanvas() {
     }
 
     draw()
-    return () => { cancelAnimationFrame(raf); ro.disconnect() }
+    return () => {
+      cancelAnimationFrame(raf)
+      ro.disconnect()
+    }
   }, [])
 
   return (
     <canvas
       ref={canvasRef}
-      className="w-full h-full"
-      style={{ background: 'linear-gradient(135deg, #0d0f1a 0%, #111827 100%)' }}
+      className="h-full w-full"
+      style={{
+        background: 'linear-gradient(135deg, #0d0f1a 0%, #111827 100%)',
+      }}
     />
   )
 }

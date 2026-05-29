@@ -1,26 +1,27 @@
-'use client';
+'use client'
 
-import * as React from 'react';
-import { AnimatePresence, HTMLMotionProps, motion } from 'motion/react';
-import { CheckIcon, CopyIcon } from 'lucide-react';
-import { cva, type VariantProps } from 'class-variance-authority';
+import * as React from 'react'
 
-import { cn } from '@/lib/utils';
+import { type VariantProps, cva } from 'class-variance-authority'
+import { CheckIcon, CopyIcon } from 'lucide-react'
+import { AnimatePresence, HTMLMotionProps, motion } from 'motion/react'
+
+import { cn } from '@/lib/utils'
 
 const buttonVariants = cva(
-  'inline-flex items-center justify-center cursor-pointer rounded-md transition-colors disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none shrink-0 [&_svg]:shrink-0 outline-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive',
+  'focus-visible:border-ring focus-visible:ring-ring/50 aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive inline-flex shrink-0 cursor-pointer items-center justify-center rounded-md transition-colors outline-none focus-visible:ring-[3px] disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0',
   {
     variants: {
       variant: {
         default:
-          'bg-primary text-primary-foreground shadow-xs hover:bg-primary/90',
+          'bg-primary text-primary-foreground hover:bg-primary/90 shadow-xs',
         muted: 'bg-muted text-muted-foreground',
         destructive:
-          'bg-destructive text-white shadow-xs hover:bg-destructive/90 focus-visible:ring-destructive/20 dark:focus-visible:ring-destructive/40 dark:bg-destructive/60',
+          'bg-destructive hover:bg-destructive/90 focus-visible:ring-destructive/20 dark:focus-visible:ring-destructive/40 dark:bg-destructive/60 text-white shadow-xs',
         outline:
-          'border bg-background shadow-xs hover:bg-accent hover:text-accent-foreground dark:bg-input/30 dark:border-input dark:hover:bg-input/50',
+          'bg-background hover:bg-accent hover:text-accent-foreground dark:bg-input/30 dark:border-input dark:hover:bg-input/50 border shadow-xs',
         secondary:
-          'bg-secondary text-secondary-foreground shadow-xs hover:bg-secondary/80',
+          'bg-secondary text-secondary-foreground hover:bg-secondary/80 shadow-xs',
         ghost:
           'hover:bg-accent hover:text-accent-foreground dark:hover:bg-accent/50',
       },
@@ -35,17 +36,17 @@ const buttonVariants = cva(
       variant: 'default',
       size: 'default',
     },
-  },
-);
+  }
+)
 
 type CopyButtonProps = Omit<HTMLMotionProps<'button'>, 'children' | 'onCopy'> &
   VariantProps<typeof buttonVariants> & {
-    content?: string;
-    delay?: number;
-    onCopy?: (content: string) => void;
-    isCopied?: boolean;
-    onCopyChange?: (isCopied: boolean) => void;
-  };
+    content?: string
+    delay?: number
+    onCopy?: (content: string) => void
+    isCopied?: boolean
+    onCopyChange?: (isCopied: boolean) => void
+  }
 
 function CopyButton({
   content,
@@ -59,40 +60,40 @@ function CopyButton({
   onCopyChange,
   ...props
 }: CopyButtonProps) {
-  const [localIsCopied, setLocalIsCopied] = React.useState(isCopied ?? false);
-  const Icon = localIsCopied ? CheckIcon : CopyIcon;
+  const [localIsCopied, setLocalIsCopied] = React.useState(isCopied ?? false)
+  const Icon = localIsCopied ? CheckIcon : CopyIcon
 
   React.useEffect(() => {
-    setLocalIsCopied(isCopied ?? false);
-  }, [isCopied]);
+    setLocalIsCopied(isCopied ?? false)
+  }, [isCopied])
 
   const handleIsCopied = React.useCallback(
     (isCopied: boolean) => {
-      setLocalIsCopied(isCopied);
-      onCopyChange?.(isCopied);
+      setLocalIsCopied(isCopied)
+      onCopyChange?.(isCopied)
     },
-    [onCopyChange],
-  );
+    [onCopyChange]
+  )
 
   const handleCopy = React.useCallback(
     (e: React.MouseEvent<HTMLButtonElement>) => {
-      if (isCopied) return;
+      if (isCopied) return
       if (content) {
         navigator.clipboard
           .writeText(content)
           .then(() => {
-            handleIsCopied(true);
-            setTimeout(() => handleIsCopied(false), delay);
-            onCopy?.(content);
+            handleIsCopied(true)
+            setTimeout(() => handleIsCopied(false), delay)
+            onCopy?.(content)
           })
           .catch((error) => {
-            console.error('Error copying command', error);
-          });
+            console.error('Error copying command', error)
+          })
       }
-      onClick?.(e);
+      onClick?.(e)
     },
-    [isCopied, content, delay, onClick, onCopy, handleIsCopied],
-  );
+    [isCopied, content, delay, onClick, onCopy, handleIsCopied]
+  )
 
   return (
     <motion.button
@@ -116,7 +117,7 @@ function CopyButton({
         </motion.span>
       </AnimatePresence>
     </motion.button>
-  );
+  )
 }
 
-export { CopyButton, buttonVariants, type CopyButtonProps };
+export { CopyButton, buttonVariants, type CopyButtonProps }

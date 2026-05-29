@@ -31,10 +31,6 @@ function BadgeCell({ w = 20 }: { w?: number }) {
   return <Skeleton className="h-6 shrink-0 rounded-lg" style={{ width: w }} />
 }
 
-function TextCell({ w = 140 }: { w?: number }) {
-  return <Skeleton className="h-4" style={{ width: w }} />
-}
-
 function ValueCell() {
   return (
     <div className="flex flex-1 items-center gap-2">
@@ -180,7 +176,10 @@ export function TableSkeleton({
       <div className="border-border/50 flex items-center gap-4 border-b px-8 py-3">
         {headers.map(({ label, flex }, i) =>
           label ? (
-            <Skeleton key={i} className={`h-2.5 w-12${flex ? ' flex-1' : ' shrink-0'}`} />
+            <Skeleton
+              key={i}
+              className={`h-2.5 w-12${flex ? 'flex-1' : 'shrink-0'}`}
+            />
           ) : (
             <div key={i} className="h-2.5 w-4 shrink-0" />
           )

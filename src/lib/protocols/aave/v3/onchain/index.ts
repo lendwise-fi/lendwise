@@ -1,5 +1,5 @@
 import type { DataAdapter } from '@/lib/protocols/types'
-import { MarketRate, TimeframeLabel } from '@/types'
+import type { MarketRate, TimeframeLabel } from '@/types'
 
 import {
   type BaseChainClient,
@@ -7,7 +7,7 @@ import {
   createGraphQLClient,
 } from '../../../shared'
 import { AAVE_CONFIG } from '../../config'
-import {
+import type {
   MarketDailyRatesQuery,
   MarketHourlyRatesQuery,
 } from './generated/graphql'

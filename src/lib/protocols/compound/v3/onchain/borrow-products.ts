@@ -18,7 +18,10 @@ const _formatBorrowProducts = cache(
     chainId: number
   ): BorrowProduct[] => {
     const network = CHAIN_NAME_MAPPING[chainId]
-    if (!network) throw new Error(`No slug registered for chainId ${chainId} — add it to chain-slugs.ts`)
+    if (!network)
+      throw new Error(
+        `No slug registered for chainId ${chainId} — add it to chain-slugs.ts`
+      )
     return markets.map((market) => {
       const token = market.configuration.baseToken.token
       const totalSupply = BigInt(market.accounting.totalBaseSupply)

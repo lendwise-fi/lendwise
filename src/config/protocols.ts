@@ -66,7 +66,8 @@ export const PROTOCOL_REGISTRY = {
   morpho: {
     displayName: 'Morpho',
     config: MORPHO_CONFIG,
-    adapter: () => import('@/lib/protocols/morpho').then((m) => m.MorphoAdapter),
+    adapter: () =>
+      import('@/lib/protocols/morpho').then((m) => m.MorphoAdapter),
   },
   compound: {
     displayName: 'Compound',

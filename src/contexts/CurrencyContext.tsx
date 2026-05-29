@@ -1,12 +1,12 @@
 'use client'
 
 import {
+  ReactNode,
   createContext,
   useCallback,
   useContext,
   useEffect,
   useState,
-  ReactNode,
 } from 'react'
 
 import { useCurrencyConverter } from '@/hooks/useCurrencyConverter'
@@ -14,25 +14,25 @@ import { useCurrencyConverter } from '@/hooks/useCurrencyConverter'
 interface CurrencyContextValue {
   // Current selected currency
   baseCurrency: string
-  
+
   // Conversion rate from USD to baseCurrency
   rate: number
-  
+
   // Loading state for rate fetching
   loading: boolean
-  
+
   // Error state
   error: string | null
-  
+
   // Change the base currency
   setBaseCurrency: (currency: string) => void
-  
+
   // Convert a USD value to the current base currency
   convertFromUSD: (usdValue: number) => number
-  
+
   // Convert a value from current base currency back to USD
   convertToUSD: (value: number) => number
-  
+
   // Format a USD value in the current currency with proper symbol
   formatValue: (usdValue: number) => string
 }
@@ -100,7 +100,7 @@ export function CurrencyProvider({
   const formatValue = useCallback(
     (usdValue: number): string => {
       const converted = convertFromUSD(usdValue)
-      
+
       // For crypto currencies
       if (baseCurrency === 'BTC') {
         return `₿${converted.toFixed(8)}`
@@ -108,7 +108,7 @@ export function CurrencyProvider({
       if (baseCurrency === 'ETH') {
         return `ETH ${converted.toFixed(6)}`
       }
-      
+
       // For fiat currencies, use Intl.NumberFormat
       try {
         return new Intl.NumberFormat('en-US', {
@@ -149,10 +149,10 @@ export function CurrencyProvider({
  */
 export function useCurrency() {
   const context = useContext(CurrencyContext)
-  
+
   if (context === undefined) {
     throw new Error('useCurrency must be used within a CurrencyProvider')
   }
-  
+
   return context
 }

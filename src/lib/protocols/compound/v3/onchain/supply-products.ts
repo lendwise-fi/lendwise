@@ -1,7 +1,7 @@
 import { cache } from 'react'
 
-import { aprToApyPerSecond } from '@/lib/utils'
 import { CHAIN_NAME_MAPPING } from '@/lib/protocols/utils'
+import { aprToApyPerSecond } from '@/lib/utils'
 import { SupplyProduct } from '@/types'
 
 import { getChainClients } from '.'
@@ -18,7 +18,10 @@ const _formatSupplyProducts = cache(
     chainId: number
   ): SupplyProduct[] => {
     const network = CHAIN_NAME_MAPPING[chainId]
-    if (!network) throw new Error(`No slug registered for chainId ${chainId} — add it to chain-slugs.ts`)
+    if (!network)
+      throw new Error(
+        `No slug registered for chainId ${chainId} — add it to chain-slugs.ts`
+      )
     return markets.map((market): SupplyProduct => {
       const token = market.configuration.baseToken.token
       return {

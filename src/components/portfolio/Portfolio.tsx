@@ -6,21 +6,16 @@ import { Activity, TrendingDown, TrendingUp } from 'lucide-react'
 import { Address } from 'viem'
 import { useAccount } from 'wagmi'
 
-import { PortfolioSkeleton } from './PortfolioSkeleton'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { WalletNotConnected } from '@/components/wallet'
 import { getProtocolVersionNameById } from '@/config'
 import { useCurrency } from '@/contexts'
 import { useLoadUserPositions } from '@/hooks/useLoadUserPositions'
 import { useWalletStore } from '@/stores/walletStore'
-import {
-  Tabs,
-  TabsContent,
-  TabsList,
-  TabsTrigger,
-} from '@/components/ui/tabs'
 
 import { BorrowingTable, SupplyingTable } from '.'
 import PortfolioSidebar from './PortfolioSidebar'
+import { PortfolioSkeleton } from './PortfolioSkeleton'
 
 export function Portfolio() {
   const { address, isConnected } = useAccount()
@@ -73,7 +68,8 @@ export function Portfolio() {
         )
         return {
           name: getProtocolVersionNameById(protocol),
-          value: totalSupplyingValue > 0 ? (total / totalSupplyingValue) * 100 : 0,
+          value:
+            totalSupplyingValue > 0 ? (total / totalSupplyingValue) * 100 : 0,
           color: PROTOCOL_COLORS[idx % PROTOCOL_COLORS.length],
         }
       })
@@ -87,7 +83,8 @@ export function Portfolio() {
         )
         return {
           name: getProtocolVersionNameById(protocol),
-          value: totalBorrowingValue > 0 ? (total / totalBorrowingValue) * 100 : 0,
+          value:
+            totalBorrowingValue > 0 ? (total / totalBorrowingValue) * 100 : 0,
           color: PROTOCOL_COLORS[idx % PROTOCOL_COLORS.length],
         }
       })
@@ -121,10 +118,15 @@ export function Portfolio() {
   const supplyData = Object.values(userPositions.supply).flat()
   const borrowData = Object.values(userPositions.borrow).flat()
 
-  const netPosition = portfolioSummary.totalSupplying.value - portfolioSummary.totalBorrowing.value
+  const netPosition =
+    portfolioSummary.totalSupplying.value -
+    portfolioSummary.totalBorrowing.value
   const healthRatio =
     portfolioSummary.totalBorrowing.value > 0
-      ? (portfolioSummary.totalSupplying.value / portfolioSummary.totalBorrowing.value).toFixed(2)
+      ? (
+          portfolioSummary.totalSupplying.value /
+          portfolioSummary.totalBorrowing.value
+        ).toFixed(2)
       : '∞'
 
   return (
@@ -134,47 +136,62 @@ export function Portfolio() {
 
       <div className="flex flex-1 flex-col overflow-hidden">
         {/* Mobile summary bar */}
-        <div className="md:hidden border-b bg-card/40 px-4 py-3 grid grid-cols-4 gap-2">
+        <div className="bg-card/40 grid grid-cols-4 gap-2 border-b px-4 py-3 md:hidden">
           <div>
-            <p className="text-2xs text-muted-foreground uppercase tracking-wider mb-0.5">Net</p>
-            <p className="font-mono text-sm font-semibold truncate">${netPosition.toFixed(0)}</p>
+            <p className="text-2xs text-muted-foreground mb-0.5 tracking-wider uppercase">
+              Net
+            </p>
+            <p className="truncate font-mono text-sm font-semibold">
+              ${netPosition.toFixed(0)}
+            </p>
           </div>
           <div>
-            <p className="text-2xs text-muted-foreground uppercase tracking-wider mb-0.5">Supply</p>
+            <p className="text-2xs text-muted-foreground mb-0.5 tracking-wider uppercase">
+              Supply
+            </p>
             <div className="flex items-center gap-1">
-              <TrendingUp className="h-3 w-3 text-emerald-400 shrink-0" />
-              <p className="font-mono text-sm font-semibold text-emerald-400 truncate">
+              <TrendingUp className="h-3 w-3 shrink-0 text-emerald-400" />
+              <p className="truncate font-mono text-sm font-semibold text-emerald-400">
                 ${portfolioSummary.totalSupplying.value.toFixed(0)}
               </p>
             </div>
           </div>
           <div>
-            <p className="text-2xs text-muted-foreground uppercase tracking-wider mb-0.5">Borrow</p>
+            <p className="text-2xs text-muted-foreground mb-0.5 tracking-wider uppercase">
+              Borrow
+            </p>
             <div className="flex items-center gap-1">
-              <TrendingDown className="h-3 w-3 text-rose-400 shrink-0" />
-              <p className="font-mono text-sm font-semibold text-rose-400 truncate">
+              <TrendingDown className="h-3 w-3 shrink-0 text-rose-400" />
+              <p className="truncate font-mono text-sm font-semibold text-rose-400">
                 ${portfolioSummary.totalBorrowing.value.toFixed(0)}
               </p>
             </div>
           </div>
           <div>
-            <p className="text-2xs text-muted-foreground uppercase tracking-wider mb-0.5">Health</p>
+            <p className="text-2xs text-muted-foreground mb-0.5 tracking-wider uppercase">
+              Health
+            </p>
             <div className="flex items-center gap-1">
-              <Activity className="h-3 w-3 text-emerald-400 shrink-0" />
-              <p className="font-mono text-sm font-semibold text-emerald-400">{healthRatio}</p>
+              <Activity className="h-3 w-3 shrink-0 text-emerald-400" />
+              <p className="font-mono text-sm font-semibold text-emerald-400">
+                {healthRatio}
+              </p>
             </div>
           </div>
         </div>
 
-        <Tabs defaultValue="supply" className="flex flex-1 flex-col overflow-hidden">
+        <Tabs
+          defaultValue="supply"
+          className="flex flex-1 flex-col overflow-hidden"
+        >
           {/* Tab bar */}
           <TabsList className="bg-muted border-border h-auto w-full justify-start gap-0 rounded-none border-b p-0">
             <TabsTrigger
               value="supply"
-              className="data-[state=active]:bg-card data-[state=active]:border-primary text-muted-foreground hover:text-foreground h-auto flex-col items-start rounded-none border-b-2 border-transparent px-4 py-3 md:px-8 md:py-5 transition-colors data-[state=active]:shadow-none cursor-pointer"
+              className="data-[state=active]:bg-card data-[state=active]:border-primary text-muted-foreground hover:text-foreground h-auto cursor-pointer flex-col items-start rounded-none border-b-2 border-transparent px-4 py-3 transition-colors data-[state=active]:shadow-none md:px-8 md:py-5"
             >
               <div className="flex items-center gap-2">
-                <span className="text-foreground text-sm md:text-lg font-semibold">
+                <span className="text-foreground text-sm font-semibold md:text-lg">
                   <span className="hidden sm:inline">Supplying positions</span>
                   <span className="sm:hidden">Supply</span>
                 </span>
@@ -182,16 +199,16 @@ export function Portfolio() {
                   {supplyData.length}
                 </span>
               </div>
-              <p className="text-muted-foreground mt-0.5 text-xs font-normal hidden sm:block">
+              <p className="text-muted-foreground mt-0.5 hidden text-xs font-normal sm:block">
                 Your active supply positions across protocols
               </p>
             </TabsTrigger>
             <TabsTrigger
               value="borrow"
-              className="data-[state=active]:bg-card data-[state=active]:border-primary text-muted-foreground hover:text-foreground h-auto flex-col items-start rounded-none border-b-2 border-transparent px-4 py-3 md:px-8 md:py-5 transition-colors data-[state=active]:shadow-none cursor-pointer"
+              className="data-[state=active]:bg-card data-[state=active]:border-primary text-muted-foreground hover:text-foreground h-auto cursor-pointer flex-col items-start rounded-none border-b-2 border-transparent px-4 py-3 transition-colors data-[state=active]:shadow-none md:px-8 md:py-5"
             >
               <div className="flex items-center gap-2">
-                <span className="text-foreground text-sm md:text-lg font-semibold">
+                <span className="text-foreground text-sm font-semibold md:text-lg">
                   <span className="hidden sm:inline">Borrowing positions</span>
                   <span className="sm:hidden">Borrow</span>
                 </span>
@@ -199,7 +216,7 @@ export function Portfolio() {
                   {borrowData.length}
                 </span>
               </div>
-              <p className="text-muted-foreground mt-0.5 text-xs font-normal hidden sm:block">
+              <p className="text-muted-foreground mt-0.5 hidden text-xs font-normal sm:block">
                 Active loans and collateral positions
               </p>
             </TabsTrigger>

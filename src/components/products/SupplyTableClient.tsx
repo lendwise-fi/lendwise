@@ -92,7 +92,9 @@ export type Horizon = HorizonKey
 
 const getUtilizationPct = (row: SupplyProduct) => {
   if (!row.assetAmountUsd) return 0
-  return ((row.assetAmountUsd - row.liquidityAmountUsd) / row.assetAmountUsd) * 100
+  return (
+    ((row.assetAmountUsd - row.liquidityAmountUsd) / row.assetAmountUsd) * 100
+  )
 }
 
 const isOverutilized = (row: SupplyProduct) => getUtilizationPct(row) > 99
@@ -104,208 +106,213 @@ const createColumns = (
   selectedCount: number,
   selectedAsset: string | null
 ): ColumnDef<SupplyProduct>[] => [
-    {
-      id: 'select',
-      size: 40,
-      header: '',
-      cell: ({ row }) => {
-        const isSelected = row.getIsSelected()
-        const isDisabledByUtilization = !isSelected && isOverutilized(row.original)
-        const isDisabledByAsset =
-          !isSelected &&
-          !isDisabledByUtilization &&
-          selectedAsset !== null &&
-          row.original.assetSymbol !== selectedAsset
-        const isDisabledByLimit = !isSelected && !isDisabledByUtilization && selectedCount >= 10
-        const isDisabled = isDisabledByUtilization || isDisabledByAsset || isDisabledByLimit
+  {
+    id: 'select',
+    size: 40,
+    header: '',
+    cell: ({ row }) => {
+      const isSelected = row.getIsSelected()
+      const isDisabledByUtilization =
+        !isSelected && isOverutilized(row.original)
+      const isDisabledByAsset =
+        !isSelected &&
+        !isDisabledByUtilization &&
+        selectedAsset !== null &&
+        row.original.assetSymbol !== selectedAsset
+      const isDisabledByLimit =
+        !isSelected && !isDisabledByUtilization && selectedCount >= 10
+      const isDisabled =
+        isDisabledByUtilization || isDisabledByAsset || isDisabledByLimit
 
-        const checkbox = (
-          <Checkbox
-            checked={isSelected}
-            onCheckedChange={(value) => row.toggleSelected(!!value)}
-            aria-label="Select row"
-            disabled={isDisabled}
-          />
-        )
+      const checkbox = (
+        <Checkbox
+          checked={isSelected}
+          onCheckedChange={(value) => row.toggleSelected(!!value)}
+          aria-label="Select row"
+          disabled={isDisabled}
+        />
+      )
 
-        if (isDisabledByUtilization) {
-          return (
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <span className="inline-flex cursor-not-allowed">{checkbox}</span>
-              </TooltipTrigger>
-              <TooltipContent>Utilization &gt;99% — unhealthy market</TooltipContent>
-            </Tooltip>
-          )
-        }
-
-        if (isDisabledByAsset) {
-          return (
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <span className="inline-flex cursor-not-allowed">{checkbox}</span>
-              </TooltipTrigger>
-              <TooltipContent>{selectedAsset}-only selection</TooltipContent>
-            </Tooltip>
-          )
-        }
-
-        return checkbox
-      },
-      enableSorting: false,
-      enableHiding: false,
-    },
-    {
-      accessorKey: 'protocol',
-      header: ({ column }) => (
-        <SortableHeader column={column}>Protocol</SortableHeader>
-      ),
-      size: 110,
-      minSize: 110,
-      enableHiding: false,
-      enableSorting: true,
-      cell: ({ row }) => <ProtocolBadge protocol={row.original.protocol} />,
-    },
-    {
-      accessorKey: 'network',
-      header: ({ column }) => (
-        <SortableHeader column={column}>Network</SortableHeader>
-      ),
-      enableHiding: false,
-      enableSorting: true,
-      cell: ({ row }) => <NetworkBadge networkSlug={row.original.network} />,
-    },
-    {
-      accessorKey: 'poolName',
-      header: ({ column }) => (
-        <SortableHeader column={column}>Name</SortableHeader>
-      ),
-      cell: ({ row }) => (
-        <div className="flex w-full items-center gap-2">
-          <TokenIcon symbol={row.original.assetSymbol} />
-          <TableCellViewer item={row.original} />
-        </div>
-      ),
-      enableHiding: false,
-      enableSorting: true,
-    },
-    {
-      accessorKey: 'assetSymbol',
-      header: '',
-      enableSorting: false,
-      enableHiding: false,
-    },
-    {
-      accessorKey: 'assetAmountUsd',
-      header: ({ column }) => (
-        <SortableHeader column={column}>Deposits</SortableHeader>
-      ),
-      cell: ({ row }) => (
-        <div className="flex w-full items-center gap-3">
-          <span className="font-mono">
-            {formatCompactCurrency(
-              row.original.assetAmount,
-              row.original.assetSymbol,
-              row.original.assetDecimals
-            )}
-          </span>
-          <Badge variant="outline" className="bg-background font-mono">
-            {formatCompactCurrency(row.original.assetAmountUsd * rate, currency)}
-          </Badge>
-        </div>
-      ),
-
-      enableHiding: false,
-    },
-    {
-      accessorKey: 'liquidityAmountUsd',
-      header: ({ column }) => (
-        <SortableHeader column={column}>Liquidity</SortableHeader>
-      ),
-      cell: ({ row }) => (
-        <div className="flex w-full items-center gap-3">
-          <span className="font-mono">
-            {formatCompactCurrency(
-              row.original.liquidityAmount,
-              row.original.assetSymbol,
-              row.original.assetDecimals
-            )}
-          </span>
-          <Badge variant="outline" className="bg-background font-mono">
-            {formatCompactCurrency(
-              row.original.liquidityAmountUsd * rate,
-              currency
-            )}
-          </Badge>
-          <PieChartMini
-            percentage={(() => {
-              if (!row.original.liquidityAmountUsd) return 100
-              const used =
-                row.original.assetAmountUsd - row.original.liquidityAmountUsd
-              const pct = (used / row.original.assetAmountUsd) * 100
-              return Math.min(100, pct)
-            })()}
-          />
-          {isOverutilized(row.original) && (
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <span className="inline-flex items-center">
-                  <AlertTriangle className="h-3.5 w-3.5 text-red-500" />
-                </span>
-              </TooltipTrigger>
-              <TooltipContent>
-                Utilization &gt;99% — unhealthy market, cannot be optimized
-              </TooltipContent>
-            </Tooltip>
-          )}
-        </div>
-      ),
-      enableHiding: false,
-    },
-    {
-      accessorKey: HORIZON_CONFIG[horizon].apyKey,
-      header: ({ column }) => (
-        <SortableHeader column={column}>
-          {HORIZON_CONFIG[horizon].columnHeader}
-        </SortableHeader>
-      ),
-      size: 60,
-      enableSorting: true,
-      sortingFn: 'basic',
-      cell: ({ row }) => {
-        const apyValue = row.original[HORIZON_CONFIG[horizon].apyKey] as
-          | number
-          | undefined
+      if (isDisabledByUtilization) {
         return (
-          <span className="font-mono">
-            {apyValue !== undefined
-              ? apyValue < 0.0001
-                ? '<0.01%'
-                : apyValue > 10
-                  ? '>1000%'
-                  : `${(apyValue * 100).toFixed(2)}%`
-              : '-'}
-          </span>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <span className="inline-flex cursor-not-allowed">{checkbox}</span>
+            </TooltipTrigger>
+            <TooltipContent>
+              Utilization &gt;99% — unhealthy market
+            </TooltipContent>
+          </Tooltip>
         )
-      },
-      enableHiding: false,
+      }
+
+      if (isDisabledByAsset) {
+        return (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <span className="inline-flex cursor-not-allowed">{checkbox}</span>
+            </TooltipTrigger>
+            <TooltipContent>{selectedAsset}-only selection</TooltipContent>
+          </Tooltip>
+        )
+      }
+
+      return checkbox
     },
-    {
-      id: 'actions',
-      size: 80,
-      minSize: 80,
-      cell: ({ row }) =>
-        row.original.link ? (
-          <Link
-            target="_blank"
-            href={row.original.link}
-            className="flex w-full items-center justify-center"
-          >
-            <ArrowUpRightFromSquare size={15} />
-          </Link>
-        ) : null,
+    enableSorting: false,
+    enableHiding: false,
+  },
+  {
+    accessorKey: 'protocol',
+    header: ({ column }) => (
+      <SortableHeader column={column}>Protocol</SortableHeader>
+    ),
+    size: 110,
+    minSize: 110,
+    enableHiding: false,
+    enableSorting: true,
+    cell: ({ row }) => <ProtocolBadge protocol={row.original.protocol} />,
+  },
+  {
+    accessorKey: 'network',
+    header: ({ column }) => (
+      <SortableHeader column={column}>Network</SortableHeader>
+    ),
+    enableHiding: false,
+    enableSorting: true,
+    cell: ({ row }) => <NetworkBadge networkSlug={row.original.network} />,
+  },
+  {
+    accessorKey: 'poolName',
+    header: ({ column }) => (
+      <SortableHeader column={column}>Name</SortableHeader>
+    ),
+    cell: ({ row }) => (
+      <div className="flex w-full items-center gap-2">
+        <TokenIcon symbol={row.original.assetSymbol} />
+        <TableCellViewer item={row.original} />
+      </div>
+    ),
+    enableHiding: false,
+    enableSorting: true,
+  },
+  {
+    accessorKey: 'assetSymbol',
+    header: '',
+    enableSorting: false,
+    enableHiding: false,
+  },
+  {
+    accessorKey: 'assetAmountUsd',
+    header: ({ column }) => (
+      <SortableHeader column={column}>Deposits</SortableHeader>
+    ),
+    cell: ({ row }) => (
+      <div className="flex w-full items-center gap-3">
+        <span className="font-mono">
+          {formatCompactCurrency(
+            row.original.assetAmount,
+            row.original.assetSymbol,
+            row.original.assetDecimals
+          )}
+        </span>
+        <Badge variant="outline" className="bg-background font-mono">
+          {formatCompactCurrency(row.original.assetAmountUsd * rate, currency)}
+        </Badge>
+      </div>
+    ),
+
+    enableHiding: false,
+  },
+  {
+    accessorKey: 'liquidityAmountUsd',
+    header: ({ column }) => (
+      <SortableHeader column={column}>Liquidity</SortableHeader>
+    ),
+    cell: ({ row }) => (
+      <div className="flex w-full items-center gap-3">
+        <span className="font-mono">
+          {formatCompactCurrency(
+            row.original.liquidityAmount,
+            row.original.assetSymbol,
+            row.original.assetDecimals
+          )}
+        </span>
+        <Badge variant="outline" className="bg-background font-mono">
+          {formatCompactCurrency(
+            row.original.liquidityAmountUsd * rate,
+            currency
+          )}
+        </Badge>
+        <PieChartMini
+          percentage={(() => {
+            if (!row.original.liquidityAmountUsd) return 100
+            const used =
+              row.original.assetAmountUsd - row.original.liquidityAmountUsd
+            const pct = (used / row.original.assetAmountUsd) * 100
+            return Math.min(100, pct)
+          })()}
+        />
+        {isOverutilized(row.original) && (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <span className="inline-flex items-center">
+                <AlertTriangle className="h-3.5 w-3.5 text-red-500" />
+              </span>
+            </TooltipTrigger>
+            <TooltipContent>
+              Utilization &gt;99% — unhealthy market, cannot be optimized
+            </TooltipContent>
+          </Tooltip>
+        )}
+      </div>
+    ),
+    enableHiding: false,
+  },
+  {
+    accessorKey: HORIZON_CONFIG[horizon].apyKey,
+    header: ({ column }) => (
+      <SortableHeader column={column}>
+        {HORIZON_CONFIG[horizon].columnHeader}
+      </SortableHeader>
+    ),
+    size: 60,
+    enableSorting: true,
+    sortingFn: 'basic',
+    cell: ({ row }) => {
+      const apyValue = row.original[HORIZON_CONFIG[horizon].apyKey] as
+        | number
+        | undefined
+      return (
+        <span className="font-mono">
+          {apyValue !== undefined
+            ? apyValue < 0.0001
+              ? '<0.01%'
+              : apyValue > 10
+                ? '>1000%'
+                : `${(apyValue * 100).toFixed(2)}%`
+            : '-'}
+        </span>
+      )
     },
-  ]
+    enableHiding: false,
+  },
+  {
+    id: 'actions',
+    size: 80,
+    minSize: 80,
+    cell: ({ row }) =>
+      row.original.link ? (
+        <Link
+          target="_blank"
+          href={row.original.link}
+          className="flex w-full items-center justify-center"
+        >
+          <ArrowUpRightFromSquare size={15} />
+        </Link>
+      ) : null,
+  },
+]
 
 const chartConfig = {
   rate: {
@@ -500,7 +507,7 @@ function TableCellViewer({ item }: { item: SupplyProduct }) {
                       <ChartTooltipContent
                         indicator="line"
                         labelFormatter={(value) => {
-                          return new Date(value * 1000).toLocaleDateString(
+                          return new Date(Number(value) * 1000).toLocaleDateString(
                             'en-US',
                             {
                               month: 'short',
@@ -745,7 +752,10 @@ export function SupplyTableClient() {
           },
           {
             label: 'Worst rate',
-            value: result.min === Infinity ? '-' : `${(result.min * 100).toFixed(2)}%`,
+            value:
+              result.min === Infinity
+                ? '-'
+                : `${(result.min * 100).toFixed(2)}%`,
             sub: result.minItem
               ? `${result.minItem.poolName} · ${getProtocolVersionNameById(result.minItem.protocol)}`
               : undefined,
@@ -753,7 +763,10 @@ export function SupplyTableClient() {
           },
           {
             label: 'Best rate',
-            value: result.max === -Infinity ? '-' : `${(result.max * 100).toFixed(2)}%`,
+            value:
+              result.max === -Infinity
+                ? '-'
+                : `${(result.max * 100).toFixed(2)}%`,
             sub: result.maxItem
               ? `${result.maxItem.poolName} · ${getProtocolVersionNameById(result.maxItem.protocol)}`
               : undefined,
@@ -790,7 +803,7 @@ export function SupplyTableClient() {
               </DialogTrigger>
               <DialogContent
                 showCloseButton={false}
-                className="gap-0 overflow-hidden p-0 sm:max-w-4xl sm:max-h-[90vh]"
+                className="gap-0 overflow-hidden p-0 sm:max-h-[90vh] sm:max-w-4xl"
               >
                 <DialogTitle className="sr-only">Supply Optimizer</DialogTitle>
                 <DialogDescription className="sr-only">
@@ -827,12 +840,13 @@ export function SupplyTableClient() {
                           />
                         )}
                         <div
-                          className={`flex h-6 w-6 items-center justify-center rounded-full text-xs font-semibold transition-all ${modalStep === s.step
+                          className={`flex h-6 w-6 items-center justify-center rounded-full text-xs font-semibold transition-all ${
+                            modalStep === s.step
                               ? 'bg-primary text-primary-foreground'
                               : modalStep > s.step
                                 ? 'bg-primary/20 text-primary'
                                 : 'bg-secondary text-muted-foreground'
-                            }`}
+                          }`}
                         >
                           {modalStep > s.step ? (
                             <CheckCircle2 className="h-3.5 w-3.5" />
@@ -858,13 +872,24 @@ export function SupplyTableClient() {
                 {modalStep === 1 ? (
                   <div className="flex flex-col">
                     {/* Sticky column headers */}
-                    <div className="flex items-center gap-4 border-b border-border/40 px-7 pt-4 pb-2.5">
+                    <div className="border-border/40 flex items-center gap-4 border-b px-7 pt-4 pb-2.5">
                       <div className="w-1 shrink-0" />
-                      <span className="text-muted-foreground/70 w-24 shrink-0 text-[11px] font-semibold uppercase tracking-wider">Protocol</span>
-                      <span className="text-muted-foreground/70 w-24 shrink-0 text-[11px] font-semibold uppercase tracking-wider">Network</span>
-                      <span className="text-muted-foreground/70 flex-1 text-[11px] font-semibold uppercase tracking-wider">Pool</span>
+                      <span className="text-muted-foreground/70 w-24 shrink-0 text-[11px] font-semibold tracking-wider uppercase">
+                        Protocol
+                      </span>
+                      <span className="text-muted-foreground/70 w-24 shrink-0 text-[11px] font-semibold tracking-wider uppercase">
+                        Network
+                      </span>
+                      <span className="text-muted-foreground/70 flex-1 text-[11px] font-semibold tracking-wider uppercase">
+                        Pool
+                      </span>
                       {['1D', '7D', '1M', '1Y'].map((label) => (
-                        <span key={label} className="text-muted-foreground/70 w-16 text-right text-[11px] font-semibold uppercase tracking-wider">{label}</span>
+                        <span
+                          key={label}
+                          className="text-muted-foreground/70 w-16 text-right text-[11px] font-semibold tracking-wider uppercase"
+                        >
+                          {label}
+                        </span>
                       ))}
                     </div>
                     {/* Scrollable rows */}
@@ -882,8 +907,12 @@ export function SupplyTableClient() {
                             className="border-border/50 hover:border-border bg-secondary/30 flex items-center gap-4 rounded-xl border p-3.5 transition-colors"
                           >
                             <div className="from-primary to-primary/30 h-10 w-1 shrink-0 rounded-full bg-gradient-to-b" />
-                            <div className="w-24 shrink-0"><ProtocolBadge protocol={pool.protocol} /></div>
-                            <div className="w-24 shrink-0"><NetworkBadge networkSlug={pool.network} /></div>
+                            <div className="w-24 shrink-0">
+                              <ProtocolBadge protocol={pool.protocol} />
+                            </div>
+                            <div className="w-24 shrink-0">
+                              <NetworkBadge networkSlug={pool.network} />
+                            </div>
                             <span className="text-foreground flex-1 truncate text-sm font-medium">
                               {pool.poolName}
                             </span>
@@ -913,7 +942,7 @@ export function SupplyTableClient() {
                         )
                       })}
                     </div>
-                    <div className="flex justify-end border-t border-border/40 px-7 py-4">
+                    <div className="border-border/40 flex justify-end border-t px-7 py-4">
                       <Button
                         onClick={() => {
                           setSnapshotMarkets(selectedData)
@@ -1017,7 +1046,9 @@ export function SupplyTableClient() {
         columnFilters={columnFilters}
         onColumnFiltersChange={setColumnFilters}
         globalFilter={searchValue}
-        getRowClassName={(row) => isOverutilized(row) ? 'bg-red-500/8 hover:bg-red-500/12' : ''}
+        getRowClassName={(row) =>
+          isOverutilized(row) ? 'bg-red-500/8 hover:bg-red-500/12' : ''
+        }
         filterableColumns={[
           { column: 'protocol', title: 'Protocol', options: protocolOptions },
           { column: 'network', title: 'Network', options: networkOptions },

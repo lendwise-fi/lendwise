@@ -29,7 +29,10 @@ import {
 
 function parseArgs() {
   const args = process.argv.slice(2)
-  const get = (flag: string) => { const i = args.indexOf(flag); return i !== -1 ? args[i + 1] : undefined }
+  const get = (flag: string) => {
+    const i = args.indexOf(flag)
+    return i !== -1 ? args[i + 1] : undefined
+  }
   const has = (flag: string) => args.includes(flag)
   return {
     dbName: get('--db-name') ?? MONGODB_DB_NAME,
@@ -52,7 +55,9 @@ async function main(): Promise<void> {
 
     // ── Pass 1: root-level quality fields → quality.* ─────────────────────────
 
-    const pass1Count = await collection.countDocuments({ status: { $exists: true } })
+    const pass1Count = await collection.countDocuments({
+      status: { $exists: true },
+    })
     log(`Pass 1 — root-level quality fields: ${pass1Count} documents`)
 
     if (dryRun && pass1Count > 0) {
@@ -66,11 +71,15 @@ async function main(): Promise<void> {
 
     // ── Pass 2: backfill format → DailyQuality ────────────────────────────────
 
-    const pass2Count = await collection.countDocuments({ 'quality.count': { $exists: true } })
+    const pass2Count = await collection.countDocuments({
+      'quality.count': { $exists: true },
+    })
     log(`Pass 2 — backfill format (quality.count): ${pass2Count} documents`)
 
     if (dryRun && pass2Count > 0) {
-      const sample = await collection.findOne({ 'quality.count': { $exists: true } })
+      const sample = await collection.findOne({
+        'quality.count': { $exists: true },
+      })
       log('  Sample before:')
       log(`    quality: ${JSON.stringify(sample!.quality)}`)
     }
@@ -87,21 +96,26 @@ async function main(): Promise<void> {
 
     // Pass 1
     if (pass1Count > 0) {
-      const r1 = await collection.updateMany(
-        { status: { $exists: true } },
-        [
-          {
-            $set: {
-              'quality.status':        '$status',
-              'quality.actualCount':   '$actualCount',
-              'quality.expectedCount': '$expectedCount',
-              'quality.completeness':  '$completeness',
-              'quality.computedAt':    '$computedAt',
-            },
+      const r1 = await collection.updateMany({ status: { $exists: true } }, [
+        {
+          $set: {
+            'quality.status': '$status',
+            'quality.actualCount': '$actualCount',
+            'quality.expectedCount': '$expectedCount',
+            'quality.completeness': '$completeness',
+            'quality.computedAt': '$computedAt',
           },
-          { $unset: ['status', 'actualCount', 'expectedCount', 'completeness', 'computedAt'] },
-        ]
-      )
+        },
+        {
+          $unset: [
+            'status',
+            'actualCount',
+            'expectedCount',
+            'completeness',
+            'computedAt',
+          ],
+        },
+      ])
       log(`  ✅ Pass 1: ${r1.modifiedCount} documents migrated`)
     }
 
@@ -120,7 +134,12 @@ async function main(): Promise<void> {
               'quality.completeness': {
                 $ifNull: [
                   '$quality.completeness',
-                  { $min: [{ $divide: ['$quality.count', '$quality.expectedCount'] }, 1] },
+                  {
+                    $min: [
+                      { $divide: ['$quality.count', '$quality.expectedCount'] },
+                      1,
+                    ],
+                  },
                 ],
               },
               'quality.computedAt': {
@@ -131,7 +150,9 @@ async function main(): Promise<void> {
               },
             },
           },
-          { $unset: ['quality.count', 'quality.firstSlot', 'quality.lastSlot'] },
+          {
+            $unset: ['quality.count', 'quality.firstSlot', 'quality.lastSlot'],
+          },
         ]
       )
       log(`  ✅ Pass 2: ${r2.modifiedCount} documents normalized`)
