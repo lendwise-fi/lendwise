@@ -100,7 +100,10 @@ export default function PortfolioSidebar({
 }
 
 function DonutWithLegend({ data }: { data: BreakdownItem[] }) {
-  const chartData = data.map((d) => ({ ...d, value: Math.max(d.value, 0.01) }))
+  const isEmpty = data.length === 0
+  const chartData = isEmpty
+    ? [{ name: 'empty', value: 1, color: 'var(--color-border, #27272a)' }]
+    : data.map((d) => ({ ...d, value: Math.max(d.value, 0.01) }))
 
   return (
     <div className="flex items-center gap-4">
@@ -113,11 +116,11 @@ function DonutWithLegend({ data }: { data: BreakdownItem[] }) {
               cy="50%"
               innerRadius={24}
               outerRadius={36}
-              paddingAngle={2}
+              paddingAngle={isEmpty ? 0 : 2}
               dataKey="value"
               strokeWidth={0}
             >
-              {data.map((entry) => (
+              {chartData.map((entry) => (
                 <Cell key={entry.name} fill={entry.color} />
               ))}
             </Pie>
@@ -125,20 +128,26 @@ function DonutWithLegend({ data }: { data: BreakdownItem[] }) {
         </ResponsiveContainer>
       </div>
       <div className="flex-1 space-y-2">
-        {data.map((item) => (
-          <div key={item.name} className="flex items-center justify-between">
-            <div className="flex items-center gap-1.5">
-              <span
-                className="h-2 w-2 shrink-0 rounded-full"
-                style={{ backgroundColor: item.color }}
-              />
-              <span className="text-muted-foreground text-xs">{item.name}</span>
+        {isEmpty ? (
+          <p className="text-muted-foreground text-xs">No positions</p>
+        ) : (
+          data.map((item) => (
+            <div key={item.name} className="flex items-center justify-between">
+              <div className="flex items-center gap-1.5">
+                <span
+                  className="h-2 w-2 shrink-0 rounded-full"
+                  style={{ backgroundColor: item.color }}
+                />
+                <span className="text-muted-foreground text-xs">
+                  {item.name}
+                </span>
+              </div>
+              <span className="text-foreground font-mono text-xs">
+                {item.value.toFixed(1)}%
+              </span>
             </div>
-            <span className="text-foreground font-mono text-xs">
-              {item.value.toFixed(1)}%
-            </span>
-          </div>
-        ))}
+          ))
+        )}
       </div>
     </div>
   )
