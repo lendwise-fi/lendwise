@@ -1,6 +1,11 @@
-# `apy.daily` Collection — Schema Reference
+# `apy_daily` Table — Schema Reference
 
-The `apy.daily` collection is a **classic MongoDB collection** (not Time Series) storing daily aggregations computed from `apy.spot`. It is the primary source for all UI queries and the optimization engine for investment horizons beyond 7 days.
+> **Storage note:** the live schema is the `apy_daily` PostgreSQL table defined in
+> `src/lib/db/schema.ts` (Drizzle). This document describes field-level semantics,
+> which carry over from the former MongoDB collection; column names are snake_case
+> (`apy_net`, `quality_completeness`, …) and primary key is `(product_id, date)`.
+
+`apy_daily` stores daily aggregations computed from `apy_hourly`. It is the primary source for all UI queries and the optimization engine for investment horizons beyond 7 days.
 
 All monetary values are in **USD**. All rates are in **APY**.
 

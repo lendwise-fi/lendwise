@@ -8,8 +8,8 @@ import { type ProtocolName, getProtocolIds } from '@/config/protocols'
 /**
  * Spot APY snapshot endpoint.
  *
- * Collects APY snapshots from the requested protocol and writes
- * SupplyApySpot + BorrowApySpot documents to the apy.spot Time Series collection.
+ * Collects APY snapshots from the requested protocol and upserts them into the
+ * apy_hourly Postgres table (one rolling-average row per product per hour).
  *
  * Body (JSON):
  *   protocol (required): 'aave_v3' | 'morpho_v1' | 'compound_v3'

@@ -855,7 +855,10 @@ export function BorrowingOptimizerView({
                         const pct =
                           total && total > 0 ? (a.value / total) * 100 : 0
                         return (
-                          <div key={a.market.poolName} className="flex items-center gap-2">
+                          <div
+                            key={a.market.poolName}
+                            className="flex items-center gap-2"
+                          >
                             <div
                               className="h-2.5 w-2.5 shrink-0 rounded-sm"
                               style={{

@@ -1,6 +1,12 @@
-# `pools` Collection — Schema Reference
+# `products` Table — Schema Reference
 
-The `pools` collection is a **static registry** of all supplying and borrowing pools across AAVE, Morpho, and Compound. It holds metadata only — no time-varying metrics. All APY, TVL, and rate data lives in `apy.spot` and `apy.daily`.
+> **Storage note:** the live schema is the `products` PostgreSQL table defined in
+> `src/lib/db/schema.ts` (Drizzle). This document describes field-level semantics,
+> which carry over from the former MongoDB collection; structured fields are typed
+> columns (`provider`, `chain_id`, `asset_symbol`, `kind`, …) and `meta` /
+> `collaterals` are `jsonb`. Filter on the columns — never parse the `id` slug.
+
+`products` is a **static registry** of all supply and borrow products across AAVE, Morpho, and Compound. It holds metadata only — no time-varying metrics. All APY, TVL, and rate data lives in `apy_hourly` and `apy_daily`.
 
 ---
 

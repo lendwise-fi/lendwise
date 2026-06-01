@@ -114,10 +114,7 @@ type TooltipPayloadItem = {
   payload?: Record<string, unknown> & { fill?: string }
 }
 
-type ChartTooltipContentProps = Omit<
-  React.ComponentProps<'div'>,
-  'color'
-> & {
+type ChartTooltipContentProps = Omit<React.ComponentProps<'div'>, 'color'> & {
   active?: boolean
   payload?: TooltipPayloadItem[]
   label?: React.ReactNode

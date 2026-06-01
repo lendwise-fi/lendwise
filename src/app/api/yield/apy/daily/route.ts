@@ -2,233 +2,22 @@ import { NextRequest, NextResponse } from 'next/server'
 
 import { verifySignatureAppRouter } from '@upstash/qstash/nextjs'
 
-import { dbBackend } from '@/lib/db/env'
-import {
-  MONGODB_COLLECTION_DAILY,
-  MONGODB_COLLECTION_HOURLY,
-  getDb,
-} from '@/lib/db/mongodb'
 import { aggregateDaily } from '@/lib/db/repositories/apy'
 import { pruneHourly } from '@/lib/db/repositories/gaps'
-import type {
-  ApyDaily,
-  ApySlot,
-  BorrowApyDaily,
-  BorrowMarketState,
-  DailyQuality,
-  DailyQualityStatus,
-  SupplyApyDaily,
-  SupplyMarketState,
-} from '@/lib/db/types'
-
-// ─── Helpers ──────────────────────────────────────────────────────────────────
-
-function avg(values: number[]): number {
-  if (values.length === 0) return 0
-  return values.reduce((s, v) => s + v, 0) / values.length
-}
-
-const EXPECTED_HOURLY_COUNT = 24
-
-function computeDailyQualityStatus(actualCount: number): DailyQualityStatus {
-  if (actualCount >= EXPECTED_HOURLY_COUNT) return 'complete'
-  if (actualCount >= EXPECTED_HOURLY_COUNT / 2) return 'partial'
-  return 'missing'
-}
-
-// ─── Aggregation ──────────────────────────────────────────────────────────────
-
-/**
- * Aggregate all hourly documents for a single productId over a 24h window
- * into a single ApyDaily document.
- *
- * All numeric fields are averaged across the 24 hourly slots.
- * rewardItems comes from the last slot.
- */
-async function aggregatePool(
-  productId: string,
-  windowStart: Date,
-  windowEnd: Date,
-  computedAt: Date
-): Promise<Omit<ApyDaily, '_id'> | null> {
-  const db = await getDb()
-  const collection = db.collection<ApySlot>(MONGODB_COLLECTION_HOURLY)
-
-  const hours = await collection
-    .find(
-      {
-        productId,
-        hour: { $gte: windowStart, $lt: windowEnd },
-      },
-      {
-        projection: {
-          'apy.base': 1,
-          'apy.net': 1,
-          'apy.rewards': 1,
-          'apy.fees': 1,
-          'apy.rewardItems': 1,
-          'market.supplyAssets': 1,
-          'market.supplyAssetsUsd': 1,
-          'market.borrowAssets': 1,
-          'market.borrowAssetsUsd': 1,
-          'market.utilizationRate': 1,
-          'market.assetPriceUsd': 1,
-          'market.collateralAssetsUsd': 1,
-          'market.priceCollateralInLoanAsset': 1,
-        },
-      }
-    )
-    .sort({ hour: 1 })
-    .toArray()
-
-  if (hours.length === 0) return null
-
-  const lastSlot = hours[hours.length - 1]
-
-  const apy = {
-    base: avg(hours.map((h) => h.apy.base)),
-    net: avg(hours.map((h) => h.apy.net)),
-    rewards: avg(hours.map((h) => h.apy.rewards)),
-    fees: avg(hours.map((h) => h.apy.fees)),
-    rewardItems: lastSlot.apy.rewardItems,
-  }
-
-  // Detect borrow vs supply by checking if any hourly doc has borrowAssets
-  const isBorrow = hours.some(
-    (h) => (h.market as BorrowMarketState).borrowAssets != null
-  )
-
-  if (!isBorrow) {
-    const market: SupplyMarketState = {
-      supplyAssets: avg(hours.map((h) => h.market.supplyAssets)),
-      supplyAssetsUsd: avg(hours.map((h) => h.market.supplyAssetsUsd)),
-      utilizationRate: avg(hours.map((h) => h.market.utilizationRate)),
-      assetPriceUsd: avg(hours.map((h) => h.market.assetPriceUsd)),
-    }
-
-    const quality: DailyQuality = {
-      actualCount: hours.length,
-      expectedCount: EXPECTED_HOURLY_COUNT,
-      completeness: Math.min(hours.length / EXPECTED_HOURLY_COUNT, 1),
-      status: computeDailyQualityStatus(hours.length),
-      revision: 0, // will be incremented by $inc in upsert
-      computedAt,
-    }
-
-    const doc: Omit<SupplyApyDaily, '_id'> = {
-      date: windowStart,
-      productId,
-      apy,
-      market,
-      quality,
-    }
-
-    return doc
-  }
-
-  // Borrow product
-  const borrowHours = hours.map((h) => h.market as BorrowMarketState)
-
-  const collateralValues = borrowHours
-    .map((m) => m.collateralAssetsUsd)
-    .filter((v): v is number => v != null)
-
-  const priceCollateralValues = borrowHours
-    .map((m) => m.priceCollateralInLoanAsset)
-    .filter((v): v is number => v != null)
-
-  const market: BorrowMarketState = {
-    supplyAssets: avg(borrowHours.map((m) => m.supplyAssets)),
-    supplyAssetsUsd: avg(borrowHours.map((m) => m.supplyAssetsUsd)),
-    borrowAssets: avg(borrowHours.map((m) => m.borrowAssets)),
-    borrowAssetsUsd: avg(borrowHours.map((m) => m.borrowAssetsUsd)),
-    utilizationRate: avg(borrowHours.map((m) => m.utilizationRate)),
-    assetPriceUsd: avg(borrowHours.map((m) => m.assetPriceUsd)),
-    collateralAssetsUsd:
-      collateralValues.length > 0 ? avg(collateralValues) : null,
-    priceCollateralInLoanAsset:
-      priceCollateralValues.length > 0 ? avg(priceCollateralValues) : null,
-  }
-
-  const quality: DailyQuality = {
-    actualCount: hours.length,
-    expectedCount: EXPECTED_HOURLY_COUNT,
-    completeness: Math.min(hours.length / EXPECTED_HOURLY_COUNT, 1),
-    status: computeDailyQualityStatus(hours.length),
-    revision: 0,
-    computedAt,
-  }
-
-  const doc: Omit<BorrowApyDaily, '_id'> = {
-    date: windowStart,
-    productId,
-    apy,
-    market,
-    quality,
-  }
-
-  return doc
-}
-
-// ─── Composite _id ────────────────────────────────────────────────────────────
-
-/**
- * Build a deterministic _id for a daily document.
- * Enables idempotent primary-key upserts without a secondary unique index.
- *
- * Example: "aave:v3:ethereum:reserve:0x1111...:supply:2026-03-20"
- */
-function buildDailyId(productId: string, date: Date): string {
-  return `${productId}:${date.toISOString().slice(0, 10)}`
-}
-
-// ─── Upsert ───────────────────────────────────────────────────────────────────
-
-async function upsertDailyDoc(doc: Omit<ApyDaily, '_id'>): Promise<void> {
-  const db = await getDb()
-  const collection = db.collection<ApyDaily>(MONGODB_COLLECTION_DAILY)
-
-  const id = buildDailyId(doc.productId, doc.date)
-
-  // Separate revision from the rest so $inc handles it atomically.
-  // Use dot notation for quality fields to avoid spreading them at root level.
-  const { quality, ...rest } = doc
-
-  await collection.updateOne(
-    { _id: id } as Parameters<typeof collection.updateOne>[0],
-    {
-      $set: {
-        ...rest,
-        'quality.actualCount': quality.actualCount,
-        'quality.expectedCount': quality.expectedCount,
-        'quality.completeness': quality.completeness,
-        'quality.status': quality.status,
-        'quality.computedAt': quality.computedAt,
-      },
-      $inc: { 'quality.revision': 1 },
-    },
-    { upsert: true }
-  )
-}
-
-// ─── Endpoint ─────────────────────────────────────────────────────────────────
 
 /**
  * Daily APY aggregation endpoint.
  *
- * Triggered by QStash at 00:10 UTC.
- * Reads all apy.hourly documents from [D-1 00:00Z, D 00:00Z[
- * and produces one ApyDaily document per active productId.
+ * Triggered by QStash at 00:10 UTC. Aggregates apy_hourly over the window
+ * [D-1 00:00Z, D 00:00Z) into apy_daily — one row per product, in a single
+ * set-based statement — then prunes hourly rows older than 180 days.
  *
- * Idempotent — reruns on the same day replace the existing document
- * and increment quality.revision.
+ * Idempotent — reruns on the same day replace the rows and bump quality_revision.
  */
 export const POST = verifySignatureAppRouter(async (_req: NextRequest) => {
   const computedAt = new Date()
 
   try {
-    const db = await getDb()
-
     // Explicit window — never relative to now()
     const windowEnd = new Date(computedAt)
     windowEnd.setUTCHours(0, 0, 0, 0)
@@ -236,91 +25,17 @@ export const POST = verifySignatureAppRouter(async (_req: NextRequest) => {
     const windowStart = new Date(windowEnd)
     windowStart.setUTCDate(windowStart.getUTCDate() - 1)
 
-    if (dbBackend() === 'postgres') {
-      const written = await aggregateDaily(windowStart, windowEnd, computedAt)
-      const pruned = await pruneHourly()
-      const window = `${windowStart.toISOString()} → ${windowEnd.toISOString()}`
-      console.log(
-        `[cron:apy-daily:pg] Completed — window: ${window} written: ${written} pruned: ${pruned}`
-      )
-      return NextResponse.json(
-        { success: true, counts: { written, pruned }, window },
-        { status: 200 }
-      )
-    }
-
-    // Discover all productIds active in this window
-    const hourlyCollection = db.collection<ApySlot>(MONGODB_COLLECTION_HOURLY)
-    const productIds: string[] = await hourlyCollection
-      .aggregate<{ _id: string }>([
-        {
-          $match: {
-            hour: { $gte: windowStart, $lt: windowEnd },
-            productId: { $ne: null },
-          },
-        },
-        { $group: { _id: '$productId' } },
-      ])
-      .map((d) => d._id)
-      .toArray()
-
-    if (productIds.length === 0) {
-      return NextResponse.json(
-        {
-          success: true,
-          message: 'No hourly data found for the window',
-          counts: { total: 0 },
-        },
-        { status: 200 }
-      )
-    }
-
-    // Process products sequentially to avoid OOM on serverless functions
-    let written = 0
-    let skipped = 0
-    const errors: string[] = []
-
-    for (const productId of productIds) {
-      try {
-        const doc = await aggregatePool(
-          productId,
-          windowStart,
-          windowEnd,
-          computedAt
-        )
-        if (doc) {
-          await upsertDailyDoc(doc)
-          written++
-        } else {
-          skipped++
-        }
-      } catch (err) {
-        const msg = err instanceof Error ? err.message : String(err)
-        errors.push(`[${productId}] ${msg}`)
-        console.error(`[cron:apy-daily] Failed for product ${productId}:`, msg)
-      }
-    }
-
+    const written = await aggregateDaily(windowStart, windowEnd, computedAt)
+    const pruned = await pruneHourly()
     const window = `${windowStart.toISOString()} → ${windowEnd.toISOString()}`
+
     console.log(
-      `[cron:apy-daily] Completed — window: ${window}` +
-        ` written: ${written} skipped: ${skipped} errors: ${errors.length}` +
-        ` products: ${productIds.length}`
+      `[cron:apy-daily] Completed — window: ${window} written: ${written} pruned: ${pruned}`
     )
 
     return NextResponse.json(
-      {
-        success: errors.length === 0,
-        counts: {
-          total: productIds.length,
-          written,
-          skipped,
-          errors: errors.length,
-        },
-        window,
-        errors,
-      },
-      { status: errors.length === 0 ? 200 : 207 }
+      { success: true, counts: { written, pruned }, window },
+      { status: 200 }
     )
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error)

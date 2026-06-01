@@ -287,7 +287,11 @@ export interface Page {
  * Returns rows joined with their product, plus a total count, for a hourly/daily query.
  * Filters hit indexed columns on products — no regex, no full scan.
  */
-export async function queryApy(grain: 'hourly' | 'daily', f: ApyFilters, page: Page) {
+export async function queryApy(
+  grain: 'hourly' | 'daily',
+  f: ApyFilters,
+  page: Page
+) {
   // Column names are identical across both tables; cast for unified typing.
   const table = (grain === 'hourly' ? apyHourly : apyDaily) as typeof apyHourly
   const timeCol = grain === 'hourly' ? apyHourly.hour : apyDaily.date

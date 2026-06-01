@@ -28,10 +28,10 @@ export const USER_SUPPLY_POSITIONS = gql`
             decimals
           }
           state {
-            avgNetApy:avgNetApy(lookback: INCEPTION)
-            dailyNetApy:avgNetApy(lookback: ONE_DAY)
-            monthlyNetApy:avgNetApy(lookback: THIRTY_DAYS)
-            yearlyNetApy:avgNetApy(lookback: ONE_YEAR)
+            avgNetApy: avgNetApy(lookback: INCEPTION)
+            dailyNetApy: avgNetApy(lookback: ONE_DAY)
+            monthlyNetApy: avgNetApy(lookback: THIRTY_DAYS)
+            yearlyNetApy: avgNetApy(lookback: ONE_YEAR)
           }
         }
         state {

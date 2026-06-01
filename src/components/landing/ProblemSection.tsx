@@ -46,23 +46,39 @@ export function ProblemSection() {
           className="mb-20 text-center"
         >
           <h2 className="font-inter text-3xl font-bold tracking-tight sm:text-5xl">
-            Lending markets are <span className="text-destructive">fragmented</span>
+            Lending markets are{' '}
+            <span className="text-destructive">fragmented</span>
           </h2>
         </motion.div>
 
         <div className="relative mb-24">
-          <div className="grid grid-cols-2 md:grid-cols-3 gap-4 max-w-2xl mx-auto mb-8">
+          <div className="mx-auto mb-8 grid max-w-2xl grid-cols-2 gap-4 md:grid-cols-3">
             {protocols.map((p) => (
-              <div key={p.name} className="relative p-4 rounded-xl border border-border bg-card/60 backdrop-blur-sm overflow-hidden group">
-                <div className="absolute inset-0 opacity-5 group-hover:opacity-10 transition-opacity" style={{ background: p.color }} />
-                <div className="text-[11px] text-muted-foreground mb-1">{p.name}</div>
-                <div className="text-xl font-bold font-mono" style={{ color: p.color }}>{p.apy}</div>
-                <div className="text-[10px] text-muted-foreground/60 mt-0.5 italic">{p.note}</div>
+              <div
+                key={p.name}
+                className="border-border bg-card/60 group relative overflow-hidden rounded-xl border p-4 backdrop-blur-sm"
+              >
+                <div
+                  className="absolute inset-0 opacity-5 transition-opacity group-hover:opacity-10"
+                  style={{ background: p.color }}
+                />
+                <div className="text-muted-foreground mb-1 text-[11px]">
+                  {p.name}
+                </div>
+                <div
+                  className="font-mono text-xl font-bold"
+                  style={{ color: p.color }}
+                >
+                  {p.apy}
+                </div>
+                <div className="text-muted-foreground/60 mt-0.5 text-[10px] italic">
+                  {p.note}
+                </div>
               </div>
             ))}
           </div>
-          <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-            <div className="px-6 py-3 rounded-full bg-destructive/10 border border-destructive/30 text-destructive font-semibold text-[14px] backdrop-blur-sm">
+          <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
+            <div className="bg-destructive/10 border-destructive/30 text-destructive rounded-full border px-6 py-3 text-[14px] font-semibold backdrop-blur-sm">
               Which one is actually better?
             </div>
           </div>
@@ -93,7 +109,6 @@ export function ProblemSection() {
             </motion.div>
           ))}
         </div>
-
       </div>
     </section>
   )

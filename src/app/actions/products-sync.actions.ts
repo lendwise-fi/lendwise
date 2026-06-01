@@ -1,8 +1,6 @@
 'use server'
 
 import { type ProtocolName } from '@/config/protocols'
-import { dbBackend } from '@/lib/db/env'
-import { MONGODB_COLLECTION_PRODUCTS, getDb } from '@/lib/db/mongodb'
 import {
   deactivateProviders,
   upsertProducts,
@@ -25,43 +23,14 @@ const PROTOCOL_TASKS: Partial<
 // ─── Upsert ───────────────────────────────────────────────────────────────────
 
 /**
- * Upsert product documents into the products collection.
+ * Upsert products into Postgres.
  *
- * Uses _id as the upsert key — deterministic slug ensures idempotency.
- * Sets createdAt only on insert, always updates updatedAt.
+ * Uses the deterministic slug id as the upsert key — idempotent.
+ * created_at is set on insert only; updated_at always refreshed.
  */
 async function writeProductDocs(products: Product[]): Promise<void> {
   if (products.length === 0) return
-  if (dbBackend() === 'postgres') return upsertProducts(products)
-
-  const db = await getDb()
-  const collection = db.collection<Product>(MONGODB_COLLECTION_PRODUCTS)
-
-  const ops = products.map((product) => {
-    const {
-      createdAt: _createdAt,
-      updatedAt: _updatedAt,
-      ...productData
-    } = product
-    return {
-      updateOne: {
-        filter: { _id: product._id },
-        update: {
-          $set: { ...productData, updatedAt: new Date() },
-          $setOnInsert: { createdAt: product.createdAt || new Date() },
-        },
-        upsert: true,
-      },
-    }
-  })
-
-  const result = await collection.bulkWrite(ops, { ordered: false })
-
-  console.log(
-    `[db:products] upserted ${result.upsertedCount} new,` +
-      ` updated ${result.modifiedCount} existing` +
-      ` (${result.matchedCount} matched)`
-  )
+  await upsertProducts(products)
 }
 
 // ─── Result type ──────────────────────────────────────────────────────────────
@@ -152,21 +121,7 @@ export async function syncProducts(
 
   if (succeededProviders.size > 0) {
     try {
-      if (dbBackend() === 'postgres') {
-        deactivated = await deactivateProviders([...succeededProviders])
-      } else {
-        const db = await getDb()
-        const collection = db.collection<Product>(MONGODB_COLLECTION_PRODUCTS)
-
-        const deactivateResult = await collection.updateMany(
-          {
-            'protocol.provider': { $in: [...succeededProviders] },
-            active: true,
-          },
-          { $set: { active: false, updatedAt: new Date() } }
-        )
-        deactivated = deactivateResult.modifiedCount
-      }
+      deactivated = await deactivateProviders([...succeededProviders])
 
       console.log(
         `[sync:products] Deactivated ${deactivated} products` +
@@ -185,8 +140,8 @@ export async function syncProducts(
       await writeProductDocs(allProducts)
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err)
-      errors.push(`mongodb write: ${msg}`)
-      console.error('[sync:products] Failed to write to MongoDB:', msg)
+      errors.push(`products write: ${msg}`)
+      console.error('[sync:products] Failed to write products:', msg)
       throw err
     }
   }

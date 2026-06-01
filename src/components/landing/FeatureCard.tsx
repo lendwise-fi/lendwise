@@ -1,7 +1,8 @@
 'use client'
 
-import { motion } from 'motion/react'
 import type { ComponentType, ReactNode, SVGProps } from 'react'
+
+import { motion } from 'motion/react'
 
 type Feature = {
   icon: ComponentType<SVGProps<SVGSVGElement>>

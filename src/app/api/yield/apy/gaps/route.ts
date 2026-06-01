@@ -2,12 +2,6 @@ import { NextRequest, NextResponse } from 'next/server'
 
 import { verifySignatureAppRouter } from '@upstash/qstash/nextjs'
 
-import { dbBackend } from '@/lib/db/env'
-import {
-  MONGODB_COLLECTION_HOURLY,
-  MONGODB_COLLECTION_PRODUCTS,
-  getDb,
-} from '@/lib/db/mongodb'
 import {
   collectedProductCount,
   findGaps,
@@ -15,366 +9,81 @@ import {
   markStale,
 } from '@/lib/db/repositories/gaps'
 import { insertReport } from '@/lib/db/repositories/reports'
-import type { ApySlot, Product } from '@/lib/db/types'
-
-// ─── Types ───────────────────────────────────────────────────────────────────
-
-interface GapReport {
-  /** Hour boundary that has no hourly doc for this product. */
-  hour: string
-  productId: string
-}
-
-interface IncompleteReport {
-  /** Hour boundary where quality.count < 6. */
-  hour: string
-  productId: string
-  count: number
-}
-
-interface GapDetectionResult {
-  success: boolean
-  window: string
-  /** Total active products discovered from the products collection. */
-  activeProducts: number
-  /** Products that have at least 1 hourly doc in the window — the "collected" set. */
-  collectedProducts: number
-  /** Products active in `products` but with zero hourly docs in the window. */
-  neverIndexedCount: number
-  /**
-   * Operational metrics — computed only over collected products.
-   * These are the numbers suitable for alerting.
-   */
-  collected: {
-    expectedSlots: number
-    foundSlots: number
-    missingSlots: number
-    incompleteSlots: number
-  }
-  /** Number of stale hourly docs marked as 'partial' (R3). */
-  markedStale: number
-  /** Up to 50 missing gaps (collected products only) for debugging. */
-  gaps: GapReport[]
-  /** Up to 50 incomplete slots for debugging. */
-  incomplete: IncompleteReport[]
-  /** Up to 50 never-indexed productIds for investigation. */
-  neverIndexed: string[]
-  durationMs: number
-}
-
-// ─── Helpers ─────────────────────────────────────────────────────────────────
-
-/**
- * Generate all hour boundaries in [windowStart, windowEnd[.
- */
-function generateHourBoundaries(windowStart: Date, windowEnd: Date): Date[] {
-  const hours: Date[] = []
-  const current = new Date(windowStart)
-  while (current < windowEnd) {
-    hours.push(new Date(current))
-    current.setUTCHours(current.getUTCHours() + 1)
-  }
-  return hours
-}
-
-// ─── Endpoint ────────────────────────────────────────────────────────────────
 
 /**
  * Gap detection endpoint for the APY pipeline.
  *
  * Triggered by QStash daily at 01:00 UTC (after the daily aggregation at 00:10).
- * Scans apy.hourly for the previous 7-day window and reports:
- *   - Missing hourly docs (no doc for a given productId × hour)
- *   - Incomplete hourly docs (quality.count < 6)
+ * Over the previous 7-day window it reports, via set-based SQL:
+ *   - Missing hourly rows (no row for a collected productId × hour)
+ *   - Incomplete hourly rows (quality_count < 6, not healed)
+ * and marks stale 'building' rows as 'partial'. Persists a full report to
+ * pipeline_reports for the heal job; the JSON response is capped at 50 entries.
  *
- * Also marks past hourly docs with count < 6 as quality.status = 'partial' (R3).
- *
- * Body (JSON, optional):
- *   hours (number): How many hours to scan back. Default: 168 (7 days).
+ * Body (JSON, optional): hours (number) — lookback. Default 168 (7 days), max 336.
  */
 async function gapsHandler(req: NextRequest) {
   const start = Date.now()
 
   try {
     const body = await req.json().catch(() => ({}))
-    const lookbackHours = Math.min(
-      Math.max(body.hours ?? 168, 1),
-      336 // max 14 days
-    )
+    const lookbackHours = Math.min(Math.max(body.hours ?? 168, 1), 336)
 
-    const db = await getDb()
-
-    // ─── Window ────────────────────────────────────────────────────────────
     const now = new Date()
-    // End at the current hour boundary (exclusive)
     const windowEnd = new Date(now)
     windowEnd.setUTCMinutes(0, 0, 0)
-
     const windowStart = new Date(windowEnd)
     windowStart.setUTCHours(windowStart.getUTCHours() - lookbackHours)
 
-    if (dbBackend() === 'postgres') {
-      const [gaps, incomplete, markedStale, collectedProducts] =
-        await Promise.all([
-          findGaps(windowStart, windowEnd),
-          findIncomplete(windowStart, windowEnd),
-          markStale(windowStart, windowEnd),
-          collectedProductCount(windowStart, windowEnd),
-        ])
-      const windowStr = `${windowStart.toISOString()} → ${windowEnd.toISOString()}`
-      const summary = {
-        success: true,
-        window: windowStr,
-        collected: {
-          expectedSlots: collectedProducts * lookbackHours,
-          missingSlots: gaps.length,
-          incompleteSlots: incomplete.length,
-        },
-        markedStale,
-        gaps: gaps
-          .slice(0, 50)
-          .map((g) => ({ hour: g.hour.toISOString(), productId: g.productId })),
-        incomplete: incomplete.slice(0, 50).map((i) => ({
-          hour: i.hour.toISOString(),
-          productId: i.productId,
-          count: i.count,
-        })),
-      }
-      // Persist the FULL lists for the heal job; response stays capped at 50.
-      const reportId = await insertReport('gap-detection', {
-        ...summary,
-        gaps: gaps.map((g) => ({
-          hour: g.hour.toISOString(),
-          productId: g.productId,
-        })),
-        incomplete: incomplete.map((i) => ({
-          hour: i.hour.toISOString(),
-          productId: i.productId,
-          count: i.count,
-        })),
-      })
-      console.log(
-        `[cron:gap-detect:pg] ${windowStr} missing: ${gaps.length} incomplete: ${incomplete.length} markedStale: ${markedStale} (reportId: ${reportId})`
-      )
-      return NextResponse.json({ ...summary, reportId })
-    }
+    const [gaps, incomplete, markedStale, collectedProducts] =
+      await Promise.all([
+        findGaps(windowStart, windowEnd),
+        findIncomplete(windowStart, windowEnd),
+        markStale(windowStart, windowEnd),
+        collectedProductCount(windowStart, windowEnd),
+      ])
 
-    const hourBoundaries = generateHourBoundaries(windowStart, windowEnd)
-
-    // ─── Discover active products ──────────────────────────────────────────
-    // Use products collection to know the full set of expected productIds
-    const productsCollection = db.collection<Product>(
-      MONGODB_COLLECTION_PRODUCTS
-    )
-    const activeProducts = await productsCollection
-      .find({ active: true }, { projection: { _id: 1, createdAt: 1 } })
-      .toArray()
-    const activeProductIds = activeProducts.map((p) => p._id)
-
-    // Map productId → createdAt (floor to hour boundary)
-    const productCreatedAt = new Map<string, Date>()
-    for (const p of activeProducts) {
-      if (p.createdAt) {
-        const ca = new Date(p.createdAt)
-        ca.setUTCMinutes(0, 0, 0)
-        productCreatedAt.set(p._id, ca)
-      }
-    }
-
-    if (activeProductIds.length === 0) {
-      return NextResponse.json({
-        success: true,
-        message: 'No active products found',
-        durationMs: Date.now() - start,
-      })
-    }
-
-    // ─── Fetch existing hourly docs ────────────────────────────────────────
-    const hourlyCollection = db.collection<ApySlot>(MONGODB_COLLECTION_HOURLY)
-
-    // Get all (productId, hour, quality.count) tuples in the window
-    const existingDocs = await hourlyCollection
-      .find(
-        {
-          hour: { $gte: windowStart, $lt: windowEnd },
-          productId: { $in: activeProductIds },
-        },
-        {
-          projection: {
-            productId: 1,
-            hour: 1,
-            'quality.count': 1,
-            'quality.status': 1,
-            healed: 1,
-          },
-        }
-      )
-      .toArray()
-
-    // Build a lookup: "productId|hourISO" → { count, status }
-    const existingMap = new Map<
-      string,
-      { count: number; status: string; healed: boolean }
-    >()
-    for (const doc of existingDocs) {
-      const key = `${doc.productId}|${doc.hour.toISOString()}`
-      existingMap.set(key, {
-        count: doc.quality?.count ?? 0,
-        status: doc.quality?.status ?? 'building',
-        healed: !!(doc as Record<string, unknown>).healed,
-      })
-    }
-
-    // ─── Partition: collected vs never-indexed ────────────────────────────────
-    // A product is "collected" if it has at least 1 hourly doc in the window.
-    const collectedProductIds = new Set<string>()
-    for (const doc of existingDocs) {
-      collectedProductIds.add(doc.productId)
-    }
-
-    const neverIndexed: string[] = []
-    for (const id of activeProductIds) {
-      if (!collectedProductIds.has(id)) {
-        if (neverIndexed.length < 50) neverIndexed.push(id)
-      }
-    }
-    const neverIndexedCount = activeProductIds.length - collectedProductIds.size
-
-    // ─── Detect gaps and incomplete slots (collected products only) ──────────
-    const allGaps: GapReport[] = []
-    const allIncomplete: IncompleteReport[] = []
-    const incomplete: IncompleteReport[] = []
-    let missingCount = 0
-    let incompleteCount = 0
-    let foundCollectedSlots = 0
-
-    const collectedExpected = collectedProductIds.size * hourBoundaries.length
-
-    for (const hour of hourBoundaries) {
-      const hourISO = hour.toISOString()
-      for (const productId of collectedProductIds) {
-        // Skip hours before the product was created
-        const createdAt = productCreatedAt.get(productId)
-        if (createdAt && hour < createdAt) continue
-
-        const key = `${productId}|${hourISO}`
-        const entry = existingMap.get(key)
-
-        if (!entry) {
-          missingCount++
-          allGaps.push({ hour: hourISO, productId })
-        } else if (entry.count < 6 && !entry.healed) {
-          incompleteCount++
-          foundCollectedSlots++
-          allIncomplete.push({ hour: hourISO, productId, count: entry.count })
-          if (incomplete.length < 50) {
-            incomplete.push({
-              hour: hourISO,
-              productId,
-              count: entry.count,
-            })
-          }
-        } else {
-          foundCollectedSlots++
-        }
-      }
-    }
-
-    // ─── R3: Mark stale hourly docs ────────────────────────────────────────
-    // Past hours (before current hour) with count < 6 should be 'partial'
-    const staleResult = await hourlyCollection.updateMany(
-      {
-        hour: { $gte: windowStart, $lt: windowEnd },
-        'quality.count': { $lt: 6 },
-        'quality.status': 'building',
-      },
-      {
-        $set: { 'quality.status': 'partial' },
-      }
-    )
-
-    const markedStale = staleResult.modifiedCount
-
-    // ─── Logging ───────────────────────────────────────────────────────────
-    const durationMs = Date.now() - start
     const windowStr = `${windowStart.toISOString()} → ${windowEnd.toISOString()}`
-
-    if (missingCount > 0 || incompleteCount > 0) {
-      console.warn(
-        `[cron:gap-detect] ⚠️ Gaps in collected products — window: ${windowStr}` +
-          ` missing: ${missingCount} incomplete: ${incompleteCount}` +
-          ` markedStale: ${markedStale}` +
-          ` (${collectedProductIds.size} collected × ${hourBoundaries.length}h = ${collectedExpected} expected)` +
-          ` neverIndexed: ${neverIndexedCount}`
-      )
-    } else {
-      console.log(
-        `[cron:gap-detect] ✅ No gaps — window: ${windowStr}` +
-          ` ${foundCollectedSlots}/${collectedExpected} collected slots OK` +
-          ` markedStale: ${markedStale}` +
-          ` neverIndexed: ${neverIndexedCount}`
-      )
-    }
-
-    const result: GapDetectionResult = {
+    const summary = {
       success: true,
       window: windowStr,
-      activeProducts: activeProductIds.length,
-      collectedProducts: collectedProductIds.size,
-      neverIndexedCount,
       collected: {
-        expectedSlots: collectedExpected,
-        foundSlots: foundCollectedSlots,
-        missingSlots: missingCount,
-        incompleteSlots: incompleteCount,
+        expectedSlots: collectedProducts * lookbackHours,
+        missingSlots: gaps.length,
+        incompleteSlots: incomplete.length,
       },
       markedStale,
-      gaps: allGaps.slice(0, 50),
-      incomplete,
-      neverIndexed,
-      durationMs,
+      gaps: gaps
+        .slice(0, 50)
+        .map((g) => ({ hour: g.hour.toISOString(), productId: g.productId })),
+      incomplete: incomplete.slice(0, 50).map((i) => ({
+        hour: i.hour.toISOString(),
+        productId: i.productId,
+        count: i.count,
+      })),
     }
 
-    // ─── Persist report to MongoDB ──────────────────────────────────────
-    // Store the FULL gap + incomplete lists in the report for the heal job.
-    // The JSON response is capped at 50 for readability.
-    let reportId: string | null = null
-    try {
-      const insert = await db.collection('pipeline.reports').insertOne({
-        type: 'gap-detection',
-        createdAt: new Date(),
-        ...result,
-        gaps: allGaps,
-        incomplete: allIncomplete,
-      })
-      reportId = insert.insertedId.toHexString()
-    } catch (err) {
-      console.error(
-        '[cron:gap-detect] Failed to persist report:',
-        err instanceof Error ? err.message : String(err)
-      )
-    }
+    // Persist the FULL lists for the heal job; response stays capped at 50.
+    const reportId = await insertReport('gap-detection', {
+      ...summary,
+      gaps: gaps.map((g) => ({
+        hour: g.hour.toISOString(),
+        productId: g.productId,
+      })),
+      incomplete: incomplete.map((i) => ({
+        hour: i.hour.toISOString(),
+        productId: i.productId,
+        count: i.count,
+      })),
+    })
 
-    // ─── Log detail summary to Vercel logs ──────────────────────────────
     console.log(
-      `[cron:gap-detect] Report detail` +
-        (reportId ? ` (reportId: ${reportId})` : '') +
-        `:\n` +
-        JSON.stringify(
-          {
-            reportId,
-            collected: result.collected,
-            neverIndexedCount: result.neverIndexedCount,
-            neverIndexed: result.neverIndexed.slice(0, 10),
-            gapsSample: result.gaps.slice(0, 10),
-            incompleteSample: result.incomplete.slice(0, 10),
-          },
-          null,
-          2
-        )
+      `[cron:gap-detect] ${windowStr} missing: ${gaps.length}` +
+        ` incomplete: ${incomplete.length} markedStale: ${markedStale}` +
+        ` (reportId: ${reportId}) durationMs: ${Date.now() - start}`
     )
 
-    return NextResponse.json(result)
+    return NextResponse.json({ ...summary, reportId })
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error)
     console.error('[cron:gap-detect] Failed:', message)

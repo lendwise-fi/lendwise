@@ -3,151 +3,8 @@
 import { unstable_cache } from 'next/cache'
 
 import { getProtocolAdapter, getProtocolIds } from '@/config/protocols'
-import { dbBackend } from '@/lib/db/env'
-import {
-  MONGODB_COLLECTION_DAILY,
-  MONGODB_COLLECTION_HOURLY,
-  getDb,
-} from '@/lib/db/mongodb'
 import { apyEnrichments, latestHourlyNet } from '@/lib/db/repositories/apy'
 import { BorrowProduct, SupplyProduct } from '@/types'
-
-// Minimum data point thresholds per horizon
-const THRESHOLDS = {
-  weekly: 7,
-  monthly: 180,
-  yearly: 365,
-} as const
-
-interface ApyEnrichment {
-  apyDaily?: number // 7-day avg from apy.daily (short term)
-  apyMonthly?: number // 6-month avg from apy.daily (medium term)
-  apyYearly?: number // 12-month avg from apy.daily (long term)
-}
-
-/**
- * Fetch the most recent hourly APY (apy.net) per productId from apy.hourly.
- * Uses the compound index { productId: 1, hour: -1 } for efficiency.
- */
-async function fetchLatestHourlyApy(
-  productIds: string[]
-): Promise<Map<string, number>> {
-  const map = new Map<string, number>()
-  if (productIds.length === 0) return map
-  if (dbBackend() === 'postgres') return latestHourlyNet(productIds)
-
-  try {
-    const db = await getDb()
-    const docs = await db
-      .collection(MONGODB_COLLECTION_HOURLY!)
-      .aggregate([
-        { $match: { productId: { $in: productIds } } },
-        { $sort: { productId: 1, hour: -1 } },
-        { $group: { _id: '$productId', latestNet: { $first: '$apy.net' } } },
-      ])
-      .toArray()
-
-    for (const doc of docs) {
-      if (typeof doc.latestNet === 'number') {
-        map.set(doc._id as string, doc.latestNet)
-      }
-    }
-  } catch (err) {
-    console.error(
-      '[products] Failed to fetch latest hourly APY from MongoDB:',
-      err
-    )
-  }
-
-  return map
-}
-
-/**
- * Batch-query apy.daily and compute window averages for each productId.
- * Uses conditional aggregation so all windows are computed in one pass.
- */
-async function fetchApyEnrichments(
-  productIds: string[]
-): Promise<Map<string, ApyEnrichment>> {
-  const map = new Map<string, ApyEnrichment>()
-  if (productIds.length === 0) return map
-  if (dbBackend() === 'postgres') return apyEnrichments(productIds)
-
-  try {
-    const db = await getDb()
-    // Normalize to midnight UTC so cutoffs align with the date field in apy.daily
-    // (documents are stored at 00:00:00.000Z — a sub-midnight cutoff would
-    //  exclude the oldest day in the window, causing count7 = 6 instead of 7)
-    const now = new Date()
-    now.setUTCHours(0, 0, 0, 0)
-    const date365dAgo = new Date(
-      now.getTime() - THRESHOLDS.yearly * 24 * 60 * 60 * 1000
-    )
-    const date180dAgo = new Date(
-      now.getTime() - THRESHOLDS.monthly * 24 * 60 * 60 * 1000
-    )
-    const date7dAgo = new Date(
-      now.getTime() - THRESHOLDS.weekly * 24 * 60 * 60 * 1000
-    )
-
-    const docs = await db
-      .collection(MONGODB_COLLECTION_DAILY!)
-      .aggregate([
-        {
-          $match: {
-            productId: { $in: productIds },
-            date: { $gte: date365dAgo },
-          },
-        },
-        {
-          $group: {
-            _id: '$productId',
-            count365: { $sum: 1 },
-            sum365: { $sum: '$apy.net' },
-            count180: {
-              $sum: { $cond: [{ $gte: ['$date', date180dAgo] }, 1, 0] },
-            },
-            sum180: {
-              $sum: {
-                $cond: [{ $gte: ['$date', date180dAgo] }, '$apy.net', 0],
-              },
-            },
-            count7: {
-              $sum: { $cond: [{ $gte: ['$date', date7dAgo] }, 1, 0] },
-            },
-            sum7: {
-              $sum: {
-                $cond: [{ $gte: ['$date', date7dAgo] }, '$apy.net', 0],
-              },
-            },
-          },
-        },
-      ])
-      .toArray()
-
-    for (const doc of docs) {
-      map.set(doc._id as string, {
-        apyDaily:
-          doc.count7 >= THRESHOLDS.weekly ? doc.sum7 / doc.count7 : undefined,
-        apyMonthly:
-          doc.count180 >= THRESHOLDS.monthly
-            ? doc.sum180 / doc.count180
-            : undefined,
-        apyYearly:
-          doc.count365 >= THRESHOLDS.yearly
-            ? doc.sum365 / doc.count365
-            : undefined,
-      })
-    }
-  } catch (err) {
-    console.error(
-      '[products] Failed to fetch APY enrichments from MongoDB:',
-      err
-    )
-  }
-
-  return map
-}
 
 async function _loadSupplyProducts(): Promise<SupplyProduct[]> {
   const protocolIds = getProtocolIds()
@@ -173,14 +30,14 @@ async function _loadSupplyProducts(): Promise<SupplyProduct[]> {
     }
   })
 
-  // Enrich with MongoDB APY data (all horizons)
+  // Enrich with APY data from Postgres (all horizons)
   const productIds = allSupplyProducts
     .map((p) => p.productId)
     .filter(Boolean) as string[]
 
   const [enrichments, latestHourly] = await Promise.all([
-    fetchApyEnrichments(productIds),
-    fetchLatestHourlyApy(productIds),
+    apyEnrichments(productIds),
+    latestHourlyNet(productIds),
   ])
 
   const enriched = allSupplyProducts.map((p) => {
@@ -228,14 +85,14 @@ async function _loadBorrowProducts(): Promise<BorrowProduct[]> {
     }
   })
 
-  // Enrich with MongoDB APY data (all horizons)
+  // Enrich with APY data from Postgres (all horizons)
   const productIds = allBorrowProducts
     .map((p) => p.productId)
     .filter(Boolean) as string[]
 
   const [enrichments, latestHourly] = await Promise.all([
-    fetchApyEnrichments(productIds),
-    fetchLatestHourlyApy(productIds),
+    apyEnrichments(productIds),
+    latestHourlyNet(productIds),
   ])
 
   const enriched = allBorrowProducts.map((p) => {

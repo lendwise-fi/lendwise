@@ -1,11 +1,11 @@
 /**
  * @file types.ts
- * MongoDB document types for the APY standard.
+ * Domain types for the APY pipeline — fetcher output (SpotPayload), the products
+ * registry, and shared market/reward shapes.
  *
- * Collections:
- *   products   — static registry of all supply/borrow products
- *   apy.hourly — rolling average APY per hour (classic collection, upserted every 10 min)
- *   apy.daily  — daily average APY computed from apy.hourly (classic collection)
+ * Stored-row types (apy_hourly / apy_daily / products rows) are inferred from the
+ * Drizzle schema and re-exported at the bottom of this file. See
+ * `src/lib/db/schema.ts` for the Postgres tables.
  */
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -16,14 +16,6 @@ export type Kind = 'supply' | 'borrow'
 export type ProviderId = 'aave' | 'morpho' | 'compound'
 
 export type ProductType = 'reserve' | 'market' | 'vault'
-
-export type HourlyQualityStatus = 'building' | 'complete' | 'partial'
-export type SlotQualityStatus = 'building' | 'complete' | 'partial'
-export type DailyQualityStatus =
-  | 'complete'
-  | 'partial'
-  | 'missing'
-  | 'historical'
 
 export interface Chain {
   id: number // EVM chain ID — 1 = Ethereum, 8453 = Base, 42161 = Arbitrum
@@ -275,58 +267,6 @@ export interface BorrowMarketState {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// apy.hourly collection
-// ─────────────────────────────────────────────────────────────────────────────
-
-export interface SlotQuality {
-  /**
-   * Number of 10-min slots that contributed to the rolling average.
-   * Expected: 6 for a complete hour.
-   */
-  count: number
-  /** Expected slots per hour — always 6. */
-  expectedCount: 6
-  /** Timestamp of the first slot that contributed to this hour. */
-  firstSlot: Date
-  /** Timestamp of the most recent slot that contributed. */
-  lastSlot: Date
-  /**
-   * building — hour in progress, count < 6
-   * complete — count >= 6
-   * partial  — hour is past but count < 6 (gaps detected)
-   */
-  status: SlotQualityStatus
-}
-
-export interface SupplyApySlot {
-  /**
-   * Hour boundary UTC — normalized to the top of the hour.
-   * 11:17:42Z → 11:00:00.000Z
-   * Upsert key: (productId, hour).
-   */
-  hour: Date
-  productId: string
-  apy: ApyBreakdown
-  market: SupplyMarketState
-  quality: SlotQuality
-}
-
-export interface BorrowApySlot {
-  /**
-   * Hour boundary UTC — normalized to the top of the hour.
-   * 11:17:42Z → 11:00:00.000Z
-   * Upsert key: (productId, hour).
-   */
-  hour: Date
-  productId: string
-  apy: ApyBreakdown
-  market: BorrowMarketState
-  quality: SlotQuality
-}
-
-export type ApySlot = SupplyApySlot | BorrowApySlot
-
-// ─────────────────────────────────────────────────────────────────────────────
 // SpotPayload — fetcher output, input to the hourly upsert pipeline
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -353,70 +293,11 @@ export type SpotPayload = {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// apy.daily collection
-// ─────────────────────────────────────────────────────────────────────────────
-
-export interface DailyQuality {
-  /**
-   * Number of hourly docs found in the [D-1 00:00Z, D 00:00Z[ window.
-   * Expected: 24 for a complete day.
-   */
-  actualCount: number
-  /** Expected hourly docs per day — always 24. */
-  expectedCount: 24
-  /**
-   * actualCount / expectedCount — 0 to 1.
-   * < 0.5  → treat as unreliable, exclude from optimization engine
-   * < 1.0  → partial day, averages may be slightly biased
-   * = 1.0  → complete day
-   */
-  completeness: number
-  /**
-   * complete — all 24 hourly docs present
-   * partial  — some hours missing but above 0.5 threshold
-   * missing  — below 0.5 threshold — document written but flagged unreliable
-   */
-  status: DailyQualityStatus
-  /**
-   * Incremented each time this daily document is recomputed.
-   * > 1 indicates the document was replayed (manual backfill or gap recovery).
-   */
-  revision: number
-  /** Timestamp when the aggregation job ran. */
-  computedAt: Date
-}
-
-export interface SupplyApyDaily {
-  /** "{productId}:{YYYY-MM-DD}" — deterministic primary key, enables idempotent upserts. */
-  _id: string
-  /** Midnight UTC of the day covered. 2025-03-12 → 2025-03-12T00:00:00.000Z */
-  date: Date
-  productId: string
-  apy: ApyBreakdown
-  market: SupplyMarketState
-  quality: DailyQuality
-}
-
-export interface BorrowApyDaily {
-  /** "{productId}:{YYYY-MM-DD}" — deterministic primary key, enables idempotent upserts. */
-  _id: string
-  /** Midnight UTC of the day covered. 2025-03-12 → 2025-03-12T00:00:00.000Z */
-  date: Date
-  productId: string
-  apy: ApyBreakdown
-  market: BorrowMarketState
-  quality: DailyQuality
-}
-
-export type ApyDaily = SupplyApyDaily | BorrowApyDaily
-
-// ─────────────────────────────────────────────────────────────────────────────
 // Postgres row types (inferred from the Drizzle schema)
 //
-// Canonical row shapes for the Postgres backend. New code should prefer these
-// over the Mongo document interfaces above. Re-exported here so call sites can
-// import storage types from one place during the dual-backend window; the Mongo
-// document types are removed once DB_BACKEND=postgres is permanent (T21).
+// Canonical row shapes for the stored data. Domain types above (SpotPayload,
+// Product, market states) describe fetcher output + the products registry;
+// these describe the apy_hourly / apy_daily rows.
 // ─────────────────────────────────────────────────────────────────────────────
 
 export type {

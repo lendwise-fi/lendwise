@@ -337,7 +337,9 @@ function ReportCard({ reports }: { reports: LatestReports }) {
               </div>
               <div className="flex justify-between">
                 <span className="text-muted-foreground">By refetch</span>
-                <span className="font-mono">{fmtNum(heal.healedByRefetch)}</span>
+                <span className="font-mono">
+                  {fmtNum(heal.healedByRefetch)}
+                </span>
               </div>
               <div className="flex justify-between">
                 <span className="text-muted-foreground">By neighbor</span>

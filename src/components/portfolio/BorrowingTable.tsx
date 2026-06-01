@@ -415,18 +415,17 @@ function TableCellViewer({ item }: { item: BorrowPosition }) {
                       <ChartTooltipContent
                         indicator="line"
                         labelFormatter={(value) => {
-                          return new Date(Number(value) * 1000).toLocaleDateString(
-                            'en-US',
-                            {
-                              month: 'short',
-                              day: 'numeric',
-                              year: 'numeric',
-                              ...(selectedTimeframe === '24h' && {
-                                hour: 'numeric',
-                                minute: 'numeric',
-                              }),
-                            }
-                          )
+                          return new Date(
+                            Number(value) * 1000
+                          ).toLocaleDateString('en-US', {
+                            month: 'short',
+                            day: 'numeric',
+                            year: 'numeric',
+                            ...(selectedTimeframe === '24h' && {
+                              hour: 'numeric',
+                              minute: 'numeric',
+                            }),
+                          })
                         }}
                         valueFormatter={(value) => {
                           return `${(Number(value) * 100).toFixed(2)}%`

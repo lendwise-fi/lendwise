@@ -65,12 +65,16 @@ export async function upsertProducts(items: Product[]): Promise<void> {
 }
 
 /** Deactivate all currently-active products for the given providers. Returns count. */
-export async function deactivateProviders(providers: string[]): Promise<number> {
+export async function deactivateProviders(
+  providers: string[]
+): Promise<number> {
   if (providers.length === 0) return 0
   const updated = await db
     .update(products)
     .set({ active: false, updatedAt: new Date() })
-    .where(and(inArray(products.provider, providers), eq(products.active, true)))
+    .where(
+      and(inArray(products.provider, providers), eq(products.active, true))
+    )
     .returning({ id: products.id })
   return updated.length
 }

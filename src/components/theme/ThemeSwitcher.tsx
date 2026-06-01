@@ -33,7 +33,10 @@ export const ThemeSwitcher = ({ className }: { className?: string }) => {
       variant="ghost"
       size="icon"
       onClick={cycleTheme}
-      className={cn('text-muted-foreground hover:text-foreground h-8 w-8', className)}
+      className={cn(
+        'text-muted-foreground hover:text-foreground h-8 w-8',
+        className
+      )}
       title={`Theme: ${theme}`}
     >
       <Icon className="h-4 w-4" />

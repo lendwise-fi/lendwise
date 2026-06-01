@@ -52,7 +52,9 @@ export const apyHourly = pgTable(
     apyRewards: doublePrecision('apy_rewards').notNull(),
     apyFees: doublePrecision('apy_fees').notNull(),
     apyNet: doublePrecision('apy_net').notNull(),
-    rewardItems: jsonb('reward_items').notNull().default(sql`'[]'::jsonb`),
+    rewardItems: jsonb('reward_items')
+      .notNull()
+      .default(sql`'[]'::jsonb`),
     supplyAssets: doublePrecision('supply_assets'),
     supplyAssetsUsd: doublePrecision('supply_assets_usd'),
     utilizationRate: doublePrecision('utilization_rate'),
@@ -60,11 +62,19 @@ export const apyHourly = pgTable(
     borrowAssets: doublePrecision('borrow_assets'),
     borrowAssetsUsd: doublePrecision('borrow_assets_usd'),
     collateralAssetsUsd: doublePrecision('collateral_assets_usd'),
-    priceCollateralInLoanAsset: doublePrecision('price_collateral_in_loan_asset'),
+    priceCollateralInLoanAsset: doublePrecision(
+      'price_collateral_in_loan_asset'
+    ),
     qualityCount: integer('quality_count').notNull(),
-    qualityExpectedCount: integer('quality_expected_count').notNull().default(6),
-    qualityFirstSlot: timestamp('quality_first_slot', { withTimezone: true }).notNull(),
-    qualityLastSlot: timestamp('quality_last_slot', { withTimezone: true }).notNull(),
+    qualityExpectedCount: integer('quality_expected_count')
+      .notNull()
+      .default(6),
+    qualityFirstSlot: timestamp('quality_first_slot', {
+      withTimezone: true,
+    }).notNull(),
+    qualityLastSlot: timestamp('quality_last_slot', {
+      withTimezone: true,
+    }).notNull(),
     qualityStatus: text('quality_status').notNull(), // 'building' | 'complete' | 'partial'
     healed: boolean('healed').notNull().default(false),
     healSource: text('heal_source'),
@@ -86,7 +96,9 @@ export const apyDaily = pgTable(
     apyRewards: doublePrecision('apy_rewards').notNull(),
     apyFees: doublePrecision('apy_fees').notNull(),
     apyNet: doublePrecision('apy_net').notNull(),
-    rewardItems: jsonb('reward_items').notNull().default(sql`'[]'::jsonb`),
+    rewardItems: jsonb('reward_items')
+      .notNull()
+      .default(sql`'[]'::jsonb`),
     supplyAssets: doublePrecision('supply_assets'),
     supplyAssetsUsd: doublePrecision('supply_assets_usd'),
     utilizationRate: doublePrecision('utilization_rate'),
@@ -94,13 +106,19 @@ export const apyDaily = pgTable(
     borrowAssets: doublePrecision('borrow_assets'),
     borrowAssetsUsd: doublePrecision('borrow_assets_usd'),
     collateralAssetsUsd: doublePrecision('collateral_assets_usd'),
-    priceCollateralInLoanAsset: doublePrecision('price_collateral_in_loan_asset'),
+    priceCollateralInLoanAsset: doublePrecision(
+      'price_collateral_in_loan_asset'
+    ),
     qualityActualCount: integer('quality_actual_count').notNull(),
-    qualityExpectedCount: integer('quality_expected_count').notNull().default(24),
+    qualityExpectedCount: integer('quality_expected_count')
+      .notNull()
+      .default(24),
     qualityCompleteness: doublePrecision('quality_completeness').notNull(),
     qualityStatus: text('quality_status').notNull(),
     qualityRevision: integer('quality_revision').notNull().default(0),
-    qualityComputedAt: timestamp('quality_computed_at', { withTimezone: true }).notNull(),
+    qualityComputedAt: timestamp('quality_computed_at', {
+      withTimezone: true,
+    }).notNull(),
   },
   (t) => [
     primaryKey({ columns: [t.productId, t.date] }),
@@ -112,9 +130,13 @@ export const apyDaily = pgTable(
 export const pipelineReports = pgTable(
   'pipeline_reports',
   {
-    id: text('id').primaryKey().default(sql`gen_random_uuid()::text`),
+    id: text('id')
+      .primaryKey()
+      .default(sql`gen_random_uuid()::text`),
     type: text('type').notNull(), // 'gap-detection' | 'gap-healing'
-    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    createdAt: timestamp('created_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
     payload: jsonb('payload').notNull(),
   },
   (t) => [index('pipeline_reports_type_created').on(t.type, t.createdAt)]

@@ -14,12 +14,3 @@ export function requireDirectDatabaseUrl(): string {
     )
   return url
 }
-
-/** "mongo" | "postgres" — controls which datastore the app reads/writes. */
-export function dbBackend(): 'mongo' | 'postgres' {
-  return process.env.DB_BACKEND === 'postgres' ? 'postgres' : 'mongo'
-}
-
-export function dualWriteEnabled(): boolean {
-  return process.env.APY_DUAL_WRITE === 'true'
-}

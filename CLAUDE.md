@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 DeFi yield optimization platform: aggregates and compares supply/borrow positions on Aave V3, Morpho Blue/MetaMorpho, and Compound V3 across multiple chains (Ethereum, Polygon, Arbitrum, Base, Optimism).
 
-**Stack:** Next.js 15 (App Router) · TypeScript strict · Tailwind 4 + Radix UI · viem/wagmi · MongoDB · The Graph (GraphQL) · graphql-yoga · URQL · Zustand · QStash (cron)
+**Stack:** Next.js 15 (App Router) · TypeScript strict · Tailwind 4 + Radix UI · viem/wagmi · PostgreSQL (Neon) + Drizzle ORM · The Graph (GraphQL) · graphql-yoga · URQL · Zustand · QStash (cron)
 
 ---
 
@@ -21,8 +21,9 @@ pnpm typecheck        # tsc --noEmit
 pnpm format:check     # Prettier check
 pnpm codegen          # Regenerate GraphQL types (from schema + protocol subgraphs)
 pnpm codegen:clean    # Wipe generated/ folders then regenerate
-pnpm db:init          # Create MongoDB collections + indexes (idempotent)
-pnpm run products:sync     # Sync pools to DB
+pnpm db:generate      # Generate a Drizzle migration from schema.ts
+pnpm db:migrate       # Apply migrations to Postgres (Neon)
+pnpm run products:sync     # Sync products to DB
 pnpm run test:collateral   # Manual collateral validation (Aave)
 ```
 
@@ -39,11 +40,11 @@ QStash cron (every 10 min)
   → POST /api/yield/apy/spot
   → collectApySpot() server action
   → Protocol adapters (Aave/Morpho/Compound GraphQL + on-chain)
-  → MongoDB upsert: apy.hourly
+  → Postgres upsert: apy_hourly (chunked multi-row, deduped per slot)
 
 QStash cron (daily 00:10 UTC)
   → POST /api/yield/apy/daily
-  → Aggregates apy.hourly → apy.daily
+  → Aggregates apy_hourly → apy_daily (single GROUP BY) + prunes rows >180d
 
 graphql-yoga at /api/graphql
   ← URQL client (React components)
@@ -65,29 +66,37 @@ Compound V3 subgraphs differ by chain (Messari vs Spencer schema). Override patt
 
 ---
 
-## MongoDB
+## PostgreSQL (Neon)
 
-3 collections:
+Drizzle ORM. Schema in `src/lib/db/schema.ts`, client in `src/lib/db/postgres.ts` (neon-http), repositories in `src/lib/db/repositories/`. Migrations via drizzle-kit (`pnpm db:generate` → `pnpm db:migrate`).
+
+**Rule — never parse `productId`.** Filters hit typed, indexed columns; provider/chain/asset/kind are resolved by JOIN to `products`. (The productId string is irregular — morpho has no `:kind` suffix — so regex/substring filtering is wrong.)
+
+4 tables:
 
 ### `products` — static registry
 
-- One doc per market side: `_id = {protocol}-{market}-{asset}-{kind}` (e.g. `aave-AaveV3Ethereum-usdc-supply`)
-- `kind: "supply" | "borrow"` — primary discriminant
-- No real-time metrics
+- PK `id` = deterministic productId slug (e.g. `aave:v3:ethereum:reserve:0x…:supply`)
+- Typed columns: `kind`, `provider`, `product_type`, `version`, `protocol_name`, `chain_id`, `chain_name`, `asset_*`, `protocol_address`
+- `meta` (jsonb) — protocol-specific params · `collaterals` (jsonb) — borrow only
+- Indexes: `(provider, asset_symbol, kind)`, `(protocol_name, asset_symbol, kind)`, `(active, chain_id)`
 
-### `apy.hourly` — rolling averages (classic collection, upserted every 10 min)
+### `apy_hourly` — rolling average per `(product_id, hour)`
 
-- Upsert key: `(productId, hour)` — idempotent
-- All rates stored as **APY** (reward APR converted before storage)
-- Net formula: Supply = `base - fees + rewards` / Borrow = `base + fees - rewards`
-- TTL: 180 days
+- PK `(product_id, hour)` · running mean via `INSERT … ON CONFLICT DO UPDATE` every 10 min
+- Duplicate productIds within a slot are deduped (one observation/product — Compound emits one per collateral)
+- All rates stored as **APY** · Net: Supply `base - fees + rewards` / Borrow `base + fees - rewards`
+- Pruned > 180 days by the daily job (`pruneHourly`)
 
-### `apy.daily` — daily aggregates (classic collection)
+### `apy_daily` — daily aggregate
 
-- Aggregated from `apy.hourly`, window `[D-1 00:00Z, D 00:00Z[`
-- APY/utilization = mean of day · TVL = closing value
-- Full distribution stored: `{ avg, min, max, p25, p75, stdDev }`
-- `quality.completeness < 0.5` → unreliable, exclude from optimization engine
+- PK `(product_id, date)` · one `GROUP BY` over the day's hourly rows (`avg()` per field; `reward_items` = last slot)
+- `quality_completeness` = hourly rows present / 24 · `< 0.5` → unreliable
+- Idempotent — reruns bump `quality_revision`
+
+### `pipeline_reports`
+
+- gap-detection + gap-healing run reports (`jsonb` payload), read by the heal job + `/status`
 
 ---
 
@@ -135,12 +144,9 @@ Fiat currencies: `<CurrencyIcon currency="USD" />` → financial-flag-icons.
 ## Environment variables
 
 ```env
-# MongoDB
-MONGODB_URI=
-MONGODB_DB_NAME=
-MONGODB_COLLECTION_PRODUCTS=
-MONGODB_COLLECTION_HOURLY=
-MONGODB_COLLECTION_DAILY=
+# PostgreSQL (Neon)
+DATABASE_URL=                       # pooled URL — app runtime
+DATABASE_URL_UNPOOLED=              # direct URL — drizzle-kit migrations
 
 # Cron security
 CRON_SECRET=                        # Bearer token for /api/cron/sync-history

@@ -4,14 +4,16 @@ import { decomposeProductId } from '@/lib/db/product-id'
 
 describe('decomposeProductId', () => {
   it('parses aave with kind suffix', () => {
-    expect(decomposeProductId('aave:v3:ethereum:reserve:0xabc:supply')).toEqual({
-      provider: 'aave',
-      version: 'v3',
-      chainName: 'ethereum',
-      productType: 'reserve',
-      address: '0xabc',
-      kind: 'supply',
-    })
+    expect(decomposeProductId('aave:v3:ethereum:reserve:0xabc:supply')).toEqual(
+      {
+        provider: 'aave',
+        version: 'v3',
+        chainName: 'ethereum',
+        productType: 'reserve',
+        address: '0xabc',
+        kind: 'supply',
+      }
+    )
   })
 
   it('parses compound with kind suffix', () => {

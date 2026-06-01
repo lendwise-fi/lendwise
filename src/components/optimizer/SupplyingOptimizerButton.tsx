@@ -399,7 +399,10 @@ export function SupplyingOptimizerView({
                 {/* Legend */}
                 <div className="space-y-2">
                   {results.map((r, i) => (
-                    <div key={r.vault.poolName} className="flex items-center gap-2">
+                    <div
+                      key={r.vault.poolName}
+                      className="flex items-center gap-2"
+                    >
                       <div
                         className="h-2.5 w-2.5 shrink-0 rounded-sm"
                         style={{

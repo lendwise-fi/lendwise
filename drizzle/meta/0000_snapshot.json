@@ -165,10 +165,7 @@
       "compositePrimaryKeys": {
         "apy_daily_product_id_date_pk": {
           "name": "apy_daily_product_id_date_pk",
-          "columns": [
-            "product_id",
-            "date"
-          ]
+          "columns": ["product_id", "date"]
         }
       },
       "uniqueConstraints": {},
@@ -343,10 +340,7 @@
       "compositePrimaryKeys": {
         "apy_hourly_product_id_hour_pk": {
           "name": "apy_hourly_product_id_hour_pk",
-          "columns": [
-            "product_id",
-            "hour"
-          ]
+          "columns": ["product_id", "hour"]
         }
       },
       "uniqueConstraints": {},
