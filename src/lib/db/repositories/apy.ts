@@ -8,6 +8,19 @@ import type {
   SupplyMarketState,
 } from '@/lib/db/types'
 
+/**
+ * Build a parenthesized `($1, $2, …)` list for `col IN (...)`.
+ * neon-http does not bind a JS array as a Postgres array, so `= ANY($1)` fails
+ * with "op ANY/ALL (array) requires array on right side". Expanding to IN works.
+ * Caller must guard against empty input.
+ */
+function inList(values: string[]) {
+  return sql`(${sql.join(
+    values.map((v) => sql`${v}`),
+    sql`, `
+  )})`
+}
+
 // ─── Hourly running-mean upsert ─────────────────────────────────────────────
 
 /** Columns averaged with the incremental-mean formula on conflict. */
@@ -81,8 +94,15 @@ export async function upsertHourlySlots(
   hour: Date,
   slotTime: Date
 ): Promise<void> {
-  for (let i = 0; i < payloads.length; i += UPSERT_CHUNK) {
-    const chunk = payloads.slice(i, i + UPSERT_CHUNK)
+  // One observation per product per slot. Some adapters (Compound) emit the
+  // same Comet productId once per collateral; collapse to the last occurrence
+  // so a single multi-row statement never touches the same key twice
+  // (Postgres: "ON CONFLICT DO UPDATE command cannot affect row a second time").
+  const deduped = Array.from(
+    new Map(payloads.map((p) => [p.productId, p])).values()
+  )
+  for (let i = 0; i < deduped.length; i += UPSERT_CHUNK) {
+    const chunk = deduped.slice(i, i + UPSERT_CHUNK)
     const rows = chunk.map((p) => hourlyValueTuple(p, hour, slotTime))
     await db.execute(sql`
       INSERT INTO apy_hourly (
@@ -190,7 +210,7 @@ export async function latestHourlyNet(
   const res = await db.execute(sql`
     SELECT DISTINCT ON (product_id) product_id, apy_net
     FROM apy_hourly
-    WHERE product_id = ANY(${productIds})
+    WHERE product_id IN ${inList(productIds)}
     ORDER BY product_id, hour DESC
   `)
   for (const r of res.rows as { product_id: string; apy_net: number }[]) {
@@ -221,7 +241,7 @@ export async function apyEnrichments(
       avg(apy_net)                                                    AS avg365,
       count(*)                                                        AS n365
     FROM apy_daily
-    WHERE product_id = ANY(${productIds}) AND date >= now() - interval '365 days'
+    WHERE product_id IN ${inList(productIds)} AND date >= now() - interval '365 days'
     GROUP BY product_id
   `)
   for (const r of res.rows as {

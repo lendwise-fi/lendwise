@@ -153,12 +153,17 @@ export async function fetchDonors(
   end: Date
 ): Promise<Record<string, unknown>[]> {
   if (productIds.length === 0) return []
+  // neon-http can't bind a JS array for ANY($1); expand to IN ($1,$2,…).
+  const ids = sql`(${sql.join(
+    productIds.map((v) => sql`${v}`),
+    sql`, `
+  )})`
   const res = await db.execute(sql`
     SELECT product_id, hour, apy_base, apy_rewards, apy_fees, apy_net, reward_items,
            supply_assets, supply_assets_usd, utilization_rate, asset_price_usd,
            borrow_assets, borrow_assets_usd, collateral_assets_usd, price_collateral_in_loan_asset
     FROM apy_hourly
-    WHERE product_id = ANY(${productIds}) AND hour >= ${start} AND hour <= ${end}
+    WHERE product_id IN ${ids} AND hour >= ${start} AND hour <= ${end}
   `)
   return res.rows as Record<string, unknown>[]
 }
