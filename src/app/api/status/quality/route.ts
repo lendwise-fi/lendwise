@@ -172,7 +172,11 @@ async function qualityHandlerPostgres(): Promise<NextResponse> {
     latestReport('gap-healing'),
   ])
   const gp = (gap?.payload ?? {}) as {
-    collected?: { missingSlots?: number; incompleteSlots?: number }
+    collected?: {
+      missingSlots?: number
+      incompleteSlots?: number
+      expectedSlots?: number
+    }
   }
   const hp = (heal?.payload ?? {}) as {
     totalGaps?: number
@@ -193,13 +197,16 @@ async function qualityHandlerPostgres(): Promise<NextResponse> {
       gapDetection: gap
         ? {
             id: gap.id,
+            createdAt: gap.createdAt,
             missingSlots: gp.collected?.missingSlots ?? 0,
             incompleteSlots: gp.collected?.incompleteSlots ?? 0,
+            expectedSlots: gp.collected?.expectedSlots ?? 0,
           }
         : null,
       gapHealing: heal
         ? {
             id: heal.id,
+            createdAt: heal.createdAt,
             totalGaps: hp.totalGaps ?? 0,
             healed: hp.healed ?? 0,
             healedByRefetch: hp.healedByRefetch ?? 0,

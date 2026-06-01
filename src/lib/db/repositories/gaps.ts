@@ -69,6 +69,19 @@ export async function findIncomplete(
   }))
 }
 
+/** Distinct products with at least one row in the window ("collected" set). */
+export async function collectedProductCount(
+  windowStart: Date,
+  windowEnd: Date
+): Promise<number> {
+  const res = await db.execute(sql`
+    SELECT count(DISTINCT product_id)::int AS n
+    FROM apy_hourly
+    WHERE hour >= ${windowStart} AND hour < ${windowEnd}
+  `)
+  return (res.rows as { n: number }[])[0]?.n ?? 0
+}
+
 /** Mark stale 'building' rows (past hours, count<6) as 'partial'. Returns count. */
 export async function markStale(
   windowStart: Date,

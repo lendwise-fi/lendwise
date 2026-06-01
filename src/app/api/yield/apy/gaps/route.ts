@@ -8,7 +8,12 @@ import {
   MONGODB_COLLECTION_PRODUCTS,
   getDb,
 } from '@/lib/db/mongodb'
-import { findGaps, findIncomplete, markStale } from '@/lib/db/repositories/gaps'
+import {
+  collectedProductCount,
+  findGaps,
+  findIncomplete,
+  markStale,
+} from '@/lib/db/repositories/gaps'
 import { insertReport } from '@/lib/db/repositories/reports'
 import type { ApySlot, Product } from '@/lib/db/types'
 
@@ -109,16 +114,19 @@ async function gapsHandler(req: NextRequest) {
     windowStart.setUTCHours(windowStart.getUTCHours() - lookbackHours)
 
     if (dbBackend() === 'postgres') {
-      const [gaps, incomplete, markedStale] = await Promise.all([
-        findGaps(windowStart, windowEnd),
-        findIncomplete(windowStart, windowEnd),
-        markStale(windowStart, windowEnd),
-      ])
+      const [gaps, incomplete, markedStale, collectedProducts] =
+        await Promise.all([
+          findGaps(windowStart, windowEnd),
+          findIncomplete(windowStart, windowEnd),
+          markStale(windowStart, windowEnd),
+          collectedProductCount(windowStart, windowEnd),
+        ])
       const windowStr = `${windowStart.toISOString()} → ${windowEnd.toISOString()}`
       const summary = {
         success: true,
         window: windowStr,
         collected: {
+          expectedSlots: collectedProducts * lookbackHours,
           missingSlots: gaps.length,
           incompleteSlots: incomplete.length,
         },

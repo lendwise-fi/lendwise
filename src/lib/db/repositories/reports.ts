@@ -16,9 +16,13 @@ export async function insertReport(
 
 export async function latestReport(
   type: string
-): Promise<{ id: string; payload: unknown } | null> {
+): Promise<{ id: string; createdAt: Date; payload: unknown } | null> {
   const [row] = await db
-    .select({ id: pipelineReports.id, payload: pipelineReports.payload })
+    .select({
+      id: pipelineReports.id,
+      createdAt: pipelineReports.createdAt,
+      payload: pipelineReports.payload,
+    })
     .from(pipelineReports)
     .where(eq(pipelineReports.type, type))
     .orderBy(desc(pipelineReports.createdAt))
@@ -29,9 +33,13 @@ export async function latestReport(
 export async function reportById(
   id: string,
   type: string
-): Promise<{ id: string; payload: unknown } | null> {
+): Promise<{ id: string; createdAt: Date; payload: unknown } | null> {
   const [row] = await db
-    .select({ id: pipelineReports.id, payload: pipelineReports.payload })
+    .select({
+      id: pipelineReports.id,
+      createdAt: pipelineReports.createdAt,
+      payload: pipelineReports.payload,
+    })
     .from(pipelineReports)
     .where(and(eq(pipelineReports.id, id), eq(pipelineReports.type, type)))
     .limit(1)
