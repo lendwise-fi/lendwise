@@ -545,9 +545,11 @@ async function writeApySlotPostgres(
   slotTime: Date
 ): Promise<number> {
   const hour = normalizeHourTimestamp(slotTime)
+  let written: number
   try {
     // Chunked multi-row upsert — sequential statements, no per-row fan-out.
-    await upsertHourlySlots(payloads, hour, slotTime)
+    // Returns the deduped row count (Compound collapses ~1280 payloads → ~40).
+    written = await upsertHourlySlots(payloads, hour, slotTime)
   } catch (err) {
     // Drizzle wraps the driver error ("Failed query: …"); surface the real cause.
     const cause = (err as { cause?: { message?: string } })?.cause
@@ -555,10 +557,13 @@ async function writeApySlotPostgres(
       `[db:hourly:pg] upsert failed: ${cause?.message ?? (err as Error).message}`
     )
   }
+  const dupes = payloads.length - written
   console.log(
-    `[db:hourly:pg] Upserted ${payloads.length} hourly rows for hour ${hour.toISOString()}`
+    `[db:hourly:pg] Upserted ${written} rows from ${payloads.length} payloads` +
+      (dupes > 0 ? ` (${dupes} duplicate productIds collapsed)` : '') +
+      ` for hour ${hour.toISOString()}`
   )
-  return payloads.length
+  return written
 }
 
 // ─── Backend dispatch (+ optional dual-write) ──────────────────────────────────

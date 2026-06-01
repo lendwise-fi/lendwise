@@ -93,7 +93,7 @@ export async function upsertHourlySlots(
   payloads: SpotPayload[],
   hour: Date,
   slotTime: Date
-): Promise<void> {
+): Promise<number> {
   // One observation per product per slot. Some adapters (Compound) emit the
   // same Comet productId once per collateral; collapse to the last occurrence
   // so a single multi-row statement never touches the same key twice
@@ -120,6 +120,7 @@ export async function upsertHourlySlots(
         quality_status = CASE WHEN apy_hourly.quality_count + 1 >= 6 THEN 'complete' ELSE 'building' END
     `)
   }
+  return deduped.length
 }
 
 /** Upsert a single product's hourly row (thin wrapper over the batch path). */
