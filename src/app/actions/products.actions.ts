@@ -3,11 +3,13 @@
 import { unstable_cache } from 'next/cache'
 
 import { getProtocolAdapter, getProtocolIds } from '@/config/protocols'
+import { dbBackend } from '@/lib/db/env'
 import {
   MONGODB_COLLECTION_DAILY,
   MONGODB_COLLECTION_HOURLY,
   getDb,
 } from '@/lib/db/mongodb'
+import { apyEnrichments, latestHourlyNet } from '@/lib/db/repositories/apy'
 import { BorrowProduct, SupplyProduct } from '@/types'
 
 // Minimum data point thresholds per horizon
@@ -32,6 +34,7 @@ async function fetchLatestHourlyApy(
 ): Promise<Map<string, number>> {
   const map = new Map<string, number>()
   if (productIds.length === 0) return map
+  if (dbBackend() === 'postgres') return latestHourlyNet(productIds)
 
   try {
     const db = await getDb()
@@ -68,6 +71,7 @@ async function fetchApyEnrichments(
 ): Promise<Map<string, ApyEnrichment>> {
   const map = new Map<string, ApyEnrichment>()
   if (productIds.length === 0) return map
+  if (dbBackend() === 'postgres') return apyEnrichments(productIds)
 
   try {
     const db = await getDb()

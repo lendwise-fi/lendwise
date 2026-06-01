@@ -4,7 +4,18 @@ import { verifySignatureAppRouter } from '@upstash/qstash/nextjs'
 import type { AnyBulkWriteOperation, Filter, MatchKeysAndValues } from 'mongodb'
 import { ObjectId } from 'mongodb'
 
+import { dbBackend } from '@/lib/db/env'
 import { MONGODB_COLLECTION_HOURLY, getDb } from '@/lib/db/mongodb'
+import {
+  fetchDonors,
+  writeHealed,
+  type HealRow,
+} from '@/lib/db/repositories/gaps'
+import {
+  insertReport,
+  latestReport,
+  reportById,
+} from '@/lib/db/repositories/reports'
 import type { ApySlot } from '@/lib/db/types'
 import type { HistoryDataPoint } from '@/lib/protocols/aave/v3/apy-history'
 import { fetchAaveHistory } from '@/lib/protocols/aave/v3/apy-history'
@@ -177,6 +188,204 @@ function buildHealOp(
   }
 }
 
+// ─── Postgres heal handler ────────────────────────────────────────────────────
+
+/** Map a snake_case donor row (raw SQL) → camelCase market object. */
+function donorMarket(d: Record<string, unknown>): Record<string, number | null> {
+  return {
+    supplyAssets: d.supply_assets as number | null,
+    supplyAssetsUsd: d.supply_assets_usd as number | null,
+    utilizationRate: d.utilization_rate as number | null,
+    assetPriceUsd: d.asset_price_usd as number | null,
+    borrowAssets: d.borrow_assets as number | null,
+    borrowAssetsUsd: d.borrow_assets_usd as number | null,
+    collateralAssetsUsd: d.collateral_assets_usd as number | null,
+    priceCollateralInLoanAsset: d.price_collateral_in_loan_asset as number | null,
+  }
+}
+
+interface DonorPoint {
+  hour: Date
+  apy: { base: number; rewards: number; fees: number; net: number; rewardItems: unknown[] }
+  market: Record<string, number | null>
+}
+
+async function healHandlerPostgres(
+  body: { reportId?: string },
+  start: number
+): Promise<NextResponse> {
+  const errors: string[] = []
+
+  const report = body.reportId
+    ? await reportById(body.reportId, 'gap-detection')
+    : await latestReport('gap-detection')
+
+  if (!report) {
+    return NextResponse.json(
+      { success: false, error: 'No gap-detection report found' },
+      { status: 404 }
+    )
+  }
+
+  const payload = report.payload as {
+    gaps?: { hour: string; productId: string }[]
+    incomplete?: { hour: string; productId: string; count: number }[]
+  }
+  const missingGaps = payload.gaps ?? []
+  const incompleteGaps = payload.incomplete ?? []
+
+  const allEntries: GapEntry[] = [
+    ...missingGaps.map((g) => ({ ...g, kind: 'missing' as const })),
+    ...incompleteGaps.map((g) => ({ ...g, kind: 'incomplete' as const })),
+  ]
+
+  if (allEntries.length === 0) {
+    return NextResponse.json({
+      success: true,
+      sourceReportId: report.id,
+      message: 'No gaps to heal in this report',
+      durationMs: Date.now() - start,
+    })
+  }
+
+  // Categorize by protocol + compute gap time boundaries
+  const gapsByProtocol = new Map<string, { productId: string; hour: Date }[]>()
+  let minTs = Infinity
+  let maxTs = -Infinity
+  for (const entry of allEntries) {
+    const proto = detectProtocol(entry.productId)
+    const list = gapsByProtocol.get(proto) ?? []
+    list.push({ productId: entry.productId, hour: new Date(entry.hour) })
+    gapsByProtocol.set(proto, list)
+    const t = new Date(entry.hour).getTime()
+    if (t < minTs) minTs = t
+    if (t > maxTs) maxTs = t
+  }
+
+  // Phase 1: re-fetch historical data (Morpho + AAVE)
+  const historyLookup = new Map<string, HistoryDataPoint>()
+  if ((gapsByProtocol.get('morpho') ?? []).length > 0) {
+    try {
+      const startTs = Math.floor(minTs / 1000) - 3600
+      const endTs = Math.floor(maxTs / 1000) + 3600
+      const points = await fetchMorphoHistory({
+        interval: 'HOUR',
+        startTimestamp: startTs,
+        endTimestamp: endTs,
+        onProgress: (m) => console.log(`[cron:heal:pg] ${m}`),
+      })
+      for (const [k, v] of buildHistoryLookup(points)) historyLookup.set(k, v)
+    } catch (err) {
+      errors.push(`morpho-history: ${err instanceof Error ? err.message : String(err)}`)
+    }
+  }
+  if ((gapsByProtocol.get('aave') ?? []).length > 0) {
+    try {
+      const points = await fetchAaveHistory({
+        window: 'LAST_WEEK',
+        onProgress: (m) => console.log(`[cron:heal:pg] ${m}`),
+      })
+      for (const [k, v] of buildHistoryLookup(points)) historyLookup.set(k, v)
+    } catch (err) {
+      errors.push(`aave-history: ${err instanceof Error ? err.message : String(err)}`)
+    }
+  }
+
+  // Phase 2: nearest-neighbor donors (Compound + fallback)
+  const needNeighbor = new Set<string>()
+  for (const entry of allEntries) {
+    if (!historyLookup.has(lookupKey(entry.productId, new Date(entry.hour)))) {
+      needNeighbor.add(entry.productId)
+    }
+  }
+  const donorsByProduct = new Map<string, DonorPoint[]>()
+  if (needNeighbor.size > 0) {
+    const donorStart = new Date(minTs - DONOR_PADDING_HOURS * 3600_000)
+    const donorEnd = new Date(maxTs + DONOR_PADDING_HOURS * 3600_000)
+    const donorRows = await fetchDonors([...needNeighbor], donorStart, donorEnd)
+    for (const d of donorRows) {
+      const productId = d.product_id as string
+      const list = donorsByProduct.get(productId) ?? []
+      list.push({
+        hour: new Date(d.hour as string),
+        apy: {
+          base: d.apy_base as number,
+          rewards: d.apy_rewards as number,
+          fees: d.apy_fees as number,
+          net: d.apy_net as number,
+          rewardItems: (d.reward_items as unknown[]) ?? [],
+        },
+        market: donorMarket(d),
+      })
+      donorsByProduct.set(productId, list)
+    }
+  }
+
+  // Phase 3: build heal rows
+  const rows: HealRow[] = []
+  let refetch = 0
+  let neighbor = 0
+  let noDonor = 0
+  for (const entry of allEntries) {
+    const hour = new Date(entry.hour)
+    const hp = historyLookup.get(lookupKey(entry.productId, hour))
+    if (hp) {
+      rows.push({
+        productId: entry.productId,
+        hour,
+        apy: {
+          base: hp.apy.base,
+          rewards: hp.apy.rewards,
+          fees: hp.apy.fees,
+          net: hp.apy.net,
+          rewardItems: (hp.apy as { rewardItems?: unknown[] }).rewardItems ?? [],
+        },
+        market: hp.market as unknown as Record<string, number | null>,
+        source: 'refetch',
+        healedFrom: hp.timestamp.toISOString(),
+        gapKind: entry.kind,
+      })
+      refetch++
+      continue
+    }
+    const donor = findNearestDonor(hour, (donorsByProduct.get(entry.productId) ?? []) as unknown as ApySlot[]) as unknown as DonorPoint | null
+    if (donor) {
+      rows.push({
+        productId: entry.productId,
+        hour,
+        apy: donor.apy,
+        market: donor.market,
+        source: 'nearest-neighbor',
+        healedFrom: donor.hour.toISOString(),
+        gapKind: entry.kind,
+      })
+      neighbor++
+    } else {
+      noDonor++
+    }
+  }
+
+  const healed = await writeHealed(rows)
+  const result = {
+    success: errors.length === 0,
+    sourceReportId: report.id,
+    totalGaps: allEntries.length,
+    totalMissing: missingGaps.length,
+    totalIncomplete: incompleteGaps.length,
+    healedByRefetch: refetch,
+    healedByNeighbor: neighbor,
+    healed,
+    noDonor,
+    errors,
+    durationMs: Date.now() - start,
+  }
+  const reportId = await insertReport('gap-healing', result)
+  console.log(
+    `[cron:heal:pg] healed ${healed} (refetch ${refetch}, neighbor ${neighbor}, noDonor ${noDonor}) reportId ${reportId}`
+  )
+  return NextResponse.json({ ...result, reportId })
+}
+
 // ─── Endpoint ───────────────────────────────────────────────────────────────
 
 /**
@@ -201,6 +410,7 @@ async function healHandler(req: NextRequest) {
     console.log(
       `[cron:heal] Starting heal job (reportId: ${body.reportId || 'latest'})`
     )
+    if (dbBackend() === 'postgres') return healHandlerPostgres(body, start)
     const db = await getDb()
 
     // ─── Load gap report ────────────────────────────────────────────────

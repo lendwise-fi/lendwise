@@ -2,11 +2,14 @@ import { NextRequest, NextResponse } from 'next/server'
 
 import { verifySignatureAppRouter } from '@upstash/qstash/nextjs'
 
+import { dbBackend } from '@/lib/db/env'
 import {
   MONGODB_COLLECTION_HOURLY,
   MONGODB_COLLECTION_PRODUCTS,
   getDb,
 } from '@/lib/db/mongodb'
+import { findGaps, findIncomplete, markStale } from '@/lib/db/repositories/gaps'
+import { insertReport } from '@/lib/db/repositories/reports'
 import type { ApySlot, Product } from '@/lib/db/types'
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -104,6 +107,49 @@ async function gapsHandler(req: NextRequest) {
 
     const windowStart = new Date(windowEnd)
     windowStart.setUTCHours(windowStart.getUTCHours() - lookbackHours)
+
+    if (dbBackend() === 'postgres') {
+      const [gaps, incomplete, markedStale] = await Promise.all([
+        findGaps(windowStart, windowEnd),
+        findIncomplete(windowStart, windowEnd),
+        markStale(windowStart, windowEnd),
+      ])
+      const windowStr = `${windowStart.toISOString()} → ${windowEnd.toISOString()}`
+      const summary = {
+        success: true,
+        window: windowStr,
+        collected: {
+          missingSlots: gaps.length,
+          incompleteSlots: incomplete.length,
+        },
+        markedStale,
+        gaps: gaps
+          .slice(0, 50)
+          .map((g) => ({ hour: g.hour.toISOString(), productId: g.productId })),
+        incomplete: incomplete.slice(0, 50).map((i) => ({
+          hour: i.hour.toISOString(),
+          productId: i.productId,
+          count: i.count,
+        })),
+      }
+      // Persist the FULL lists for the heal job; response stays capped at 50.
+      const reportId = await insertReport('gap-detection', {
+        ...summary,
+        gaps: gaps.map((g) => ({
+          hour: g.hour.toISOString(),
+          productId: g.productId,
+        })),
+        incomplete: incomplete.map((i) => ({
+          hour: i.hour.toISOString(),
+          productId: i.productId,
+          count: i.count,
+        })),
+      })
+      console.log(
+        `[cron:gap-detect:pg] ${windowStr} missing: ${gaps.length} incomplete: ${incomplete.length} markedStale: ${markedStale} (reportId: ${reportId})`
+      )
+      return NextResponse.json({ ...summary, reportId })
+    }
 
     const hourBoundaries = generateHourBoundaries(windowStart, windowEnd)
 

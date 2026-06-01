@@ -3,7 +3,9 @@
 import type { Collection } from 'mongodb'
 
 import type { ProtocolName } from '@/config/protocols'
+import { dbBackend, dualWriteEnabled } from '@/lib/db/env'
 import { MONGODB_COLLECTION_HOURLY, getDb } from '@/lib/db/mongodb'
+import { upsertHourlySlot } from '@/lib/db/repositories/apy'
 import type {
   ApySlot,
   BorrowMarketState,
@@ -466,7 +468,7 @@ function isTransientError(err: unknown): boolean {
   )
 }
 
-async function writeApySlot(
+async function writeApySlotMongo(
   payloads: SpotPayload[],
   slotTime: Date
 ): Promise<number> {
@@ -534,6 +536,54 @@ async function writeApySlot(
     `[db:hourly] Upserted ${written}/${payloads.length} hourly docs for hour ${hour.toISOString()}`
   )
   return written
+}
+
+// ─── Postgres writer ──────────────────────────────────────────────────────────
+
+async function writeApySlotPostgres(
+  payloads: SpotPayload[],
+  slotTime: Date
+): Promise<number> {
+  const hour = normalizeHourTimestamp(slotTime)
+  const results = await Promise.allSettled(
+    payloads.map((p) => upsertHourlySlot(p, hour, slotTime))
+  )
+  const failures = results.filter((r) => r.status === 'rejected')
+  if (failures.length > 0) {
+    throw new Error(
+      `[db:hourly:pg] ${failures.length} upsert(s) failed: ${failures
+        .slice(0, 5)
+        .map((f) => (f as PromiseRejectedResult).reason?.message)
+        .join('; ')}`
+    )
+  }
+  console.log(
+    `[db:hourly:pg] Upserted ${payloads.length} hourly rows for hour ${hour.toISOString()}`
+  )
+  return payloads.length
+}
+
+// ─── Backend dispatch (+ optional dual-write) ──────────────────────────────────
+
+async function writeApySlot(
+  payloads: SpotPayload[],
+  slotTime: Date
+): Promise<number> {
+  if (payloads.length === 0) return 0
+  if (dbBackend() === 'postgres') {
+    const n = await writeApySlotPostgres(payloads, slotTime)
+    if (dualWriteEnabled())
+      await writeApySlotMongo(payloads, slotTime).catch((e) =>
+        console.error('[dual-write:mongo]', e)
+      )
+    return n
+  }
+  const n = await writeApySlotMongo(payloads, slotTime)
+  if (dualWriteEnabled())
+    await writeApySlotPostgres(payloads, slotTime).catch((e) =>
+      console.error('[dual-write:pg]', e)
+    )
+  return n
 }
 
 // ─── Result type ──────────────────────────────────────────────────────────────

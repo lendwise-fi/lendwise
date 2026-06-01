@@ -409,3 +409,19 @@ export interface BorrowApyDaily {
 }
 
 export type ApyDaily = SupplyApyDaily | BorrowApyDaily
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Postgres row types (inferred from the Drizzle schema)
+//
+// Canonical row shapes for the Postgres backend. New code should prefer these
+// over the Mongo document interfaces above. Re-exported here so call sites can
+// import storage types from one place during the dual-backend window; the Mongo
+// document types are removed once DB_BACKEND=postgres is permanent (T21).
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type {
+  ApyDailyRow,
+  ApyHourlyInsert,
+  ApyHourlyRow,
+  ProductRow,
+} from './schema'

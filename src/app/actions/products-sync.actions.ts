@@ -1,7 +1,12 @@
 'use server'
 
 import { type ProtocolName } from '@/config/protocols'
+import { dbBackend } from '@/lib/db/env'
 import { MONGODB_COLLECTION_PRODUCTS, getDb } from '@/lib/db/mongodb'
+import {
+  deactivateProviders,
+  upsertProducts,
+} from '@/lib/db/repositories/products'
 import type { BorrowProduct, Product, SupplyProduct } from '@/lib/db/types'
 import { fetchAaveV3Products } from '@/lib/protocols/aave'
 import { fetchCompoundV3Products } from '@/lib/protocols/compound'
@@ -27,6 +32,7 @@ const PROTOCOL_TASKS: Partial<
  */
 async function writeProductDocs(products: Product[]): Promise<void> {
   if (products.length === 0) return
+  if (dbBackend() === 'postgres') return upsertProducts(products)
 
   const db = await getDb()
   const collection = db.collection<Product>(MONGODB_COLLECTION_PRODUCTS)
@@ -146,17 +152,21 @@ export async function syncProducts(
 
   if (succeededProviders.size > 0) {
     try {
-      const db = await getDb()
-      const collection = db.collection<Product>(MONGODB_COLLECTION_PRODUCTS)
+      if (dbBackend() === 'postgres') {
+        deactivated = await deactivateProviders([...succeededProviders])
+      } else {
+        const db = await getDb()
+        const collection = db.collection<Product>(MONGODB_COLLECTION_PRODUCTS)
 
-      const deactivateResult = await collection.updateMany(
-        {
-          'protocol.provider': { $in: [...succeededProviders] },
-          active: true,
-        },
-        { $set: { active: false, updatedAt: new Date() } }
-      )
-      deactivated = deactivateResult.modifiedCount
+        const deactivateResult = await collection.updateMany(
+          {
+            'protocol.provider': { $in: [...succeededProviders] },
+            active: true,
+          },
+          { $set: { active: false, updatedAt: new Date() } }
+        )
+        deactivated = deactivateResult.modifiedCount
+      }
 
       console.log(
         `[sync:products] Deactivated ${deactivated} products` +

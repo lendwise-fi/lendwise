@@ -38,7 +38,7 @@ const options: MongoClientOptions = {
   },
 }
 
-let clientPromise: Promise<MongoClient>
+let clientPromise: Promise<MongoClient> | undefined
 
 async function initClient(): Promise<MongoClient> {
   const client = new MongoClient(uri, options)
@@ -47,20 +47,34 @@ async function initClient(): Promise<MongoClient> {
   return client
 }
 
-if (process.env.NODE_ENV === 'development') {
-  // In development mode, use a global variable so that the value
-  // is preserved across module reloads caused by HMR (Hot Module Replacement).
-  const globalWithMongo = global as typeof globalThis & {
-    _mongoClientPromise?: Promise<MongoClient>
+/**
+ * Lazily establish the Mongo connection on first use.
+ *
+ * Importing this module no longer opens a socket — only calling getDb()
+ * (or the default export) connects. This lets DB_BACKEND=postgres boot
+ * without touching Atlas, and avoids a dangling Atlas connection in any
+ * process that imports a module which transitively imports this one.
+ */
+function getClientPromise(): Promise<MongoClient> {
+  if (clientPromise) return clientPromise
+
+  if (process.env.NODE_ENV === 'development') {
+    // In development mode, use a global variable so that the value
+    // is preserved across module reloads caused by HMR (Hot Module Replacement).
+    const globalWithMongo = global as typeof globalThis & {
+      _mongoClientPromise?: Promise<MongoClient>
+    }
+
+    if (!globalWithMongo._mongoClientPromise) {
+      globalWithMongo._mongoClientPromise = initClient()
+    }
+    clientPromise = globalWithMongo._mongoClientPromise
+  } else {
+    // In production mode, it's best to not use a global variable.
+    clientPromise = initClient()
   }
 
-  if (!globalWithMongo._mongoClientPromise) {
-    globalWithMongo._mongoClientPromise = initClient()
-  }
-  clientPromise = globalWithMongo._mongoClientPromise
-} else {
-  // In production mode, it's best to not use a global variable.
-  clientPromise = initClient()
+  return clientPromise
 }
 
 export const MONGODB_URI = process.env.MONGODB_URI
@@ -103,10 +117,10 @@ export async function ensureApyMergeIndex<T extends Document = Document>(
  * Automatically attaches the database pool for Vercel functions performance.
  */
 export async function getDb(dbName: string = MONGODB_DB_NAME): Promise<Db> {
-  const client = await clientPromise
+  const client = await getClientPromise()
   return client.db(dbName)
 }
 
-// Export a module-scoped MongoClient promise. By doing this in a
-// separate module, the client can be shared across functions.
-export default clientPromise
+// Lazily-connecting client accessor. By exporting from a separate module,
+// the connection is shared across functions but only opened on first use.
+export default getClientPromise

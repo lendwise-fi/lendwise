@@ -2,11 +2,13 @@
 
 import { unstable_cache } from 'next/cache'
 
+import { dbBackend } from '@/lib/db/env'
 import {
   MONGODB_COLLECTION_DAILY,
   MONGODB_COLLECTION_PRODUCTS,
   getDb,
 } from '@/lib/db/mongodb'
+import { priceReturnHistory } from '@/lib/db/repositories/price'
 
 export interface PricePoint {
   date: string
@@ -80,6 +82,9 @@ async function _loadPriceReturnHistory(
   days = 730
 ): Promise<PricePoint[]> {
   try {
+    if (dbBackend() === 'postgres')
+      return await priceReturnHistory(collateralSymbol, loanSymbol, days)
+
     const dailyCol = MONGODB_COLLECTION_DAILY!
     const productsCol = MONGODB_COLLECTION_PRODUCTS!
 

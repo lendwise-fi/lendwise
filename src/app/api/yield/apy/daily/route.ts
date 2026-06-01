@@ -2,11 +2,14 @@ import { NextRequest, NextResponse } from 'next/server'
 
 import { verifySignatureAppRouter } from '@upstash/qstash/nextjs'
 
+import { dbBackend } from '@/lib/db/env'
 import {
   MONGODB_COLLECTION_DAILY,
   MONGODB_COLLECTION_HOURLY,
   getDb,
 } from '@/lib/db/mongodb'
+import { aggregateDaily } from '@/lib/db/repositories/apy'
+import { pruneHourly } from '@/lib/db/repositories/gaps'
 import type {
   ApyDaily,
   ApySlot,
@@ -232,6 +235,19 @@ export const POST = verifySignatureAppRouter(async (_req: NextRequest) => {
 
     const windowStart = new Date(windowEnd)
     windowStart.setUTCDate(windowStart.getUTCDate() - 1)
+
+    if (dbBackend() === 'postgres') {
+      const written = await aggregateDaily(windowStart, windowEnd, computedAt)
+      const pruned = await pruneHourly()
+      const window = `${windowStart.toISOString()} → ${windowEnd.toISOString()}`
+      console.log(
+        `[cron:apy-daily:pg] Completed — window: ${window} written: ${written} pruned: ${pruned}`
+      )
+      return NextResponse.json(
+        { success: true, counts: { written, pruned }, window },
+        { status: 200 }
+      )
+    }
 
     // Discover all productIds active in this window
     const hourlyCollection = db.collection<ApySlot>(MONGODB_COLLECTION_HOURLY)
