@@ -45,19 +45,19 @@ interface ProtocolRow {
 interface LatestReports {
   gapDetection: {
     id: string
-    createdAt: string
-    missingSlots: number
-    incompleteSlots: number
-    expectedSlots: number
+    createdAt?: string
+    missingSlots?: number
+    incompleteSlots?: number
+    expectedSlots?: number
   } | null
   gapHealing: {
     id: string
-    createdAt: string
-    totalGaps: number
-    healed: number
-    healedByRefetch: number
-    healedByNeighbor: number
-    noDonor: number
+    createdAt?: string
+    totalGaps?: number
+    healed?: number
+    healedByRefetch?: number
+    healedByNeighbor?: number
+    noDonor?: number
   } | null
 }
 
@@ -69,8 +69,10 @@ interface QualityData {
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
-function formatHour(iso: string): string {
+function formatHour(iso: string | undefined): string {
+  if (!iso) return '—'
   const d = new Date(iso)
+  if (Number.isNaN(d.getTime())) return '—'
   return d.toLocaleString('en-GB', {
     month: 'short',
     day: 'numeric',
@@ -80,13 +82,21 @@ function formatHour(iso: string): string {
   })
 }
 
-function formatRelative(iso: string): string {
-  const diff = Date.now() - new Date(iso).getTime()
+function formatRelative(iso: string | undefined): string {
+  if (!iso) return '—'
+  const t = new Date(iso).getTime()
+  if (Number.isNaN(t)) return '—'
+  const diff = Date.now() - t
   const mins = Math.floor(diff / 60_000)
   if (mins < 60) return `${mins}m ago`
   const hours = Math.floor(mins / 60)
   if (hours < 24) return `${hours}h ago`
   return `${Math.floor(hours / 24)}d ago`
+}
+
+/** Safe integer formatter — tolerates undefined/null from partial API responses. */
+function fmtNum(n: number | undefined | null): string {
+  return (n ?? 0).toLocaleString()
 }
 
 function slotColor(slot: SlotInfo, _totalProducts: number): string {
@@ -274,24 +284,22 @@ function ReportCard({ reports }: { reports: LatestReports }) {
               </div>
               <div className="flex justify-between">
                 <span className="text-muted-foreground">Expected slots</span>
-                <span className="font-mono">
-                  {gap.expectedSlots.toLocaleString()}
-                </span>
+                <span className="font-mono">{fmtNum(gap.expectedSlots)}</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-muted-foreground">Missing</span>
                 <span
-                  className={`font-mono ${gap.missingSlots > 0 ? 'text-red-400' : 'text-emerald-400'}`}
+                  className={`font-mono ${(gap.missingSlots ?? 0) > 0 ? 'text-red-400' : 'text-emerald-400'}`}
                 >
-                  {gap.missingSlots.toLocaleString()}
+                  {fmtNum(gap.missingSlots)}
                 </span>
               </div>
               <div className="flex justify-between">
                 <span className="text-muted-foreground">Incomplete</span>
                 <span
-                  className={`font-mono ${gap.incompleteSlots > 0 ? 'text-amber-400' : 'text-emerald-400'}`}
+                  className={`font-mono ${(gap.incompleteSlots ?? 0) > 0 ? 'text-amber-400' : 'text-emerald-400'}`}
                 >
-                  {gap.incompleteSlots.toLocaleString()}
+                  {fmtNum(gap.incompleteSlots)}
                 </span>
               </div>
             </div>
@@ -319,34 +327,30 @@ function ReportCard({ reports }: { reports: LatestReports }) {
               </div>
               <div className="flex justify-between">
                 <span className="text-muted-foreground">Total gaps</span>
-                <span className="font-mono">
-                  {heal.totalGaps.toLocaleString()}
-                </span>
+                <span className="font-mono">{fmtNum(heal.totalGaps)}</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-muted-foreground">Healed</span>
                 <span className="font-mono text-emerald-400">
-                  {heal.healed.toLocaleString()}
+                  {fmtNum(heal.healed)}
                 </span>
               </div>
               <div className="flex justify-between">
                 <span className="text-muted-foreground">By refetch</span>
-                <span className="font-mono">
-                  {heal.healedByRefetch.toLocaleString()}
-                </span>
+                <span className="font-mono">{fmtNum(heal.healedByRefetch)}</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-muted-foreground">By neighbor</span>
                 <span className="font-mono">
-                  {heal.healedByNeighbor.toLocaleString()}
+                  {fmtNum(heal.healedByNeighbor)}
                 </span>
               </div>
               <div className="flex justify-between">
                 <span className="text-muted-foreground">No donor</span>
                 <span
-                  className={`font-mono ${heal.noDonor > 0 ? 'text-red-400' : 'text-emerald-400'}`}
+                  className={`font-mono ${(heal.noDonor ?? 0) > 0 ? 'text-red-400' : 'text-emerald-400'}`}
                 >
-                  {heal.noDonor.toLocaleString()}
+                  {fmtNum(heal.noDonor)}
                 </span>
               </div>
             </div>
@@ -446,13 +450,13 @@ export default function StatusPage() {
         <>
           {/* Window info */}
           <p className="text-muted-foreground font-mono text-xs">
-            Window: {formatHour(data.window.start)} →{' '}
-            {formatHour(data.window.end)} UTC
+            Window: {formatHour(data.window?.start)} →{' '}
+            {formatHour(data.window?.end)} UTC
           </p>
 
           {/* Protocol heatmaps */}
           <div className="space-y-4">
-            {data.protocols.map((row) => (
+            {(data.protocols ?? []).map((row) => (
               <ProtocolHeatmap key={row.protocol} row={row} />
             ))}
           </div>
