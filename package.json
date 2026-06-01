@@ -9,6 +9,12 @@
   "scripts": {
     "preinstall": "pnpx only-allow pnpm",
     "db:init": "dotenv -- tsx scripts/db-init.ts",
+    "db:generate": "dotenv -- drizzle-kit generate",
+    "db:migrate": "dotenv -- drizzle-kit migrate",
+    "db:backfill": "dotenv -- tsx scripts/pg-backfill.ts",
+    "db:parity": "dotenv -- tsx scripts/pg-parity-check.ts",
+    "test": "vitest run",
+    "test:watch": "vitest",
     "products:sync": "dotenv -- tsx scripts/products-sync.ts",
     "apy:backfill": "dotenv -- tsx scripts/apy-history-backfill.ts",
     "apy:enrich-market": "dotenv -- tsx scripts/apy-market-enrich.ts",
@@ -35,6 +41,7 @@
     "@graphql-typed-document-node/core": "^3.2.0",
     "@metamask/connect-multichain": "^0.15.0",
     "@metamask/sdk": "^0.34.0",
+    "@neondatabase/serverless": "^1.1.0",
     "@radix-ui/react-avatar": "^1.1.10",
     "@radix-ui/react-checkbox": "^1.3.3",
     "@radix-ui/react-dialog": "^1.1.15",
@@ -68,6 +75,7 @@
     "cryptocurrency-icons": "^0.18.1",
     "currency-list": "^1.0.8",
     "date-fns": "^4.1.0",
+    "drizzle-orm": "^0.45.2",
     "ethereum-blockies-base64": "^1.0.2",
     "financial-flag-icons": "^1.0.5",
     "graphql-yoga": "^5.18.0",
@@ -102,6 +110,7 @@
     "@tailwindcss/postcss": "^4",
     "@trivago/prettier-plugin-sort-imports": "^5.2.2",
     "@types/node": "^22.18.12",
+    "@types/pg": "^8.20.0",
     "@types/react": "^19.2.10",
     "@types/react-dom": "^19.2.3",
     "@typescript-eslint/eslint-plugin": "^8.46.2",
@@ -109,6 +118,7 @@
     "baseline-browser-mapping": "^2.9.19",
     "dotenv": "^17.2.3",
     "dotenv-cli": "^11.0.0",
+    "drizzle-kit": "^0.31.10",
     "eslint": "^9.37.0",
     "eslint-config-prettier": "^9.1.0",
     "eslint-plugin-unused-imports": "^4.1.4",
@@ -122,6 +132,7 @@
     "tsx": "^4.21.0",
     "tw-animate-css": "^1.4.0",
     "typescript": "^5",
-    "typescript-eslint": "^8.46.2"
+    "typescript-eslint": "^8.46.2",
+    "vitest": "^4.1.7"
   }
 }
