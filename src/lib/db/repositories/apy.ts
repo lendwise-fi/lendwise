@@ -43,43 +43,72 @@ function meanSetClause() {
   return sql.join(parts, sql`, `)
 }
 
-/** Upsert one product's hourly rolling-average row for the given hour. */
+/**
+ * Rows per multi-row upsert. Kept small so a single statement stays well under
+ * the neon-http request-payload cap (the backfill hit it at ~2000 rows) and the
+ * Postgres 65535-param bind limit (250 × 20 = 5000).
+ */
+const UPSERT_CHUNK = 250
+
+/** One VALUES tuple for the bulk hourly upsert. */
+function hourlyValueTuple(p: SpotPayload, hour: Date, slotTime: Date) {
+  const isSupply = p.kind === 'supply'
+  const sm = p.market as SupplyMarketState
+  const bm = p.market as BorrowMarketState
+  return sql`(
+    ${p.productId}, ${hour},
+    ${p.apy.base}, ${p.apy.rewards}, ${p.apy.fees}, ${p.apy.net},
+    ${JSON.stringify(p.apy.rewardItems)}::jsonb,
+    ${isSupply ? sm.supplyAssets : bm.supplyAssets},
+    ${isSupply ? sm.supplyAssetsUsd : bm.supplyAssetsUsd},
+    ${p.market.utilizationRate}, ${p.market.assetPriceUsd},
+    ${isSupply ? null : bm.borrowAssets},
+    ${isSupply ? null : bm.borrowAssetsUsd},
+    ${isSupply ? null : (bm.collateralAssetsUsd ?? null)},
+    ${isSupply ? null : (bm.priceCollateralInLoanAsset ?? null)},
+    1, 6, ${slotTime}, ${slotTime}, 'building'
+  )`
+}
+
+/**
+ * Upsert many products' hourly rolling-average rows in chunked multi-row
+ * statements. Each row's running mean resolves independently against its own
+ * `excluded` values. ProductIds within a slot are unique, so no row is touched
+ * twice per statement.
+ */
+export async function upsertHourlySlots(
+  payloads: SpotPayload[],
+  hour: Date,
+  slotTime: Date
+): Promise<void> {
+  for (let i = 0; i < payloads.length; i += UPSERT_CHUNK) {
+    const chunk = payloads.slice(i, i + UPSERT_CHUNK)
+    const rows = chunk.map((p) => hourlyValueTuple(p, hour, slotTime))
+    await db.execute(sql`
+      INSERT INTO apy_hourly (
+        product_id, hour,
+        apy_base, apy_rewards, apy_fees, apy_net, reward_items,
+        supply_assets, supply_assets_usd, utilization_rate, asset_price_usd,
+        borrow_assets, borrow_assets_usd, collateral_assets_usd, price_collateral_in_loan_asset,
+        quality_count, quality_expected_count, quality_first_slot, quality_last_slot, quality_status
+      ) VALUES ${sql.join(rows, sql`, `)}
+      ON CONFLICT (product_id, hour) DO UPDATE SET
+        ${meanSetClause()},
+        reward_items = excluded.reward_items,
+        quality_count = apy_hourly.quality_count + 1,
+        quality_last_slot = excluded.quality_last_slot,
+        quality_status = CASE WHEN apy_hourly.quality_count + 1 >= 6 THEN 'complete' ELSE 'building' END
+    `)
+  }
+}
+
+/** Upsert a single product's hourly row (thin wrapper over the batch path). */
 export async function upsertHourlySlot(
   payload: SpotPayload,
   hour: Date,
   slotTime: Date
 ): Promise<void> {
-  const isSupply = payload.kind === 'supply'
-  const sm = payload.market as SupplyMarketState
-  const bm = payload.market as BorrowMarketState
-
-  await db.execute(sql`
-    INSERT INTO apy_hourly (
-      product_id, hour,
-      apy_base, apy_rewards, apy_fees, apy_net, reward_items,
-      supply_assets, supply_assets_usd, utilization_rate, asset_price_usd,
-      borrow_assets, borrow_assets_usd, collateral_assets_usd, price_collateral_in_loan_asset,
-      quality_count, quality_expected_count, quality_first_slot, quality_last_slot, quality_status
-    ) VALUES (
-      ${payload.productId}, ${hour},
-      ${payload.apy.base}, ${payload.apy.rewards}, ${payload.apy.fees}, ${payload.apy.net},
-      ${JSON.stringify(payload.apy.rewardItems)}::jsonb,
-      ${isSupply ? sm.supplyAssets : bm.supplyAssets},
-      ${isSupply ? sm.supplyAssetsUsd : bm.supplyAssetsUsd},
-      ${payload.market.utilizationRate}, ${payload.market.assetPriceUsd},
-      ${isSupply ? null : bm.borrowAssets},
-      ${isSupply ? null : bm.borrowAssetsUsd},
-      ${isSupply ? null : (bm.collateralAssetsUsd ?? null)},
-      ${isSupply ? null : (bm.priceCollateralInLoanAsset ?? null)},
-      1, 6, ${slotTime}, ${slotTime}, 'building'
-    )
-    ON CONFLICT (product_id, hour) DO UPDATE SET
-      ${meanSetClause()},
-      reward_items = excluded.reward_items,
-      quality_count = apy_hourly.quality_count + 1,
-      quality_last_slot = excluded.quality_last_slot,
-      quality_status = CASE WHEN apy_hourly.quality_count + 1 >= 6 THEN 'complete' ELSE 'building' END
-  `)
+  await upsertHourlySlots([payload], hour, slotTime)
 }
 
 // ─── Daily aggregation (one set-based statement) ────────────────────────────

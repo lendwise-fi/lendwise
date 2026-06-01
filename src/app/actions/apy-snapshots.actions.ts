@@ -5,7 +5,7 @@ import type { Collection } from 'mongodb'
 import type { ProtocolName } from '@/config/protocols'
 import { dbBackend, dualWriteEnabled } from '@/lib/db/env'
 import { MONGODB_COLLECTION_HOURLY, getDb } from '@/lib/db/mongodb'
-import { upsertHourlySlot } from '@/lib/db/repositories/apy'
+import { upsertHourlySlots } from '@/lib/db/repositories/apy'
 import type {
   ApySlot,
   BorrowMarketState,
@@ -545,16 +545,14 @@ async function writeApySlotPostgres(
   slotTime: Date
 ): Promise<number> {
   const hour = normalizeHourTimestamp(slotTime)
-  const results = await Promise.allSettled(
-    payloads.map((p) => upsertHourlySlot(p, hour, slotTime))
-  )
-  const failures = results.filter((r) => r.status === 'rejected')
-  if (failures.length > 0) {
+  try {
+    // Chunked multi-row upsert — sequential statements, no per-row fan-out.
+    await upsertHourlySlots(payloads, hour, slotTime)
+  } catch (err) {
+    // Drizzle wraps the driver error ("Failed query: …"); surface the real cause.
+    const cause = (err as { cause?: { message?: string } })?.cause
     throw new Error(
-      `[db:hourly:pg] ${failures.length} upsert(s) failed: ${failures
-        .slice(0, 5)
-        .map((f) => (f as PromiseRejectedResult).reason?.message)
-        .join('; ')}`
+      `[db:hourly:pg] upsert failed: ${cause?.message ?? (err as Error).message}`
     )
   }
   console.log(
