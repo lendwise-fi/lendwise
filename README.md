@@ -1,6 +1,6 @@
 # YieldImprove - DeFi Portfolio Optimization Platform
 
-A modern Next.js 15 application for optimizing DeFi supplying and borrowing positions across multiple protocols and blockchains.
+A modern Next.js 16 application for optimizing DeFi supplying and borrowing positions across multiple protocols and blockchains.
 
 ![YieldImprove](https://img.shields.io/badge/Next.js-15-black?style=flat-square&logo=next.js)
 ![TypeScript](https://img.shields.io/badge/TypeScript-5.7-blue?style=flat-square&logo=typescript)
@@ -14,11 +14,11 @@ A modern Next.js 15 application for optimizing DeFi supplying and borrowing posi
 - 📈 **Portfolio Tracker**: Monitor all positions across chains in one place
 - 🛡️ **Risk Monitor**: Track health factors and manage liquidation risks
 - 🎨 **Modern UI**: Built with Shadcn UI components and Tailwind CSS
-- ⚡ **Fast**: Powered by Next.js 15 with App Router
+- ⚡ **Fast**: Powered by Next.js 16 with App Router
 
 ## Tech Stack
 
-- **Framework**: Next.js 15.1.0
+- **Framework**: Next.js 16.2.6
 - **Language**: TypeScript 5.7
 - **Styling**: Tailwind CSS 3.4 + Shadcn UI
 - **Charts**: Recharts 2.13
@@ -65,7 +65,7 @@ Navigate to [http://localhost:3000](http://localhost:3000) to see the applicatio
 
 ```
 yieldimprove/
-├── app/                      # Next.js 15 App Router
+├── app/                      # Next.js 16 App Router
 │   ├── layout.tsx           # Root layout with sidebar
 │   ├── page.tsx             # Home page (redirects to dashboard)
 │   ├── dashboard/           # Dashboard page
@@ -210,4 +210,4 @@ For issues or questions, please open an issue on the repository.
 
 ---
 
-Built with ❤️ using Next.js 15, TypeScript, and Shadcn UI
+Built with ❤️ using Next.js 16, TypeScript, and Shadcn UI

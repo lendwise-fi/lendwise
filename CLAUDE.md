@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 DeFi yield optimization platform: aggregates and compares supply/borrow positions on Aave V3, Morpho Blue/MetaMorpho, and Compound V3 across multiple chains (Ethereum, Polygon, Arbitrum, Base, Optimism).
 
-**Stack:** Next.js 15 (App Router) · TypeScript strict · Tailwind 4 + Radix UI · viem/wagmi · PostgreSQL (Neon) + Drizzle ORM · The Graph (GraphQL) · graphql-yoga · URQL · Zustand · QStash (cron)
+**Stack:** Next.js 16 (App Router) · TypeScript strict · Tailwind 4 + Radix UI · viem/wagmi · PostgreSQL (Neon) + Drizzle ORM · The Graph (GraphQL) · graphql-yoga · URQL · Zustand · QStash (cron)
 
 ---
 
