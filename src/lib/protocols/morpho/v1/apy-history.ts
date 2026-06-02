@@ -35,7 +35,7 @@ type VaultHistoryQuery = {
 }
 
 type MarketBorrowHistoryQuery = {
-  market: {
+  marketById: {
     historicalState: {
       borrowApy: FloatDataPoint[]
       netBorrowApy: FloatDataPoint[]
@@ -326,19 +326,20 @@ export async function fetchMorphoHistory(opts?: {
     try {
       const { data, error } = await client
         .query<MarketBorrowHistoryQuery>(MARKET_BORROW_HISTORY, {
-          marketId: market.id,
+          marketId: market.marketId,
+          chainId: market.chainId,
           options: timeseriesOptions,
         })
         .toPromise()
 
-      if (error || !data?.market) {
+      if (error || !data?.marketById) {
         log(
           `[history:morpho] market ${market.loanSymbol}@${market.network}: ${error?.message ?? 'no data'}`
         )
         return null
       }
 
-      const hist = data.market.historicalState
+      const hist = data.marketById.historicalState
       const borrowApyMap = toMap(hist.borrowApy)
       const netBorrowApyMap = toMap(hist.netBorrowApy)
       const feeMap = toMap(hist.fee)

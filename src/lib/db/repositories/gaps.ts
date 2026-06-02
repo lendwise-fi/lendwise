@@ -112,36 +112,74 @@ export interface HealRow {
 }
 
 /**
- * Write healed rows. missing → INSERT … ON CONFLICT DO NOTHING (never clobber organic).
- * incomplete → upsert overwrite. Marks healed=true.
+ * Rows per multi-row insert. 250 × 23 cols = 5750 params — well under the
+ * Postgres 65535-param bind limit and the neon-http request-payload cap.
+ */
+const HEAL_CHUNK = 250
+
+/** ON CONFLICT clause for incomplete gaps — overwrite the partial row. */
+const HEAL_UPDATE_SET = sql`DO UPDATE SET apy_base=excluded.apy_base, apy_rewards=excluded.apy_rewards, apy_fees=excluded.apy_fees, apy_net=excluded.apy_net, reward_items=excluded.reward_items, supply_assets=excluded.supply_assets, supply_assets_usd=excluded.supply_assets_usd, utilization_rate=excluded.utilization_rate, asset_price_usd=excluded.asset_price_usd, borrow_assets=excluded.borrow_assets, borrow_assets_usd=excluded.borrow_assets_usd, collateral_assets_usd=excluded.collateral_assets_usd, price_collateral_in_loan_asset=excluded.price_collateral_in_loan_asset, quality_count=excluded.quality_count, quality_status=excluded.quality_status, healed=true, heal_source=excluded.heal_source, healed_from=excluded.healed_from`
+
+/** One VALUES tuple for the bulk heal insert. */
+function healValueTuple(r: HealRow) {
+  const m = r.market
+  const count = r.source === 'refetch' ? 6 : 0
+  const status = r.source === 'refetch' ? 'complete' : 'partial'
+  return sql`(
+    ${r.productId}, ${r.hour}, ${r.apy.base}, ${r.apy.rewards}, ${r.apy.fees}, ${r.apy.net},
+    ${JSON.stringify(r.apy.rewardItems)}::jsonb,
+    ${m.supplyAssets ?? null}, ${m.supplyAssetsUsd ?? null}, ${m.utilizationRate ?? null}, ${m.assetPriceUsd ?? null},
+    ${m.borrowAssets ?? null}, ${m.borrowAssetsUsd ?? null}, ${m.collateralAssetsUsd ?? null}, ${m.priceCollateralInLoanAsset ?? null},
+    ${count}, 6, ${r.hour}, ${r.hour}, ${status}, true, ${r.source}, ${r.healedFrom}
+  )`
+}
+
+/** Keep the last row per (productId, hour) — ON CONFLICT can't touch a row twice in one statement. */
+function dedupeHealRows(rows: HealRow[]): HealRow[] {
+  return Array.from(
+    new Map(
+      rows.map((r) => [`${r.productId}|${r.hour.toISOString()}`, r])
+    ).values()
+  )
+}
+
+/**
+ * Write healed rows in chunked multi-row statements (one round-trip per chunk
+ * instead of per row — the per-row loop timed out the Vercel function once gap
+ * counts reached the thousands). Split by conflict behavior:
+ *   missing    → ON CONFLICT DO NOTHING (never clobber organic data)
+ *   incomplete → ON CONFLICT DO UPDATE (overwrite the partial row)
+ * Marks healed=true.
  */
 export async function writeHealed(rows: HealRow[]): Promise<number> {
+  const groups = [
+    {
+      rows: dedupeHealRows(rows.filter((r) => r.gapKind === 'missing')),
+      conflict: sql`DO NOTHING`,
+    },
+    {
+      rows: dedupeHealRows(rows.filter((r) => r.gapKind === 'incomplete')),
+      conflict: HEAL_UPDATE_SET,
+    },
+  ]
+
   let written = 0
-  for (const r of rows) {
-    const m = r.market
-    const count = r.source === 'refetch' ? 6 : 0
-    const status = r.source === 'refetch' ? 'complete' : 'partial'
-    const conflict =
-      r.gapKind === 'incomplete'
-        ? sql`DO UPDATE SET apy_base=excluded.apy_base, apy_rewards=excluded.apy_rewards, apy_fees=excluded.apy_fees, apy_net=excluded.apy_net, reward_items=excluded.reward_items, supply_assets=excluded.supply_assets, supply_assets_usd=excluded.supply_assets_usd, utilization_rate=excluded.utilization_rate, asset_price_usd=excluded.asset_price_usd, borrow_assets=excluded.borrow_assets, borrow_assets_usd=excluded.borrow_assets_usd, collateral_assets_usd=excluded.collateral_assets_usd, price_collateral_in_loan_asset=excluded.price_collateral_in_loan_asset, quality_count=excluded.quality_count, quality_status=excluded.quality_status, healed=true, heal_source=excluded.heal_source, healed_from=excluded.healed_from`
-        : sql`DO NOTHING`
-    const res = await db.execute(sql`
-      INSERT INTO apy_hourly (
-        product_id, hour, apy_base, apy_rewards, apy_fees, apy_net, reward_items,
-        supply_assets, supply_assets_usd, utilization_rate, asset_price_usd,
-        borrow_assets, borrow_assets_usd, collateral_assets_usd, price_collateral_in_loan_asset,
-        quality_count, quality_expected_count, quality_first_slot, quality_last_slot, quality_status,
-        healed, heal_source, healed_from
-      ) VALUES (
-        ${r.productId}, ${r.hour}, ${r.apy.base}, ${r.apy.rewards}, ${r.apy.fees}, ${r.apy.net},
-        ${JSON.stringify(r.apy.rewardItems)}::jsonb,
-        ${m.supplyAssets ?? null}, ${m.supplyAssetsUsd ?? null}, ${m.utilizationRate ?? null}, ${m.assetPriceUsd ?? null},
-        ${m.borrowAssets ?? null}, ${m.borrowAssetsUsd ?? null}, ${m.collateralAssetsUsd ?? null}, ${m.priceCollateralInLoanAsset ?? null},
-        ${count}, 6, ${r.hour}, ${r.hour}, ${status}, true, ${r.source}, ${r.healedFrom}
-      )
-      ON CONFLICT (product_id, hour) ${conflict}
-    `)
-    written += res.rowCount ?? 0
+  for (const group of groups) {
+    for (let i = 0; i < group.rows.length; i += HEAL_CHUNK) {
+      const chunk = group.rows.slice(i, i + HEAL_CHUNK)
+      const tuples = chunk.map(healValueTuple)
+      const res = await db.execute(sql`
+        INSERT INTO apy_hourly (
+          product_id, hour, apy_base, apy_rewards, apy_fees, apy_net, reward_items,
+          supply_assets, supply_assets_usd, utilization_rate, asset_price_usd,
+          borrow_assets, borrow_assets_usd, collateral_assets_usd, price_collateral_in_loan_asset,
+          quality_count, quality_expected_count, quality_first_slot, quality_last_slot, quality_status,
+          healed, heal_source, healed_from
+        ) VALUES ${sql.join(tuples, sql`, `)}
+        ON CONFLICT (product_id, hour) ${group.conflict}
+      `)
+      written += res.rowCount ?? 0
+    }
   }
   return written
 }

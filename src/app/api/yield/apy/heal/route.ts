@@ -16,6 +16,10 @@ import type { HistoryDataPoint } from '@/lib/protocols/aave/v3/apy-history'
 import { fetchAaveHistory } from '@/lib/protocols/aave/v3/apy-history'
 import { fetchMorphoHistory } from '@/lib/protocols/morpho/v1/apy-history'
 
+// Healing fetches protocol history then writes thousands of rows; the default
+// Vercel function limit is too short. Pro plan allows up to 300s.
+export const maxDuration = 300
+
 // ─── Constants ──────────────────────────────────────────────────────────────
 
 /** Extra hours before/after the gap window to search for nearest-neighbor donors. */
