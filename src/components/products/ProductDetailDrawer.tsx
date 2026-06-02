@@ -1,0 +1,590 @@
+'use client'
+
+import { useState, useTransition } from 'react'
+
+import { AlertCircle, Gift, Percent, TrendingUp } from 'lucide-react'
+import {
+  Area,
+  CartesianGrid,
+  ComposedChart,
+  Line,
+  XAxis,
+  YAxis,
+} from 'recharts'
+
+import {
+  loadMarketBorrowHistoryRates,
+  loadMarketSupplyHistoryRates,
+} from '@/app/actions/market-rates.actions'
+import {
+  type ProductHistoryPoint,
+  loadProductApyHistory,
+} from '@/app/actions/product-apy-history.actions'
+import { NetworkBadge } from '@/components/badge/NetworkBadge'
+import { ProtocolBadge } from '@/components/badge/ProtocolBadge'
+import { TokenIcon } from '@/components/icon'
+import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
+import {
+  type ChartConfig,
+  ChartContainer,
+  ChartTooltip,
+  ChartTooltipContent,
+} from '@/components/ui/chart'
+import {
+  Drawer,
+  DrawerClose,
+  DrawerContent,
+  DrawerDescription,
+  DrawerFooter,
+  DrawerHeader,
+  DrawerTitle,
+  DrawerTrigger,
+} from '@/components/ui/drawer'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
+import { Separator } from '@/components/ui/separator'
+import { useCurrency } from '@/contexts'
+import { useIsMobile } from '@/hooks/useMobile'
+import { formatCompactCurrency } from '@/lib/format-currency'
+import {
+  type BorrowProduct,
+  type SupplyProduct,
+  TIMEFRAME_OPTIONS,
+  type TimeframeLabel,
+} from '@/types'
+
+type ProductKind = 'supply' | 'borrow'
+
+interface SeriesDef {
+  key: keyof ProductHistoryPoint
+  label: string
+  color: string
+  variant: 'area' | 'line'
+}
+
+// ─── Helpers ─────────────────────────────────────────────────────────────────
+
+const fmtPct = (v: number, digits = 2) =>
+  v < 0.0001 && v > 0
+    ? '<0.01%'
+    : v > 10
+      ? '>1000%'
+      : `${(v * 100).toFixed(digits)}%`
+
+const mean = (xs: number[]) =>
+  xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : 0
+
+const lastDefined = (
+  points: ProductHistoryPoint[],
+  key: keyof ProductHistoryPoint
+): number | null => {
+  for (let i = points.length - 1; i >= 0; i--) {
+    const v = points[i][key]
+    if (typeof v === 'number') return v
+  }
+  return null
+}
+
+// ─── Chart ─────────────────────────────────────────────────────────────────
+
+function HistoryChart({
+  data,
+  series,
+  timeframe,
+  valueFormatter,
+  height = 170,
+}: {
+  data: ProductHistoryPoint[]
+  series: SeriesDef[]
+  timeframe: TimeframeLabel
+  valueFormatter: (value: number) => string
+  height?: number
+}) {
+  const config = Object.fromEntries(
+    series.map((s) => [s.key, { label: s.label, color: s.color }])
+  ) satisfies ChartConfig
+  const hasData = data.length > 0
+
+  return (
+    <div className="relative w-full" style={{ height }}>
+      <ChartContainer config={config} className="h-full w-full">
+        <ComposedChart
+          accessibilityLayer
+          data={data}
+          margin={{ top: 8, right: 8, left: 4, bottom: 0 }}
+        >
+          <CartesianGrid vertical={false} />
+          <XAxis
+            dataKey="timestamp"
+            tickLine={false}
+            axisLine={false}
+            tickMargin={8}
+            minTickGap={32}
+            tick={{ fill: 'var(--muted-foreground)', fontSize: 11 }}
+            tickFormatter={(value) =>
+              new Date(value * 1000).toLocaleDateString('en-US', {
+                month: 'short',
+                day: 'numeric',
+              })
+            }
+          />
+          <YAxis
+            width={52}
+            tickLine={false}
+            axisLine={false}
+            tick={{ fill: 'var(--muted-foreground)', fontSize: 11 }}
+            tickFormatter={(value) => valueFormatter(Number(value))}
+          />
+          <ChartTooltip
+            cursor={false}
+            content={
+              <ChartTooltipContent
+                indicator="line"
+                labelFormatter={(value) =>
+                  new Date(Number(value) * 1000).toLocaleDateString('en-US', {
+                    month: 'short',
+                    day: 'numeric',
+                    year: 'numeric',
+                    ...(timeframe === '24h' && {
+                      hour: 'numeric',
+                      minute: 'numeric',
+                    }),
+                  })
+                }
+                valueFormatter={(value) => valueFormatter(Number(value))}
+              />
+            }
+          />
+          {series.map((s) =>
+            s.variant === 'area' ? (
+              <Area
+                key={s.key}
+                dataKey={s.key}
+                type="natural"
+                stroke={`var(--color-${s.key})`}
+                fill={`var(--color-${s.key})`}
+                fillOpacity={0.25}
+                strokeWidth={2}
+                isAnimationActive={false}
+                connectNulls
+              />
+            ) : (
+              <Line
+                key={s.key}
+                dataKey={s.key}
+                type="natural"
+                stroke={`var(--color-${s.key})`}
+                strokeWidth={1.5}
+                dot={false}
+                isAnimationActive={false}
+                connectNulls
+              />
+            )
+          )}
+        </ComposedChart>
+      </ChartContainer>
+      {!hasData && (
+        <div className="text-muted-foreground pointer-events-none absolute inset-0 flex flex-col items-center justify-center text-sm">
+          <AlertCircle className="mb-2 h-6 w-6 opacity-40" />
+          <p>No data available</p>
+        </div>
+      )}
+    </div>
+  )
+}
+
+function SectionTitle({
+  children,
+  icon,
+}: {
+  children: React.ReactNode
+  icon?: React.ReactNode
+}) {
+  return (
+    <div className="text-foreground flex items-center gap-2 text-sm font-medium">
+      {children}
+      {icon}
+    </div>
+  )
+}
+
+function Legend({ series }: { series: SeriesDef[] }) {
+  return (
+    <div className="text-muted-foreground flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
+      {series.map((s) => (
+        <span key={s.key} className="flex items-center gap-1.5">
+          <span
+            className="h-2 w-2 rounded-full"
+            style={{ backgroundColor: s.color }}
+          />
+          {s.label}
+        </span>
+      ))}
+    </div>
+  )
+}
+
+function StatCard({
+  label,
+  value,
+  accent,
+}: {
+  label: string
+  value: string
+  accent?: boolean
+}) {
+  return (
+    <div className="bg-muted/50 rounded-lg p-3">
+      <div className="text-muted-foreground text-xs">{label}</div>
+      <div
+        className={`text-sm font-semibold ${accent ? 'text-emerald-400' : ''}`}
+      >
+        {value}
+      </div>
+    </div>
+  )
+}
+
+// ─── Drawer ────────────────────────────────────────────────────────────────
+
+const APY_SERIES: SeriesDef[] = [
+  { key: 'net', label: 'Net', color: 'var(--chart-1)', variant: 'area' },
+  { key: 'base', label: 'Base', color: 'var(--chart-2)', variant: 'line' },
+  { key: 'rewards', label: 'Rewards', color: 'var(--chart-3)', variant: 'line' },
+  { key: 'fees', label: 'Fees', color: 'var(--chart-4)', variant: 'line' },
+]
+
+const NET_ONLY_SERIES: SeriesDef[] = [
+  { key: 'net', label: 'Net APY', color: 'var(--chart-1)', variant: 'area' },
+]
+
+export function ProductDetailDrawer({
+  item,
+  kind,
+}: {
+  item: SupplyProduct | BorrowProduct
+  kind: ProductKind
+}) {
+  const isMobile = useIsMobile()
+  const { baseCurrency, rate } = useCurrency()
+  const [points, setPoints] = useState<ProductHistoryPoint[]>([])
+  const [selectedTimeframe, setSelectedTimeframe] =
+    useState<TimeframeLabel>('7d')
+  const [usedFallback, setUsedFallback] = useState(false)
+  const [pending, startTransition] = useTransition()
+
+  const collaterals =
+    'collaterals' in item ? item.collaterals : ([] as never[])
+
+  const handleLoad = (label: TimeframeLabel) => {
+    const option = TIMEFRAME_OPTIONS.find((o) => o.label === label)
+    if (!option) return
+
+    startTransition(async () => {
+      setSelectedTimeframe(label)
+      const fromTimestamp = option.days
+        ? Math.floor(Date.now() / 1000) - option.days * 24 * 60 * 60
+        : 0
+
+      try {
+        // Preferred: our own pipeline series (full breakdown + market state).
+        if (item.productId) {
+          const pts = await loadProductApyHistory({
+            productId: item.productId,
+            interval: label,
+            fromTimestamp,
+          })
+          if (pts.length > 0) {
+            setPoints(pts)
+            setUsedFallback(false)
+            return
+          }
+        }
+
+        // Fallback: live provider rate only (no breakdown / market state).
+        const rates =
+          kind === 'supply'
+            ? await loadMarketSupplyHistoryRates({
+                protocolId: item.protocol,
+                chainId: item.poolChainId,
+                poolId: item.poolId,
+                tokenId: item.assetAddress,
+                interval: label,
+                fromTimestamp,
+              })
+            : await loadMarketBorrowHistoryRates({
+                protocolId: item.protocol,
+                chainId: item.poolChainId,
+                poolId: item.poolId,
+                tokenId: item.assetAddress,
+                interval: label,
+                fromTimestamp,
+              })
+
+        setPoints(
+          rates.map((r) => ({
+            timestamp: r.timestamp,
+            net: r.rate,
+            base: r.rate,
+            rewards: 0,
+            fees: 0,
+            supplyAssetsUsd: null,
+            borrowAssetsUsd: null,
+            collateralAssetsUsd: null,
+            utilization: null,
+            priceUsd: null,
+            rewardItems: [],
+          }))
+        )
+        setUsedFallback(true)
+      } catch (error) {
+        console.error('Failed to load product history:', error)
+        setPoints([])
+      }
+    })
+  }
+
+  // Derived stats
+  const avgNet = mean(points.map((p) => p.net))
+  const latestUtil = lastDefined(points, 'utilization')
+  const latestPrice = lastDefined(points, 'priceUsd')
+  const latestRewardItems =
+    [...points].reverse().find((p) => p.rewardItems.length > 0)?.rewardItems ??
+    []
+
+  const tvlKey: keyof ProductHistoryPoint =
+    kind === 'supply' ? 'supplyAssetsUsd' : 'borrowAssetsUsd'
+  const tvlPoints = points.filter((p) => typeof p[tvlKey] === 'number')
+  const utilPoints = points.filter((p) => typeof p.utilization === 'number')
+
+  const sizeLabel = kind === 'supply' ? 'Total Deposits' : 'Total Borrowed'
+  const assetLabel = kind === 'supply' ? 'Asset' : 'Loan Asset'
+  const apyLabel = kind === 'supply' ? 'Supply APY' : 'Borrow APY'
+
+  const fmtUsd = (v: number) => formatCompactCurrency(v * rate, baseCurrency)
+
+  return (
+    <Drawer direction={isMobile ? 'bottom' : 'right'}>
+      <DrawerTrigger asChild>
+        <Button
+          variant="link"
+          className="text-foreground decoration-muted-foreground w-fit cursor-pointer px-0 text-left text-xs underline decoration-dashed underline-offset-6"
+          onClick={() => handleLoad('7d')}
+        >
+          {item.poolName}
+        </Button>
+      </DrawerTrigger>
+      <DrawerContent>
+        <DrawerHeader className="gap-1">
+          <DrawerTitle>{item.poolName}</DrawerTitle>
+          <DrawerDescription asChild>
+            <div className="flex flex-wrap gap-2">
+              <ProtocolBadge protocol={item.protocol} />
+              <NetworkBadge networkSlug={item.network} />
+            </div>
+          </DrawerDescription>
+        </DrawerHeader>
+        <Separator className="mb-4" />
+
+        <div className="flex flex-col gap-5 overflow-y-auto px-4 pb-4 text-sm">
+          {/* Stat cards */}
+          <div className="grid grid-cols-3 gap-3">
+            <StatCard label="Net APY" value={fmtPct(item.apy)} accent />
+            <StatCard
+              label={`Avg (${selectedTimeframe})`}
+              value={points.length ? fmtPct(avgNet) : '—'}
+            />
+            <StatCard label={assetLabel} value={item.assetSymbol} />
+            <StatCard
+              label={sizeLabel}
+              value={formatCompactCurrency(
+                item.assetAmount,
+                item.assetSymbol,
+                item.assetDecimals
+              )}
+            />
+            <StatCard
+              label="Liquidity"
+              value={formatCompactCurrency(
+                item.liquidityAmount,
+                item.assetSymbol,
+                item.assetDecimals
+              )}
+            />
+            <StatCard
+              label="Utilization"
+              value={latestUtil !== null ? fmtPct(latestUtil, 1) : '—'}
+            />
+          </div>
+
+          {latestPrice !== null && (
+            <div className="text-muted-foreground -mt-2 text-xs">
+              {item.assetSymbol} price:{' '}
+              <span className="text-foreground font-medium">
+                {formatCompactCurrency(latestPrice * rate, baseCurrency)}
+              </span>
+            </div>
+          )}
+
+          {/* Collaterals (borrow only) */}
+          {collaterals.length > 0 && (
+            <div>
+              <div className="text-muted-foreground mb-2 text-xs">
+                Accepted Collaterals
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {collaterals.map((c) => (
+                  <Badge key={c.symbol} variant="secondary">
+                    <TokenIcon symbol={c.symbol} className="mr-1 h-3 w-3" />
+                    {c.symbol}
+                  </Badge>
+                ))}
+              </div>
+            </div>
+          )}
+
+          <Separator />
+
+          {/* Timeframe */}
+          <div className="flex items-center justify-between gap-2">
+            <SectionTitle icon={<TrendingUp className="size-4" />}>
+              {apyLabel}
+            </SectionTitle>
+            <Select
+              value={selectedTimeframe}
+              onValueChange={(value) => handleLoad(value as TimeframeLabel)}
+            >
+              <SelectTrigger className="h-7 w-[80px] text-xs">
+                <SelectValue placeholder="Timeframe" />
+              </SelectTrigger>
+              <SelectContent align="end">
+                {TIMEFRAME_OPTIONS.map((option) => (
+                  <SelectItem
+                    key={option.label}
+                    value={option.label}
+                    className="text-xs"
+                  >
+                    {option.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          {pending ? (
+            <div className="text-muted-foreground flex h-[170px] items-center justify-center text-sm">
+              Loading…
+            </div>
+          ) : (
+            <>
+              {/* APY breakdown */}
+              <div className="flex flex-col gap-2">
+                {!usedFallback && <Legend series={APY_SERIES} />}
+                <HistoryChart
+                  data={points}
+                  series={usedFallback ? NET_ONLY_SERIES : APY_SERIES}
+                  timeframe={selectedTimeframe}
+                  valueFormatter={(v) => fmtPct(v)}
+                />
+              </div>
+
+              {usedFallback ? (
+                <p className="text-muted-foreground text-xs">
+                  Detailed breakdown unavailable for this market — showing the
+                  provider&apos;s net rate only.
+                </p>
+              ) : (
+                <>
+                  {/* TVL / size */}
+                  <Separator />
+                  <SectionTitle>
+                    {kind === 'supply' ? 'Total Deposits' : 'Total Borrowed'}{' '}
+                    (USD)
+                  </SectionTitle>
+                  <HistoryChart
+                    data={tvlPoints}
+                    series={[
+                      {
+                        key: tvlKey,
+                        label: 'USD',
+                        color: 'var(--chart-2)',
+                        variant: 'area',
+                      },
+                    ]}
+                    timeframe={selectedTimeframe}
+                    valueFormatter={fmtUsd}
+                  />
+
+                  {/* Utilization */}
+                  <Separator />
+                  <SectionTitle icon={<Percent className="size-4" />}>
+                    Utilization
+                  </SectionTitle>
+                  <HistoryChart
+                    data={utilPoints}
+                    series={[
+                      {
+                        key: 'utilization',
+                        label: 'Utilization',
+                        color: 'var(--chart-5)',
+                        variant: 'area',
+                      },
+                    ]}
+                    timeframe={selectedTimeframe}
+                    valueFormatter={(v) => fmtPct(v, 1)}
+                  />
+
+                  {/* Reward breakdown */}
+                  {latestRewardItems.length > 0 && (
+                    <>
+                      <Separator />
+                      <SectionTitle icon={<Gift className="size-4" />}>
+                        Rewards
+                      </SectionTitle>
+                      <div className="flex flex-col gap-1.5">
+                        {latestRewardItems.map((r, i) => (
+                          <div
+                            key={`${r.token.symbol}-${r.program ?? i}`}
+                            className="bg-muted/40 flex items-center justify-between rounded-md px-3 py-2"
+                          >
+                            <div className="flex items-center gap-2">
+                              <TokenIcon symbol={r.token.symbol} size={18} />
+                              <span className="text-xs font-medium">
+                                {r.token.symbol}
+                              </span>
+                              <Badge
+                                variant="outline"
+                                className="text-[10px] capitalize"
+                              >
+                                {r.source}
+                              </Badge>
+                            </div>
+                            <span className="font-mono text-xs font-semibold text-emerald-400">
+                              +{fmtPct(r.apy)}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    </>
+                  )}
+                </>
+              )}
+            </>
+          )}
+        </div>
+
+        <DrawerFooter>
+          <DrawerClose asChild>
+            <Button variant="outline">Close</Button>
+          </DrawerClose>
+        </DrawerFooter>
+      </DrawerContent>
+    </Drawer>
+  )
+}

@@ -4,6 +4,7 @@ import { db } from '@/lib/db/postgres'
 import { apyDaily, apyHourly, products } from '@/lib/db/schema'
 import type {
   BorrowMarketState,
+  RewardItem,
   SpotPayload,
   SupplyMarketState,
 } from '@/lib/db/types'
@@ -328,4 +329,72 @@ export async function queryApy(
   ])
 
   return { rows, countTotal: countRows[0]?.n ?? 0 }
+}
+
+// ─── Single-product time series ──────────────────────────────────────────────
+
+/** One slot of a product's full APY + market-state history. */
+export interface ProductApyHistoryPoint {
+  t: Date
+  base: number
+  rewards: number
+  fees: number
+  net: number
+  rewardItems: RewardItem[]
+  supplyAssetsUsd: number | null
+  borrowAssetsUsd: number | null
+  collateralAssetsUsd: number | null
+  utilizationRate: number | null
+  assetPriceUsd: number | null
+}
+
+/**
+ * Full APY + market-state series for a single product, ordered oldest→newest.
+ * Reads our own pipeline tables (apy_hourly / apy_daily) by exact productId, so
+ * values match the products table exactly. Powers the product detail drawer.
+ */
+export async function productApyHistory(
+  productId: string,
+  grain: 'hourly' | 'daily',
+  from?: Date
+): Promise<ProductApyHistoryPoint[]> {
+  // Columns are identical across both tables; cast for unified typing.
+  const table = (grain === 'hourly' ? apyHourly : apyDaily) as typeof apyHourly
+  const timeCol = grain === 'hourly' ? apyHourly.hour : apyDaily.date
+
+  const conds = [eq(table.productId, productId)]
+  if (from) conds.push(gte(timeCol, from))
+
+  const rows = await db
+    .select({
+      t: timeCol,
+      base: table.apyBase,
+      rewards: table.apyRewards,
+      fees: table.apyFees,
+      net: table.apyNet,
+      rewardItems: table.rewardItems,
+      supplyAssetsUsd: table.supplyAssetsUsd,
+      borrowAssetsUsd: table.borrowAssetsUsd,
+      collateralAssetsUsd: table.collateralAssetsUsd,
+      utilizationRate: table.utilizationRate,
+      assetPriceUsd: table.assetPriceUsd,
+    })
+    .from(table)
+    .where(and(...conds))
+    .orderBy(asc(timeCol))
+    .limit(10_000)
+
+  return rows.map((r) => ({
+    t: new Date(r.t),
+    base: r.base,
+    rewards: r.rewards,
+    fees: r.fees,
+    net: r.net,
+    rewardItems: (r.rewardItems as RewardItem[]) ?? [],
+    supplyAssetsUsd: r.supplyAssetsUsd,
+    borrowAssetsUsd: r.borrowAssetsUsd,
+    collateralAssetsUsd: r.collateralAssetsUsd,
+    utilizationRate: r.utilizationRate,
+    assetPriceUsd: r.assetPriceUsd,
+  }))
 }
