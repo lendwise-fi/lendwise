@@ -312,6 +312,7 @@ export const LIST_BORROW_PRODUCTS = gql`
       items {
         marketId
         creationTimestamp
+        lltv
         loanAsset {
           address
           name

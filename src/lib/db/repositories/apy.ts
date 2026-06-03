@@ -227,7 +227,13 @@ export interface ApyEnrichment {
   apyYearly?: number
 }
 
-/** 7d / 180d / 365d net-APY windowed averages (replaces conditional $group). */
+/**
+ * 7d / 30d / 365d net-APY windowed averages, matching the 7D / 1M / 1Y horizon
+ * labels exposed in the UI. Each value is the mean of whatever daily rows exist
+ * in its window and is returned as soon as ≥1 row is present — partial coverage
+ * is surfaced rather than hidden, so freshly-tracked products still show a
+ * value instead of a dash.
+ */
 export async function apyEnrichments(
   productIds: string[]
 ): Promise<Map<string, ApyEnrichment>> {
@@ -238,8 +244,8 @@ export async function apyEnrichments(
       product_id,
       avg(apy_net) FILTER (WHERE date >= now() - interval '7 days')   AS avg7,
       count(*)     FILTER (WHERE date >= now() - interval '7 days')   AS n7,
-      avg(apy_net) FILTER (WHERE date >= now() - interval '180 days') AS avg180,
-      count(*)     FILTER (WHERE date >= now() - interval '180 days') AS n180,
+      avg(apy_net) FILTER (WHERE date >= now() - interval '30 days')  AS avg30,
+      count(*)     FILTER (WHERE date >= now() - interval '30 days')  AS n30,
       avg(apy_net)                                                    AS avg365,
       count(*)                                                        AS n365
     FROM apy_daily
@@ -249,16 +255,17 @@ export async function apyEnrichments(
   for (const r of res.rows as {
     product_id: string
     avg7: number | null
-    n7: number
-    avg180: number | null
-    n180: number
+    n7: number | string
+    avg30: number | null
+    n30: number | string
     avg365: number | null
-    n365: number
+    n365: number | string
   }[]) {
+    const avg = (v: number | null) => (v != null ? Number(v) : undefined)
     map.set(r.product_id, {
-      apyDaily: r.n7 >= 7 ? (r.avg7 ?? undefined) : undefined,
-      apyMonthly: r.n180 >= 180 ? (r.avg180 ?? undefined) : undefined,
-      apyYearly: r.n365 >= 365 ? (r.avg365 ?? undefined) : undefined,
+      apyDaily: Number(r.n7) >= 1 ? avg(r.avg7) : undefined,
+      apyMonthly: Number(r.n30) >= 1 ? avg(r.avg30) : undefined,
+      apyYearly: Number(r.n365) >= 1 ? avg(r.avg365) : undefined,
     })
   }
   return map

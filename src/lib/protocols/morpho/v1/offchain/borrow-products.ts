@@ -50,6 +50,9 @@ const _formatBorrowProducts = cache(
                 symbol: market.collateralAsset.symbol,
                 name: market.collateralAsset.name,
                 decimals: market.collateralAsset.decimals,
+                // Morpho exposes only LLTV (BigInt scaled 1e18); no native max LTV.
+                ltv: null,
+                lltv: market.lltv != null ? Number(market.lltv) / 1e18 : null,
               },
             ]
           : [],

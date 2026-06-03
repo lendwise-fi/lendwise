@@ -190,6 +190,8 @@ export const LIST_BORROW_PRODUCTS = gql`
           }
         }
         collateralTokens {
+          borrowCollateralFactor
+          liquidateCollateralFactor
           token {
             symbol
             name

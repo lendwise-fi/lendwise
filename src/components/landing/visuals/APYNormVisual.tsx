@@ -7,28 +7,28 @@ const rows = [
     protocol: 'Aave V3',
     chain: 'Ethereum',
     raw: '3.21%',
-    normalized: '3.18%',
+    standardized: '3.18%',
     color: 'bg-primary',
   },
   {
     protocol: 'Compound',
     chain: 'Ethereum',
     raw: '2.89%',
-    normalized: '2.85%',
+    standardized: '2.85%',
     color: 'bg-accent',
   },
   {
     protocol: 'Venus',
     chain: 'BSC',
     raw: '5.41%',
-    normalized: '4.92%',
+    standardized: '4.92%',
     color: 'bg-chart-3',
   },
   {
     protocol: 'Morpho',
     chain: 'Base',
     raw: '4.15%',
-    normalized: '4.10%',
+    standardized: '4.10%',
     color: 'bg-chart-4',
   },
 ]
@@ -44,14 +44,14 @@ export function APYNormVisual() {
           <div className="bg-chart-3/60 h-2.5 w-2.5 rounded-full" />
         </div>
         <span className="text-muted-foreground font-mono text-xs">
-          yield_normalization.tsx
+          yield_standardization.tsx
         </span>
       </div>
 
       {/* Table */}
       <div className="p-4">
         <div className="border-border/30 grid grid-cols-4 gap-4 border-b px-3 pb-3">
-          {['Protocol', 'Chain', 'Raw APY', 'Normalized'].map((h) => (
+          {['Protocol', 'Chain', 'Raw APY', 'Standardized'].map((h) => (
             <span
               key={h}
               className="text-muted-foreground text-[10px] font-medium tracking-wider uppercase"
@@ -79,7 +79,7 @@ export function APYNormVisual() {
               {row.raw}
             </span>
             <span className="text-primary font-mono text-sm font-medium">
-              {row.normalized}
+              {row.standardized}
             </span>
           </motion.div>
         ))}
@@ -89,7 +89,7 @@ export function APYNormVisual() {
           <div className="flex h-16 items-end gap-2">
             {[65, 52, 90, 75, 45, 82, 60, 70, 88, 55, 42, 78].map((h, i) => (
               <motion.div
-                key={i}
+                key={h}
                 initial={{ height: 0 }}
                 whileInView={{ height: `${h}%` }}
                 viewport={{ once: true }}

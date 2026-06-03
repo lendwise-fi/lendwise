@@ -191,7 +191,7 @@ Every healed document is tagged with `healed: true`, the source type, and the ex
 ### 5.3 Temporal Consistency
 
 - **Product creation date filtering** prevents reporting gaps for periods before a product existed.
-- **Hour boundary normalization** (`setUTCMinutes(0, 0, 0)`) ensures all timestamps align to the top of the hour, preventing off-by-one mismatches in lookups.
+- **Hour boundary standardization** (`setUTCMinutes(0, 0, 0)`) ensures all timestamps align to the top of the hour, preventing off-by-one mismatches in lookups.
 - **Deterministic document IDs** (`{productId}:{YYYY-MM-DDTHH}`) make upserts idempotent.
 
 ### 5.4 Authoritative Sources First

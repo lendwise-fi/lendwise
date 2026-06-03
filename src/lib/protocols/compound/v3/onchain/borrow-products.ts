@@ -50,6 +50,9 @@ const _formatBorrowProducts = cache(
           symbol: ct.token.symbol,
           name: ct.token.name,
           decimals: ct.token.decimals || 18,
+          // Compound factors are already fractions (0–1).
+          ltv: Number(ct.borrowCollateralFactor),
+          lltv: Number(ct.liquidateCollateralFactor),
         })),
         apy: aprToApyPerSecond(market.accounting.netBorrowApr),
         productId: buildProductId(

@@ -9,13 +9,14 @@ const PROTOCOLS = [
   { name: 'Yearn', rawLabel: '~12% Est.', color: '#F59E0B' },
 ]
 
-export default function NormalizationCanvas() {
+export default function StandardizationCanvas() {
   const canvasRef = useRef<HTMLCanvasElement>(null)
 
   useEffect(() => {
     const canvas = canvasRef.current
     if (!canvas) return
-    const ctx = canvas.getContext('2d')!
+    const ctx = canvas.getContext('2d') || undefined
+    if (!ctx) return
     let raf: number
 
     const setSize = () => {

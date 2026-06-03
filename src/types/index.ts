@@ -30,6 +30,11 @@ export interface Token {
   decimals: number
   logoURI?: string
   type?: AssetType
+  /** Max LTV as a fraction (0–1). Borrow-collateral only; null when the
+   *  protocol exposes no native max LTV (e.g. Morpho, which only has LLTV). */
+  ltv?: number | null
+  /** Liquidation LTV as a fraction (0–1). Borrow-collateral only. */
+  lltv?: number | null
 }
 
 export interface Market {

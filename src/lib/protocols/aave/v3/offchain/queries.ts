@@ -342,6 +342,12 @@ export const LIST_BORROW_PRODUCTS = gql`
         }
         supplyInfo {
           canBeCollateral
+          maxLTV {
+            value
+          }
+          liquidationThreshold {
+            value
+          }
           total {
             decimals
             value

@@ -17,7 +17,7 @@ const PROTOCOL_TASKS: Partial<
   compound_v3: fetchCompoundV3ApySpot,
 }
 
-// ─── Hour normalization ───────────────────────────────────────────────────────
+// ─── Hour standardization ───────────────────────────────────────────────────────
 
 /**
  * Normalize a timestamp to the top of the current hour (UTC).
@@ -93,7 +93,7 @@ export async function collectApySpot(
 
   const tasks: [ProtocolName, () => Promise<SpotPayload[]>][] = protocol
     ? PROTOCOL_TASKS[protocol]
-      ? [[protocol, PROTOCOL_TASKS[protocol]!]]
+      ? [[protocol, PROTOCOL_TASKS[protocol]]]
       : []
     : (Object.entries(PROTOCOL_TASKS) as [
         ProtocolName,

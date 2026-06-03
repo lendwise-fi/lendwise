@@ -19,6 +19,9 @@ const _formatBorrowProducts = cache(
           symbol: r.underlyingToken.symbol,
           name: r.underlyingToken.name,
           decimals: r.underlyingToken.decimals,
+          // PercentValue.value is already a fraction (0–1), like apy.
+          ltv: Number(r.supplyInfo?.maxLTV?.value ?? 0),
+          lltv: Number(r.supplyInfo?.liquidationThreshold?.value ?? 0),
         }))
 
       return market.reserves

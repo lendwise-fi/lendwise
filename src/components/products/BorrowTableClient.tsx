@@ -682,29 +682,32 @@ export function BorrowTableClient() {
                 {/* Body */}
                 {modalStep === 1 ? (
                   <div className="flex flex-col">
-                    {/* Sticky column headers */}
-                    <div className="border-border/40 flex items-center gap-4 border-b px-7 pt-4 pb-2.5">
-                      <div className="w-1 shrink-0" />
-                      <span className="text-muted-foreground/70 w-24 shrink-0 text-[11px] font-semibold tracking-wider uppercase">
-                        Protocol
-                      </span>
-                      <span className="text-muted-foreground/70 w-24 shrink-0 text-[11px] font-semibold tracking-wider uppercase">
-                        Network
-                      </span>
-                      <span className="text-muted-foreground/70 flex-1 text-[11px] font-semibold tracking-wider uppercase">
-                        Market
-                      </span>
-                      <span className="text-muted-foreground/70 w-24 text-right text-[11px] font-semibold tracking-wider uppercase">
-                        Liquidity
-                      </span>
-                      {['1D', '7D', '1M', '1Y'].map((label) => (
-                        <span
-                          key={label}
-                          className="text-muted-foreground/70 w-16 text-right text-[11px] font-semibold tracking-wider uppercase"
-                        >
-                          {label}
+                    {/* Sticky column headers — inner row mirrors the data
+                        card's box model (border + p-3.5) so columns line up. */}
+                    <div className="border-border/40 border-b px-7">
+                      <div className="flex items-center gap-4 border border-transparent px-3.5 pt-4 pb-2.5">
+                        <div className="w-1 shrink-0" />
+                        <span className="text-muted-foreground/70 w-32 shrink-0 text-[11px] font-semibold tracking-wider uppercase">
+                          Protocol
                         </span>
-                      ))}
+                        <span className="text-muted-foreground/70 w-24 shrink-0 text-[11px] font-semibold tracking-wider uppercase">
+                          Network
+                        </span>
+                        <span className="text-muted-foreground/70 flex-1 text-[11px] font-semibold tracking-wider uppercase">
+                          Market
+                        </span>
+                        <span className="text-muted-foreground/70 w-24 text-right text-[11px] font-semibold tracking-wider uppercase">
+                          Liquidity
+                        </span>
+                        {['1D', '7D', '1M', '1Y'].map((label) => (
+                          <span
+                            key={label}
+                            className="text-muted-foreground/70 w-16 text-right text-[11px] font-semibold tracking-wider uppercase"
+                          >
+                            {label}
+                          </span>
+                        ))}
+                      </div>
                     </div>
                     {/* Scrollable rows */}
                     <div className="max-h-[30rem] space-y-2 overflow-y-auto px-7 py-4">
@@ -721,7 +724,7 @@ export function BorrowTableClient() {
                             className="border-border/50 hover:border-border bg-secondary/30 flex items-center gap-4 rounded-xl border p-3.5 transition-colors"
                           >
                             <div className="from-primary to-primary/30 h-10 w-1 shrink-0 rounded-full bg-linear-to-b" />
-                            <div className="w-24 shrink-0">
+                            <div className="w-32 shrink-0">
                               <ProtocolBadge protocol={pool.protocol} />
                             </div>
                             <div className="w-24 shrink-0">
