@@ -1132,7 +1132,7 @@ export function BorrowingOptimizerView({
 													setBuffer(-Math.abs(num));
 												}
 											}}
-											className="h-6 w-20 border-0 px-1.5 text-right font-mono text-[9px] md:text-[10px] font-semibold shadow-none focus-visible:ring-0"
+											className="h-6 w-14 border-0 px-1.5 text-left font-mono text-[9px] md:text-[10px] font-semibold shadow-none focus-visible:ring-0"
 											style={{ color: bufferColor }}
 										/>
 										<span

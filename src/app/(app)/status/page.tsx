@@ -2,7 +2,15 @@
 
 import { useCallback, useEffect, useState } from 'react'
 
-import { Activity, CheckCircle2, Clock, RefreshCw, XCircle } from 'lucide-react'
+import {
+  Activity,
+  CheckCircle2,
+  Clock,
+  Loader2,
+  RefreshCw,
+  X,
+  XCircle,
+} from 'lucide-react'
 
 import { Badge } from '@/components/ui/badge'
 import {
@@ -22,10 +30,14 @@ import {
 
 interface SlotInfo {
   hour: string
+  /** Average spots/6 reported per pool this hour. */
   count: number
-  status: 'complete' | 'partial' | 'building'
+  status: 'complete' | 'partial' | 'missing'
   healed: boolean
+  /** Pools that reported ≥1 spot this hour. */
   productCount: number
+  /** Pools that reported all 6 spots — the real completeness signal. */
+  fullProducts: number
   expectedProducts: number
 }
 
@@ -67,6 +79,31 @@ interface QualityData {
   latestReports: LatestReports
 }
 
+interface PoolRow {
+  id: string
+  protocolName: string
+  chainName: string
+  assetSymbol: string
+  kind: string
+  spots: number | null
+  healed: boolean
+}
+
+interface SlotDetail {
+  provider: string
+  hour: string
+  expected: number
+  full: number
+  missing: PoolRow[]
+  incomplete: PoolRow[]
+}
+
+interface SelectedSlot {
+  provider: string
+  protocolLabel: string
+  hour: string
+}
+
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
 function formatHour(iso: string | undefined): string {
@@ -99,30 +136,87 @@ function fmtNum(n: number | undefined | null): string {
   return (n ?? 0).toLocaleString()
 }
 
-function slotColor(slot: SlotInfo, _totalProducts: number): string {
-  if (slot.productCount === 0) return 'bg-red-500/80'
-  if (slot.status === 'complete') return 'bg-emerald-500/80'
-  if (slot.healed) return 'bg-emerald-500/60'
-  if (slot.count >= 4) return 'bg-amber-400/80'
-  if (slot.count >= 1) return 'bg-orange-500/80'
-  return 'bg-red-500/80'
+interface SlotMetrics {
+  key: 'complete' | 'degraded' | 'sparse' | 'missing'
+  color: string
+  label: string
+  missingProducts: number
+  incompleteProducts: number
+  fullPct: number
 }
 
-function slotLabel(slot: SlotInfo, _totalProducts: number): string {
-  if (slot.productCount === 0) return 'No data'
-  if (slot.status === 'complete') return 'Complete'
-  if (slot.healed) return 'Healed'
-  if (slot.count >= 4) return 'Partial'
-  if (slot.count >= 1) return 'Sparse'
-  return 'Missing'
+/**
+ * Classify a slot by **pool completeness** (not raw spot average): a slot is
+ * only green when (almost) every expected pool reported all 6 spots. This is
+ * why a cell can show "Avg spots 6/6" yet be amber — the average rounds up
+ * while individual pools are still missing or short on spots.
+ */
+function slotMetrics(slot: SlotInfo): SlotMetrics {
+  const expected = slot.expectedProducts || 0
+  const missingProducts = Math.max(0, expected - slot.productCount)
+  const incompleteProducts = Math.max(0, slot.productCount - slot.fullProducts)
+  const fullPct = expected > 0 ? slot.fullProducts / expected : 0
+
+  if (slot.productCount === 0) {
+    return {
+      key: 'missing',
+      color: 'bg-red-500/80',
+      label: 'No data',
+      missingProducts,
+      incompleteProducts,
+      fullPct,
+    }
+  }
+  if (missingProducts === 0 && fullPct >= 0.95) {
+    return {
+      key: 'complete',
+      color: 'bg-emerald-500/80',
+      label: 'Complete',
+      missingProducts,
+      incompleteProducts,
+      fullPct,
+    }
+  }
+  if (fullPct >= 0.7) {
+    return {
+      key: 'degraded',
+      color: 'bg-amber-400/80',
+      label: 'Degraded',
+      missingProducts,
+      incompleteProducts,
+      fullPct,
+    }
+  }
+  return {
+    key: 'sparse',
+    color: 'bg-orange-500/80',
+    label: 'Sparse',
+    missingProducts,
+    incompleteProducts,
+    fullPct,
+  }
+}
+
+function poolLabel(p: PoolRow): string {
+  return `${p.assetSymbol} · ${p.protocolName} · ${p.chainName}`
 }
 
 // ─── Components ─────────────────────────────────────────────────────────────
 
-function ProtocolHeatmap({ row }: { row: ProtocolRow }) {
+function ProtocolHeatmap({
+  row,
+  selectedHour,
+  onSelect,
+}: {
+  row: ProtocolRow
+  selectedHour: string | null
+  onSelect: (slot: SlotInfo) => void
+}) {
   const { label, totalProducts, slots, summary } = row
   const pct =
     summary.total > 0 ? Math.round((summary.complete / summary.total) * 100) : 0
+
+  const anomalies = summary.partial + summary.missing
 
   // Group slots by calendar day (midnight-aligned)
   const dayMap = new Map<string, SlotInfo[]>()
@@ -154,20 +248,24 @@ function ProtocolHeatmap({ row }: { row: ProtocolRow }) {
           <div>
             <CardTitle className="text-lg">{label}</CardTitle>
             <CardDescription>
-              {totalProducts} products · {summary.complete}/{summary.total}{' '}
-              hours complete ({pct}%)
+              {totalProducts} pools · {summary.complete}/{summary.total} hours
+              complete ({pct}%)
+              {anomalies > 0 && (
+                <span className="text-amber-400">
+                  {' '}
+                  · {anomalies} hour{anomalies !== 1 ? 's' : ''} need attention
+                </span>
+              )}
             </CardDescription>
           </div>
-          <div className="flex gap-2">
-            <Badge
-              variant={
-                pct >= 95 ? 'default' : pct >= 70 ? 'secondary' : 'destructive'
-              }
-              className="text-xs"
-            >
-              {pct >= 95 ? 'Healthy' : pct >= 70 ? 'Degraded' : 'Critical'}
-            </Badge>
-          </div>
+          <Badge
+            variant={
+              pct >= 95 ? 'default' : pct >= 70 ? 'secondary' : 'destructive'
+            }
+            className="text-xs"
+          >
+            {pct >= 95 ? 'Healthy' : pct >= 70 ? 'Degraded' : 'Critical'}
+          </Badge>
         </div>
       </CardHeader>
       <CardContent>
@@ -183,12 +281,16 @@ function ProtocolHeatmap({ row }: { row: ProtocolRow }) {
               >
                 {day.slots.map((slot) => {
                   const slotHour = new Date(slot.hour).getUTCHours()
+                  const m = slotMetrics(slot)
+                  const isSelected = selectedHour === slot.hour
                   return (
                     <Tooltip key={slot.hour}>
                       <TooltipTrigger asChild>
-                        <div
+                        <button
+                          type="button"
+                          onClick={() => onSelect(slot)}
                           style={{ gridColumn: slotHour + 1 }}
-                          className={`h-5 cursor-pointer rounded-[2px] transition-all hover:scale-y-125 hover:brightness-110 ${slotColor(slot, totalProducts)} ${slot.healed ? 'ring-1 ring-blue-400/50' : ''}`}
+                          className={`h-5 cursor-pointer rounded-[2px] transition-all hover:scale-y-125 hover:brightness-110 ${m.color} ${slot.healed ? 'ring-1 ring-blue-400/50' : ''} ${isSelected ? 'ring-2 ring-white ring-offset-1 ring-offset-transparent' : ''}`}
                         />
                       </TooltipTrigger>
                       <TooltipContent
@@ -204,25 +306,41 @@ function ProtocolHeatmap({ row }: { row: ProtocolRow }) {
                               <span className="text-muted-foreground">
                                 Status
                               </span>
+                              <span className="font-medium">{m.label}</span>
+                            </div>
+                            <div className="flex justify-between gap-4">
+                              <span className="text-muted-foreground">
+                                Full pools
+                              </span>
                               <span className="font-medium">
-                                {slotLabel(slot, totalProducts)}
+                                {slot.fullProducts}/{slot.expectedProducts}
                               </span>
                             </div>
                             <div className="flex justify-between gap-4">
                               <span className="text-muted-foreground">
-                                Avg. spots
+                                Missing pools
                               </span>
-                              <span className="font-medium">
-                                {slot.count}/6
+                              <span
+                                className={`font-medium ${m.missingProducts > 0 ? 'text-red-400' : ''}`}
+                              >
+                                {m.missingProducts}
                               </span>
                             </div>
                             <div className="flex justify-between gap-4">
                               <span className="text-muted-foreground">
-                                Products
+                                Incomplete pools
                               </span>
-                              <span className="font-medium">
-                                {slot.productCount}/{slot.expectedProducts}
+                              <span
+                                className={`font-medium ${m.incompleteProducts > 0 ? 'text-amber-400' : ''}`}
+                              >
+                                {m.incompleteProducts}
                               </span>
+                            </div>
+                            <div className="flex justify-between gap-4">
+                              <span className="text-muted-foreground">
+                                Avg spots
+                              </span>
+                              <span className="font-medium">{slot.count}/6</span>
                             </div>
                             {slot.healed && (
                               <div className="flex justify-between gap-4">
@@ -234,6 +352,9 @@ function ProtocolHeatmap({ row }: { row: ProtocolRow }) {
                                 </span>
                               </div>
                             )}
+                          </div>
+                          <div className="text-muted-foreground border-border/50 mt-1 border-t pt-1 text-[10px]">
+                            Click to inspect pools
                           </div>
                         </div>
                       </TooltipContent>
@@ -255,6 +376,127 @@ function ProtocolHeatmap({ row }: { row: ProtocolRow }) {
             <span>23:00</span>
           </div>
         </div>
+      </CardContent>
+    </Card>
+  )
+}
+
+function PoolList({ title, pools }: { title: string; pools: PoolRow[] }) {
+  if (pools.length === 0) return null
+  return (
+    <div>
+      <div className="text-muted-foreground mb-1.5 text-xs font-semibold tracking-wider uppercase">
+        {title} ({pools.length})
+      </div>
+      <div className="max-h-64 space-y-1 overflow-y-auto pr-1">
+        {pools.map((p) => (
+          <div
+            key={p.id}
+            className="border-border/50 bg-secondary/30 flex items-center gap-3 rounded-md border px-3 py-2 text-xs"
+          >
+            <span
+              className={`h-2 w-2 shrink-0 rounded-full ${p.spots == null ? 'bg-red-500' : 'bg-amber-400'}`}
+            />
+            <span className="text-foreground flex-1 truncate font-medium">
+              {poolLabel(p)}
+            </span>
+            <Badge variant="outline" className="shrink-0 text-[10px]">
+              {p.kind}
+            </Badge>
+            <span className="text-muted-foreground w-12 shrink-0 text-right font-mono">
+              {p.spots ?? 0}/6
+            </span>
+            {p.healed && (
+              <span className="shrink-0 text-[10px] text-blue-400">healed</span>
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+function SlotDetailPanel({
+  selected,
+  detail,
+  loading,
+  error,
+  onClose,
+}: {
+  selected: SelectedSlot
+  detail: SlotDetail | null
+  loading: boolean
+  error: string | null
+  onClose: () => void
+}) {
+  return (
+    <Card className="border-primary/40">
+      <CardHeader>
+        <div className="flex items-start justify-between">
+          <div>
+            <CardTitle className="text-base">
+              {selected.protocolLabel} — {formatHour(selected.hour)} UTC
+            </CardTitle>
+            <CardDescription>
+              Pools missing or short on data for this hour
+            </CardDescription>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="hover:bg-secondary text-muted-foreground hover:text-foreground rounded-md p-1 transition-colors"
+            aria-label="Close"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+      </CardHeader>
+      <CardContent>
+        {loading && (
+          <div className="text-muted-foreground flex items-center gap-2 py-6 text-sm">
+            <Loader2 className="h-4 w-4 animate-spin" />
+            Loading pool breakdown…
+          </div>
+        )}
+        {error && !loading && (
+          <div className="text-destructive flex items-center gap-2 py-4 text-sm">
+            <XCircle className="h-4 w-4 shrink-0" />
+            {error}
+          </div>
+        )}
+        {detail && !loading && !error && (
+          <div className="space-y-4">
+            <div className="flex flex-wrap gap-2 text-xs">
+              <Badge variant="outline" className="gap-1">
+                <span className="h-2 w-2 rounded-full bg-emerald-500" />
+                {detail.full} full
+              </Badge>
+              <Badge variant="outline" className="gap-1">
+                <span className="h-2 w-2 rounded-full bg-red-500" />
+                {detail.missing.length} missing
+              </Badge>
+              <Badge variant="outline" className="gap-1">
+                <span className="h-2 w-2 rounded-full bg-amber-400" />
+                {detail.incomplete.length} incomplete
+              </Badge>
+              <Badge variant="outline">{detail.expected} expected</Badge>
+            </div>
+
+            {detail.missing.length === 0 && detail.incomplete.length === 0 ? (
+              <p className="text-muted-foreground py-2 text-sm">
+                All {detail.expected} pools reported a full 6/6 this hour. 🎉
+              </p>
+            ) : (
+              <div className="space-y-4">
+                <PoolList title="Missing — no data" pools={detail.missing} />
+                <PoolList
+                  title="Incomplete — fewer than 6 spots"
+                  pools={detail.incomplete}
+                />
+              </div>
+            )}
+          </div>
+        )}
       </CardContent>
     </Card>
   )
@@ -372,6 +614,11 @@ export default function StatusPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
+  const [selected, setSelected] = useState<SelectedSlot | null>(null)
+  const [slotDetail, setSlotDetail] = useState<SlotDetail | null>(null)
+  const [slotLoading, setSlotLoading] = useState(false)
+  const [slotError, setSlotError] = useState<string | null>(null)
+
   const fetchData = useCallback(async () => {
     setLoading(true)
     setError(null)
@@ -390,6 +637,42 @@ export default function StatusPage() {
     fetchData()
   }, [fetchData])
 
+  // Fetch the per-pool breakdown whenever a slot is selected.
+  useEffect(() => {
+    if (!selected) return
+    let cancelled = false
+    setSlotLoading(true)
+    setSlotError(null)
+    setSlotDetail(null)
+    fetch(
+      `/api/status/quality/slot?provider=${encodeURIComponent(selected.provider)}&hour=${encodeURIComponent(selected.hour)}`
+    )
+      .then(async (res) => {
+        if (!res.ok) throw new Error(`HTTP ${res.status}`)
+        return res.json()
+      })
+      .then((json: SlotDetail) => {
+        if (!cancelled) setSlotDetail(json)
+      })
+      .catch((err) => {
+        if (!cancelled)
+          setSlotError(err instanceof Error ? err.message : String(err))
+      })
+      .finally(() => {
+        if (!cancelled) setSlotLoading(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [selected])
+
+  const handleSelect = useCallback(
+    (provider: string, protocolLabel: string, slot: SlotInfo) => {
+      setSelected({ provider, protocolLabel, hour: slot.hour })
+    },
+    []
+  )
+
   return (
     <div className="mx-auto max-w-[1400px] space-y-6 p-6">
       {/* Header */}
@@ -397,7 +680,8 @@ export default function StatusPage() {
         <div>
           <h1 className="text-2xl font-bold">Data Quality Status</h1>
           <p className="text-muted-foreground text-sm">
-            APY pipeline health — last 7 days (168 hourly slots per protocol)
+            APY pipeline health — last 7 days (168 hourly slots per protocol).
+            Click any cell to see which pools are missing data.
           </p>
         </div>
         <button
@@ -410,23 +694,23 @@ export default function StatusPage() {
         </button>
       </div>
 
-      {/* Legend */}
-      <div className="text-muted-foreground flex items-center gap-6 text-xs">
+      {/* Legend — color reflects POOL completeness, not the spot average */}
+      <div className="text-muted-foreground flex flex-wrap items-center gap-x-6 gap-y-2 text-xs">
         <div className="flex items-center gap-1.5">
           <div className="h-3 w-3 rounded-[2px] bg-emerald-500/80" />
-          Complete (≥95% products, 6/6 spots)
+          Complete (≥95% pools full, none missing)
         </div>
         <div className="flex items-center gap-1.5">
           <div className="h-3 w-3 rounded-[2px] bg-amber-400/80" />
-          Partial (4-5 spots)
+          Degraded (≥70% pools full)
         </div>
         <div className="flex items-center gap-1.5">
           <div className="h-3 w-3 rounded-[2px] bg-orange-500/80" />
-          Sparse (1-3 spots)
+          Sparse (&lt;70% pools full)
         </div>
         <div className="flex items-center gap-1.5">
           <div className="h-3 w-3 rounded-[2px] bg-red-500/80" />
-          Missing (0 spots)
+          No data
         </div>
         <div className="flex items-center gap-1.5">
           <div className="bg-muted h-3 w-3 rounded-[2px] ring-1 ring-blue-400/50" />
@@ -456,10 +740,28 @@ export default function StatusPage() {
             {formatHour(data.window?.end)} UTC
           </p>
 
+          {/* Drill-down panel for the selected cell */}
+          {selected && (
+            <SlotDetailPanel
+              selected={selected}
+              detail={slotDetail}
+              loading={slotLoading}
+              error={slotError}
+              onClose={() => setSelected(null)}
+            />
+          )}
+
           {/* Protocol heatmaps */}
           <div className="space-y-4">
             {(data.protocols ?? []).map((row) => (
-              <ProtocolHeatmap key={row.protocol} row={row} />
+              <ProtocolHeatmap
+                key={row.protocol}
+                row={row}
+                selectedHour={
+                  selected?.provider === row.protocol ? selected.hour : null
+                }
+                onSelect={(slot) => handleSelect(row.protocol, row.label, slot)}
+              />
             ))}
           </div>
 

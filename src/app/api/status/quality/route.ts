@@ -92,9 +92,10 @@ async function qualityHandler(): Promise<NextResponse> {
         return {
           hour: h.toISOString(),
           count: 0,
-          status: 'partial' as const,
+          status: 'missing' as const,
           healed: false,
           productCount: 0,
+          fullProducts: 0,
           expectedProducts: totalProducts,
         }
       }
@@ -107,7 +108,10 @@ async function qualityHandler(): Promise<NextResponse> {
         count: Math.min(6, Math.round(agg.totalCount / agg.productCount)),
         status: isComplete ? ('complete' as const) : ('partial' as const),
         healed: agg.healed > 0,
+        // Products that reported at least one spot this hour.
         productCount: agg.productCount,
+        // Products that reported all 6 spots — the real completeness signal.
+        fullProducts: agg.complete,
         expectedProducts: totalProducts,
       }
     })
