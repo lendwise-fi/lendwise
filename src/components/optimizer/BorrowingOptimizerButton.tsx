@@ -33,6 +33,7 @@ import { NetworkBadge } from "@/components/badge/NetworkBadge";
 import { ProtocolBadge } from "@/components/badge/ProtocolBadge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Skeleton } from "@/components/ui/skeleton";
 import { HORIZON_OPTIONS, type HorizonKey } from "@/config/horizon";
 import {
 	getBreakpointsBorrow,
@@ -385,13 +386,15 @@ export function BorrowingOptimizerView({
 	const buildMarketData = useCallback((): MarketData => {
 		const apyKey = (HORIZON_OPTIONS.find((h) => h.key === horizon)?.apyKey ??
 			"apy") as keyof BorrowProduct;
+		// The optimizer API rejects non-finite values with a 422 ("Input should
+		// be a valid number") — JSON serializes NaN/Infinity/undefined to null.
+		// Coerce every field to a finite number so the request is always valid.
+		const finite = (v: unknown, fallback: number): number =>
+			typeof v === "number" && Number.isFinite(v) ? v : fallback;
 		return {
-			max_ltv: markets.map((_, i) => recommendedLtvs[i] ?? DEFAULT_MAX_LTV),
-			rates: markets.map((m) => {
-				const v = m[apyKey];
-				return typeof v === "number" ? v : m.apy;
-			}),
-			liquidity: markets.map((m) => m.liquidityAmountUsd),
+			max_ltv: markets.map((_, i) => finite(recommendedLtvs[i], DEFAULT_MAX_LTV)),
+			rates: markets.map((m) => finite(m[apyKey], finite(m.apy, 0))),
+			liquidity: markets.map((m) => finite(m.liquidityAmountUsd, 0)),
 			price: 1,
 		};
 	}, [markets, recommendedLtvs, horizon]);
@@ -832,12 +835,42 @@ export function BorrowingOptimizerView({
 										initial={{ opacity: 0 }}
 										animate={{ opacity: 1 }}
 										exit={{ opacity: 0 }}
-										className="flex flex-1 flex-col items-center justify-center text-center"
+										className="flex flex-1 flex-col gap-4"
 									>
-										<Loader2 className="text-muted-foreground mb-2 h-5 w-5 animate-spin" />
-										<p className="text-muted-foreground text-xs">
-											Computing optimal allocation…
-										</p>
+										{/* Key metric */}
+										<div className="border-border bg-secondary/40 flex flex-col items-center gap-2 rounded-xl border p-4">
+											<Skeleton className="h-3 w-24" />
+											<Skeleton className="h-7 w-32" />
+											<Skeleton className="h-3 w-20" />
+										</div>
+										{/* Pie chart */}
+										<div className="flex h-44 items-center justify-center">
+											<div className="relative">
+												<Skeleton className="h-[120px] w-[120px] rounded-full" />
+												<div className="bg-card absolute top-1/2 left-1/2 h-[72px] w-[72px] -translate-x-1/2 -translate-y-1/2 rounded-full" />
+											</div>
+										</div>
+										{/* Legend */}
+										<div className="space-y-2">
+											{["a", "b", "c"].map((k) => (
+												<div key={k} className="flex items-center gap-2">
+													<Skeleton className="h-2.5 w-2.5 rounded-sm" />
+													<Skeleton className="h-3 flex-1" />
+													<Skeleton className="h-3 w-8" />
+												</div>
+											))}
+										</div>
+										{/* Summary */}
+										<div className="border-border mt-auto space-y-2 border-t pt-3">
+											<div className="flex justify-between">
+												<Skeleton className="h-3 w-20" />
+												<Skeleton className="h-3 w-12" />
+											</div>
+											<div className="flex justify-between">
+												<Skeleton className="h-3 w-24" />
+												<Skeleton className="h-3 w-14" />
+											</div>
+										</div>
 									</motion.div>
 								) : ran && result && allocations.length > 0 ? (
 									<motion.div
