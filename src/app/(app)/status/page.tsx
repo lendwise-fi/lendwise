@@ -4,8 +4,10 @@ import { useCallback, useEffect, useState } from 'react'
 
 import {
   Activity,
+  Check,
   CheckCircle2,
   Clock,
+  Copy,
   Loader2,
   RefreshCw,
   X,
@@ -381,6 +383,34 @@ function ProtocolHeatmap({
   )
 }
 
+/** Click-to-copy a productId, with brief "copied" feedback. */
+function CopyButton({ value }: { value: string }) {
+  const [copied, setCopied] = useState(false)
+  return (
+    <button
+      type="button"
+      onClick={async () => {
+        try {
+          await navigator.clipboard.writeText(value)
+          setCopied(true)
+          setTimeout(() => setCopied(false), 1200)
+        } catch {
+          /* clipboard unavailable — ignore */
+        }
+      }}
+      title="Copy productId"
+      aria-label="Copy productId"
+      className="hover:bg-secondary text-muted-foreground hover:text-foreground shrink-0 self-start rounded p-1 transition-colors"
+    >
+      {copied ? (
+        <Check className="h-3.5 w-3.5 text-emerald-400" />
+      ) : (
+        <Copy className="h-3.5 w-3.5" />
+      )}
+    </button>
+  )
+}
+
 function PoolList({ title, pools }: { title: string; pools: PoolRow[] }) {
   if (pools.length === 0) return null
   return (
@@ -395,20 +425,31 @@ function PoolList({ title, pools }: { title: string; pools: PoolRow[] }) {
             className="border-border/50 bg-secondary/30 flex items-center gap-3 rounded-md border px-3 py-2 text-xs"
           >
             <span
-              className={`h-2 w-2 shrink-0 rounded-full ${p.spots == null ? 'bg-red-500' : 'bg-amber-400'}`}
+              className={`h-2 w-2 shrink-0 self-start rounded-full ${p.spots == null ? 'bg-red-500' : 'bg-amber-400'} mt-1`}
             />
-            <span className="text-foreground flex-1 truncate font-medium">
-              {poolLabel(p)}
+            <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+              <span className="text-foreground truncate font-medium">
+                {poolLabel(p)}
+              </span>
+              <span
+                className="text-muted-foreground truncate font-mono text-[10px]"
+                title={p.id}
+              >
+                {p.id}
+              </span>
             </span>
-            <Badge variant="outline" className="shrink-0 text-[10px]">
+            <Badge variant="outline" className="shrink-0 self-start text-[10px]">
               {p.kind}
             </Badge>
-            <span className="text-muted-foreground w-12 shrink-0 text-right font-mono">
+            <span className="text-muted-foreground w-12 shrink-0 self-start text-right font-mono">
               {p.spots ?? 0}/6
             </span>
             {p.healed && (
-              <span className="shrink-0 text-[10px] text-blue-400">healed</span>
+              <span className="shrink-0 self-start text-[10px] text-blue-400">
+                healed
+              </span>
             )}
+            <CopyButton value={p.id} />
           </div>
         ))}
       </div>
