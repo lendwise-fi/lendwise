@@ -10,10 +10,16 @@ import { latestReport } from '@/lib/db/repositories/reports'
 async function qualityHandler(): Promise<NextResponse> {
   const hours = 168
   const now = new Date()
+  // windowEnd = start of the current hour → boundary between settled history and
+  // the in-progress hour. queryEnd extends one hour past it so the live hour's
+  // rows are fetched and shown as a "filling" cell (not counted as settled).
   const windowEnd = new Date(now)
   windowEnd.setUTCMinutes(0, 0, 0)
   const windowStart = new Date(windowEnd)
   windowStart.setUTCHours(windowStart.getUTCHours() - hours)
+  const queryEnd = new Date(windowEnd)
+  queryEnd.setUTCHours(queryEnd.getUTCHours() + 1)
+  const currentHourKey = windowEnd.toISOString()
 
   const totalsRes = await db.execute(
     sql`SELECT provider, count(*)::int AS n FROM products WHERE active GROUP BY provider`
@@ -32,7 +38,7 @@ async function qualityHandler(): Promise<NextResponse> {
            count(*) FILTER (WHERE h.healed)::int AS healed,
            sum(h.quality_count)::int AS total_count
     FROM apy_hourly h JOIN products p ON p.id = h.product_id
-    WHERE h.hour >= ${windowStart} AND h.hour < ${windowEnd} AND p.active
+    WHERE h.hour >= ${windowStart} AND h.hour < ${queryEnd} AND p.active
     GROUP BY p.provider, h.hour
   `)
   const byProto = new Map<
@@ -74,13 +80,13 @@ async function qualityHandler(): Promise<NextResponse> {
     WITH boundaries AS (
       SELECT generate_series(
         ${windowStart}::timestamptz,
-        ${windowEnd}::timestamptz - interval '1 hour',
+        ${queryEnd}::timestamptz - interval '1 hour',
         interval '1 hour'
       ) AS hour
     ),
     collected AS (
       SELECT DISTINCT product_id FROM apy_hourly
-      WHERE hour >= ${windowStart} AND hour < ${windowEnd}
+      WHERE hour >= ${windowStart} AND hour < ${queryEnd}
     )
     SELECT p.provider, b.hour, count(*)::int AS expected
     FROM products p
@@ -104,7 +110,7 @@ async function qualityHandler(): Promise<NextResponse> {
   const boundaries: Date[] = []
   for (
     let c = new Date(windowStart);
-    c < windowEnd;
+    c < queryEnd;
     c.setUTCHours(c.getUTCHours() + 1)
   ) {
     boundaries.push(new Date(c))
@@ -130,6 +136,24 @@ async function qualityHandler(): Promise<NextResponse> {
       // today's full set — falls back to the current total for safety.
       const expectedProducts = expectedMap?.get(hourKey) ?? totalProducts
       const agg = hourMap?.get(hourKey)
+
+      // The live, still-filling hour — never an anomaly, shown as in-progress
+      // and excluded from the settled completeness summary.
+      if (hourKey === currentHourKey) {
+        return {
+          hour: hourKey,
+          count: agg
+            ? Math.min(6, Math.round(agg.totalCount / agg.productCount))
+            : 0,
+          status: 'in_progress' as const,
+          inProgress: true,
+          healed: agg ? agg.healed > 0 : false,
+          productCount: agg?.productCount ?? 0,
+          fullProducts: agg?.complete ?? 0,
+          expectedProducts,
+        }
+      }
+
       if (!agg || agg.productCount === 0) {
         missing++
         return {
@@ -164,7 +188,8 @@ async function qualityHandler(): Promise<NextResponse> {
       label,
       totalProducts,
       slots,
-      summary: { complete, partial, missing, total: boundaries.length },
+      // total excludes the live hour (last boundary) — only settled hours count.
+      summary: { complete, partial, missing, total: boundaries.length - 1 },
     }
   })
 

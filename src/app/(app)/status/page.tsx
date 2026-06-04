@@ -34,8 +34,10 @@ interface SlotInfo {
   hour: string
   /** Average spots/6 reported per pool this hour. */
   count: number
-  status: 'complete' | 'partial' | 'missing'
+  status: 'complete' | 'partial' | 'missing' | 'in_progress'
   healed: boolean
+  /** The current, still-filling hour — rendered as a live cell, not an anomaly. */
+  inProgress?: boolean
   /** Pools that reported ≥1 spot this hour. */
   productCount: number
   /** Pools that reported all 6 spots — the real completeness signal. */
@@ -139,7 +141,7 @@ function fmtNum(n: number | undefined | null): string {
 }
 
 interface SlotMetrics {
-  key: 'complete' | 'degraded' | 'sparse' | 'missing'
+  key: 'complete' | 'degraded' | 'sparse' | 'missing' | 'in_progress'
   color: string
   label: string
   missingProducts: number
@@ -158,6 +160,18 @@ function slotMetrics(slot: SlotInfo): SlotMetrics {
   const missingProducts = Math.max(0, expected - slot.productCount)
   const incompleteProducts = Math.max(0, slot.productCount - slot.fullProducts)
   const fullPct = expected > 0 ? slot.fullProducts / expected : 0
+
+  // Live hour — still collecting, so partial counts are expected, not a fault.
+  if (slot.inProgress) {
+    return {
+      key: 'in_progress',
+      color: 'bg-sky-400/80 animate-pulse',
+      label: 'In progress',
+      missingProducts,
+      incompleteProducts,
+      fullPct,
+    }
+  }
 
   if (slot.productCount === 0) {
     return {
@@ -757,6 +771,10 @@ export default function StatusPage() {
         <div className="flex items-center gap-1.5">
           <div className="h-3 w-3 rounded-[2px] bg-red-500/80" />
           No data
+        </div>
+        <div className="flex items-center gap-1.5">
+          <div className="h-3 w-3 animate-pulse rounded-[2px] bg-sky-400/80" />
+          In progress (current hour)
         </div>
         <div className="flex items-center gap-1.5">
           <div className="bg-muted h-3 w-3 rounded-[2px] ring-1 ring-blue-400/50" />
