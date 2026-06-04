@@ -20,6 +20,10 @@ async function qualityHandler(): Promise<NextResponse> {
   const queryEnd = new Date(windowEnd)
   queryEnd.setUTCHours(queryEnd.getUTCHours() + 1)
   const currentHourKey = windowEnd.toISOString()
+  // Spots expected to have landed so far this hour (one per 10-min slot, :00..:50).
+  // Lets the live cell be scored on completeness-so-far (e.g. all pools at 3/3)
+  // instead of always-incomplete against the full 6.
+  const expectedSpotsSoFar = Math.min(6, Math.floor(now.getUTCMinutes() / 10) + 1)
 
   const totalsRes = await db.execute(
     sql`SELECT provider, count(*)::int AS n FROM products WHERE active GROUP BY provider`
@@ -35,6 +39,8 @@ async function qualityHandler(): Promise<NextResponse> {
            -- "full" = 6 native spots OR healed (neighbor-heal has valid APY but
            -- quality_count=0, so count it as complete and let the ring flag it).
            count(*) FILTER (WHERE h.quality_count >= 6 OR h.healed)::int AS complete,
+           -- Same idea but against spots-so-far — only meaningful for the live hour.
+           count(*) FILTER (WHERE h.quality_count >= ${expectedSpotsSoFar} OR h.healed)::int AS complete_live,
            count(*) FILTER (WHERE h.healed)::int AS healed,
            sum(h.quality_count)::int AS total_count
     FROM apy_hourly h JOIN products p ON p.id = h.product_id
@@ -48,6 +54,7 @@ async function qualityHandler(): Promise<NextResponse> {
       {
         productCount: number
         complete: number
+        completeLive: number
         healed: number
         totalCount: number
       }
@@ -58,6 +65,7 @@ async function qualityHandler(): Promise<NextResponse> {
     hour: Date
     product_count: number
     complete: number
+    complete_live: number
     healed: number
     total_count: number
   }[]) {
@@ -66,6 +74,7 @@ async function qualityHandler(): Promise<NextResponse> {
     byProto.get(r.provider)!.set(key, {
       productCount: r.product_count,
       complete: r.complete,
+      completeLive: r.complete_live,
       healed: r.healed,
       totalCount: r.total_count,
     })
@@ -137,20 +146,26 @@ async function qualityHandler(): Promise<NextResponse> {
       const expectedProducts = expectedMap?.get(hourKey) ?? totalProducts
       const agg = hourMap?.get(hourKey)
 
-      // The live, still-filling hour — never an anomaly, shown as in-progress
-      // and excluded from the settled completeness summary.
+      // The live, still-filling hour — excluded from the settled completeness
+      // summary. Scored on spots-so-far so it earns a real color (green when all
+      // pools are at N/N), with the blinking "in progress" marker layered on top.
       if (hourKey === currentHourKey) {
         return {
           hour: hourKey,
           count: agg
-            ? Math.min(6, Math.round(agg.totalCount / agg.productCount))
+            ? Math.min(
+                expectedSpotsSoFar,
+                Math.round(agg.totalCount / agg.productCount)
+              )
             : 0,
           status: 'in_progress' as const,
           inProgress: true,
           healed: agg ? agg.healed > 0 : false,
           productCount: agg?.productCount ?? 0,
-          fullProducts: agg?.complete ?? 0,
+          // Pools that reported every spot expected so far — the live signal.
+          fullProducts: agg?.completeLive ?? 0,
           expectedProducts,
+          expectedSpots: expectedSpotsSoFar,
         }
       }
 
@@ -164,6 +179,7 @@ async function qualityHandler(): Promise<NextResponse> {
           productCount: 0,
           fullProducts: 0,
           expectedProducts,
+          expectedSpots: 6,
         }
       }
       const isComplete =
@@ -180,6 +196,7 @@ async function qualityHandler(): Promise<NextResponse> {
         // Products that reported all 6 spots (or were healed) — the real signal.
         fullProducts: agg.complete,
         expectedProducts,
+        expectedSpots: 6,
       }
     })
 

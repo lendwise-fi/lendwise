@@ -43,6 +43,8 @@ interface SlotInfo {
   /** Pools that reported all 6 spots — the real completeness signal. */
   fullProducts: number
   expectedProducts: number
+  /** Spots expected this hour: 6 for settled hours, spots-so-far for the live one. */
+  expectedSpots: number
 }
 
 interface ProtocolRow {
@@ -141,7 +143,7 @@ function fmtNum(n: number | undefined | null): string {
 }
 
 interface SlotMetrics {
-  key: 'complete' | 'degraded' | 'sparse' | 'missing' | 'in_progress'
+  key: 'complete' | 'degraded' | 'sparse' | 'missing'
   color: string
   label: string
   missingProducts: number
@@ -151,27 +153,17 @@ interface SlotMetrics {
 
 /**
  * Classify a slot by **pool completeness** (not raw spot average): a slot is
- * only green when (almost) every expected pool reported all 6 spots. This is
- * why a cell can show "Avg spots 6/6" yet be amber — the average rounds up
- * while individual pools are still missing or short on spots.
+ * only green when (almost) every expected pool reported every spot expected by
+ * now (all 6 for settled hours, spots-so-far for the live one). This is why a
+ * cell can show "Avg spots 6/6" yet be amber — the average rounds up while
+ * individual pools are still missing or short on spots. The live hour is scored
+ * the same way; its blinking blue ring (not its color) marks it as in-progress.
  */
 function slotMetrics(slot: SlotInfo): SlotMetrics {
   const expected = slot.expectedProducts || 0
   const missingProducts = Math.max(0, expected - slot.productCount)
   const incompleteProducts = Math.max(0, slot.productCount - slot.fullProducts)
   const fullPct = expected > 0 ? slot.fullProducts / expected : 0
-
-  // Live hour — still collecting, so partial counts are expected, not a fault.
-  if (slot.inProgress) {
-    return {
-      key: 'in_progress',
-      color: 'bg-sky-400/80 animate-pulse',
-      label: 'In progress',
-      missingProducts,
-      incompleteProducts,
-      fullPct,
-    }
-  }
 
   if (slot.productCount === 0) {
     return {
@@ -306,7 +298,7 @@ function ProtocolHeatmap({
                           type="button"
                           onClick={() => onSelect(slot)}
                           style={{ gridColumn: slotHour + 1 }}
-                          className={`h-5 cursor-pointer rounded-[2px] transition-all hover:scale-y-125 hover:brightness-110 ${m.color} ${slot.healed ? 'ring-1 ring-blue-400/50' : ''} ${isSelected ? 'ring-2 ring-white ring-offset-1 ring-offset-transparent' : ''}`}
+                          className={`h-5 cursor-pointer rounded-[2px] transition-all hover:scale-y-125 hover:brightness-110 ${m.color} ${slot.inProgress ? 'animate-pulse ring-2 ring-sky-400' : slot.healed ? 'ring-1 ring-blue-400/50' : ''} ${isSelected ? 'ring-2 ring-white ring-offset-1 ring-offset-transparent' : ''}`}
                         />
                       </TooltipTrigger>
                       <TooltipContent
@@ -314,8 +306,16 @@ function ProtocolHeatmap({
                         className="bg-popover text-popover-foreground max-w-xs border shadow-md"
                       >
                         <div className="space-y-1 py-1">
-                          <div className="text-xs font-semibold">
-                            {formatHour(slot.hour)} UTC
+                          <div className="flex items-center justify-between gap-3">
+                            <div className="text-xs font-semibold">
+                              {formatHour(slot.hour)} UTC
+                            </div>
+                            {slot.inProgress && (
+                              <span className="flex animate-pulse items-center gap-1 text-[10px] font-medium text-sky-400">
+                                <span className="h-1.5 w-1.5 rounded-full bg-sky-400" />
+                                In progress
+                              </span>
+                            )}
                           </div>
                           <div className="space-y-0.5 text-xs">
                             <div className="flex justify-between gap-4">
@@ -357,7 +357,7 @@ function ProtocolHeatmap({
                                 Avg spots
                               </span>
                               <span className="font-medium">
-                                {slot.count}/6
+                                {slot.count}/{slot.expectedSpots}
                               </span>
                             </div>
                             {slot.healed && (
@@ -773,8 +773,8 @@ export default function StatusPage() {
           No data
         </div>
         <div className="flex items-center gap-1.5">
-          <div className="h-3 w-3 animate-pulse rounded-[2px] bg-sky-400/80" />
-          In progress (current hour)
+          <div className="bg-muted h-3 w-3 animate-pulse rounded-[2px] ring-2 ring-sky-400" />
+          In progress (current hour, scored on spots so far)
         </div>
         <div className="flex items-center gap-1.5">
           <div className="bg-muted h-3 w-3 rounded-[2px] ring-1 ring-blue-400/50" />
