@@ -68,8 +68,13 @@ async function slotHandler(req: NextRequest): Promise<NextResponse> {
     healed: r.healed,
   }))
 
+  // Healed pools have usable (neighbor-copied) APY even at quality_count < 6, so
+  // they count as full — keeps this breakdown consistent with the heatmap, where
+  // `healed` also satisfies "complete". (Missing rows never have healed=true.)
   const missing = pools.filter((p) => p.spots == null)
-  const incomplete = pools.filter((p) => p.spots != null && p.spots < 6)
+  const incomplete = pools.filter(
+    (p) => p.spots != null && p.spots < 6 && !p.healed
+  )
   const full = pools.length - missing.length - incomplete.length
 
   return NextResponse.json({

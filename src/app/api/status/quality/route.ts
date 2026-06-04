@@ -26,7 +26,9 @@ async function qualityHandler(): Promise<NextResponse> {
   const aggRes = await db.execute(sql`
     SELECT p.provider, h.hour,
            count(*)::int AS product_count,
-           count(*) FILTER (WHERE h.quality_count >= 6)::int AS complete,
+           -- "full" = 6 native spots OR healed (neighbor-heal has valid APY but
+           -- quality_count=0, so count it as complete and let the ring flag it).
+           count(*) FILTER (WHERE h.quality_count >= 6 OR h.healed)::int AS complete,
            count(*) FILTER (WHERE h.healed)::int AS healed,
            sum(h.quality_count)::int AS total_count
     FROM apy_hourly h JOIN products p ON p.id = h.product_id
