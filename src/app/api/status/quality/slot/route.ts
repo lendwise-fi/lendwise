@@ -45,6 +45,10 @@ async function slotHandler(req: NextRequest): Promise<NextResponse> {
     FROM products pr
     LEFT JOIN apy_hourly h ON h.product_id = pr.id AND h.hour = ${hour}
     WHERE pr.active AND pr.provider = ${provider}
+      -- Only pools that already existed this hour — a market created later must
+      -- not show as "missing" for hours before it was first collected (matches
+      -- the heatmap's created_at-scoped expected count).
+      AND date_trunc('hour', pr.created_at) <= ${hour}
     ORDER BY (h.quality_count IS NULL) DESC, h.quality_count ASC, pr.asset_symbol ASC
   `)
 

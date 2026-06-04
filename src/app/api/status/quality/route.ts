@@ -65,6 +65,42 @@ async function qualityHandler(): Promise<NextResponse> {
     })
   }
 
+  // Per-(provider, hour) EXPECTED pool count — scoped exactly like gap detection
+  // (findGaps): only products collected at some point in the window, and only
+  // for hours at/after each product's created_at. Without this the denominator
+  // is today's full set for every past hour, so a market created mid-window
+  // shows as "missing" for the hours before it existed.
+  const expectedRes = await db.execute(sql`
+    WITH boundaries AS (
+      SELECT generate_series(
+        ${windowStart}::timestamptz,
+        ${windowEnd}::timestamptz - interval '1 hour',
+        interval '1 hour'
+      ) AS hour
+    ),
+    collected AS (
+      SELECT DISTINCT product_id FROM apy_hourly
+      WHERE hour >= ${windowStart} AND hour < ${windowEnd}
+    )
+    SELECT p.provider, b.hour, count(*)::int AS expected
+    FROM products p
+    JOIN collected c ON c.product_id = p.id
+    CROSS JOIN boundaries b
+    WHERE p.active AND b.hour >= date_trunc('hour', p.created_at)
+    GROUP BY p.provider, b.hour
+  `)
+  const expectedByProto = new Map<string, Map<string, number>>()
+  for (const r of expectedRes.rows as {
+    provider: string
+    hour: Date
+    expected: number
+  }[]) {
+    const key = new Date(r.hour).toISOString()
+    if (!expectedByProto.has(r.provider))
+      expectedByProto.set(r.provider, new Map())
+    expectedByProto.get(r.provider)!.set(key, r.expected)
+  }
+
   const boundaries: Date[] = []
   for (
     let c = new Date(windowStart);
@@ -83,38 +119,43 @@ async function qualityHandler(): Promise<NextResponse> {
   const rows = protocols.map(({ key, label }) => {
     const totalProducts = totals.get(key) ?? 0
     const hourMap = byProto.get(key)
+    const expectedMap = expectedByProto.get(key)
     let complete = 0
     let partial = 0
     let missing = 0
 
     const slots = boundaries.map((h) => {
-      const agg = hourMap?.get(h.toISOString())
+      const hourKey = h.toISOString()
+      // Pools that were expected to report THIS hour (created_at-scoped), not
+      // today's full set — falls back to the current total for safety.
+      const expectedProducts = expectedMap?.get(hourKey) ?? totalProducts
+      const agg = hourMap?.get(hourKey)
       if (!agg || agg.productCount === 0) {
         missing++
         return {
-          hour: h.toISOString(),
+          hour: hourKey,
           count: 0,
           status: 'missing' as const,
           healed: false,
           productCount: 0,
           fullProducts: 0,
-          expectedProducts: totalProducts,
+          expectedProducts,
         }
       }
       const isComplete =
-        totalProducts > 0 ? agg.complete / totalProducts >= 0.95 : false
+        expectedProducts > 0 ? agg.complete / expectedProducts >= 0.95 : false
       if (isComplete) complete++
       else partial++
       return {
-        hour: h.toISOString(),
+        hour: hourKey,
         count: Math.min(6, Math.round(agg.totalCount / agg.productCount)),
         status: isComplete ? ('complete' as const) : ('partial' as const),
         healed: agg.healed > 0,
         // Products that reported at least one spot this hour.
         productCount: agg.productCount,
-        // Products that reported all 6 spots — the real completeness signal.
+        // Products that reported all 6 spots (or were healed) — the real signal.
         fullProducts: agg.complete,
-        expectedProducts: totalProducts,
+        expectedProducts,
       }
     })
 
