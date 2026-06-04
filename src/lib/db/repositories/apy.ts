@@ -281,6 +281,7 @@ export async function apyEnrichments(
 
 export interface ApyFilters {
   kind: 'supply' | 'borrow'
+  productId?: string // exact products.id PK match — no parsing
   protocol?: string // 'aave' | 'morpho' | 'compound' (or '<provider>_<version>')
   market?: string // protocol_name, e.g. "AaveV3Ethereum"
   chainId?: number
@@ -311,6 +312,7 @@ export async function queryApy(
   const timeCol = grain === 'hourly' ? apyHourly.hour : apyDaily.date
 
   const conds = [eq(products.kind, f.kind)]
+  if (f.productId) conds.push(eq(products.id, f.productId))
   if (f.protocol) conds.push(eq(products.provider, f.protocol.split('_')[0]))
   if (f.market) conds.push(eq(products.protocolName, f.market))
   if (f.chainId) conds.push(eq(products.chainId, f.chainId))

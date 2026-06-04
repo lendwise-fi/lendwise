@@ -83,6 +83,7 @@ type AnyApyRow = {
 }
 
 type AnyFilters = {
+  productId?: string
   protocol?: string
   market?: string
   chainId?: number
@@ -200,6 +201,7 @@ async function resolvePg(
   const filters = args.filters ?? {}
   const f: ApyFilters = {
     kind,
+    productId: filters.productId,
     protocol: filters.protocol,
     market: filters.market,
     chainId: filters.chainId,

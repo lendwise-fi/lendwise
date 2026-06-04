@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 
 import {
   BarChart3,
@@ -14,6 +14,8 @@ import {
 import { AnimatePresence, motion } from 'motion/react'
 import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from 'recharts'
 
+import { loadLatestPrice } from '@/app/actions/price-return-history.actions'
+import { TokenIcon } from '@/components/icon'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { HORIZON_CONFIG, HORIZON_OPTIONS, HorizonKey } from '@/config/horizon'
@@ -123,6 +125,18 @@ export function SupplyingOptimizerView({
   const [error, setError] = useState<string | null>(null)
   const [ran, setRan] = useState(false)
 
+  // Supplied asset — shared across all vaults in the set. The capital input is
+  // denominated in this token; its USD value uses the token's spot price.
+  const assetSymbol = markets[0]?.assetSymbol ?? '?'
+  const [assetPrice, setAssetPrice] = useState<number | null>(null)
+
+  useEffect(() => {
+    const sym = markets[0]?.assetSymbol
+    if (!sym) return
+    setAssetPrice(null)
+    loadLatestPrice(sym).then(setAssetPrice)
+  }, [markets])
+
   const handleRun = async () => {
     setError(null)
     setResults(null)
@@ -179,6 +193,8 @@ export function SupplyingOptimizerView({
   }
 
   const amountNum = parseFloat(amount) || 0
+  // USD value of the token-denominated capital input.
+  const amountUsd = amountNum * (assetPrice ?? 0)
 
   const weightedApy = useMemo(() => {
     if (!results) return null
@@ -189,10 +205,10 @@ export function SupplyingOptimizerView({
   }, [results])
 
   const projectedReturn = useMemo(() => {
-    if (!weightedApy || !amountNum) return null
+    if (!weightedApy || !amountUsd) return null
     const days = HORIZON_OPTIONS.find((h) => h.key === horizon)?.days ?? 30
-    return amountNum * weightedApy * (days / 365)
-  }, [weightedApy, amountNum, horizon])
+    return amountUsd * weightedApy * (days / 365)
+  }, [weightedApy, amountUsd, horizon])
 
   const horizonLabel =
     HORIZON_OPTIONS.find((h) => h.key === horizon)?.label ?? ''
@@ -205,12 +221,21 @@ export function SupplyingOptimizerView({
         <div className="flex-1 space-y-6 px-1 py-4 pr-6">
           {/* Capital */}
           <div>
-            <label className="text-muted-foreground mb-2 block text-xs font-semibold tracking-wider uppercase">
-              Capital to deploy
-            </label>
+            <div className="mb-2 flex items-baseline justify-between gap-2">
+              <label className="text-muted-foreground text-xs font-semibold tracking-wider uppercase">
+                Capital to deploy
+              </label>
+              {amountNum > 0 && (
+                <span className="text-muted-foreground mr-1 font-mono text-[10px]">
+                  {assetPrice == null
+                    ? 'Loading price…'
+                    : `≈ ${formatCompactCurrency(amountUsd, 'USD')} USD`}
+                </span>
+              )}
+            </div>
             <div className="border-input dark:bg-input/30 focus-within:border-ring focus-within:ring-ring/50 flex items-center rounded-xl border focus-within:ring-[3px]">
-              <span className="text-muted-foreground pl-3.5 text-sm font-medium select-none">
-                $
+              <span className="flex items-center px-3.5 select-none">
+                <TokenIcon symbol={assetSymbol} size={18} />
               </span>
               <Input
                 type="number"
@@ -223,8 +248,8 @@ export function SupplyingOptimizerView({
                 }}
                 className="border-0 font-mono shadow-none focus-visible:ring-0"
               />
-              <span className="text-muted-foreground bg-secondary mr-1 rounded-lg px-2 py-1 text-xs font-semibold select-none">
-                USDC
+              <span className="px-4 py-1 text-xs font-semibold select-none">
+                {assetSymbol}
               </span>
             </div>
           </div>

@@ -285,6 +285,8 @@ export const typeDefs = /* GraphQL */ `
 
   "Shared filters for hourly queries."
   input HourlyFilters {
+    "Filter by exact productId — e.g. morpho:v1:ethereum:vault:0x…:supply."
+    productId: String
     "Filter by protocol name — aave | morpho | compound."
     protocol: ProtocolName
     "Filter by native market name — e.g. AaveV3Ethereum, MorphoBlueEthereum."
@@ -301,6 +303,8 @@ export const typeDefs = /* GraphQL */ `
 
   "Shared filters for daily queries."
   input DailyFilters {
+    "Filter by exact productId — e.g. morpho:v1:ethereum:vault:0x…:supply."
+    productId: String
     protocol: ProtocolName
     market: String
     chainId: Int
@@ -314,6 +318,8 @@ export const typeDefs = /* GraphQL */ `
   }
 
   input BorrowHourlyFilters {
+    "Filter by exact productId — e.g. aave:v3:ethereum:reserve:0x…:borrow."
+    productId: String
     protocol: ProtocolName
     market: String
     chainId: Int
@@ -325,6 +331,8 @@ export const typeDefs = /* GraphQL */ `
   }
 
   input BorrowDailyFilters {
+    "Filter by exact productId — e.g. aave:v3:ethereum:reserve:0x…:borrow."
+    productId: String
     protocol: ProtocolName
     market: String
     chainId: Int
