@@ -399,13 +399,57 @@ export function BorrowingOptimizerView({
 		};
 	}, [markets, recommendedLtvs, horizon]);
 
+	// Any change to a parameter that feeds the optimizer (mode, amount, horizon,
+	// LTV) invalidates the fetched omega breakpoints and the current allocation:
+	// reset omega to 0 (index 0) and clear the result so the next "Run Optimizer"
+	// re-fetches breakpoints from scratch.
+	const resetResult = useCallback(() => {
+		setResult(null);
+		setRan(false);
+		setError(null);
+		setObjectiveIndex(0);
+		setObjectiveOmegas(DEFAULT_OMEGAS);
+	}, []);
+
+	// Set while we programmatically move the objective slider back to 0 at the
+	// start of a full run, so the objectiveIndex effect doesn't fire a second,
+	// redundant optimize call.
+	const suppressObjectiveRun = useRef(false);
+
+	// Optimizer-only call (no breakpoints). Used both for the initial run and for
+	// omega-only changes from the objective slider.
+	const runOptimize = useCallback(
+		async (
+			omega: number,
+			amountNum: number,
+			marketData: MarketData,
+		): Promise<OptimizationResponse> => {
+			const response =
+				mode === "collateral_target"
+					? await optimizeBorrow({
+							collateral_amount: amountNum,
+							omega,
+							markets: marketData,
+						})
+					: await optimizeCollateral({
+							borrow_amount: amountNum,
+							omega,
+							markets: marketData,
+						});
+			if (!response.success) throw new Error("Optimization failed");
+			return response;
+		},
+		[mode],
+	);
+
 	const handleModeChange = (m: BorrowMode) => {
 		setMode(m);
-		setObjectiveIndex(0);
-		setRan(false);
-		setResult(null);
+		resetResult();
 	};
 
+	// "Run Optimizer": full flow. Fetch the omega breakpoints for the current
+	// config, surface the Objective slider, then optimize at omega = 0 (the first
+	// stop). Falls back to DEFAULT_OMEGAS if the breakpoints endpoint is down.
 	const handleRun = async () => {
 		setError(null);
 		setResult(null);
@@ -418,24 +462,33 @@ export function BorrowingOptimizerView({
 			if (!amountNum || amountNum <= 0) throw new Error("Enter a valid amount");
 
 			const marketData = buildMarketData();
-			const omega = objectiveOmegas[objectiveIndex] ?? 0;
 
-			let response: OptimizationResponse;
-			if (mode === "collateral_target") {
-				response = await optimizeBorrow({
-					collateral_amount: amountNum,
-					omega,
-					markets: marketData,
-				});
-			} else {
-				response = await optimizeCollateral({
-					borrow_amount: amountNum,
-					omega,
-					markets: marketData,
-				});
+			// 1. Fetch omega breakpoints for the current configuration.
+			let omegas = DEFAULT_OMEGAS;
+			try {
+				const bp =
+					mode === "collateral_target"
+						? await getBreakpointsBorrow({
+								collateral_amount: amountNum,
+								markets: marketData,
+							})
+						: await getBreakpointsCollateral({
+								borrow_amount: amountNum,
+								markets: marketData,
+							});
+				omegas = sanitizeOmegas(bp.breakpoints);
+			} catch {
+				omegas = DEFAULT_OMEGAS;
 			}
+			// Move the slider to the first stop (omega = 0); suppress the resulting
+			// effect only if the index actually changes, so a later slider move
+			// isn't swallowed.
+			suppressObjectiveRun.current = objectiveIndex !== 0;
+			setObjectiveOmegas(omegas);
+			setObjectiveIndex(0);
 
-			if (!response.success) throw new Error("Optimization failed");
+			// 2. Optimize at the first stop (omega = 0).
+			const response = await runOptimize(omegas[0] ?? 0, amountNum, marketData);
 			setResult(response);
 			setRan(true);
 		} catch (err) {
@@ -445,56 +498,48 @@ export function BorrowingOptimizerView({
 		}
 	};
 
-	// Latest-value refs so the objective-driven recompute effect can call the
-	// current handleRun / read the current `ran` without re-subscribing.
-	const handleRunRef = useRef(handleRun);
-	handleRunRef.current = handleRun;
 	const ranRef = useRef(ran);
 	ranRef.current = ran;
 
-	// When the objective changes after the first run, recompute automatically.
-	// Stops are discrete so no debounce is needed.
+	// Omega-only change from the objective slider: re-run the optimizer alone
+	// (no breakpoints refetch). Reads current params via a ref so the effect only
+	// re-subscribes on objectiveIndex.
+	const runOptimizeOnly = async () => {
+		if (!ranRef.current) return;
+		setError(null);
+		setIsOptimizing(true);
+		try {
+			const amountNum = parseFloat(amount);
+			if (!amountNum || amountNum <= 0) throw new Error("Enter a valid amount");
+			const marketData = buildMarketData();
+			const omega = objectiveOmegas[objectiveIndex] ?? 0;
+			const response = await runOptimize(omega, amountNum, marketData);
+			setResult(response);
+		} catch (err) {
+			setError(err instanceof Error ? err.message : "Optimization failed");
+		} finally {
+			setIsOptimizing(false);
+		}
+	};
+	const runOptimizeOnlyRef = useRef(runOptimizeOnly);
+	runOptimizeOnlyRef.current = runOptimizeOnly;
+
+	// When the objective (omega) changes after the first run, recompute the
+	// allocation automatically — optimizer only, no breakpoints. Stops are
+	// discrete so no debounce is needed.
 	// biome-ignore lint/correctness/useExhaustiveDependencies: intentional — only objectiveIndex should retrigger.
 	useEffect(() => {
-		if (!ranRef.current) return;
-		handleRunRef.current();
+		if (suppressObjectiveRun.current) {
+			suppressObjectiveRun.current = false;
+			return;
+		}
+		runOptimizeOnlyRef.current();
 	}, [objectiveIndex]);
-
-	// Objective stops are computed by the backend from the current market set
-	// (max LTV / rates / liquidity) and the target amount. Refetch them while on
-	// the Configure step whenever any of those inputs change, then reset the
-	// slider to "Min cost" (index 0). Falls back to DEFAULT_OMEGAS on error.
-	useEffect(() => {
-		if (viewStep !== "configure" || markets.length === 0) return;
-		const amountNum = parseFloat(amount);
-		if (!amountNum || amountNum <= 0) return;
-
-		let cancelled = false;
-		const md = buildMarketData();
-		const request =
-			mode === "collateral_target"
-				? getBreakpointsBorrow({ collateral_amount: amountNum, markets: md })
-				: getBreakpointsCollateral({ borrow_amount: amountNum, markets: md });
-
-		request
-			.then((res) => {
-				if (cancelled) return;
-				setObjectiveOmegas(sanitizeOmegas(res.breakpoints));
-				setObjectiveIndex(0);
-			})
-			.catch(() => {
-				if (cancelled) return;
-				setObjectiveOmegas(DEFAULT_OMEGAS);
-			});
-
-		return () => {
-			cancelled = true;
-		};
-	}, [viewStep, mode, amount, markets, buildMarketData]);
 
 	const handleReset = () => {
 		setMode("collateral_target");
 		setObjectiveIndex(0);
+		setObjectiveOmegas(DEFAULT_OMEGAS);
 		setAmount("100");
 		setHorizon("medium");
 		setResult(null);
@@ -762,7 +807,7 @@ export function BorrowingOptimizerView({
 										value={amount}
 										onChange={(e) => {
 											setAmount(e.target.value);
-											setRan(false);
+											resetResult();
 										}}
 										className="border-0 font-mono shadow-none focus-visible:ring-0"
 									/>
@@ -791,7 +836,7 @@ export function BorrowingOptimizerView({
 											type="button"
 											onClick={() => {
 												setHorizon(h.key);
-												setRan(false);
+												resetResult();
 											}}
 											className={`flex-1 rounded-lg border py-2 text-xs font-semibold transition-all ${
 												horizon === h.key
@@ -1345,7 +1390,7 @@ export function BorrowingOptimizerView({
 									}}
 								>
 									<GripVertical className="h-3 w-3" />
-									Buffer {formatReturnPct(Math.abs(buffer))}
+									Buffer {Math.abs(buffer).toFixed(2)}%
 								</div>
 							)}
 						</div>
@@ -1455,7 +1500,7 @@ export function BorrowingOptimizerView({
 																: 0;
 															return next;
 														});
-														setRan(false);
+														resetResult();
 													}}
 													className="h-9 border-0 text-right font-mono text-xs shadow-none focus-visible:ring-0"
 												/>
