@@ -29,6 +29,19 @@ export async function bestProductId(symbol: string): Promise<string | null> {
   return (fb.rows as { product_id: string }[])[0]?.product_id ?? null
 }
 
+/** Latest USD spot price for a symbol — freshest hourly observation. */
+export async function latestPrice(symbol: string): Promise<number | null> {
+  const id = await bestProductId(symbol)
+  if (!id) return null
+  const res = await db.execute(sql`
+    SELECT asset_price_usd
+    FROM apy_hourly
+    WHERE product_id = ${id} AND asset_price_usd > 0
+    ORDER BY hour DESC LIMIT 1
+  `)
+  return (res.rows as { asset_price_usd: number }[])[0]?.asset_price_usd ?? null
+}
+
 /**
  * Daily return of the pair price p_t = collateralUsd_t / loanUsd_t.
  * JOIN on date + LAG() window function — replaces the JS map-join + manual prev loop.

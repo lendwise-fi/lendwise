@@ -33,7 +33,7 @@ import { PortfolioVisual } from '@/components/landing/visuals/PortfolioVisual'
 
 const features: FeatureCardProps[] = [
   {
-    label: 'Stnadard',
+    label: 'Standard',
     title: 'Market intelligence',
     description:
       'Our engine standardizes lending yield data across protocols, vaults and chains, adjusting for rate conventions and averaging windows. Compare protocols, vaults and chains using standardized metrics, historical trends and market context.',
@@ -93,7 +93,7 @@ const features: FeatureCardProps[] = [
     label: 'API',
     title: 'GraphQL API',
     description:
-      'Access standardized lending yield, protocol and market data through a simple API built for production',
+      'Access standardized lending yield, protocol and market data through a simple API built for production integrations.',
     features: [
       {
         icon: Code2,

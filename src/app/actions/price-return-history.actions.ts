@@ -2,7 +2,7 @@
 
 import { unstable_cache } from 'next/cache'
 
-import { priceReturnHistory } from '@/lib/db/repositories/price'
+import { latestPrice, priceReturnHistory } from '@/lib/db/repositories/price'
 
 export interface PricePoint {
   date: string
@@ -33,4 +33,20 @@ export const loadPriceReturnHistory = unstable_cache(
   _loadPriceReturnHistory,
   ['price-return-history'],
   { revalidate: 3600 }
+)
+
+async function _loadLatestPrice(symbol: string): Promise<number | null> {
+  try {
+    return await latestPrice(symbol)
+  } catch (err) {
+    console.error('[latest-price] Failed to load:', err)
+    return null
+  }
+}
+
+/** Latest USD spot price for a token symbol (e.g. collateral). */
+export const loadLatestPrice = unstable_cache(
+  _loadLatestPrice,
+  ['latest-price'],
+  { revalidate: 600 }
 )

@@ -71,7 +71,9 @@ const createColumns = (
   currency: string,
   rate: number,
   horizon: HorizonKey,
-  selectedCount: number
+  selectedCount: number,
+  selectedLoan: string | null,
+  commonCollaterals: Set<string> | null
 ): ColumnDef<BorrowProduct>[] => [
   {
     id: 'select',
@@ -81,9 +83,32 @@ const createColumns = (
       const isSelected = row.getIsSelected()
       const isDisabledByUtilization =
         !isSelected && isOverutilized(row.original)
+      // Lock the selection to a single loan asset.
+      const isDisabledByLoan =
+        !isSelected &&
+        !isDisabledByUtilization &&
+        selectedLoan !== null &&
+        row.original.assetSymbol !== selectedLoan
+      // Lock the selection to markets sharing a common collateral, so the
+      // optimizer always has one collateral to work against.
+      const isDisabledByCollateral =
+        !isSelected &&
+        !isDisabledByUtilization &&
+        !isDisabledByLoan &&
+        commonCollaterals !== null &&
+        commonCollaterals.size > 0 &&
+        !row.original.collaterals.some((c) => commonCollaterals.has(c.symbol))
       const isDisabledByLimit =
-        !isSelected && !isDisabledByUtilization && selectedCount >= 10
-      const isDisabled = isDisabledByUtilization || isDisabledByLimit
+        !isSelected &&
+        !isDisabledByUtilization &&
+        !isDisabledByLoan &&
+        !isDisabledByCollateral &&
+        selectedCount >= 10
+      const isDisabled =
+        isDisabledByUtilization ||
+        isDisabledByLoan ||
+        isDisabledByCollateral ||
+        isDisabledByLimit
 
       const checkbox = (
         <Checkbox
@@ -102,6 +127,30 @@ const createColumns = (
             </TooltipTrigger>
             <TooltipContent>
               Utilization &gt;99% — unhealthy market
+            </TooltipContent>
+          </Tooltip>
+        )
+      }
+
+      if (isDisabledByLoan) {
+        return (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <span className="inline-flex cursor-not-allowed">{checkbox}</span>
+            </TooltipTrigger>
+            <TooltipContent>{selectedLoan} loan only</TooltipContent>
+          </Tooltip>
+        )
+      }
+
+      if (isDisabledByCollateral) {
+        return (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <span className="inline-flex cursor-not-allowed">{checkbox}</span>
+            </TooltipTrigger>
+            <TooltipContent>
+              Must share a collateral with your selection
             </TooltipContent>
           </Tooltip>
         )
@@ -414,11 +463,27 @@ export function BorrowTableClient() {
     setColumnFilters(newFilters)
   }, [])
 
+  // Selection lock: all selected rows must share the same loan asset and at
+  // least one common collateral (running intersection across the selection).
+  const selectedRows = (data ?? []).filter((row) => rowSelection[getRowId(row)])
+  const selectedLoan = selectedRows[0]?.assetSymbol ?? null
+  const commonCollaterals = (() => {
+    if (selectedRows.length === 0) return null
+    let acc = new Set<string>(selectedRows[0].collaterals.map((c) => c.symbol))
+    for (const row of selectedRows.slice(1)) {
+      const syms = new Set(row.collaterals.map((c) => c.symbol))
+      acc = new Set([...acc].filter((s) => syms.has(s)))
+    }
+    return acc
+  })()
+
   const columns = createColumns(
     baseCurrency,
     rate,
     horizon,
-    Object.keys(rowSelection).length
+    Object.keys(rowSelection).length,
+    selectedLoan,
+    commonCollaterals
   )
   const sortColumn = HORIZON_CONFIG[horizon].apyKey as string
 

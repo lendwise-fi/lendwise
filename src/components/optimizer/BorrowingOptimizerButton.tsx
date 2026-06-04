@@ -28,10 +28,12 @@ import {
 
 import {
   type PricePoint,
+  loadLatestPrice,
   loadPriceReturnHistory,
 } from '@/app/actions/price-return-history.actions'
 import { NetworkBadge } from '@/components/badge/NetworkBadge'
 import { ProtocolBadge } from '@/components/badge/ProtocolBadge'
+import { TokenIcon } from '@/components/icon'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -223,12 +225,30 @@ export function BorrowingOptimizerView({
   const [viewStep, setViewStep] = useState<ViewStep>('buffer')
 
   // --- Objective slider drag ---
-  const sliderTrackRef = useRef<HTMLButtonElement>(null)
+  const sliderTrackRef = useRef<HTMLDivElement>(null)
   const [isSliderDragging, setIsSliderDragging] = useState(false)
 
   // --- Price buffer state ---
   const [priceData, setPriceData] = useState<PricePoint[]>([])
   const [isPriceLoading, setIsPriceLoading] = useState(false)
+
+  // Resolved collateral token for the Fixed Collateral mode — the amount input
+  // is denominated in this token, converted to USD before hitting the optimizer.
+  const collateralSymbol =
+    selectedCollateralSymbol ?? markets[0]?.collaterals[0]?.symbol ?? '?'
+
+  // Latest USD spot price of the collateral token (null while loading / if
+  // unavailable). Read via a ref inside async handlers.
+  const [collateralPrice, setCollateralPrice] = useState<number | null>(null)
+  const collateralPriceRef = useRef<number | null>(null)
+  collateralPriceRef.current = collateralPrice
+
+  useEffect(() => {
+    const sym = selectedCollateralSymbol ?? markets[0]?.collaterals[0]?.symbol
+    if (!sym) return
+    setCollateralPrice(null)
+    loadLatestPrice(sym).then(setCollateralPrice)
+  }, [markets, selectedCollateralSymbol])
 
   const { domainMin, domainMax, recommendedBuffer } = useMemo(() => {
     const vals = priceData.map((p) => p.returnPct)
@@ -291,19 +311,22 @@ export function BorrowingOptimizerView({
   const [recommendedLtvs, setRecommendedLtvs] = useState<number[]>([])
 
   useEffect(() => {
+    // Recommended LTV = LLTV * (1 - buffer), where buffer is the liquidation
+    // drawdown set in step 2 (stored as a non-positive percent, so take its
+    // magnitude as a fraction). Falls back to max LTV when LLTV is absent.
+    const bufferFraction = Math.min(1, Math.max(0, Math.abs(buffer) / 100))
     setRecommendedLtvs(
       ltvInfo.map((info) => {
-        // Default = a small safety margin below the protocol max LTV.
-        if (info.maxLtv != null && info.maxLtv > 0) {
-          return Math.max(0, info.maxLtv - 0.05)
-        }
-        if (info.lltv != null && info.lltv > 0) {
-          return Math.max(0, info.lltv - 0.05)
-        }
-        return DEFAULT_MAX_LTV
+        const base =
+          info.lltv != null && info.lltv > 0
+            ? info.lltv
+            : info.maxLtv != null && info.maxLtv > 0
+              ? info.maxLtv
+              : DEFAULT_MAX_LTV
+        return Math.max(0, base * (1 - bufferFraction))
       })
     )
-  }, [ltvInfo])
+  }, [ltvInfo, buffer])
 
   useEffect(() => {
     const collateralSymbol =
@@ -399,6 +422,17 @@ export function BorrowingOptimizerView({
     }
   }, [markets, recommendedLtvs, horizon])
 
+  // The optimizer works in USD value units (price = 1, liquidity in USD). In
+  // Fixed Collateral mode the input is denominated in the collateral token, so
+  // convert it to USD before sending. Fixed Loan mode is already in USD.
+  const toUsd = useCallback(
+    (rawAmount: number): number =>
+      mode === 'collateral_target'
+        ? rawAmount * (collateralPriceRef.current ?? 0)
+        : rawAmount,
+    [mode]
+  )
+
   // Any change to a parameter that feeds the optimizer (mode, amount, horizon,
   // LTV) invalidates the fetched omega breakpoints and the current allocation:
   // reset omega to 0 (index 0) and clear the result so the next "Run Optimizer"
@@ -427,15 +461,15 @@ export function BorrowingOptimizerView({
       const response =
         mode === 'collateral_target'
           ? await optimizeBorrow({
-              collateral_amount: amountNum,
-              omega,
-              markets: marketData,
-            })
+            collateral_amount: amountNum,
+            omega,
+            markets: marketData,
+          })
           : await optimizeCollateral({
-              borrow_amount: amountNum,
-              omega,
-              markets: marketData,
-            })
+            borrow_amount: amountNum,
+            omega,
+            markets: marketData,
+          })
       if (!response.success) throw new Error('Optimization failed')
       return response
     },
@@ -460,6 +494,9 @@ export function BorrowingOptimizerView({
       if (markets.length === 0) throw new Error('No markets selected')
       const amountNum = parseFloat(amount)
       if (!amountNum || amountNum <= 0) throw new Error('Enter a valid amount')
+      const usdAmount = toUsd(amountNum)
+      if (!usdAmount || usdAmount <= 0)
+        throw new Error('Collateral price unavailable — try again')
 
       const marketData = buildMarketData()
 
@@ -469,13 +506,13 @@ export function BorrowingOptimizerView({
         const bp =
           mode === 'collateral_target'
             ? await getBreakpointsBorrow({
-                collateral_amount: amountNum,
-                markets: marketData,
-              })
+              collateral_amount: usdAmount,
+              markets: marketData,
+            })
             : await getBreakpointsCollateral({
-                borrow_amount: amountNum,
-                markets: marketData,
-              })
+              borrow_amount: usdAmount,
+              markets: marketData,
+            })
         omegas = sanitizeOmegas(bp.breakpoints)
       } catch {
         omegas = DEFAULT_OMEGAS
@@ -488,7 +525,7 @@ export function BorrowingOptimizerView({
       setObjectiveIndex(0)
 
       // 2. Optimize at the first stop (omega = 0).
-      const response = await runOptimize(omegas[0] ?? 0, amountNum, marketData)
+      const response = await runOptimize(omegas[0] ?? 0, usdAmount, marketData)
       setResult(response)
       setRan(true)
     } catch (err) {
@@ -511,9 +548,12 @@ export function BorrowingOptimizerView({
     try {
       const amountNum = parseFloat(amount)
       if (!amountNum || amountNum <= 0) throw new Error('Enter a valid amount')
+      const usdAmount = toUsd(amountNum)
+      if (!usdAmount || usdAmount <= 0)
+        throw new Error('Collateral price unavailable — try again')
       const marketData = buildMarketData()
       const omega = objectiveOmegas[objectiveIndex] ?? 0
-      const response = await runOptimize(omega, amountNum, marketData)
+      const response = await runOptimize(omega, usdAmount, marketData)
       setResult(response)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Optimization failed')
@@ -550,6 +590,11 @@ export function BorrowingOptimizerView({
   }
 
   const amountNum = parseFloat(amount) || 0
+  const isCollateralMode = mode === 'collateral_target'
+  // USD value of the collateral input (Fixed Collateral mode is token-denominated).
+  const collateralUsd = isCollateralMode
+    ? amountNum * (collateralPrice ?? 0)
+    : amountNum
 
   const totalLiquidityUsd = useMemo(
     () => markets.reduce((sum, m) => sum + m.liquidityAmountUsd, 0),
@@ -637,8 +682,13 @@ export function BorrowingOptimizerView({
       </div>
       <div className="px-1 pt-1 pb-0.5">
         {/* Track */}
-        <button
-          type="button"
+        <div
+          role="slider"
+          tabIndex={0}
+          aria-label="Objective"
+          aria-valuenow={objectiveIndex}
+          aria-valuemin={0}
+          aria-valuemax={lastStop}
           ref={sliderTrackRef}
           className="bg-secondary relative h-1.5 w-full cursor-pointer rounded-full border-0 p-0"
           onMouseDown={(e) => {
@@ -679,18 +729,17 @@ export function BorrowingOptimizerView({
                 style={{ left: `${pct}%` }}
               >
                 <div
-                  className={`rounded-full border-2 transition-all duration-150 ${
-                    active
-                      ? 'border-background bg-primary shadow-primary/40 h-4 w-4 scale-110 shadow-sm'
-                      : past
-                        ? 'border-background bg-primary/70 h-2.5 w-2.5'
-                        : 'border-muted-foreground/30 bg-secondary h-2.5 w-2.5'
-                  }`}
+                  className={`rounded-full border-2 transition-all duration-150 ${active
+                    ? 'border-background bg-primary shadow-primary/40 h-4 w-4 scale-110 shadow-sm'
+                    : past
+                      ? 'border-background bg-primary/70 h-2.5 w-2.5'
+                      : 'border-muted-foreground/30 bg-secondary h-2.5 w-2.5'
+                    }`}
                 />
               </button>
             )
           })}
-        </button>
+        </div>
 
         {/* Labels — ends always shown, plus the active stop, to avoid crowding */}
         <div className="relative mt-4">
@@ -703,11 +752,10 @@ export function BorrowingOptimizerView({
                 key={`label-${omega}`}
                 type="button"
                 onClick={() => setObjectiveIndex(i)}
-                className={`absolute -translate-x-1/2 text-[10px] whitespace-nowrap transition-colors ${
-                  active
-                    ? 'text-primary font-semibold'
-                    : 'text-muted-foreground hover:text-foreground'
-                }`}
+                className={`absolute -translate-x-1/2 text-[10px] whitespace-nowrap transition-colors ${active
+                  ? 'text-primary font-semibold'
+                  : 'text-muted-foreground hover:text-foreground'
+                  }`}
                 style={{ left: `${pct}%` }}
               >
                 {objectiveLabel(i, objectiveOmegas.length, omega, mode)}
@@ -751,16 +799,14 @@ export function BorrowingOptimizerView({
                         key={m.id}
                         type="button"
                         onClick={() => handleModeChange(m.id)}
-                        className={`flex w-full items-start gap-3 rounded-xl border px-4 py-3 text-left transition-all duration-150 ${
-                          active
-                            ? m.activeBg
-                            : 'border-border bg-secondary/20 hover:border-border/80'
-                        }`}
+                        className={`flex w-full items-start gap-3 rounded-xl border px-4 py-3 text-left transition-all duration-150 ${active
+                          ? m.activeBg
+                          : 'border-border bg-secondary/20 hover:border-border/80'
+                          }`}
                       >
                         <div
-                          className={`mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${
-                            active ? m.activeBg : 'bg-secondary'
-                          }`}
+                          className={`mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${active ? m.activeBg : 'bg-secondary'
+                            }`}
                         >
                           <m.Icon
                             className={`h-4 w-4 ${active ? m.color : 'text-muted-foreground'}`}
@@ -789,17 +835,32 @@ export function BorrowingOptimizerView({
 
               {/* Amount input */}
               <div>
-                <span className="text-muted-foreground mb-2 block text-xs font-semibold tracking-wider uppercase">
-                  {mode === 'collateral_target'
-                    ? 'Collateral amount'
-                    : 'Loan amount needed'}
-                </span>
+                <div className="mb-2 flex items-baseline justify-between gap-2">
+                  <span className="text-muted-foreground text-xs font-semibold tracking-wider uppercase">
+                    {mode === 'collateral_target'
+                      ? 'Collateral amount'
+                      : 'Loan amount needed'}
+                  </span>
+                  {isCollateralMode && amountNum > 0 && (
+                    <span className="text-muted-foreground font-mono text-[10px] mr-3">
+                      {collateralPrice == null
+                        ? 'Loading price…'
+                        : `≈ ${formatCompactCurrency(collateralUsd, 'USD')} USD`}
+                    </span>
+                  )}
+                </div>
                 <div
                   className={`border-input dark:bg-input/30 focus-within:border-ring focus-within:ring-ring/50 flex items-center rounded-xl border focus-within:ring-[3px] ${loanExceedsLiquidity ? 'border-red-500 focus-within:border-red-500 focus-within:ring-red-500/50' : ''}`}
                 >
-                  <span className="text-muted-foreground px-3.5 text-sm font-medium select-none">
-                    $
-                  </span>
+                  {isCollateralMode ? (
+                    <span className="flex items-center pl-3.5 select-none">
+                      <TokenIcon symbol={collateralSymbol} size={18} />
+                    </span>
+                  ) : (
+                    <span className="text-muted-foreground px-3.5 text-sm font-medium select-none">
+                      $
+                    </span>
+                  )}
                   <Input
                     type="number"
                     inputMode="decimal"
@@ -812,7 +873,7 @@ export function BorrowingOptimizerView({
                     className="border-0 font-mono shadow-none focus-visible:ring-0"
                   />
                   <span className="px-4 py-1 text-xs font-semibold select-none">
-                    USD
+                    {isCollateralMode ? collateralSymbol : 'USD'}
                   </span>
                 </div>
                 {loanExceedsLiquidity && (
@@ -838,11 +899,10 @@ export function BorrowingOptimizerView({
                         setHorizon(h.key)
                         resetResult()
                       }}
-                      className={`flex-1 rounded-lg border py-2 text-xs font-semibold transition-all ${
-                        horizon === h.key
-                          ? 'border-primary bg-primary text-primary-foreground'
-                          : 'border-border bg-secondary/30 text-muted-foreground hover:text-foreground'
-                      }`}
+                      className={`flex-1 rounded-lg border py-2 text-xs font-semibold transition-all ${horizon === h.key
+                        ? 'border-primary bg-primary text-primary-foreground'
+                        : 'border-border bg-secondary/30 text-muted-foreground hover:text-foreground'
+                        }`}
                     >
                       {h.label}
                     </button>
@@ -939,10 +999,10 @@ export function BorrowingOptimizerView({
                               'USD'
                             )}
                           </div>
-                          {amountNum > 0 && (
+                          {collateralUsd > 0 && (
                             <div className="text-muted-foreground mt-1 text-xs">
                               {(
-                                ((result.total_borrow ?? 0) / amountNum) *
+                                ((result.total_borrow ?? 0) / collateralUsd) *
                                 100
                               ).toFixed(1)}
                               % of collateral
@@ -977,7 +1037,11 @@ export function BorrowingOptimizerView({
 
                     {/* Pie chart */}
                     <div className="relative h-44">
-                      <ResponsiveContainer width="100%" height="100%">
+                      <ResponsiveContainer
+                        width="100%"
+                        height="100%"
+                        initialDimension={{ width: 1, height: 1 }}
+                      >
                         <PieChart>
                           <Pie
                             data={allocations.map((a) => ({
@@ -1004,7 +1068,7 @@ export function BorrowingOptimizerView({
                                 key={a.market.poolName}
                                 fill={
                                   ALLOCATION_COLORS[
-                                    i % ALLOCATION_COLORS.length
+                                  i % ALLOCATION_COLORS.length
                                   ]
                                 }
                                 stroke="transparent"
@@ -1041,7 +1105,7 @@ export function BorrowingOptimizerView({
                               style={{
                                 background:
                                   ALLOCATION_COLORS[
-                                    i % ALLOCATION_COLORS.length
+                                  i % ALLOCATION_COLORS.length
                                   ],
                               }}
                             />
@@ -1264,7 +1328,11 @@ export function BorrowingOptimizerView({
                 )
               }}
             >
-              <ResponsiveContainer width="100%" height="100%">
+              <ResponsiveContainer
+                width="100%"
+                height="100%"
+                initialDimension={{ width: 1, height: 1 }}
+              >
                 <AreaChart data={priceData} margin={CHART_MARGIN}>
                   <defs>
                     <linearGradient id="priceGrad" x1="0" y1="0" x2="0" y2="1">
@@ -1376,9 +1444,8 @@ export function BorrowingOptimizerView({
                   aria-valuenow={Math.round(buffer * 100) / 100}
                   aria-valuemin={Math.round(domainMin * 100) / 100}
                   aria-valuemax={Math.round(domainMax * 100) / 100}
-                  className={`bg-background/95 absolute flex items-center gap-1 rounded border px-1.5 py-0.5 font-mono text-[10px] font-semibold shadow-sm transition-colors duration-150 ${
-                    isDragging ? 'cursor-grabbing' : 'cursor-pointer'
-                  }`}
+                  className={`bg-background/95 absolute flex items-center gap-1 rounded border px-1.5 py-0.5 font-mono text-[10px] font-semibold shadow-sm transition-colors duration-150 ${isDragging ? 'cursor-grabbing' : 'cursor-pointer'
+                    }`}
                   style={{
                     top: badgeTop,
                     right: YAXIS_WIDTH + 4,
@@ -1476,11 +1543,10 @@ export function BorrowingOptimizerView({
                     </span>
                     <div className="w-32 shrink-0">
                       <div
-                        className={`border-input dark:bg-input/30 focus-within:ring-ring/50 flex items-center rounded-lg border focus-within:ring-[3px] ${
-                          overCap
-                            ? 'border-red-500 focus-within:border-red-500 focus-within:ring-red-500/50'
-                            : 'focus-within:border-ring'
-                        }`}
+                        className={`border-input dark:bg-input/30 focus-within:ring-ring/50 flex items-center rounded-lg border focus-within:ring-[3px] ${overCap
+                          ? 'border-red-500 focus-within:border-red-500 focus-within:ring-red-500/50'
+                          : 'focus-within:border-ring'
+                          }`}
                       >
                         <Input
                           type="number"
@@ -1582,7 +1648,9 @@ export function BorrowingOptimizerView({
                   !amount ||
                   parseFloat(amount) <= 0 ||
                   loanExceedsLiquidity ||
-                  isOptimizing
+                  isOptimizing ||
+                  (isCollateralMode &&
+                    (collateralPrice == null || collateralPrice <= 0))
                 }
               >
                 {isOptimizing ? (

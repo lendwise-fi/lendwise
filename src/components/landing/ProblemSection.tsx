@@ -8,7 +8,7 @@ const problems = [
     icon: Shuffle,
     title: 'Scattered Data',
     description:
-      'Lending opportunities are spread across protocols, vaults and chains, leaving investors without a unified view of the market.',
+      'Lending opportunities are spread across protocols and chains, leaving investors without a unified view of the market.',
   },
   {
     icon: AlertTriangle,
@@ -31,7 +31,7 @@ export function ProblemSection() {
     { name: 'Compound', apy: '6.12%', color: '#00D395', note: 'borrow rate' },
     { name: 'Yearn', apy: '~12%', color: '#F59E0B', note: 'estimated' },
     { name: 'Spark', apy: '5.00%', color: '#EF4444', note: 'APR base' },
-    { name: 'Pendle', apy: 'variable', color: '#8B5CF6', note: 'PT yield' },
+    { name: 'Pendle', apy: '4.79%', color: '#8B5CF6', note: 'PT fixed' },
   ]
   return (
     <section className="relative overflow-hidden px-6 py-32">

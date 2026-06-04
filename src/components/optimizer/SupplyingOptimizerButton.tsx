@@ -351,7 +351,11 @@ export function SupplyingOptimizerView({
               >
                 {/* Pie chart */}
                 <div className="relative h-44">
-                  <ResponsiveContainer width="100%" height="100%">
+                  <ResponsiveContainer
+                    width="100%"
+                    height="100%"
+                    initialDimension={{ width: 1, height: 1 }}
+                  >
                     <PieChart>
                       <Pie
                         data={results.map((r) => ({

@@ -294,7 +294,8 @@ export function SupplyTableClient() {
   const [searchValue, setSearchValue] = useState('')
 
   const getRowId = useCallback(
-    (row: SupplyProduct) => `${row.protocol}-${row.poolChainId}-${row.poolId}`,
+    (row: SupplyProduct) =>
+      `${row.protocol}-${row.poolChainId}-${row.poolId}-${row.assetAddress}`,
     []
   )
 
@@ -629,7 +630,7 @@ export function SupplyTableClient() {
                         ]
                         return (
                           <div
-                            key={`${pool.protocol}-${pool.poolChainId}-${pool.poolId}`}
+                            key={`${pool.protocol}-${pool.poolChainId}-${pool.poolId}-${pool.assetAddress}`}
                             className="border-border/50 hover:border-border bg-secondary/30 flex items-center gap-4 rounded-xl border p-3.5 transition-colors"
                           >
                             <div className="from-primary to-primary/30 h-10 w-1 shrink-0 rounded-full bg-gradient-to-b" />
