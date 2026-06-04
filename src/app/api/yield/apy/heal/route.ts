@@ -163,11 +163,27 @@ async function healHandler(req: NextRequest): Promise<NextResponse> {
   ]
 
   if (allEntries.length === 0) {
-    return NextResponse.json({
+    // Still record a run so "Latest Heal Job" reflects reality — a clean gap
+    // report (nothing to heal) is the healthy steady state, not a stuck job.
+    const result = {
       success: true,
       sourceReportId: report.id,
-      message: 'No gaps to heal in this report',
+      totalGaps: 0,
+      totalMissing: 0,
+      totalIncomplete: 0,
+      healedByRefetch: 0,
+      healedByNeighbor: 0,
+      healed: 0,
+      noDonor: 0,
+      errors: [],
       durationMs: Date.now() - start,
+    }
+    const reportId = await insertReport('gap-healing', result)
+    console.log(`[cron:heal] no gaps to heal — recorded reportId ${reportId}`)
+    return NextResponse.json({
+      ...result,
+      reportId,
+      message: 'No gaps to heal in this report',
     })
   }
 
