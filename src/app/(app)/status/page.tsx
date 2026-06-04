@@ -673,28 +673,35 @@ export default function StatusPage() {
   const [data, setData] = useState<QualityData | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [lastUpdated, setLastUpdated] = useState<Date | null>(null)
 
   const [selected, setSelected] = useState<SelectedSlot | null>(null)
   const [slotDetail, setSlotDetail] = useState<SlotDetail | null>(null)
   const [slotLoading, setSlotLoading] = useState(false)
   const [slotError, setSlotError] = useState<string | null>(null)
 
-  const fetchData = useCallback(async () => {
-    setLoading(true)
+  // silent = background poll: refresh data without flashing the full-page loader.
+  const fetchData = useCallback(async (silent = false) => {
+    if (!silent) setLoading(true)
     setError(null)
     try {
       const res = await fetch('/api/status/quality')
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
       setData(await res.json())
+      setLastUpdated(new Date())
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err))
     } finally {
-      setLoading(false)
+      if (!silent) setLoading(false)
     }
   }, [])
 
+  // Initial load + silent auto-refresh every 5 minutes (matches the 10-min cron
+  // closely enough to surface new spots without a manual refresh).
   useEffect(() => {
     fetchData()
+    const id = setInterval(() => fetchData(true), 5 * 60_000)
+    return () => clearInterval(id)
   }, [fetchData])
 
   // Fetch the per-pool breakdown whenever a slot is selected.
@@ -744,14 +751,24 @@ export default function StatusPage() {
             Click any cell to see which pools are missing data.
           </p>
         </div>
-        <button
-          onClick={fetchData}
-          disabled={loading}
-          className="bg-primary text-primary-foreground hover:bg-primary/90 inline-flex items-center gap-2 rounded-md px-4 py-2 text-sm font-medium transition-colors disabled:opacity-50"
-        >
-          <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
-          Refresh
-        </button>
+        <div className="text-muted-foreground flex items-center gap-2 text-xs">
+          <RefreshCw className={`h-3.5 w-3.5 ${loading ? 'animate-spin' : ''}`} />
+          <span>
+            Auto-updating every 5 min
+            {lastUpdated && (
+              <>
+                {' · updated '}
+                {lastUpdated.toLocaleTimeString('en-GB', {
+                  hour: '2-digit',
+                  minute: '2-digit',
+                  second: '2-digit',
+                  timeZone: 'UTC',
+                })}
+                {' UTC'}
+              </>
+            )}
+          </span>
+        </div>
       </div>
 
       {/* Legend — color reflects POOL completeness, not the spot average */}
