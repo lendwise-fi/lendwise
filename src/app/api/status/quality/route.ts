@@ -23,7 +23,10 @@ async function qualityHandler(): Promise<NextResponse> {
   // Spots expected to have landed so far this hour (one per 10-min slot, :00..:50).
   // Lets the live cell be scored on completeness-so-far (e.g. all pools at 3/3)
   // instead of always-incomplete against the full 6.
-  const expectedSpotsSoFar = Math.min(6, Math.floor(now.getUTCMinutes() / 10) + 1)
+  const expectedSpotsSoFar = Math.min(
+    6,
+    Math.floor(now.getUTCMinutes() / 10) + 1
+  )
 
   const totalsRes = await db.execute(
     sql`SELECT provider, count(*)::int AS n FROM products WHERE active GROUP BY provider`

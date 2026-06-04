@@ -261,7 +261,13 @@ export async function apyEnrichments(
     avg365: number | null
     n365: number | string
   }[]) {
-    const avg = (v: number | null) => (v != null ? Number(v) : undefined)
+    // Postgres numeric can hold 'NaN' (e.g. a bad upstream APR→APY); avg() over
+    // it yields NaN. Coerce any non-finite value to undefined so the UI shows a
+    // dash instead of "NaN%".
+    const avg = (v: number | null) => {
+      const n = v != null ? Number(v) : NaN
+      return Number.isFinite(n) ? n : undefined
+    }
     map.set(r.product_id, {
       apyDaily: Number(r.n7) >= 1 ? avg(r.avg7) : undefined,
       apyMonthly: Number(r.n30) >= 1 ? avg(r.avg30) : undefined,

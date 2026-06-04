@@ -256,7 +256,12 @@ function StatCard({
 const APY_SERIES: SeriesDef[] = [
   { key: 'net', label: 'Net', color: 'var(--chart-1)', variant: 'area' },
   { key: 'base', label: 'Base', color: 'var(--chart-2)', variant: 'line' },
-  { key: 'rewards', label: 'Rewards', color: 'var(--chart-3)', variant: 'line' },
+  {
+    key: 'rewards',
+    label: 'Rewards',
+    color: 'var(--chart-3)',
+    variant: 'line',
+  },
   { key: 'fees', label: 'Fees', color: 'var(--chart-4)', variant: 'line' },
 ]
 
@@ -279,8 +284,7 @@ export function ProductDetailDrawer({
   const [usedFallback, setUsedFallback] = useState(false)
   const [pending, startTransition] = useTransition()
 
-  const collaterals =
-    'collaterals' in item ? item.collaterals : ([] as never[])
+  const collaterals = 'collaterals' in item ? item.collaterals : ([] as never[])
 
   const handleLoad = (label: TimeframeLabel) => {
     const option = TIMEFRAME_OPTIONS.find((o) => o.label === label)

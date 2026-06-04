@@ -752,7 +752,9 @@ export default function StatusPage() {
           </p>
         </div>
         <div className="text-muted-foreground flex items-center gap-2 text-xs">
-          <RefreshCw className={`h-3.5 w-3.5 ${loading ? 'animate-spin' : ''}`} />
+          <RefreshCw
+            className={`h-3.5 w-3.5 ${loading ? 'animate-spin' : ''}`}
+          />
           <span>
             Auto-updating every 5 min
             {lastUpdated && (

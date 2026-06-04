@@ -36,7 +36,12 @@
     "intraday"
   ],
   "biome.enabled": false,
-  "typescript.tsdk": "node_modules/typescript/lib",
+  "biome.lint.enable": false,
+  "editor.codeActionsOnSave": {
+    "source.organizeImports.biome": "never",
+    "source.fixAll.biome": "never"
+  },
+  "typescript.tsdk.path": "node_modules/typescript/lib",
   "mdb.presetConnections": [
     {
       "name": "Preset Connection",

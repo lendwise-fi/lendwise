@@ -295,7 +295,7 @@ const createColumns = (
         | undefined
       return (
         <span className="font-mono">
-          {apyValue !== undefined
+          {apyValue !== undefined && !Number.isNaN(apyValue)
             ? apyValue < 0.0001
               ? '<0.01%'
               : apyValue > 10
@@ -743,7 +743,7 @@ export function BorrowTableClient() {
                               <span
                                 key={key}
                                 className={`w-16 text-right font-mono text-xs font-semibold ${
-                                  value === undefined
+                                  value === undefined || Number.isNaN(value)
                                     ? 'text-muted-foreground/40'
                                     : value > 0.5
                                       ? 'text-orange-400'
@@ -752,7 +752,7 @@ export function BorrowTableClient() {
                                         : 'text-muted-foreground'
                                 }`}
                               >
-                                {value === undefined
+                                {value === undefined || Number.isNaN(value)
                                   ? '—'
                                   : value < 0.0001
                                     ? '<0.01%'
