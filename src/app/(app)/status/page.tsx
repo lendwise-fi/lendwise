@@ -291,6 +291,10 @@ function ProtocolHeatmap({
                   const slotHour = new Date(slot.hour).getUTCHours()
                   const m = slotMetrics(slot)
                   const isSelected = selectedHour === slot.hour
+                  // Live hour still filling (spots-so-far < 6): label it "In
+                  // progress" rather than "Complete", even though the cell keeps
+                  // its completeness color.
+                  const live = slot.inProgress && slot.expectedSpots < 6
                   return (
                     <Tooltip key={slot.hour}>
                       <TooltipTrigger asChild>
@@ -298,7 +302,7 @@ function ProtocolHeatmap({
                           type="button"
                           onClick={() => onSelect(slot)}
                           style={{ gridColumn: slotHour + 1 }}
-                          className={`h-5 cursor-pointer rounded-[2px] transition-all hover:scale-y-125 hover:brightness-110 ${m.color} ${slot.inProgress ? 'animate-pulse ring-2 ring-sky-400' : slot.healed ? 'ring-1 ring-blue-400/50' : ''} ${isSelected ? 'ring-2 ring-white ring-offset-1 ring-offset-transparent' : ''}`}
+                          className={`h-5 cursor-pointer rounded-[2px] transition-all hover:scale-y-125 hover:brightness-110 ${m.color} ${slot.healed ? 'ring-1 ring-blue-400/50' : ''} ${isSelected ? 'ring-2 ring-white ring-offset-1 ring-offset-transparent' : ''}`}
                         />
                       </TooltipTrigger>
                       <TooltipContent
@@ -306,23 +310,19 @@ function ProtocolHeatmap({
                         className="bg-popover text-popover-foreground max-w-xs border shadow-md"
                       >
                         <div className="space-y-1 py-1">
-                          <div className="flex items-center justify-between gap-3">
-                            <div className="text-xs font-semibold">
-                              {formatHour(slot.hour)} UTC
-                            </div>
-                            {slot.inProgress && (
-                              <span className="flex animate-pulse items-center gap-1 text-[10px] font-medium text-sky-400">
-                                <span className="h-1.5 w-1.5 rounded-full bg-sky-400" />
-                                In progress
-                              </span>
-                            )}
+                          <div className="text-xs font-semibold">
+                            {formatHour(slot.hour)} UTC
                           </div>
                           <div className="space-y-0.5 text-xs">
                             <div className="flex justify-between gap-4">
                               <span className="text-muted-foreground">
                                 Status
                               </span>
-                              <span className="font-medium">{m.label}</span>
+                              <span
+                                className={`font-medium ${live ? 'animate-pulse text-sky-400' : ''}`}
+                              >
+                                {live ? 'In progress' : m.label}
+                              </span>
                             </div>
                             <div className="flex justify-between gap-4">
                               <span className="text-muted-foreground">
@@ -771,10 +771,6 @@ export default function StatusPage() {
         <div className="flex items-center gap-1.5">
           <div className="h-3 w-3 rounded-[2px] bg-red-500/80" />
           No data
-        </div>
-        <div className="flex items-center gap-1.5">
-          <div className="bg-muted h-3 w-3 animate-pulse rounded-[2px] ring-2 ring-sky-400" />
-          In progress (current hour, scored on spots so far)
         </div>
         <div className="flex items-center gap-1.5">
           <div className="bg-muted h-3 w-3 rounded-[2px] ring-1 ring-blue-400/50" />
