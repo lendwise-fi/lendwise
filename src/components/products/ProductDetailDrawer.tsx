@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useTransition } from 'react'
+import { useMemo, useState, useTransition } from 'react'
 
 import { AlertCircle, Gift, Percent, TrendingUp } from 'lucide-react'
 import {
@@ -8,6 +8,7 @@ import {
   CartesianGrid,
   ComposedChart,
   Line,
+  ReferenceLine,
   XAxis,
   YAxis,
 } from 'recharts'
@@ -199,6 +200,215 @@ function HistoryChart({
   )
 }
 
+// ─── APY breakdown (stacked + toggleable) ────────────────────────────────────
+
+type ApyComponentKey = 'base' | 'rewards' | 'fees'
+
+interface ApyComponent {
+  key: ApyComponentKey
+  label: string
+  color: string
+}
+
+/**
+ * Stacked APY chart with a toggleable legend.
+ *
+ * `net = base − fee + reward` (supply) / `base + fee − reward` (borrow).
+ * `fees` is stored as a RATE relative to base (e.g. 0.10 = 10% of base), so the
+ * absolute fee APY is `base * fees`. Components are drawn as signed areas
+ * (positive stacks up, negative stacks down) and the Net line is recomputed from
+ * whichever components are currently enabled — disabling "Fees" lifts Net up.
+ *
+ * TODO: once the pipeline stores the absolute fee APY per slot, drop the
+ * `base * fees` derivation and read the column directly.
+ */
+function ApyBreakdownChart({
+  data,
+  kind,
+  timeframe,
+  valueFormatter,
+  height = 170,
+}: {
+  data: ProductHistoryPoint[]
+  kind: ProductKind
+  timeframe: TimeframeLabel
+  valueFormatter: (value: number) => string
+  height?: number
+}) {
+  const hasRewards = data.some((p) => p.rewards > 0)
+  const hasFees = data.some((p) => p.base * p.fees > 0)
+
+  const components: ApyComponent[] = [
+    { key: 'base', label: 'Base', color: 'var(--chart-2)' },
+    ...(hasRewards
+      ? [{ key: 'rewards' as const, label: 'Rewards', color: 'var(--chart-3)' }]
+      : []),
+    ...(hasFees
+      ? [{ key: 'fees' as const, label: 'Fees', color: 'var(--chart-4)' }]
+      : []),
+  ]
+
+  const [visible, setVisible] = useState<Record<ApyComponentKey, boolean>>({
+    base: true,
+    rewards: true,
+    fees: true,
+  })
+
+  const config = {
+    net: { label: 'Net', color: 'var(--chart-1)' },
+    base: { label: 'Base', color: 'var(--chart-2)' },
+    rewards: { label: 'Rewards', color: 'var(--chart-3)' },
+    fees: { label: 'Fees', color: 'var(--chart-4)' },
+  } satisfies ChartConfig
+
+  const chartData = useMemo(
+    () =>
+      data.map((p) => {
+        const feeAbs = p.base * p.fees // fees is a rate of base
+        const rewardsSigned = kind === 'supply' ? p.rewards : -p.rewards
+        const feeSigned = kind === 'supply' ? -feeAbs : feeAbs
+
+        const netBase = visible.base ? p.base : 0
+        const netRewards = hasRewards && visible.rewards ? rewardsSigned : 0
+        const netFees = hasFees && visible.fees ? feeSigned : 0
+
+        return {
+          timestamp: p.timestamp,
+          base: p.base,
+          rewards: rewardsSigned,
+          fees: feeSigned,
+          net: netBase + netRewards + netFees,
+        }
+      }),
+    [data, kind, visible, hasRewards, hasFees]
+  )
+
+  const hasData = data.length > 0
+
+  return (
+    <div className="flex flex-col gap-2">
+      {/* Toggleable legend */}
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
+        <span className="text-muted-foreground flex items-center gap-1.5">
+          <span
+            className="h-2 w-2 rounded-full"
+            style={{ backgroundColor: 'var(--chart-1)' }}
+          />
+          Net
+        </span>
+        {components.map((c) => {
+          const on = visible[c.key]
+          return (
+            <button
+              key={c.key}
+              type="button"
+              onClick={() =>
+                setVisible((v) => ({ ...v, [c.key]: !v[c.key] }))
+              }
+              className={`flex cursor-pointer items-center gap-1.5 transition-opacity ${
+                on
+                  ? 'text-foreground'
+                  : 'text-muted-foreground line-through opacity-50'
+              }`}
+            >
+              <span
+                className="h-2 w-2 rounded-full"
+                style={{ backgroundColor: c.color }}
+              />
+              {c.label}
+            </button>
+          )
+        })}
+      </div>
+
+      <div className="relative w-full" style={{ height }}>
+        <ChartContainer config={config} className="h-full w-full">
+          <ComposedChart
+            accessibilityLayer
+            data={chartData}
+            margin={{ top: 8, right: 8, left: 4, bottom: 0 }}
+          >
+            <CartesianGrid vertical={false} />
+            <XAxis
+              dataKey="timestamp"
+              tickLine={false}
+              axisLine={false}
+              tickMargin={8}
+              minTickGap={32}
+              tick={{ fill: 'var(--muted-foreground)', fontSize: 11 }}
+              tickFormatter={(value) =>
+                new Date(value * 1000).toLocaleDateString('en-US', {
+                  month: 'short',
+                  day: 'numeric',
+                })
+              }
+            />
+            <YAxis
+              width={52}
+              tickLine={false}
+              axisLine={false}
+              tick={{ fill: 'var(--muted-foreground)', fontSize: 11 }}
+              tickFormatter={(value) => valueFormatter(Number(value))}
+            />
+            <ReferenceLine y={0} stroke="var(--border)" strokeWidth={1} />
+            <ChartTooltip
+              cursor={false}
+              content={
+                <ChartTooltipContent
+                  indicator="line"
+                  labelFormatter={(value) =>
+                    new Date(Number(value) * 1000).toLocaleDateString('en-US', {
+                      month: 'short',
+                      day: 'numeric',
+                      year: 'numeric',
+                      ...(timeframe === '24h' && {
+                        hour: 'numeric',
+                        minute: 'numeric',
+                      }),
+                    })
+                  }
+                  valueFormatter={(value) => valueFormatter(Number(value))}
+                />
+              }
+            />
+            {components.map((c) =>
+              visible[c.key] ? (
+                <Area
+                  key={c.key}
+                  dataKey={c.key}
+                  stackId="apy"
+                  type="natural"
+                  stroke={`var(--color-${c.key})`}
+                  fill={`var(--color-${c.key})`}
+                  fillOpacity={0.3}
+                  strokeWidth={1}
+                  isAnimationActive={false}
+                  connectNulls
+                />
+              ) : null
+            )}
+            <Line
+              dataKey="net"
+              type="natural"
+              stroke="var(--color-net)"
+              strokeWidth={2}
+              dot={false}
+              isAnimationActive={false}
+              connectNulls
+            />
+          </ComposedChart>
+        </ChartContainer>
+        {!hasData && (
+          <div className="text-muted-foreground pointer-events-none absolute inset-0 flex flex-col items-center justify-center text-sm">
+            <AlertCircle className="mb-2 h-6 w-6 opacity-40" />
+            <p>No data available</p>
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
 function SectionTitle({
   children,
   icon,
@@ -252,18 +462,6 @@ function StatCard({
 }
 
 // ─── Drawer ────────────────────────────────────────────────────────────────
-
-const APY_SERIES: SeriesDef[] = [
-  { key: 'net', label: 'Net', color: 'var(--chart-1)', variant: 'area' },
-  { key: 'base', label: 'Base', color: 'var(--chart-2)', variant: 'line' },
-  {
-    key: 'rewards',
-    label: 'Rewards',
-    color: 'var(--chart-3)',
-    variant: 'line',
-  },
-  { key: 'fees', label: 'Fees', color: 'var(--chart-4)', variant: 'line' },
-]
 
 const NET_ONLY_SERIES: SeriesDef[] = [
   { key: 'net', label: 'Net APY', color: 'var(--chart-1)', variant: 'area' },
@@ -488,15 +686,24 @@ export function ProductDetailDrawer({
           ) : (
             <>
               {/* APY breakdown */}
-              <div className="flex flex-col gap-2">
-                {!usedFallback && <Legend series={APY_SERIES} />}
-                <HistoryChart
+              {usedFallback ? (
+                <div className="flex flex-col gap-2">
+                  <Legend series={NET_ONLY_SERIES} />
+                  <HistoryChart
+                    data={points}
+                    series={NET_ONLY_SERIES}
+                    timeframe={selectedTimeframe}
+                    valueFormatter={(v) => fmtPct(v)}
+                  />
+                </div>
+              ) : (
+                <ApyBreakdownChart
                   data={points}
-                  series={usedFallback ? NET_ONLY_SERIES : APY_SERIES}
+                  kind={kind}
                   timeframe={selectedTimeframe}
                   valueFormatter={(v) => fmtPct(v)}
                 />
-              </div>
+              )}
 
               {usedFallback ? (
                 <p className="text-muted-foreground text-xs">
