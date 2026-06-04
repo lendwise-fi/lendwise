@@ -58,11 +58,7 @@ function normalizeHour(d: Date): Date {
 function detectProtocol(
   productId: string
 ): 'morpho' | 'aave' | 'compound' | 'unknown' {
-  if (
-    productId.startsWith('morphoblue:') ||
-    productId.startsWith('metamorpho:')
-  )
-    return 'morpho'
+  if (productId.startsWith('morpho:')) return 'morpho'
   if (productId.startsWith('aave:')) return 'aave'
   if (productId.startsWith('compoundcomet:')) return 'compound'
   return 'unknown'

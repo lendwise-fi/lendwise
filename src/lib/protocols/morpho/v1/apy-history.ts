@@ -7,10 +7,7 @@ import {
   VAULTS_APY,
   VAULT_SUPPLY_HISTORY,
 } from '@/lib/protocols/morpho/v1/offchain/queries'
-import {
-  buildMarketProductId,
-  buildVaultProductId,
-} from '@/lib/protocols/morpho/v1/utils'
+import { buildProductId } from '@/lib/protocols/morpho/v1/utils'
 import { createGraphQLClient, processBatches } from '@/lib/protocols/shared'
 
 // ─── Response types ───────────────────────────────────────────────────────────
@@ -218,7 +215,7 @@ export async function fetchMorphoHistory(opts?: {
       const feeMap = toMap(hist.fee)
       const totalAssetsUsdMap = toMap(hist.totalAssetsUsd)
 
-      const productId = buildVaultProductId(vault.chainId, vault.address)
+      const productId = buildProductId(vault.chainId, vault.address, 'supply')
 
       // Use netApy timestamps as reference (most complete)
       const timestamps = new Set([...apyMap.keys(), ...netApyMap.keys()])
@@ -344,7 +341,11 @@ export async function fetchMorphoHistory(opts?: {
       const netBorrowApyMap = toMap(hist.netBorrowApy)
       const feeMap = toMap(hist.fee)
 
-      const productId = buildMarketProductId(market.chainId, market.marketId)
+      const productId = buildProductId(
+        market.chainId,
+        market.marketId,
+        'borrow'
+      )
       const timestamps = new Set([
         ...borrowApyMap.keys(),
         ...netBorrowApyMap.keys(),

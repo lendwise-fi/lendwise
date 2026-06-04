@@ -23,7 +23,7 @@ export async function fetchMorphoV1Products(
   chainFilter?: string
 ): Promise<(SupplyProduct | BorrowProduct)[]> {
   const config = MORPHO_CONFIG.morpho_v1
-  const client = createGraphQLClient(config.offchainApiUrl!)
+  const client = createGraphQLClient(config.offchainApiUrl || '')
 
   let chainIds = Object.keys(config.chains).map(Number)
 
@@ -84,7 +84,11 @@ export async function fetchMorphoV1Products(
         decimals: market.loanAsset.decimals,
       }
 
-      const borrowId = buildProductId(market, 'borrow')
+      const borrowId = buildProductId(
+        market.loanAsset.chain.id,
+        market.marketId,
+        'borrow'
+      )
 
       // ─── Borrow product ────────────────────────────────────────────────────────
       const collateral = market.collateralAsset
@@ -100,8 +104,8 @@ export async function fetchMorphoV1Products(
           provider: 'morpho',
           type: 'market',
           version: 'v1',
-          name: borrowId.split(':')[0],
-          subgraphUrl: config.offchainApiUrl!,
+          name: 'morphoblue', // display name — kept stable despite unified `morpho:` id prefix
+          subgraphUrl: config.offchainApiUrl || '',
           chain,
           address: market.morphoBlue.address,
           meta: {
@@ -179,7 +183,11 @@ export async function fetchMorphoV1Products(
       }
 
       const curators = vault.state?.curators.map((e) => e.name) || []
-      const supplyId = buildProductId(vault, 'supply')
+      const supplyId = buildProductId(
+        vault.asset.chain.id,
+        vault.address,
+        'supply'
+      )
 
       // ─── Supply product ──────────────────────────────────────────────────────────
       const supplyProduct: SupplyProduct = {
@@ -190,7 +198,7 @@ export async function fetchMorphoV1Products(
           version: 'v1',
           type: 'vault',
           name: `MorphoBlueV1${vault.asset.chain.network.replace(' ', '')}`,
-          subgraphUrl: config.offchainApiUrl!,
+          subgraphUrl: config.offchainApiUrl || '',
           chain,
           address: vault.address,
           meta: {

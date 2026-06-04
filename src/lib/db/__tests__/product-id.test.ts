@@ -29,8 +29,8 @@ describe('decomposeProductId', () => {
     })
   })
 
-  it('infers borrow for morphoblue (no kind suffix)', () => {
-    expect(decomposeProductId('morphoblue:v1:base:market:0x123')).toEqual({
+  it('parses morpho market borrow', () => {
+    expect(decomposeProductId('morpho:v1:base:market:0x123:borrow')).toEqual({
       provider: 'morpho',
       version: 'v1',
       chainName: 'base',
@@ -40,15 +40,21 @@ describe('decomposeProductId', () => {
     })
   })
 
-  it('infers supply for metamorpho vault (no kind suffix)', () => {
-    expect(decomposeProductId('metamorpho:v1:ethereum:vault:0x456')).toEqual({
-      provider: 'morpho',
-      version: 'v1',
-      chainName: 'ethereum',
-      productType: 'vault',
-      address: '0x456',
-      kind: 'supply',
-    })
+  it('parses morpho vault supply', () => {
+    expect(decomposeProductId('morpho:v1:ethereum:vault:0x456:supply')).toEqual(
+      {
+        provider: 'morpho',
+        version: 'v1',
+        chainName: 'ethereum',
+        productType: 'vault',
+        address: '0x456',
+        kind: 'supply',
+      }
+    )
+  })
+
+  it('returns null for legacy morpho id without kind suffix', () => {
+    expect(decomposeProductId('metamorpho:v1:ethereum:vault:0x456')).toBeNull()
   })
 
   it('returns null for unknown prefix', () => {

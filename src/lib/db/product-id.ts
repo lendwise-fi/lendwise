@@ -9,18 +9,15 @@ export interface DecomposedProductId {
 
 const PREFIX_TO_PROVIDER: Record<string, DecomposedProductId['provider']> = {
   aave: 'aave',
-  morphoblue: 'morpho',
-  metamorpho: 'morpho',
+  morpho: 'morpho',
   compoundcomet: 'compound',
 }
 
 /**
  * Fallback parser for productIds NOT present in the products table (orphans).
- * Handles the irregular formats:
- *   aave/compound        — kind is the last colon segment
- *   morphoblue (borrow)  — no kind suffix, inferred 'borrow'
- *   metamorpho (supply)  — no kind suffix, inferred 'supply'
- * Returns null when the prefix is unrecognized.
+ * Every provider now uses a uniform shape with the kind as the last segment:
+ *   {prefix}:{version}:{chainName}:{productType}:{address}:{supply|borrow}
+ * Returns null when the prefix is unrecognized or the kind suffix is missing.
  */
 export function decomposeProductId(
   productId: string
@@ -31,14 +28,9 @@ export function decomposeProductId(
   if (!provider) return null
 
   const last = segments[segments.length - 1]
-  const hasKindSuffix = last === 'supply' || last === 'borrow'
-  const kind: DecomposedProductId['kind'] = hasKindSuffix
-    ? (last as 'supply' | 'borrow')
-    : prefix === 'metamorpho'
-      ? 'supply'
-      : 'borrow' // morphoblue
+  if (last !== 'supply' && last !== 'borrow') return null
 
-  const core = hasKindSuffix ? segments.slice(0, -1) : segments
+  const core = segments.slice(0, -1)
   // core = [prefix, version, chainName, productType, address]
   return {
     provider,
@@ -46,6 +38,6 @@ export function decomposeProductId(
     chainName: core[2],
     productType: core[3] as DecomposedProductId['productType'],
     address: core[4],
-    kind,
+    kind: last,
   }
 }

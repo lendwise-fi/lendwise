@@ -1,6 +1,6 @@
 'use server'
 
-import { type ProtocolName } from '@/config/protocols'
+import type { ProtocolName } from '@/config/protocols'
 import {
   deactivateProviders,
   upsertProducts,
@@ -67,7 +67,7 @@ export async function syncProducts(
     () => Promise<(SupplyProduct | BorrowProduct)[]>,
   ][] = protocol
     ? PROTOCOL_TASKS[protocol]
-      ? [[protocol, PROTOCOL_TASKS[protocol]!]]
+      ? [[protocol, PROTOCOL_TASKS[protocol]]]
       : []
     : (Object.entries(PROTOCOL_TASKS) as [
         ProtocolName,

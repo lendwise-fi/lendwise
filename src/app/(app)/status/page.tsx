@@ -342,7 +342,9 @@ function ProtocolHeatmap({
                               <span className="text-muted-foreground">
                                 Avg spots
                               </span>
-                              <span className="font-medium">{slot.count}/6</span>
+                              <span className="font-medium">
+                                {slot.count}/6
+                              </span>
                             </div>
                             {slot.healed && (
                               <div className="flex justify-between gap-4">
@@ -438,7 +440,10 @@ function PoolList({ title, pools }: { title: string; pools: PoolRow[] }) {
                 {p.id}
               </span>
             </span>
-            <Badge variant="outline" className="shrink-0 self-start text-[10px]">
+            <Badge
+              variant="outline"
+              className="shrink-0 self-start text-[10px]"
+            >
               {p.kind}
             </Badge>
             <span className="text-muted-foreground w-12 shrink-0 self-start text-right font-mono">

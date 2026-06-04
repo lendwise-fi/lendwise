@@ -5,7 +5,7 @@ import { BorrowProduct } from '@/types'
 
 import { client } from '.'
 import { MORPHO_CONFIG } from '../../config'
-import { buildMarketProductId } from '../utils'
+import { buildProductId } from '../utils'
 import { ListBorrowProductsQuery } from './generated/graphql'
 import { LIST_BORROW_PRODUCTS } from './queries'
 
@@ -57,9 +57,10 @@ const _formatBorrowProducts = cache(
             ]
           : [],
         apy: market.state?.netBorrowApy ?? 0,
-        productId: buildMarketProductId(
+        productId: buildProductId(
           market.morphoBlue.chain.id,
-          market.marketId
+          market.marketId,
+          'borrow'
         ),
         link: `https://app.morpho.org/${market.morphoBlue.chain.network.toLowerCase()}/market/${market.marketId}`,
       }

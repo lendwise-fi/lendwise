@@ -4,7 +4,7 @@ import { SupplyProduct } from '@/types'
 
 import { client } from '.'
 import { MORPHO_CONFIG } from '../../config'
-import { buildVaultProductId } from '../utils'
+import { buildProductId } from '../utils'
 import { ListSupplyProductsQuery } from './generated/graphql'
 import { LIST_SUPPLY_PRODUCTS } from './queries'
 
@@ -63,7 +63,11 @@ export async function getSupplyProducts(): Promise<SupplyProduct[]> {
           liquidityAmount: (vault.liquidity?.underlying ?? 0).toString(),
           liquidityAmountUsd: vault.liquidity?.usd ?? 0,
           apy: vault?.state?.avgNetApy ?? 0,
-          productId: buildVaultProductId(vault.asset.chain.id, vault.address),
+          productId: buildProductId(
+            vault.asset.chain.id,
+            vault.address,
+            'supply'
+          ),
           link: `https://app.morpho.org/${vault.asset.chain.network.toLowerCase()}/vault/${vault.address}/${generateSlug(vault.name)}`,
         }
       })

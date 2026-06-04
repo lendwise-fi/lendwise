@@ -28,7 +28,7 @@ export async function fetchMorphoV1ApySpot(
   chainFilter?: string
 ): Promise<SpotPayload[]> {
   const config = MORPHO_CONFIG.morpho_v1
-  const client = createGraphQLClient(config.offchainApiUrl!)
+  const client = createGraphQLClient(config.offchainApiUrl || '')
 
   let chainIds = Object.keys(config.chains).map(Number)
 
@@ -79,10 +79,10 @@ export async function fetchMorphoV1ApySpot(
 
       const chainId = vault.asset.chain.id
       const assetSymbol = vault.asset.symbol
-      const network = vault.asset.chain.network
-        .toLowerCase()
-        .replaceAll(' ', '')
-      const productId = `metamorpho:v1:${network}:vault:${vault.address.toLowerCase()}`
+      // Canonical slug (CHAIN_NAME_MAPPING) — must match the products registry,
+      // NOT the human chain label ("Arbitrum One" → "arbitrumone" would orphan
+      // the apy_hourly rows from the product row built in products.ts).
+      const productId = buildProductId(chainId, vault.address, 'supply')
 
       // ─── Rewards ────────────────────────────────────────────────────────────
       // supplyApr provided by Morpho API (annualized)
@@ -208,7 +208,7 @@ export async function fetchMorphoV1ApySpot(
       const netBorrowApy = state.netBorrowApy ?? borrowApy
 
       // ─── Borrow payload ──────────────────────────────────────────────────────
-      const borrowProductId = buildProductId(market, 'borrow')
+      const borrowProductId = buildProductId(chainId, market.marketId, 'borrow')
       const borrowPayload: SpotPayload = {
         productId: borrowProductId,
         kind: 'borrow',

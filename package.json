@@ -13,6 +13,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "products:sync": "dotenv -- tsx scripts/products-sync.ts",
+    "migrate:morpho-ids": "dotenv -- tsx scripts/migrate-morpho-product-ids.ts",
     "dev": "next dev",
     "build": "pnpm codegen && next build",
     "start": "next start",

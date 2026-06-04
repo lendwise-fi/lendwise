@@ -1,48 +1,23 @@
 import type { Kind } from '@/lib/db/types'
-import type {
-  ListSupplyProductsQuery,
-  MarketsApyQuery,
-} from '@/lib/protocols/morpho/v1/offchain/generated/graphql'
 import { CHAIN_NAME_MAPPING } from '@/lib/protocols/utils'
 
-// ─── Primitive Product ID builders ───────────────────────────────────────────
-
-export function buildVaultProductId(chainId: number, address: string): string {
-  const network = CHAIN_NAME_MAPPING[chainId]
-  if (!network)
-    throw new Error(
-      `No slug registered for chainId ${chainId} — add it to chain-slugs.ts`
-    )
-  return `metamorpho:v1:${network}:vault:${address.toLowerCase()}`
-}
-
-export function buildMarketProductId(
-  chainId: number,
-  marketId: string
-): string {
-  const network = CHAIN_NAME_MAPPING[chainId]
-  if (!network)
-    throw new Error(
-      `No slug registered for chainId ${chainId} — add it to chain-slugs.ts`
-    )
-  return `morphoblue:v1:${network}:market:${marketId}`
-}
-
-// ─── Market Product ID builder ──────────────────────────────────────────────────────────
+// ─── Product ID builder ───────────────────────────────────────────────────────
+// Unified Morpho productId — same single-builder shape as aave/compound:
+//   morpho:v1:{chain}:{vault|market}:{address}:{supply|borrow}
+// productType is implied by kind (supply ⇒ vault, borrow ⇒ market); `address`
+// is the vault address for supply and the marketId for borrow.
+// Replaces the legacy split prefixes (metamorpho:…/morphoblue:…) that omitted
+// the trailing kind segment and forced special-case parsing.
 export function buildProductId(
-  product:
-    | NonNullable<ListSupplyProductsQuery['vaults']['items']>[number]
-    | NonNullable<MarketsApyQuery['markets']['items']>[number],
+  chainId: number,
+  address: string,
   kind: Kind
 ): string {
-  if (kind === 'supply') {
-    const vault = product as NonNullable<
-      ListSupplyProductsQuery['vaults']['items']
-    >[number]
-    return buildVaultProductId(vault.asset.chain.id, vault.address)
-  }
-  const market = product as NonNullable<
-    MarketsApyQuery['markets']['items']
-  >[number]
-  return buildMarketProductId(market.loanAsset.chain.id, market.marketId)
+  const network = CHAIN_NAME_MAPPING[chainId]
+  if (!network)
+    throw new Error(
+      `No slug registered for chainId ${chainId} — add it to chain-slugs.ts`
+    )
+  const productType = kind === 'supply' ? 'vault' : 'market'
+  return `morpho:v1:${network}:${productType}:${address.toLowerCase()}:${kind}`
 }
