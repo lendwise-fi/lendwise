@@ -214,13 +214,10 @@ interface ApyComponent {
  * Stacked APY chart with a toggleable legend.
  *
  * `net = base − fee + reward` (supply) / `base + fee − reward` (borrow).
- * `fees` is stored as a RATE relative to base (e.g. 0.10 = 10% of base), so the
- * absolute fee APY is `base * fees`. Components are drawn as signed areas
- * (positive stacks up, negative stacks down) and the Net line is recomputed from
- * whichever components are currently enabled — disabling "Fees" lifts Net up.
- *
- * TODO: once the pipeline stores the absolute fee APY per slot, drop the
- * `base * fees` derivation and read the column directly.
+ * `fees` is the absolute fee APY per slot (the pipeline stores it directly for
+ * every protocol). Components are drawn as signed areas (positive stacks up,
+ * negative stacks down) and the Net line is recomputed from whichever components
+ * are currently enabled — disabling "Fees" lifts Net up.
  */
 function ApyBreakdownChart({
   data,
@@ -236,7 +233,7 @@ function ApyBreakdownChart({
   height?: number
 }) {
   const hasRewards = data.some((p) => p.rewards > 0)
-  const hasFees = data.some((p) => p.base * p.fees > 0)
+  const hasFees = data.some((p) => p.fees > 0)
 
   const components: ApyComponent[] = [
     { key: 'base', label: 'Base', color: 'var(--chart-2)' },
@@ -264,7 +261,7 @@ function ApyBreakdownChart({
   const chartData = useMemo(
     () =>
       data.map((p) => {
-        const feeAbs = p.base * p.fees // fees is a rate of base
+        const feeAbs = p.fees // absolute fee APY (pipeline-stored)
         const rewardsSigned = kind === 'supply' ? p.rewards : -p.rewards
         const feeSigned = kind === 'supply' ? -feeAbs : feeAbs
 

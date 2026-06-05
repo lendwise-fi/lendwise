@@ -235,7 +235,8 @@ export async function fetchMorphoHistory(opts?: {
           apy: {
             base: baseApy,
             rewards: Math.max(0, rewards),
-            fees: fee,
+            // fee is the 0–1 fee rate → store fee-APY (= base × fee rate).
+            fees: baseApy * fee,
             net: netApy,
             rewardItems: [],
           },
@@ -364,7 +365,8 @@ export async function fetchMorphoHistory(opts?: {
           apy: {
             base: borrowApy,
             rewards: 0,
-            fees: fee,
+            // fee is the 0–1 market fee rate → store fee-APY (= base × fee rate).
+            fees: borrowApy * fee,
             net: netBorrowApy,
             rewardItems: [],
           },

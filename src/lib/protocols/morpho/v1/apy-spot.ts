@@ -117,7 +117,9 @@ export async function fetchMorphoV1ApySpot(
         apy: {
           base: state.apy ?? 0,
           rewards: rewardsTotal,
-          fees: state.fee ?? 0,
+          // state.fee is the 0–1 fee rate; store the fee-APY component so
+          // apy_fees is comparable to other protocols (= base × fee rate).
+          fees: (state.apy ?? 0) * (state.fee ?? 0),
           net: state.netApy ?? 0,
           rewardItems,
         },
@@ -218,7 +220,8 @@ export async function fetchMorphoV1ApySpot(
         apy: {
           base: borrowApy,
           rewards: borrowRewardsTotal,
-          fees: fee,
+          // fee is the 0–1 market fee rate → store fee-APY (= base × fee rate).
+          fees: borrowApy * fee,
           net: netBorrowApy,
           rewardItems: borrowRewardItems,
         },
