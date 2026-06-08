@@ -72,8 +72,11 @@ export const apyToAprAave = apyToAprPerSecond
  * Used for Morpho reward APRs (state.rewards[].supplyApr / borrowApr).
  */
 export function aprToApyMorpho(apr: number): number {
-  if (apr <= 0) return 0
-  return Math.exp(apr) - 1
+  // `!(apr > 0)` also rejects NaN (NaN > 0 is false). e^apr overflows to
+  // Infinity for a garbage APR — coerce any non-finite result to 0.
+  if (!(apr > 0)) return 0
+  const apy = Math.exp(apr) - 1
+  return Number.isFinite(apy) ? apy : 0
 }
 
 /**

@@ -17,6 +17,27 @@ import { aprToApyMorpho } from '@/lib/utils'
 
 import { buildProductId } from './utils'
 
+// Morpho's API intermittently returns glitched rates — NaN/Infinity reward APRs,
+// or an absurd APY (e.g. 33900% borrow, -13,000,000% net). A value outside this
+// band is an upstream glitch, not a real rate, so the snapshot is dropped rather
+// than poisoning apy_hourly → apy_daily. ±100 = ±10,000% APY: wide enough to keep
+// real extremes (tiny incentivised markets legitimately run negative net borrow
+// from high reward APRs), tight enough that nothing legitimate reaches it.
+const SANE_APY_MAX = 100
+
+const isSaneApy = (v: number): boolean =>
+  Number.isFinite(v) && v >= -SANE_APY_MAX && v <= SANE_APY_MAX
+
+/** True when every APY component (base/rewards/fees/net) is a plausible rate. */
+function isSaneApyBlock(apy: SpotPayload['apy']): boolean {
+  return (
+    isSaneApy(apy.base) &&
+    isSaneApy(apy.rewards) &&
+    isSaneApy(apy.fees) &&
+    isSaneApy(apy.net)
+  )
+}
+
 /**
  * Fetch current APY snapshots for Morpho.
  * - Supply snapshots → MetaMorpho vaults (VAULTS_APY)
@@ -131,6 +152,14 @@ export async function fetchMorphoV1ApySpot(
         } as SupplyMarketState,
       }
 
+      if (!isSaneApyBlock(supplyPayload.apy)) {
+        const { base, rewards, fees, net } = supplyPayload.apy
+        console.warn(
+          `[cron:morpho] Dropping glitched supply APY ${productId}: base=${base} rewards=${rewards} fees=${fees} net=${net}`
+        )
+        continue
+      }
+
       snapshots.push(supplyPayload)
     }
 
@@ -235,6 +264,14 @@ export async function fetchMorphoV1ApySpot(
           collateralAssetsUsd: null, // not exposed in current query
           priceCollateralInLoanAsset: null, // TODO: derive from collateral state
         } as BorrowMarketState,
+      }
+
+      if (!isSaneApyBlock(borrowPayload.apy)) {
+        const { base, rewards, fees, net } = borrowPayload.apy
+        console.warn(
+          `[cron:morpho] Dropping glitched borrow APY ${borrowProductId}: base=${base} rewards=${rewards} fees=${fees} net=${net}`
+        )
+        continue
       }
 
       snapshots.push(borrowPayload)

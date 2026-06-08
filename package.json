@@ -15,6 +15,7 @@
     "products:sync": "dotenv -- tsx scripts/products-sync.ts",
     "backfill:aave-apy": "dotenv -- tsx scripts/backfill-aave-apy-split.ts",
     "fix:daily-nan": "dotenv -- tsx scripts/fix-daily-nan.ts",
+    "clean:insane-apy": "dotenv -- tsx scripts/clean-insane-apy.ts",
     "migrate:morpho-ids": "dotenv -- tsx scripts/migrate-morpho-product-ids.ts",
     "dev": "next dev",
     "build": "pnpm codegen && next build",
