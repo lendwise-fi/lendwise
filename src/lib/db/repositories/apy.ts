@@ -399,17 +399,30 @@ export async function productApyHistory(
     .orderBy(asc(timeCol))
     .limit(10_000)
 
-  return rows.map((r) => ({
-    t: new Date(r.t),
-    base: r.base,
-    rewards: r.rewards,
-    fees: r.fees,
-    net: r.net,
-    rewardItems: (r.rewardItems as RewardItem[]) ?? [],
-    supplyAssetsUsd: r.supplyAssetsUsd,
-    borrowAssetsUsd: r.borrowAssetsUsd,
-    collateralAssetsUsd: r.collateralAssetsUsd,
-    utilizationRate: r.utilizationRate,
-    assetPriceUsd: r.assetPriceUsd,
-  }))
+  // Postgres double precision can store 'NaN' (a bad upstream APR→APY). A slot
+  // with a non-finite core APY would render as "NaN%" and break the chart area,
+  // so drop it — the line connects across the gap (charts use connectNulls).
+  // Nullable market-state numerics are coerced NaN→null individually.
+  const finite = (v: number | null): number | null =>
+    v != null && Number.isFinite(v) ? v : null
+
+  return rows.flatMap((r) =>
+    [r.base, r.rewards, r.fees, r.net].every(Number.isFinite)
+      ? [
+          {
+            t: new Date(r.t),
+            base: r.base,
+            rewards: r.rewards,
+            fees: r.fees,
+            net: r.net,
+            rewardItems: (r.rewardItems as RewardItem[]) ?? [],
+            supplyAssetsUsd: finite(r.supplyAssetsUsd),
+            borrowAssetsUsd: finite(r.borrowAssetsUsd),
+            collateralAssetsUsd: finite(r.collateralAssetsUsd),
+            utilizationRate: finite(r.utilizationRate),
+            assetPriceUsd: finite(r.assetPriceUsd),
+          },
+        ]
+      : []
+  )
 }

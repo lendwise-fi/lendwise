@@ -209,13 +209,20 @@ export async function fetchAaveV3ApySpot(
       const marketSlug = AAVE_MARKET_TO_MERKL_SLUG[market.name] ?? null
 
       // ─── Base rates ────────────────────────────────────────────────────────
-      // supplyInfo.apy.value is already net of reserveFactor — fees = 0 on supply
-      // borrowInfo.apy.value is the gross borrow rate — reserveFactor is informational
-      const baseSupplyApy = Number(reserve.supplyInfo?.apy.value ?? 0)
+      // supplyInfo.apy.value is the supplier's *net* rate (already after the
+      // reserveFactor cut). borrowInfo.apy.value is the gross borrow rate.
+      const netSupplyApy = Number(reserve.supplyInfo?.apy.value ?? 0)
       const baseBorrowApy = Number(reserve.borrowInfo?.apy.value ?? 0)
       const reserveFactor = Number(
         reserve.borrowInfo?.reserveFactor?.value ?? 0
       )
+
+      // Decompose the net supply rate into a pre-fee base + the protocol cut so
+      // that base - fees + rewards === net (supplier's realised rate unchanged).
+      //   base = net / (1 - reserveFactor) · fees = base * reserveFactor
+      const baseSupplyApy =
+        reserveFactor < 1 ? netSupplyApy / (1 - reserveFactor) : netSupplyApy
+      const supplyFeesApy = baseSupplyApy * reserveFactor
 
       // ─── Native AAVE / Merit incentives ────────────────────────────────────
       const supplyRewardItems: RewardItem[] = []
@@ -383,9 +390,10 @@ export async function fetchAaveV3ApySpot(
         apy: {
           base: baseSupplyApy,
           rewards: totalSupplyRewards,
-          // supplyInfo.apy already nets the reserveFactor — fees = 0 on supply
-          fees: 0,
-          net: baseSupplyApy + totalSupplyRewards,
+          // protocol cut of the supply interest (base * reserveFactor)
+          fees: supplyFeesApy,
+          // base - fees + rewards === netSupplyApy + rewards (unchanged)
+          net: netSupplyApy + totalSupplyRewards,
           rewardItems: supplyRewardItems,
         },
         market: {
@@ -408,8 +416,9 @@ export async function fetchAaveV3ApySpot(
         apy: {
           base: baseBorrowApy,
           rewards: totalBorrowRewards,
-          // reserveFactor is informational — already included in baseBorrowApy
-          fees: reserveFactor,
+          // borrower pays the full borrow rate — reserveFactor is the protocol's
+          // cut of the *supply* interest, not a cost to the borrower
+          fees: 0,
           net: Math.max(0, baseBorrowApy - totalBorrowRewards),
           rewardItems: borrowRewardItems,
         },

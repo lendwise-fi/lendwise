@@ -562,19 +562,19 @@ export function ProductDetailDrawer({
       : null
   const latestUtil = derivedUtil ?? historyUtil
 
-  // Asset price. Prefer pipeline history (per-timeframe spot), then the
-  // product's own price, then derive from USD amount / token amount. Morpho's
-  // history has no priceUsd, so the derivation guarantees a value.
-  const historyPrice = lastDefined(points, 'priceUsd')
+  // Asset price. Prefer the product's own USD price from the list query
+  // (Morpho's pipeline history has no priceUsd), then pipeline history
+  // (Aave/Compound), then derive from USD amount / token amount as a last
+  // resort.
   const itemPrice =
     'assetPriceUsd' in item && item.assetPriceUsd ? item.assetPriceUsd : null
+  const historyPrice = lastDefined(points, 'priceUsd')
   const assetAmountTokens = Number(item.assetAmount) / 10 ** item.assetDecimals
   const derivedPrice =
     assetAmountTokens > 0 ? item.assetAmountUsd / assetAmountTokens : null
   const latestPrice =
-    historyPrice !== null && historyPrice > 0
-      ? historyPrice
-      : (itemPrice ?? derivedPrice)
+    itemPrice ??
+    (historyPrice !== null && historyPrice > 0 ? historyPrice : derivedPrice)
   const latestRewardItems =
     [...points].reverse().find((p) => p.rewardItems.length > 0)?.rewardItems ??
     []
