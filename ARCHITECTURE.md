@@ -1,8 +1,8 @@
-# YieldOptimizer Architecture
+# Lendwise Architecture
 
 ## Overview
 
-YieldOptimizer is a professional DeFi yield optimization platform that aggregates positions from multiple supplying protocols (Aave, Compound, Morpho) and provides actionable insights for maximizing returns.
+Lendwise is a professional DeFi yield optimization platform that aggregates positions from multiple supplying protocols (Aave, Compound, Morpho) and provides actionable insights for maximizing returns.
 
 ## Project Structure
 

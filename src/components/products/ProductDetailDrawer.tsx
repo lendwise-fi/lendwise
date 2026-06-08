@@ -551,8 +551,30 @@ export function ProductDetailDrawer({
 
   // Derived stats
   const avgNet = mean(points.map((p) => p.net))
-  const latestUtil = lastDefined(points, 'utilization')
-  const latestPrice = lastDefined(points, 'priceUsd')
+
+  // Utilization (used / supplied). Pipeline history doesn't carry it for every
+  // protocol (Morpho vaults report 0), so derive from deposit vs liquidity —
+  // same formula as the products tables.
+  const historyUtil = lastDefined(points, 'utilization')
+  const derivedUtil =
+    item.assetAmountUsd > 0
+      ? (item.assetAmountUsd - item.liquidityAmountUsd) / item.assetAmountUsd
+      : null
+  const latestUtil = derivedUtil ?? historyUtil
+
+  // Asset price. Prefer pipeline history (per-timeframe spot), then the
+  // product's own price, then derive from USD amount / token amount. Morpho's
+  // history has no priceUsd, so the derivation guarantees a value.
+  const historyPrice = lastDefined(points, 'priceUsd')
+  const itemPrice =
+    'assetPriceUsd' in item && item.assetPriceUsd ? item.assetPriceUsd : null
+  const assetAmountTokens = Number(item.assetAmount) / 10 ** item.assetDecimals
+  const derivedPrice =
+    assetAmountTokens > 0 ? item.assetAmountUsd / assetAmountTokens : null
+  const latestPrice =
+    historyPrice !== null && historyPrice > 0
+      ? historyPrice
+      : (itemPrice ?? derivedPrice)
   const latestRewardItems =
     [...points].reverse().find((p) => p.rewardItems.length > 0)?.rewardItems ??
     []

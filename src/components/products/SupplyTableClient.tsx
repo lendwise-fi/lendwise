@@ -424,9 +424,15 @@ export function SupplyTableClient() {
     })
   )
 
-  // Faceted counts: apply all active filters except the target column
+  // Text search predicate — mirrors DataTable's globalFilter (poolName only)
+  const matchesSearch = (m: SupplyProduct) =>
+    searchValue === '' ||
+    m.poolName.toLowerCase().includes(searchValue.toLowerCase())
+
+  // Faceted counts: apply text search + all active filters except the target column
   const applyFiltersExcept = (excludeId: string) =>
     visibleMarkets.filter((m) =>
+      matchesSearch(m) &&
       columnFilters.every((f) => {
         if (f.id === excludeId) return true
         const cell = String(m[f.id as keyof SupplyProduct] ?? '')

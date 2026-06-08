@@ -60,6 +60,7 @@ export async function getSupplyProducts(): Promise<SupplyProduct[]> {
           assetDecimals: vault.asset.decimals,
           assetAmount: (vault.state?.totalAssets ?? 0).toString(),
           assetAmountUsd: vault.state?.totalAssetsUsd ?? 0,
+          assetPriceUsd: vault.asset.price?.usd ?? 0,
           liquidityAmount: (vault.liquidity?.underlying ?? 0).toString(),
           liquidityAmountUsd: vault.liquidity?.usd ?? 0,
           apy: vault?.state?.avgNetApy ?? 0,

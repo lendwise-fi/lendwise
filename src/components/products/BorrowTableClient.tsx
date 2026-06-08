@@ -549,10 +549,24 @@ export function BorrowTableClient() {
       ),
     }))
 
-  // Faceted counts: apply all active filters EXCEPT the target column's own filter,
-  // so each chip shows "how many results you'd get by picking that option".
+  // Text search predicate — mirrors DataTable's globalFilter (poolName,
+  // assetSymbol, and collateral symbols).
+  const matchesSearch = (m: BorrowProduct) => {
+    if (searchValue === '') return true
+    const q = searchValue.toLowerCase()
+    return (
+      m.poolName.toLowerCase().includes(q) ||
+      m.assetSymbol.toLowerCase().includes(q) ||
+      m.collaterals.some((c) => c.symbol.toLowerCase().includes(q))
+    )
+  }
+
+  // Faceted counts: apply text search + all active filters EXCEPT the target
+  // column's own filter, so each chip shows "how many results you'd get by
+  // picking that option".
   const applyFiltersExcept = (excludeId: string) =>
     visibleMarkets.filter((m) =>
+      matchesSearch(m) &&
       columnFilters.every((f) => {
         if (f.id === excludeId) return true
         if (f.id === 'collaterals') {

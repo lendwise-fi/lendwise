@@ -379,6 +379,9 @@ export const LIST_SUPPLY_PRODUCTS = gql`
           name
           symbol
           decimals
+          price {
+            usd
+          }
           chain {
             currency
             network

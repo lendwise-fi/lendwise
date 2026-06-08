@@ -46,7 +46,7 @@ interface CurrencyProviderProps {
   defaultCurrency?: string
 }
 
-const STORAGE_KEY = 'yieldoptimizer:baseCurrency'
+const STORAGE_KEY = 'lendwise:baseCurrency'
 
 export function CurrencyProvider({
   children,

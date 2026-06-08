@@ -17,7 +17,7 @@ export async function GET(request: NextRequest) {
     const response = await fetch(coingeckoUrl, {
       headers: {
         Accept: 'application/json',
-        'User-Agent': 'YieldOptimizer/1.0',
+        'User-Agent': 'Lendwise/1.0',
       },
       // Cache for 1 hour
       next: { revalidate: 3600 },

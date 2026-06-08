@@ -124,6 +124,7 @@ export interface SupplyProduct {
   assetDecimals: number
   assetAmount: string
   assetAmountUsd: number
+  assetPriceUsd?: number
   liquidityAmount: string
   liquidityAmountUsd: number
   apy: number

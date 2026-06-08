@@ -2,7 +2,7 @@
  * Yield Optimizer API Client
  * Calls the local proxy API at /api/optimizer
  *
- * API Documentation: https://yieldoptimizer-api.onrender.com/redoc
+ * API Documentation: https://optimizer.lendwise.fi/redoc
  *
  * Types are auto-generated from OpenAPI spec.
  * Run `pnpm codegen:optimizer` to regenerate types.

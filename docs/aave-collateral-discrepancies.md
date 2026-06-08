@@ -40,7 +40,7 @@ Several alternative Aave data sources were investigated:
 
 ### 3. Code Logic Analysis ✅
 
-The yieldoptimizer code correctly processes the API data:
+The lendwise code correctly processes the API data:
 
 ```typescript
 const marketCollaterals: Collateral[] = market.reserves
@@ -60,11 +60,11 @@ The filtering logic is sound and will correctly exclude rsETH from collateral li
 3. **Business Logic Overrides**: UI might apply additional business logic or feature flags
 4. **Data Lag**: GraphQL API might have delayed updates compared to the UI
 
-## Impact on Yieldoptimizer
+## Impact on Lendwise
 
 ### ✅ No Impact on Current Implementation
 
-The yieldoptimizer correctly:
+The lendwise correctly:
 
 - Filters out rsETH from collateral lists based on API data
 - Prevents rsETH from being used as collateral in optimization calculations
@@ -75,7 +75,7 @@ The yieldoptimizer correctly:
 Users might see:
 
 - rsETH listed as collateral in Aave UI
-- rsETH NOT available as collateral in yieldoptimizer
+- rsETH NOT available as collateral in lendwise
 - This discrepancy could cause confusion about data accuracy
 
 ## Recommendations
@@ -116,7 +116,7 @@ Users might see:
 
 ## Monitoring Implementation
 
-The yieldoptimizer now includes:
+The lendwise now includes:
 
 1. **CollateralValidator Class**: Automatically detects and logs discrepancies
 2. **Integration with Products Fetcher**: Validates data during sync operations
@@ -142,4 +142,4 @@ pnpm run products:sync
 
 ## Conclusion
 
-The rsETH collateral discrepancy is a known issue between Aave's UI and API. The yieldoptimizer implementation is correct and should continue using the official GraphQL API data. The added monitoring system will help track such issues and maintain data integrity.
+The rsETH collateral discrepancy is a known issue between Aave's UI and API. The lendwise implementation is correct and should continue using the official GraphQL API data. The added monitoring system will help track such issues and maintain data integrity.

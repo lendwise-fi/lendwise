@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 
 /**
  * Generic Proxy for the Yield Optimizer API
- * External API: https://yieldoptimizer-api.onrender.com/redoc
+ * External API: https://optimizer.lendwise.fi/redoc
  *
  * Usage: POST /api/optimizer with body { endpoint: '/optimize/vaults', data: {...} }
  */
