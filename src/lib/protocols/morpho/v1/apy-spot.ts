@@ -13,7 +13,6 @@ import {
   VAULTS_APY,
 } from '@/lib/protocols/morpho/v1/offchain/queries'
 import { createGraphQLClient } from '@/lib/protocols/shared'
-import { aprToApyMorpho } from '@/lib/utils'
 
 import { buildProductId } from './utils'
 
@@ -106,23 +105,46 @@ export async function fetchMorphoV1ApySpot(
       const productId = buildProductId(chainId, vault.address, 'supply')
 
       // ─── Rewards ────────────────────────────────────────────────────────────
-      // supplyApr provided by Morpho API (annualized)
+      // Reward APRs kept linear (APR ≈ APY) — reward tokens are separate assets,
+      // not auto-compounded. The total uses Morpho's own net delta (below).
       const rewardItems = (state.allRewards ?? [])
         .map((r) => {
           const apr = r.supplyApr ?? 0
           return {
             token: { symbol: r.asset.symbol, address: r.asset.address },
             apr,
-            apy: aprToApyMorpho(apr),
+            apy: apr,
             source: 'protocol' as const,
             program: null,
           }
         })
         .filter((r) => r.apr > 0)
 
-      // Total rewards = net APY delta between net and net-excluding-rewards
-      const rewardsTotal =
-        (state.netApy ?? 0) - (state.netApyExcludingRewards ?? 0)
+      // ─── Base / fees ───────────────────────────────────────────────────────
+      // netApy / netApyExcludingRewards are Morpho's authoritative aggregates.
+      const netApy = state.netApy ?? 0
+      const netExclRewards = state.netApyExcludingRewards ?? 0
+      const feeRate = state.fee ?? 0
+      const grossApy = state.apy ?? 0
+
+      // Total rewards = net − net-excluding-rewards.
+      const rewardsTotal = netApy - netExclRewards
+
+      // base = gross supply APY; fee in APY = gross − netExclRewards (the *real*
+      // fee, exact vs Morpho — not the approximate base × feeRate). state.apy
+      // occasionally spikes (e.g. 4391%) while the net fields stay sane → fall
+      // back to the gross implied by netExclRewards + the fee rate. Either way
+      // base − fees + rewards === netApy exactly.
+      const baseImplied =
+        feeRate < 1 ? netExclRewards / (1 - feeRate) : netExclRewards
+      const grossGlitched = Math.abs(grossApy - baseImplied) > 0.1
+      if (grossGlitched) {
+        console.warn(
+          `[cron:morpho] Rebuilding glitched supply base ${productId}: gross=${grossApy} implied=${baseImplied}`
+        )
+      }
+      const baseApy = grossGlitched ? baseImplied : grossApy
+      const feesApy = baseApy - netExclRewards
 
       // ─── Market state ────────────────────────────────────────────────────────
       const totalAssets = Number(state.totalAssets ?? 0)
@@ -136,12 +158,10 @@ export async function fetchMorphoV1ApySpot(
         chainId,
         asset: assetSymbol,
         apy: {
-          base: state.apy ?? 0,
+          base: baseApy,
           rewards: rewardsTotal,
-          // state.fee is the 0–1 fee rate; store the fee-APY component so
-          // apy_fees is comparable to other protocols (= base × fee rate).
-          fees: (state.apy ?? 0) * (state.fee ?? 0),
-          net: state.netApy ?? 0,
+          fees: feesApy,
+          net: netApy,
           rewardItems,
         },
         market: {
@@ -206,6 +226,10 @@ export async function fetchMorphoV1ApySpot(
 
       // ─── Rewards ────────────────────────────────────────────────────────────
 
+      // Reward APRs kept linear (APR ≈ APY): reward tokens are separate assets,
+      // not auto-compounded into the position. The reward *total* is taken from
+      // Morpho's own net below (netBorrow = borrow − reward), not summed here —
+      // continuous compounding (e^APR) massively over-inflated it (822% vs 222%).
       const borrowRewardItems = state.rewards
         .filter(
           (r): r is typeof r & { borrowApr: number } =>
@@ -214,15 +238,10 @@ export async function fetchMorphoV1ApySpot(
         .map((r) => ({
           token: { symbol: r.asset.symbol, address: r.asset.address },
           apr: r.borrowApr,
-          apy: aprToApyMorpho(r.borrowApr),
+          apy: r.borrowApr,
           source: 'protocol' as const,
           program: null,
         }))
-
-      const borrowRewardsTotal = borrowRewardItems.reduce(
-        (s, r) => s + r.apy,
-        0
-      )
 
       // ─── Market state ────────────────────────────────────────────────────────
 
@@ -234,7 +253,6 @@ export async function fetchMorphoV1ApySpot(
       const assetPriceUsd =
         supplyAssets > 0 ? supplyAssetsUsd / supplyAssets : 0
 
-      const fee = state.fee ?? 0
       const borrowApy = state.borrowApy ?? 0
       const netBorrowApy = state.netBorrowApy ?? borrowApy
 
@@ -248,9 +266,11 @@ export async function fetchMorphoV1ApySpot(
         asset: loanSymbol,
         apy: {
           base: borrowApy,
-          rewards: borrowRewardsTotal,
-          // fee is the 0–1 market fee rate → store fee-APY (= base × fee rate).
-          fees: borrowApy * fee,
+          // Reward total derived from Morpho's own net (netBorrow = borrow −
+          // reward) so base − rewards === net exactly, matching Morpho's UI.
+          rewards: Math.max(0, borrowApy - netBorrowApy),
+          // The market fee is taken from supplier interest, not a borrower cost.
+          fees: 0,
           net: netBorrowApy,
           rewardItems: borrowRewardItems,
         },

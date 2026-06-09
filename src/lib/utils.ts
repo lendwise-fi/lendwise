@@ -69,7 +69,11 @@ export const apyToAprAave = apyToAprPerSecond
  * Morpho: continuous compounding.
  * APY = e^APR - 1
  *
- * Used for Morpho reward APRs (state.rewards[].supplyApr / borrowApr).
+ * @deprecated Do NOT use for reward APRs. Continuous compounding massively
+ * over-inflates them (a 222% reward APR became 822% APY) because reward tokens
+ * are separate assets, not auto-compounded into the position. Reward APRs are
+ * now kept linear; the reward total is derived from Morpho's own net delta in
+ * `apy-spot.ts`. Kept only for reference.
  */
 export function aprToApyMorpho(apr: number): number {
   // `!(apr > 0)` also rejects NaN (NaN > 0 is false). e^apr overflows to
