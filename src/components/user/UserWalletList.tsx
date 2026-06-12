@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 
-import { ConnectButton } from '@rainbow-me/rainbowkit'
+import { useConnectModal } from '@rainbow-me/rainbowkit'
 import { Check, Copy, MoreVertical, Trash2 } from 'lucide-react'
 import { Address } from 'viem'
 import { useAccount, useDisconnect, useEnsName } from 'wagmi'
@@ -15,6 +15,8 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
+import { NetworkFamilySelectorDialog } from '@/components/wallet/NetworkFamilySelectorDialog'
+import { useStellarWallet } from '@/contexts/StellarWalletContext'
 import { useMultiWalletManager } from '@/hooks/useMultiWalletManager'
 import { formatAddress } from '@/lib/utils'
 import { type Wallet, useWalletStore } from '@/stores/walletStore'
@@ -26,6 +28,7 @@ const WalletRow = ({ wallet }: { wallet: Wallet }) => {
   const { disconnect } = useDisconnect()
   const { updateWallet, clients, wallets } = useWalletStore()
   const { disconnectAddress } = useMultiWalletManager()
+  const { disconnectStellar } = useStellarWallet()
   const { data: ensName } = useEnsName({
     address: wallet.address as Address,
     chainId: mainnet.id, // Always resolve ENS on mainnet
@@ -48,6 +51,11 @@ const WalletRow = ({ wallet }: { wallet: Wallet }) => {
   }
 
   const handleDisconnect = () => {
+    if (wallet.chainFamily === 'stellar') {
+      disconnectStellar(wallet.address)
+      return
+    }
+
     const isActiveAddress =
       wallet.address.toLowerCase() === activeAddress?.toLowerCase()
     const isLastAddress = wallets.length === 1
@@ -73,15 +81,15 @@ const WalletRow = ({ wallet }: { wallet: Wallet }) => {
       <div className="flex items-center gap-x-3">
         <div className="relative flex h-8 w-8 items-center justify-center rounded-full">
           <WalletAvatar address={wallet.address} size={30} />
-          {hasClient && (
+          {(hasClient || wallet.chainFamily === 'stellar') && (
             <div className="bg-success absolute -top-0.5 -right-0.5 h-2.5 w-2.5 rounded-full border-2 border-white" />
           )}
         </div>
         <div className="flex flex-col">
           <span className="text-sm font-medium">{displayName}</span>
-          {!hasClient && (
-            <span className="text-muted-foreground text-xs">No client</span>
-          )}
+          <span className="text-muted-foreground text-xs">
+            {wallet.chainFamily === 'stellar' ? 'Stellar' : !hasClient ? 'No client' : null}
+          </span>
         </div>
       </div>
       <div className="flex items-center gap-1">
@@ -120,72 +128,23 @@ const WalletRow = ({ wallet }: { wallet: Wallet }) => {
 
 export const UserWalletList = () => {
   const { wallets } = useWalletStore()
-  const { connector, isConnected } = useAccount()
+  const [showNetworkDialog, setShowNetworkDialog] = useState(false)
 
-  const handleAddWallet = async () => {
-    if (!isConnected || !connector) {
-      // If not connected, can't open wallet
-      return
-    }
-
-    try {
-      // Get the provider from the connected wallet
-      const provider = await connector.getProvider()
-
-      // Check if it's an EIP-1193 provider
-      if (
-        provider &&
-        typeof provider === 'object' &&
-        provider !== null &&
-        'request' in provider &&
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        typeof (provider as any).request === 'function'
-      ) {
-        // Request permission to access accounts (opens MetaMask account selector)
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        await (provider as any).request({
-          method: 'wallet_requestPermissions',
-          params: [{ eth_accounts: {} }],
-        })
-
-        // The accountsChanged event will be triggered automatically by the wallet
-        // and WalletWatcherProvider will handle adding the new account to the store
-      }
-    } catch (error) {
-      console.error('Failed to request account change:', error)
-    }
-  }
+  const { openConnectModal } = useConnectModal()
+  const { connectStellar } = useStellarWallet()
 
   return (
     <div className="p-2">
       <div className="mb-2 flex items-center justify-between px-2">
-        <p className="text-muted-foreground text-sm font-medium">Mes Wallets</p>
-        {isConnected ? (
-          <Button
-            variant="outline"
-            size="sm"
-            className="h-7 bg-transparent text-xs"
-            onClick={handleAddWallet}
-          >
-            + Add
-          </Button>
-        ) : (
-          <ConnectButton.Custom>
-            {({ openConnectModal, mounted }) => {
-              if (!mounted) return null
-              return (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="h-7 text-xs"
-                  onClick={openConnectModal}
-                >
-                  + Add
-                </Button>
-              )
-            }}
-          </ConnectButton.Custom>
-        )}
+        <p className="text-muted-foreground text-sm font-medium">My Wallets</p>
+        <Button
+          variant="outline"
+          size="sm"
+          className="h-7 bg-transparent text-xs"
+          onClick={() => setShowNetworkDialog(true)}
+        >
+          + Add
+        </Button>
       </div>
       <div className="space-y-1">
         {wallets.length > 0 ? (
@@ -198,6 +157,14 @@ export const UserWalletList = () => {
           </p>
         )}
       </div>
+
+      <NetworkFamilySelectorDialog
+        open={showNetworkDialog}
+        onOpenChange={setShowNetworkDialog}
+        onSelectEVM={() => openConnectModal?.()}
+        onSelectStellar={connectStellar}
+      />
     </div>
   )
 }
+

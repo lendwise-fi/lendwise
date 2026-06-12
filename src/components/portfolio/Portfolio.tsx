@@ -18,8 +18,19 @@ import PortfolioSidebar from './PortfolioSidebar'
 import { PortfolioSkeleton } from './PortfolioSkeleton'
 
 export function Portfolio() {
-  const { address, isConnected } = useAccount()
+  const { address: evmAddress, isConnected: isEvmConnected } = useAccount()
   const { wallets } = useWalletStore()
+
+  // Derive unified connection state across chain families
+  const activeStellarWallet = useMemo(
+    () =>
+      wallets.find(
+        (w) => w.chainFamily === 'stellar' && w.isConnected && w.isActive
+      ),
+    [wallets]
+  )
+  const isConnected = isEvmConnected || !!activeStellarWallet
+  const address = evmAddress ?? activeStellarWallet?.address
 
   const { rate, loading: conversionLoading } = useCurrency()
 

@@ -8,6 +8,8 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { WagmiProvider } from 'wagmi'
 import type { Config } from 'wagmi'
 
+import { StellarWalletProvider } from './StellarWalletContext'
+
 const queryClient = new QueryClient()
 
 export function Web3Provider({ children }: { children: React.ReactNode }) {
@@ -36,7 +38,7 @@ export function Web3Provider({ children }: { children: React.ReactNode }) {
             borderRadius: 'medium',
           })}
         >
-          {children}
+          <StellarWalletProvider>{children}</StellarWalletProvider>
         </RainbowKitProvider>
       </QueryClientProvider>
     </WagmiProvider>

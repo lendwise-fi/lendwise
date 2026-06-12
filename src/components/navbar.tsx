@@ -5,9 +5,8 @@ import { useState } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 
-import { ConnectButton } from '@rainbow-me/rainbowkit'
+import { useConnectModal } from '@rainbow-me/rainbowkit'
 import { Menu } from 'lucide-react'
-import { useAccount } from 'wagmi'
 
 import { Button } from '@/components/ui/button'
 import {
@@ -16,7 +15,10 @@ import {
   SheetTitle,
   SheetTrigger,
 } from '@/components/ui/sheet'
+import { NetworkFamilySelectorDialog } from '@/components/wallet/NetworkFamilySelectorDialog'
+import { useStellarWallet } from '@/contexts/StellarWalletContext'
 import { cn } from '@/lib/utils'
+import { useWalletStore } from '@/stores/walletStore'
 
 import { UserMenu } from './user/UserMenu'
 
@@ -27,9 +29,14 @@ const navItems = [
 ]
 
 export function Navbar() {
-  const { isConnected } = useAccount()
+  const { wallets } = useWalletStore()
+  const isConnected = wallets.some((w) => w.isConnected && w.isActive)
   const pathname = usePathname()
   const [open, setOpen] = useState(false)
+  const [showNetworkDialog, setShowNetworkDialog] = useState(false)
+
+  const { openConnectModal } = useConnectModal()
+  const { connectStellar } = useStellarWallet()
 
   return (
     <header className="border-border bg-card sticky top-0 z-50 w-full border-b">
@@ -68,20 +75,13 @@ export function Navbar() {
           {isConnected ? (
             <UserMenu />
           ) : (
-            <ConnectButton.Custom>
-              {({ openConnectModal, mounted }) => {
-                if (!mounted) return null
-                return (
-                  <Button
-                    size="sm"
-                    onClick={openConnectModal}
-                    className="hidden sm:flex"
-                  >
-                    Connect wallet
-                  </Button>
-                )
-              }}
-            </ConnectButton.Custom>
+            <Button
+              size="sm"
+              onClick={() => setShowNetworkDialog(true)}
+              className="hidden sm:flex"
+            >
+              Connect wallet
+            </Button>
           )}
 
           {/* Burger — mobile only */}
@@ -121,29 +121,29 @@ export function Navbar() {
               </nav>
               {!isConnected && (
                 <div className="border-t p-4">
-                  <ConnectButton.Custom>
-                    {({ openConnectModal, mounted }) => {
-                      if (!mounted) return null
-                      return (
-                        <Button
-                          size="sm"
-                          onClick={() => {
-                            setOpen(false)
-                            openConnectModal()
-                          }}
-                          className="w-full"
-                        >
-                          Connect wallet
-                        </Button>
-                      )
+                  <Button
+                    size="sm"
+                    onClick={() => {
+                      setOpen(false)
+                      setShowNetworkDialog(true)
                     }}
-                  </ConnectButton.Custom>
+                    className="w-full"
+                  >
+                    Connect wallet
+                  </Button>
                 </div>
               )}
             </SheetContent>
           </Sheet>
         </div>
       </div>
+
+      <NetworkFamilySelectorDialog
+        open={showNetworkDialog}
+        onOpenChange={setShowNetworkDialog}
+        onSelectEVM={() => openConnectModal?.()}
+        onSelectStellar={connectStellar}
+      />
     </header>
   )
 }

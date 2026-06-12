@@ -237,12 +237,12 @@ async function getUserBorrowPositions({
 }
 
 const TIMEFRAME_MAP: Record<TimeframeLabel, TimeseriesInterval> = {
-  '24h': TimeseriesInterval.Hour,
-  '7d': TimeseriesInterval.Day,
-  '1M': TimeseriesInterval.Day,
-  '3M': TimeseriesInterval.Week,
-  '1Y': TimeseriesInterval.Week,
-  Max: TimeseriesInterval.Quarter,
+  '24h': TimeseriesInterval.HOUR,
+  '7d': TimeseriesInterval.DAY,
+  '1M': TimeseriesInterval.DAY,
+  '3M': TimeseriesInterval.WEEK,
+  '1Y': TimeseriesInterval.WEEK,
+  Max: TimeseriesInterval.QUARTER,
 }
 
 async function getMarketBorrowHistoryRates({

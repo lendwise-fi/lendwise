@@ -11,7 +11,7 @@ export interface Wallet {
   isActive: boolean
   isConnected: boolean
   isCurrentlyConnected: boolean
-  isBitcoin: boolean
+  chainFamily: 'evm' | 'stellar' | 'bitcoin'
   avatarUri: string
   roles: string[]
   isUpdating: boolean

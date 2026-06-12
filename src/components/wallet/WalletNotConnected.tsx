@@ -2,9 +2,12 @@
 
 import { useState } from 'react'
 
-import { ConnectButton } from '@rainbow-me/rainbowkit'
+import { useConnectModal } from '@rainbow-me/rainbowkit'
 import { ArrowRight, Lock, Shield, TrendingUp, Wallet, Zap } from 'lucide-react'
 import { motion } from 'motion/react'
+
+import { NetworkFamilySelectorDialog } from '@/components/wallet/NetworkFamilySelectorDialog'
+import { useStellarWallet } from '@/contexts/StellarWalletContext'
 
 const FEATURES = [
   {
@@ -31,6 +34,10 @@ const SUPPORTED = ['MetaMask', 'WalletConnect', 'Coinbase', 'Rabby']
 
 export function WalletNotConnected() {
   const [hoveredWallet, setHoveredWallet] = useState<string | null>(null)
+  const [showNetworkDialog, setShowNetworkDialog] = useState(false)
+
+  const { openConnectModal } = useConnectModal()
+  const { connectStellar } = useStellarWallet()
 
   return (
     <div className="relative flex h-full flex-col items-center justify-center overflow-hidden px-6 py-6">
@@ -68,21 +75,14 @@ export function WalletNotConnected() {
             </p>
           </div>
 
-          <ConnectButton.Custom>
-            {({ openConnectModal, mounted }) => {
-              if (!mounted) return null
-              return (
-                <button
-                  onClick={openConnectModal}
-                  className="group bg-primary text-primary-foreground shadow-primary/20 hover:bg-primary/90 inline-flex items-center gap-2.5 rounded-xl px-6 py-3 text-sm font-semibold shadow-lg transition-all"
-                >
-                  <Wallet className="h-4 w-4" />
-                  Connect wallet
-                  <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
-                </button>
-              )
-            }}
-          </ConnectButton.Custom>
+          <button
+            onClick={() => setShowNetworkDialog(true)}
+            className="group bg-primary text-primary-foreground shadow-primary/20 hover:bg-primary/90 inline-flex items-center gap-2.5 rounded-xl px-6 py-3 text-sm font-semibold shadow-lg transition-all cursor-pointer"
+          >
+            <Wallet className="h-4 w-4" />
+            Connect wallet
+            <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
+          </button>
 
           {/* Supported wallets */}
           <div className="flex flex-wrap items-center justify-center gap-2">
@@ -145,6 +145,13 @@ export function WalletNotConnected() {
           ))}
         </motion.div>
       </div>
+
+      <NetworkFamilySelectorDialog
+        open={showNetworkDialog}
+        onOpenChange={setShowNetworkDialog}
+        onSelectEVM={() => openConnectModal?.()}
+        onSelectStellar={connectStellar}
+      />
     </div>
   )
 }

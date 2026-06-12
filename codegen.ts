@@ -138,6 +138,11 @@ const config: CodegenConfig = {
       presetConfig: {
         fragmentMasking: false,
       },
+      config: {
+        namingConvention: {
+          enumValues: 'keep',
+        },
+      },
     },
     // MORPHO V1 - Onchain (Subgraph)
     // Schema URL is imported from src/lib/protocols/morpho/config.ts

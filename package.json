@@ -30,6 +30,7 @@
     "codegen:optimizer": "dotenv -- bash -c 'openapi-typescript $OPTIMIZER_API_URL/openapi.json -o src/lib/api/optimizer.generated.ts'"
   },
   "dependencies": {
+    "@creit-tech/stellar-wallets-kit": "npm:@jsr/creit-tech__stellar-wallets-kit@^2.3.0",
     "@graphql-typed-document-node/core": "^3.2.0",
     "@metamask/connect-multichain": "^0.15.0",
     "@metamask/sdk": "^0.34.0",
@@ -73,7 +74,7 @@
     "graphql-yoga": "^5.18.0",
     "lucide-react": "^0.545.0",
     "motion": "^12.23.24",
-    "next": "^16.2.7",
+    "next": "^16.2.9",
     "next-themes": "^0.4.6",
     "pino-pretty": "^13.0.0",
     "radix-ui": "^1.4.3",

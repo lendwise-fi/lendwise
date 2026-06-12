@@ -74,7 +74,7 @@ export function WalletWatcherProvider({
       isActive,
       isConnected: true,
       isCurrentlyConnected: isActive,
-      isBitcoin: false,
+      chainFamily: 'evm',
       avatarUri: '',
       roles: [],
       isUpdating: false,
