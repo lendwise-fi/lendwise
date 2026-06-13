@@ -1,8 +1,8 @@
-# YieldImprove - DeFi Portfolio Optimization Platform
+# LendWise - DeFi Portfolio Optimization Platform
 
 A modern Next.js 16 application for optimizing DeFi supplying and borrowing positions across multiple protocols and blockchains.
 
-![YieldImprove](https://img.shields.io/badge/Next.js-15-black?style=flat-square&logo=next.js)
+![LendWise](https://img.shields.io/badge/Next.js-15-black?style=flat-square&logo=next.js)
 ![TypeScript](https://img.shields.io/badge/TypeScript-5.7-blue?style=flat-square&logo=typescript)
 ![Tailwind CSS](https://img.shields.io/badge/Tailwind-3.4-38bdf8?style=flat-square&logo=tailwind-css)
 
@@ -36,7 +36,8 @@ A modern Next.js 16 application for optimizing DeFi supplying and borrowing posi
 1. **Clone or navigate to the project directory**
 
 ```bash
-cd /Users/cedric/Projects/SmarttDev/yieldimprove
+git clone git@github.com:cedricmagne/lendwise.git
+cd lendwise
 ```
 
 2. **Install dependencies**
@@ -64,12 +65,12 @@ Navigate to [http://localhost:3000](http://localhost:3000) to see the applicatio
 ## Project Structure
 
 ```
-yieldimprove/
-├── app/                      # Next.js 16 App Router
+lendwise/
+├── app/                     # Next.js 16 App Router
 │   ├── layout.tsx           # Root layout with sidebar
 │   ├── page.tsx             # Home page (redirects to dashboard)
 │   ├── dashboard/           # Dashboard page
-│   ├── supplying/             # Supplying optimization page
+│   ├── supplying/           # Supplying optimization page
 │   ├── borrowing/           # Borrowing optimization page
 │   ├── portfolio/           # Portfolio tracker page
 │   ├── risk/                # Risk monitor page
