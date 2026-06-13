@@ -1,8 +1,5 @@
 # LendWise — Protocol Processing Flow & Blend Integration
 
-> GitHub renders Mermaid inside fenced ` ```mermaid ` blocks in `.md` files (a raw `.mmd`
-> file would show as plain text). Host this file in the repo and link it from the SCF form.
->
 > **Legend** — <span style="color:#16a34a">green = NEW bricks added for Stellar/Blend</span> ·
 > blue = existing EVM pipeline (unchanged) · grey = shared core (unchanged).
 
@@ -118,14 +115,14 @@ flowchart LR
 
 ## 3. New vs existing — at a glance
 
-| Brick | Status | Library / path |
-| :-- | :-- | :-- |
-| Adapter registry | existing | `PROTOCOL_REGISTRY` — `src/config/protocols.ts` |
-| Spot collection | existing | `collectApySpot()` — `apy-snapshots.actions.ts` |
-| EVM data source | existing | The Graph subgraphs via `shared/graphql-client.ts` (URQL) |
-| `apy_hourly` / `apy_daily` | existing | `repositories/apy.ts` + Drizzle schema |
-| GraphQL serving | existing | `graphql-yoga` `/api/graphql` |
-| **Blend adapter** | **NEW** | `src/lib/protocols/blend/` |
-| **Blend data source** | **NEW** | `@blend-capital/blend-sdk-js` + `@stellar/stellar-sdk` over Soroban RPC |
-| **Stellar wallet** | **NEW** | `@creit-tech/stellar-wallets-kit` + `StellarWalletContext` |
-| **`chainFamily` store field** | **NEW** | `src/stores/walletStore.ts` |
+| Brick                         | Status   | Library / path                                                          |
+| :---------------------------- | :------- | :---------------------------------------------------------------------- |
+| Adapter registry              | existing | `PROTOCOL_REGISTRY` — `src/config/protocols.ts`                         |
+| Spot collection               | existing | `collectApySpot()` — `apy-snapshots.actions.ts`                         |
+| EVM data source               | existing | The Graph subgraphs via `shared/graphql-client.ts` (URQL)               |
+| `apy_hourly` / `apy_daily`    | existing | `repositories/apy.ts` + Drizzle schema                                  |
+| GraphQL serving               | existing | `graphql-yoga` `/api/graphql`                                           |
+| **Blend adapter**             | **NEW**  | `src/lib/protocols/blend/`                                              |
+| **Blend data source**         | **NEW**  | `@blend-capital/blend-sdk-js` + `@stellar/stellar-sdk` over Soroban RPC |
+| **Stellar wallet**            | **NEW**  | `@creit-tech/stellar-wallets-kit` + `StellarWalletContext`              |
+| **`chainFamily` store field** | **NEW**  | `src/stores/walletStore.ts`                                             |
