@@ -36,7 +36,7 @@ A modern Next.js 16 application for optimizing DeFi supplying and borrowing posi
 1. **Clone or navigate to the project directory**
 
 ```bash
-git clone git@github.com:cedricmagne/lendwise.git
+git clone https://github.com/lendwise-fi/lendwise
 cd lendwise
 ```
 
