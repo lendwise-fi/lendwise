@@ -43,11 +43,10 @@ export async function consumeSep10Challenge(hash: string): Promise<boolean> {
   pruneLocal()
   const store = getRedis()
   if (store) {
-    const key = PREFIX + hash
-    const existing = await store.get<string>(key)
-    if (!existing) return false
-    await store.del(key)
-    return true
+    // GETDEL is atomic, so two concurrent verifications of the same
+    // challenge cannot both consume it.
+    const existing = await store.getdel<string>(PREFIX + hash)
+    return existing !== null && existing !== undefined
   }
 
   const expiresAt = localChallenges.get(hash)

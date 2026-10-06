@@ -10,6 +10,10 @@ import {
 } from '@stellar/stellar-sdk'
 
 import {
+  assertSessionAddress,
+  requireStellarSession,
+} from '@/lib/auth/session-guard'
+import {
   STELLAR_CCTP_CONTRACTS,
   assertStellarCctpMintAndForwardTransaction,
   cctpEnvironmentFromNetworkPassphrase,
@@ -78,6 +82,7 @@ async function waitForStellarTransaction(
 export async function prepareStellarMintAndForwardTransaction(
   input: PrepareStellarMintAndForwardInput
 ): Promise<PreparedStellarMintAndForwardResponse> {
+  assertSessionAddress(await requireStellarSession(), input.source)
   const networkPassphrase = stellarNetworkPassphrase()
   const environment = cctpEnvironmentFromNetworkPassphrase(networkPassphrase)
   const cctpForwarder =
@@ -118,8 +123,10 @@ export async function submitSignedStellarBridgeTransaction(
   const cctpForwarder =
     process.env.STELLAR_CCTP_FORWARDER ??
     STELLAR_CCTP_CONTRACTS[environment].cctpForwarder
+  const session = await requireStellarSession()
   const transaction = new Transaction(signedTransactionXdr, networkPassphrase)
   assertStellarCctpMintAndForwardTransaction({ transaction, cctpForwarder })
+  assertSessionAddress(session, transaction.source)
   const submitted = await server.sendTransaction(transaction)
   const status = (submitted as { status?: string }).status
   if (status && status !== 'PENDING' && status !== 'DUPLICATE') {

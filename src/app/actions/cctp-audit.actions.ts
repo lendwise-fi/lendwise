@@ -1,5 +1,6 @@
 'use server'
 
+import { requireStellarSession } from '@/lib/auth/session-guard'
 import {
   type CctpBridgeAuditEvent,
   logCctpBridgeAuditEvent,
@@ -8,6 +9,7 @@ import {
 export async function recordCctpBridgeAuditEvent(
   event: CctpBridgeAuditEvent
 ): Promise<{ ok: true }> {
+  await requireStellarSession()
   logCctpBridgeAuditEvent(event)
   return { ok: true }
 }

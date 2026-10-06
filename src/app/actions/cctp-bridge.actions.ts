@@ -4,6 +4,10 @@ import { Horizon, Networks, Transaction } from '@stellar/stellar-sdk'
 import { type Address, getAddress, zeroAddress } from 'viem'
 
 import {
+  assertSessionAddress,
+  requireStellarSession,
+} from '@/lib/auth/session-guard'
+import {
   CCTP_EVM_CHAIN_IDS,
   CCTP_EVM_DOMAINS,
   type CctpEvmChainSlug,
@@ -124,6 +128,7 @@ function resolveEvmCctpConfig(sourceChain: CctpEvmChainSlug) {
 export async function checkStellarUsdcTrustline(
   address: string
 ): Promise<BridgeTrustlineResponse> {
+  assertSessionAddress(await requireStellarSession(), address)
   const environment = cctpEnvironmentFromNetworkPassphrase(
     stellarNetworkPassphrase()
   )
@@ -140,6 +145,7 @@ export async function buildStellarUsdcChangeTrustXdr(address: string): Promise<{
   networkPassphrase: string
   asset: { code: string; issuer: string }
 }> {
+  assertSessionAddress(await requireStellarSession(), address)
   const networkPassphrase = stellarNetworkPassphrase()
   const environment = cctpEnvironmentFromNetworkPassphrase(networkPassphrase)
   const asset = stellarUsdcAsset(environment)
@@ -195,6 +201,7 @@ function assertSignedChangeTrustForAsset({
 export async function submitSignedStellarUsdcChangeTrustTransaction(
   signedTransactionXdr: string
 ): Promise<{ hash: string; successful: boolean }> {
+  const session = await requireStellarSession()
   const networkPassphrase = stellarNetworkPassphrase()
   const environment = cctpEnvironmentFromNetworkPassphrase(networkPassphrase)
   const asset = stellarUsdcAsset(environment)
@@ -203,6 +210,7 @@ export async function submitSignedStellarUsdcChangeTrustTransaction(
     networkPassphrase,
     asset,
   })
+  assertSessionAddress(session, transaction.source)
   const server = new Horizon.Server(horizonUrl())
   const submitted = await server.submitTransaction(transaction)
   const hash = (submitted as { hash?: string }).hash
@@ -220,6 +228,9 @@ export async function submitSignedStellarUsdcChangeTrustTransaction(
 export async function prepareEvmToStellarBridgeBurn(
   input: PrepareEvmToStellarBridgeInput
 ): Promise<SerializedEvmCctpBurnPlan> {
+  // The Stellar recipient decides where the minted USDC goes, so it must be
+  // the account the caller proved control of.
+  assertSessionAddress(await requireStellarSession(), input.stellarRecipient)
   const environment = cctpEnvironmentFromNetworkPassphrase(
     stellarNetworkPassphrase()
   )

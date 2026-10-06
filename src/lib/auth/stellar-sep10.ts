@@ -228,7 +228,7 @@ async function verifyClientSignerThreshold({
   }
 }
 
-function signSession(payload: StellarSessionPayload): string {
+export function signSession(payload: StellarSessionPayload): string {
   const secret =
     process.env.STELLAR_SESSION_SECRET ??
     process.env.STELLAR_SEP10_SIGNING_SECRET
