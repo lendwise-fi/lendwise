@@ -9,6 +9,7 @@ import {
 } from '@stellar/stellar-sdk'
 import { createHmac, randomBytes, timingSafeEqual } from 'crypto'
 
+import { isProduction } from './redis'
 import {
   consumeSep10Challenge,
   rememberSep10Challenge,
@@ -27,6 +28,8 @@ const WEB_AUTH_DOMAIN =
 const CHALLENGE_NAME = HOME_DOMAIN + ' auth'
 
 export interface StellarSessionPayload {
+  // Session ID, used to revoke the session on sign-out.
+  sid: string
   address: string
   networkPassphrase: string
   issuedAt: number
@@ -228,28 +231,45 @@ async function verifyClientSignerThreshold({
   }
 }
 
+// Session tokens use a key derived from a dedicated session secret, never the
+// SEP-10 signing key itself. Production requires the dedicated secret.
+function sessionKey(): Buffer {
+  const configured = process.env.STELLAR_SESSION_SECRET
+  if (configured) {
+    return createHmac('sha256', configured)
+      .update('stellar-session-v1')
+      .digest()
+  }
+  if (isProduction()) {
+    throw new Error('STELLAR_SESSION_SECRET is not configured')
+  }
+  const signing = process.env.STELLAR_SEP10_SIGNING_SECRET
+  if (!signing) throw new Error('STELLAR_SESSION_SECRET is not configured')
+  return createHmac('sha256', signing).update('stellar-session-dev-v1').digest()
+}
+
 export function signSession(payload: StellarSessionPayload): string {
-  const secret =
-    process.env.STELLAR_SESSION_SECRET ??
-    process.env.STELLAR_SEP10_SIGNING_SECRET
-  if (!secret) throw new Error('STELLAR_SESSION_SECRET is not configured')
   const body = Buffer.from(JSON.stringify(payload), 'utf8').toString(
     'base64url'
   )
-  const sig = createHmac('sha256', secret).update(body).digest('base64url')
+  const sig = createHmac('sha256', sessionKey())
+    .update(body)
+    .digest('base64url')
   return body + '.' + sig
 }
 
 export function verifySessionToken(
   token: string
 ): StellarSessionPayload | null {
-  const secret =
-    process.env.STELLAR_SESSION_SECRET ??
-    process.env.STELLAR_SEP10_SIGNING_SECRET
-  if (!secret) return null
+  let key: Buffer
+  try {
+    key = sessionKey()
+  } catch {
+    return null
+  }
   const [body, sig] = token.split('.')
   if (!body || !sig) return null
-  const expected = createHmac('sha256', secret).update(body).digest('base64url')
+  const expected = createHmac('sha256', key).update(body).digest('base64url')
   const a = Buffer.from(sig)
   const b = Buffer.from(expected)
   if (a.length !== b.length || !timingSafeEqual(a, b)) return null
@@ -258,6 +278,7 @@ export function verifySessionToken(
     const payload = JSON.parse(
       Buffer.from(body, 'base64url').toString('utf8')
     ) as Partial<StellarSessionPayload>
+    if (typeof payload.sid !== 'string' || payload.sid.length < 16) return null
     if (typeof payload.address !== 'string') return null
     if (typeof payload.networkPassphrase !== 'string') return null
     if (typeof payload.issuedAt !== 'number') return null
@@ -348,7 +369,8 @@ export async function verifyStellarChallenge({
   }
 
   const issuedAt = now
-  const session = {
+  const session: StellarSessionPayload = {
+    sid: randomBytes(18).toString('base64url'),
     address,
     networkPassphrase,
     issuedAt,

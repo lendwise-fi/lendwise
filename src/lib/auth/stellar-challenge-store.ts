@@ -1,16 +1,7 @@
-import { Redis } from '@upstash/redis'
+import { requireSharedStore } from './redis'
 
 const PREFIX = 'lw:sep10:challenge:'
 const localChallenges = new Map<string, number>()
-let redis: Redis | null | undefined
-
-function getRedis(): Redis | null {
-  if (redis !== undefined) return redis
-  const url = process.env.UPSTASH_REDIS_REST_URL
-  const token = process.env.UPSTASH_REDIS_REST_TOKEN
-  redis = url && token ? new Redis({ url, token }) : null
-  return redis
-}
 
 function pruneLocal(now = Math.floor(Date.now() / 1000)): void {
   for (const [hash, expiresAt] of localChallenges) {
@@ -27,21 +18,21 @@ export async function rememberSep10Challenge({
 }): Promise<void> {
   const now = Math.floor(Date.now() / 1000)
   const ttl = Math.max(1, expiresAt - now)
+  const store = requireSharedStore()
+  if (store) {
+    const result = await store.set(PREFIX + hash, '1', { ex: ttl, nx: true })
+    if (result !== 'OK') {
+      throw new Error('SEP-10 challenge nonce already exists')
+    }
+    return
+  }
+
   pruneLocal(now)
   localChallenges.set(hash, expiresAt)
-
-  const store = getRedis()
-  if (!store) return
-
-  const result = await store.set(PREFIX + hash, '1', { ex: ttl, nx: true })
-  if (result !== 'OK') {
-    throw new Error('SEP-10 challenge nonce already exists')
-  }
 }
 
 export async function consumeSep10Challenge(hash: string): Promise<boolean> {
-  pruneLocal()
-  const store = getRedis()
+  const store = requireSharedStore()
   if (store) {
     // GETDEL is atomic, so two concurrent verifications of the same
     // challenge cannot both consume it.
@@ -49,6 +40,7 @@ export async function consumeSep10Challenge(hash: string): Promise<boolean> {
     return existing !== null && existing !== undefined
   }
 
+  pruneLocal()
   const expiresAt = localChallenges.get(hash)
   if (!expiresAt || expiresAt <= Math.floor(Date.now() / 1000)) {
     localChallenges.delete(hash)

@@ -1,5 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 
+import {
+  isStellarSessionRevoked,
+  revokeStellarSession,
+} from '@/lib/auth/session-store'
 import { verifySessionToken } from '@/lib/auth/stellar-sep10'
 
 export async function GET(request: NextRequest) {
@@ -12,7 +16,7 @@ export async function GET(request: NextRequest) {
   }
 
   const session = verifySessionToken(token)
-  if (!session) {
+  if (!session || (await isStellarSessionRevoked(session.sid))) {
     return NextResponse.json(
       { error: 'stellar session is invalid or expired' },
       { status: 401 }
@@ -22,7 +26,15 @@ export async function GET(request: NextRequest) {
   return NextResponse.json({ session })
 }
 
-export async function DELETE() {
+// Sign-out revokes the session server-side, so a copied cookie stops working
+// immediately, not only when the cookie is cleared in this browser.
+export async function DELETE(request: NextRequest) {
+  const token = request.cookies.get('stellar_session')?.value
+  const session = token ? verifySessionToken(token) : null
+  if (session) {
+    await revokeStellarSession(session.sid, session.expiresAt)
+  }
+
   const res = NextResponse.json({ ok: true })
   res.cookies.set('stellar_session', '', {
     httpOnly: true,
