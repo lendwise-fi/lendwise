@@ -49,9 +49,9 @@ can be repeated to confirm the ID or to find a newer deployment.
      same oracle as TestnetV2.
    - `reserveList` has four assets: XLM, wETH, wBTC and USDC, the same set as
      TestnetV2.
-   - `status` is `1`. TestnetV2 is `0`. The meaning of `1` was not confirmed
-     against Blend's status enum, so check it before relying on the pool for
-     writes.
+   - `status` is `1`, which is Active set by the backstop. TestnetV2 is `0`,
+     Active set by an admin. Both are Active. The mapping comes from
+     `pool/src/pool/status.rs` in `blend-capital/blend-contracts`.
 
 All contract IDs were validated with `StrKey.isValidContract`.
 
@@ -132,8 +132,9 @@ address. Run it from the repo root so the `@/` aliases resolve.
 - The August 2026 Comet incident paused backstop operations. The connector reads
   pool positions only, so a paused backstop does not stop reads, but it does
   affect the backstop data the pool depends on.
-- Pool status is not interpreted. Check it before using this pool for any
-  write action.
+- Pool status is read from chain metadata but not yet exposed in the UI. Status
+  `1` is Active, and status above 1 restricts some actions (see the audit
+  report, O8). Check the status again before any write action.
 - The connector depends on `@blend-capital/blend-sdk` 3.3.0 (see `package.json`).
   Upgrading the SDK can change the `PoolV2`, `PoolUser` and `PositionsEstimate`
   APIs.
@@ -142,7 +143,8 @@ address. Run it from the repo root so the `@/` aliases resolve.
 
 1. Fund a testnet wallet and open a position in this pool, then verify the
    positive path end to end in the portfolio UI.
-2. Confirm the meaning of pool status `1` against the Blend contract enum.
+2. Show pool status in the portfolio UI, and block write actions when it is
+   not Active.
 3. Add per-collateral breakdown and liability weights if the portfolio UI needs them.
 4. Decide whether this connector should replace the fixture for `blend_v2`
    on testnet, or stay alongside it.
