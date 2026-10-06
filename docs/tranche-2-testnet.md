@@ -117,12 +117,15 @@ No new daily aggregation work is required for Stellar rates. `aggregateDaily` in
 
 ## Verification Notes
 
-The local workspace currently lacks installed project binaries, so these commands do not start until dependencies are restored:
+Audit results at the time of writing:
 
 ```text
-npm run typecheck  # tsc: not found
-npm run lint       # eslint: not found
-npm run test       # vitest: not found
+npm run test       # 307 passed, 17 skipped; 2 suites fail (see below)
+npm run typecheck  # 59 errors, all from missing generated GraphQL types
 ```
+
+- `npm run codegen` needs a The Graph API key (`auth error: missing authorization header`). Without the generated `generated/` folders, the typecheck and the `aave/v3` listing test cannot run. These folders are gitignored.
+- The `table-filters` parity suite times out on its PGlite setup hook in a cold local run.
+- Targeted tests for `risk`, `portfolio`, `bridge`, `auth`, `protocols/stellar`, `protocols/blend` and `reconcile` pass: 15 files, 68 tests.
 
 `git diff --check` should still be run after edits; it validates whitespace and patch hygiene even without dependencies installed.
