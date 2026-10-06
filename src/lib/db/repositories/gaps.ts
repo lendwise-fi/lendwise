@@ -306,6 +306,10 @@ export async function historyTargets(
       id: products.id,
       chainId: products.chainId,
       kind: products.kind,
+      version: products.version,
+      protocolAddress: products.protocolAddress,
+      assetAddress: products.assetAddress,
+      assetSymbol: products.assetSymbol,
       meta: products.meta,
     })
     .from(products)
@@ -315,7 +319,13 @@ export async function historyTargets(
     productId: r.id,
     chainId: r.chainId,
     kind: r.kind as 'supply' | 'borrow',
-    meta: (r.meta ?? {}) as Record<string, unknown>,
+    meta: {
+      ...((r.meta ?? {}) as Record<string, unknown>),
+      version: r.version,
+      protocolAddress: r.protocolAddress,
+      assetAddress: r.assetAddress,
+      assetSymbol: r.assetSymbol,
+    },
   }))
 }
 

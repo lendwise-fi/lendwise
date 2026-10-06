@@ -55,8 +55,10 @@ import type { BorrowMarketState, SupplyMarketState } from '@/lib/db/types'
 import { toHistoryResult } from '@/lib/protocols/core/history-result'
 import type { HistoryDataPoint, YieldAdapter } from '@/lib/protocols/core/types'
 
-// Networks added 2026-07-18 (commit e38331a) — first spot 2026-07-18T12:00Z.
-const DEFAULT_NEW_CHAINS = [747474, 143, 988, 999, 4217, 4663, 130]
+// Networks added 2026-07-18 plus Stellar historical backfill coverage.
+// Stellar uses the internal non-EVM chain id -1, so default all-protocol
+// dry-runs exercise Blend instead of silently skipping it.
+const DEFAULT_NEW_CHAINS = [-1, 747474, 143, 988, 999, 4217, 4663, 130]
 
 type AnyMarket = Partial<SupplyMarketState & BorrowMarketState>
 

@@ -2,6 +2,7 @@ import { defineYieldAdapter } from '@/lib/protocols/core/define'
 import { CHAIN_SLUG_MAP } from '@/lib/protocols/core/toolkit/chain-slugs'
 
 import { BLEND_PROVIDER } from '../common/config'
+import { getBlendV1ApyHistory } from './apy-history'
 import { fetchBlendV1ApySpot } from './apy-spot'
 import { fetchBlendV1Products } from './products'
 
@@ -18,5 +19,5 @@ export const adapter = defineYieldAdapter({
   ownsMarketDiscovery: false,
   getProducts: fetchBlendV1Products,
   getApySpot: fetchBlendV1ApySpot,
-  // getApyHistory: optional
+  getApyHistory: getBlendV1ApyHistory,
 })
