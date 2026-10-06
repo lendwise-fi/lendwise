@@ -13,6 +13,7 @@ import {
   X,
 } from 'lucide-react'
 import { Area, AreaChart, CartesianGrid, XAxis, YAxis } from 'recharts'
+import { isAddress } from 'viem'
 
 import { loadMarketSupplyHistoryRates } from '@/app/actions'
 import { NetworkBadge } from '@/components/badge/NetworkBadge'
@@ -179,12 +180,18 @@ function TableCellViewer({ item }: { item: SupplyPosition }) {
         fromTimestamp = now - option.days * 24 * 60 * 60
       }
 
+      const tokenId = item.assetAddress
+      if (!isAddress(tokenId)) {
+        setRates([])
+        return
+      }
+
       try {
         const rates = await loadMarketSupplyHistoryRates({
           protocolId: item.protocol,
           chainId: item.poolChainId,
           poolId: item.poolId,
-          tokenId: item.assetAddress,
+          tokenId,
           interval: option.label,
           fromTimestamp,
         })

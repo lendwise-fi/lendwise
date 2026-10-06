@@ -116,10 +116,12 @@ QStash cron.
 
 ## Documentation
 
-| Doc                                              | What's inside                                         |
-| ------------------------------------------------ | ----------------------------------------------------- |
-| [Protocol adapters](src/lib/protocols/README.md) | Architecture, adapter contract, how to add a protocol |
-| [Contributing guide](CONTRIBUTING.md)            | Setup, quality bar, PR process                        |
+| Doc                                                    | What's inside                                                |
+| ------------------------------------------------------ | ------------------------------------------------------------ |
+| [Protocol adapters](src/lib/protocols/README.md)       | Architecture, adapter contract, how to add a protocol        |
+| [Tranche 2 testnet runbook](docs/tranche-2-testnet.md) | Health factor, Stellar portfolio merge, partial-failure demo |
+| [Tranche 3 mainnet runbook](docs/tranche-3-mainnet.md) | CCTP bridge, trustline preflight, Iris attestation, mint QA  |
+| [Contributing guide](CONTRIBUTING.md)                  | Setup, quality bar, PR process                               |
 
 ## Contributing
 

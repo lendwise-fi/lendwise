@@ -14,6 +14,7 @@ import {
   X,
 } from 'lucide-react'
 import { Area, AreaChart, CartesianGrid, XAxis, YAxis } from 'recharts'
+import { isAddress } from 'viem'
 
 import { loadMarketBorrowHistoryRates } from '@/app/actions/market-rates.actions'
 import { NetworkIcon, ProtocolIcon, TokenIcon } from '@/components/icon'
@@ -60,6 +61,7 @@ import { protocolVersionName } from '@/config/protocols-meta'
 import { useCurrency } from '@/contexts'
 import { useIsMobile } from '@/hooks/useMobile'
 import { formatCompactCurrency } from '@/lib/format-currency'
+import { healthFactorFromBorrowPositions } from '@/lib/risk/portfolio-health'
 import { formatAddress } from '@/lib/utils'
 import { TIMEFRAME_OPTIONS, TimeframeLabel } from '@/types'
 import { BorrowPosition, MarketRate } from '@/types'
@@ -225,11 +227,17 @@ const createColumns = (
     header: ({ column }) => (
       <SortableHeader column={column}>Health</SortableHeader>
     ),
-    cell: ({ row }) => (
-      <span className="font-mono">
-        {Number(row.original.healthFactor).toFixed(2)}
-      </span>
-    ),
+    cell: ({ row }) => {
+      const result = healthFactorFromBorrowPositions([row.original])
+      const value =
+        result.status === 'unknown'
+          ? 'Unknown'
+          : result.status === 'no-liability'
+            ? '∞'
+            : result.healthFactor.toFixed(2)
+
+      return <span className="font-mono">{value}</span>
+    },
     size: 60,
     enableHiding: false,
     enableSorting: true,
@@ -278,12 +286,18 @@ function TableCellViewer({ item }: { item: BorrowPosition }) {
         fromTimestamp = now - option.days * 24 * 60 * 60
       }
 
+      const tokenId = item.loanAssetAddress
+      if (!isAddress(tokenId)) {
+        setRates([])
+        return
+      }
+
       try {
         const rates = await loadMarketBorrowHistoryRates({
           protocolId: item.protocol,
           chainId: item.poolChainId,
           poolId: item.poolId,
-          tokenId: item.loanAssetAddress,
+          tokenId,
           interval: option.label,
           fromTimestamp,
         })
@@ -328,7 +342,11 @@ function TableCellViewer({ item }: { item: BorrowPosition }) {
             <div className="my-4 w-full">
               <LiquidationRiskBar
                 borrowCapacity={2.75}
-                borrowing={item.loanAssetAmountUsd}
+                borrowing={
+                  Number.isFinite(item.loanAssetAmountUsd)
+                    ? item.loanAssetAmountUsd
+                    : 0
+                }
               />
             </div>
           </div>

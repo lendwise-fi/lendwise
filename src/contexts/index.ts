@@ -1,4 +1,5 @@
 export { CurrencyProvider, useCurrency } from './CurrencyContext'
 export { ThemeProvider } from './ThemeContext'
 export { WalletWatcherProvider } from './WalletWatcherContext'
+export { StellarWalletProvider, useStellarWallet } from './StellarWalletContext'
 export { Web3Provider } from './Web3Context'

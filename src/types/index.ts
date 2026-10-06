@@ -11,6 +11,7 @@ export type { ProtocolName }
 
 export type PositionType = 'supply' | 'borrow'
 export type AssetType = 'stable' | 'volatile' | 'liquid-staking'
+export type ChainAddress = string
 
 export interface Token {
   address: Address
@@ -84,12 +85,12 @@ export interface SupplyPosition {
   id: string
   protocol: ProtocolName
   network: string
-  userAddress: Address
+  userAddress: ChainAddress
   poolName: string
-  poolAddress: Address
+  poolAddress: ChainAddress
   poolId: string
   poolChainId: number
-  assetAddress: Address
+  assetAddress: ChainAddress
   assetName: string
   assetSymbol: string
   assetDecimals: number
@@ -195,20 +196,27 @@ export interface BorrowPosition {
   protocol: ProtocolName
   network: string
   healthFactor: number
-  userAddress: Address
+  userAddress: ChainAddress
   poolId: string
   poolName: string
-  poolAddress: Address
+  poolAddress: ChainAddress
   poolChainId: number
-  loanAssetAddress: Address
+  loanAssetAddress: ChainAddress
   loanAssetName: string
   loanAssetSymbol: string
   loanAssetDecimals: number
   loanAssetAmount: number
+  loanAssetPriceUsd?: number | null
+  loanLiabilityWeight?: number | null
   loanAssetAmountUsd: number
   loanLiveAssetAmountUsd: number
   loanTimestamp: number
-  collaterals: (Token & { amount: number; amountUsd: number })[]
+  collaterals: (Omit<Token, 'address'> & {
+    address: ChainAddress
+    amount: number
+    priceUsd?: number | null
+    amountUsd: number
+  })[]
   apy: number
   link?: string
 }

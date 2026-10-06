@@ -158,6 +158,35 @@ describe('runReconcile', () => {
     expect(rec.historyParams[0].targets).toHaveLength(2)
   })
 
+  it('reports adapter family history-refetch coverage for monitoring', async () => {
+    const { deps } = makeDeps({
+      async productProviders(ids) {
+        return new Map(ids.map((id) => [id, 'blend']))
+      },
+      adapterIdsForProvider() {
+        return ['blend_v2']
+      },
+      async loadAdapter() {
+        return {
+          id: 'blend_v2',
+          name: 'Blend',
+          provider: 'blend',
+          version: 'v2',
+          chains: {},
+          getProducts: async () => [],
+          getApySpot: async () => [],
+          getApyHistory: async () => ({ points: [], failures: [] }),
+        }
+      },
+    })
+
+    const report = await runReconcile(deps, { days: 2, dryRun: true })
+
+    expect(report.adapterFamilies.blend).toEqual([
+      { adapterId: 'blend_v2', historyRefetch: true },
+    ])
+  })
+
   it('still aggregates when the repair step throws', async () => {
     const { deps, rec } = makeDeps({
       async writeHealed() {

@@ -407,19 +407,40 @@ const createColumns = (
   },
   {
     id: 'actions',
-    size: 80,
-    minSize: 80,
-    cell: ({ row }) =>
-      row.original.link ? (
-        <a
-          target="_blank"
-          rel="noopener noreferrer"
-          href={row.original.link}
-          className="flex w-full items-center justify-center"
-        >
-          <ArrowUpRightFromSquare size={15} />
-        </a>
-      ) : null,
+    size: 96,
+    minSize: 96,
+    cell: ({ row }) => {
+      const bridgeHref =
+        row.original.assetSymbol === 'USDC'
+          ? '/bridge/stellar?asset=USDC&source=' +
+            encodeURIComponent(row.original.network)
+          : null
+
+      return (
+        <div className="flex w-full items-center justify-center gap-2">
+          {bridgeHref && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <a href={bridgeHref} aria-label="Bridge USDC to Stellar">
+                  <ArrowLeftRight size={15} />
+                </a>
+              </TooltipTrigger>
+              <TooltipContent>Bridge USDC to Stellar</TooltipContent>
+            </Tooltip>
+          )}
+          {row.original.link && (
+            <a
+              target="_blank"
+              rel="noopener noreferrer"
+              href={row.original.link}
+              aria-label="Open market"
+            >
+              <ArrowUpRightFromSquare size={15} />
+            </a>
+          )}
+        </div>
+      )
+    },
   },
 ]
 

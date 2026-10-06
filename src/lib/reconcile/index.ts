@@ -126,6 +126,7 @@ export async function runReconcile(
       perProvider: {},
     },
     fetch: { requested: 0, returned: 0, failed: 0, failuresSample: [] },
+    adapterFamilies: {},
     aggregated: { perDay: [] },
     pruned: 0,
     orphans: { hourly: 0, daily: 0 },
@@ -280,10 +281,20 @@ async function repair(
       .filter((t): t is NonNullable<typeof t> => t !== undefined)
     report.fetch.requested += wanted.length
 
-    for (const adapterId of deps.adapterIdsForProvider(provider)) {
+    const adapterIds = deps.adapterIdsForProvider(provider)
+    report.adapterFamilies[provider] = adapterIds.map((adapterId) => ({
+      adapterId,
+      historyRefetch: false,
+    }))
+
+    for (const adapterId of adapterIds) {
       try {
         const adapter = await deps.loadAdapter(adapterId)
+        const family = report.adapterFamilies[provider]?.find(
+          (entry) => entry.adapterId === adapterId
+        )
         if (!adapter.getApyHistory) continue
+        if (family) family.historyRefetch = true
 
         const result = toHistoryResult(
           await adapter.getApyHistory({

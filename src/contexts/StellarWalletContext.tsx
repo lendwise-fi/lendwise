@@ -5,18 +5,212 @@ import React, { createContext, useContext, useEffect, useState } from 'react'
 import { identifyWallet } from '@/lib/analytics/identifyWallet'
 import { formatAddress } from '@/lib/utils'
 import { useWalletStore } from '@/stores/walletStore'
-import type { Wallet } from '@/stores/walletStore'
+import type { StellarSession, Wallet } from '@/stores/walletStore'
 
 interface StellarWalletContextType {
   connectStellar: () => Promise<void>
-  disconnectStellar: (address: string) => void
+  disconnectStellar: (address: string) => Promise<void>
   isConnecting: boolean
   error: string | null
+}
+
+interface Sep10ChallengeResponse {
+  address: string
+  networkPassphrase: string
+  transactionXdr: string
+  transaction: string
+  expiresAt: string
+  homeDomain: string
+  webAuthDomain: string
+  serverSigningKey: string
+}
+
+interface Sep10VerifyResponse {
+  session: StellarSession
+}
+
+interface Sep10SessionResponse {
+  session: StellarSession
+}
+
+type StellarWalletsKitApi = {
+  authModal: () => Promise<{ address?: string } | undefined>
+  signTransaction?: (
+    xdr: string,
+    opts?: { networkPassphrase?: string; address?: string }
+  ) => Promise<
+    string | { signedTxXdr?: string; signedXDR?: string; xdr?: string }
+  >
+  sign?: (p: {
+    xdr: string
+    networkPassphrase?: string
+    address?: string
+  }) => Promise<
+    string | { signedTxXdr?: string; signedXDR?: string; xdr?: string }
+  >
 }
 
 const StellarWalletContext = createContext<
   StellarWalletContextType | undefined
 >(undefined)
+
+async function postJson<T>(url: string, body: unknown): Promise<T> {
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+    credentials: 'same-origin',
+  })
+  const payload = (await res.json().catch(() => ({}))) as T & {
+    error?: string
+  }
+  if (!res.ok) throw new Error(payload.error ?? `Request failed: ${res.status}`)
+  return payload
+}
+
+async function getJson<T>(url: string): Promise<T> {
+  const res = await fetch(url, { credentials: 'same-origin' })
+  const payload = (await res.json().catch(() => ({}))) as T & {
+    error?: string
+  }
+  if (!res.ok) throw new Error(payload.error ?? `Request failed: ${res.status}`)
+  return payload
+}
+
+async function deleteJson<T>(url: string): Promise<T> {
+  const res = await fetch(url, { method: 'DELETE', credentials: 'same-origin' })
+  const payload = (await res.json().catch(() => ({}))) as T & {
+    error?: string
+  }
+  if (!res.ok) throw new Error(payload.error ?? `Request failed: ${res.status}`)
+  return payload
+}
+
+function manageDataValue(value: unknown): string {
+  if (typeof value === 'string') return value
+  if (value instanceof Uint8Array) {
+    return new TextDecoder().decode(value)
+  }
+  return ''
+}
+
+function expectedNetworkPassphrase(): string | null {
+  return process.env.NEXT_PUBLIC_STELLAR_NETWORK_PASSPHRASE ?? null
+}
+
+function walletKitNetwork<T extends { PUBLIC: unknown; TESTNET: unknown }>(
+  Networks: T
+): T['PUBLIC'] | T['TESTNET'] {
+  const expected = expectedNetworkPassphrase()
+  if (expected === 'Public Global Stellar Network ; September 2015') {
+    return Networks.PUBLIC
+  }
+  return Networks.TESTNET
+}
+
+async function validateSep10Challenge({
+  address,
+  challenge,
+}: {
+  address: string
+  challenge: Sep10ChallengeResponse
+}): Promise<void> {
+  const { Keypair, Transaction } = await import('@stellar/stellar-sdk')
+  const expected = expectedNetworkPassphrase()
+  if (expected && expected !== challenge.networkPassphrase) {
+    throw new Error(
+      'Challenge network does not match configured Stellar network'
+    )
+  }
+
+  const tx = new Transaction(
+    challenge.transactionXdr,
+    challenge.networkPassphrase
+  )
+  if (tx.source !== challenge.serverSigningKey) {
+    throw new Error('Challenge source account does not match server signer')
+  }
+  if (String(tx.sequence) !== '0') {
+    throw new Error('Challenge sequence must be 0')
+  }
+  const server = Keypair.fromPublicKey(challenge.serverSigningKey)
+  const hash = tx.hash()
+  const signedByServer = tx.signatures.some((sig) =>
+    server.verify(hash, sig.signature())
+  )
+  if (!signedByServer) {
+    throw new Error('Challenge is missing the server signature')
+  }
+
+  const authOp = tx.operations[0]
+  if (authOp?.type !== 'manageData') {
+    throw new Error('Challenge first operation must be ManageData')
+  }
+  if (authOp.source !== address) {
+    throw new Error('Challenge operation source does not match address')
+  }
+  if (
+    authOp.name !== challenge.homeDomain + ' auth' ||
+    manageDataValue(authOp.value).length < 32
+  ) {
+    throw new Error('Challenge nonce is malformed')
+  }
+
+  const webAuthOp = tx.operations.find(
+    (op) => op.type === 'manageData' && op.name === 'web_auth_domain'
+  )
+  if (!webAuthOp || webAuthOp.type !== 'manageData') {
+    throw new Error('Challenge is missing web_auth_domain')
+  }
+  if (webAuthOp.source !== challenge.serverSigningKey) {
+    throw new Error('web_auth_domain operation must be server-sourced')
+  }
+  if (manageDataValue(webAuthOp.value) !== challenge.webAuthDomain) {
+    throw new Error('web_auth_domain does not match server domain')
+  }
+}
+
+function signedXdrFromResult(
+  result: string | { signedTxXdr?: string; signedXDR?: string; xdr?: string }
+): string {
+  if (typeof result === 'string') return result
+  const signed = result.signedTxXdr ?? result.signedXDR ?? result.xdr
+  if (typeof signed !== 'string' || signed.length === 0) {
+    throw new Error('Wallet did not return a signed challenge transaction')
+  }
+  return signed
+}
+
+async function signSep10Challenge({
+  kit,
+  address,
+  challenge,
+}: {
+  kit: StellarWalletsKitApi
+  address: string
+  challenge: Sep10ChallengeResponse
+}): Promise<string> {
+  if (kit.signTransaction) {
+    return signedXdrFromResult(
+      await kit.signTransaction(challenge.transactionXdr, {
+        networkPassphrase: challenge.networkPassphrase,
+        address,
+      })
+    )
+  }
+  if (kit.sign) {
+    return signedXdrFromResult(
+      await kit.sign({
+        xdr: challenge.transactionXdr,
+        networkPassphrase: challenge.networkPassphrase,
+        address,
+      })
+    )
+  }
+  throw new Error(
+    'Selected Stellar wallet does not support transaction signing'
+  )
+}
 
 export function StellarWalletProvider({
   children,
@@ -45,7 +239,7 @@ export function StellarWalletProvider({
           await import('@creit-tech/stellar-wallets-kit/modules/xbull')
 
         StellarWalletsKit.init({
-          network: Networks.PUBLIC,
+          network: walletKitNetwork(Networks),
           modules: [
             new AlbedoModule(),
             new FreighterModule(),
@@ -61,6 +255,44 @@ export function StellarWalletProvider({
     initKit()
   }, [])
 
+  useEffect(() => {
+    const validatePersistedSession = async () => {
+      const stellarWallets = useWalletStore
+        .getState()
+        .wallets.filter(
+          (wallet) => wallet.chainFamily === 'stellar' && wallet.stellarSession
+        )
+
+      if (stellarWallets.length === 0) return
+
+      try {
+        const { session } = await getJson<Sep10SessionResponse>(
+          '/api/auth/stellar/session'
+        )
+
+        for (const wallet of stellarWallets) {
+          const isSessionWallet =
+            wallet.address.toLowerCase() === session.address.toLowerCase()
+          updateWallet(wallet.address, {
+            isConnected: isSessionWallet,
+            isCurrentlyConnected: isSessionWallet,
+            stellarSession: isSessionWallet ? session : undefined,
+          })
+        }
+      } catch {
+        for (const wallet of stellarWallets) {
+          updateWallet(wallet.address, {
+            isConnected: false,
+            isCurrentlyConnected: false,
+            stellarSession: undefined,
+          })
+        }
+      }
+    }
+
+    validatePersistedSession()
+  }, [updateWallet])
+
   const connectStellar = async () => {
     if (!initialized) {
       setError('Stellar wallet kit is not initialized yet.')
@@ -73,12 +305,28 @@ export function StellarWalletProvider({
     try {
       const { StellarWalletsKit } =
         await import('@creit-tech/stellar-wallets-kit')
-      const result = await StellarWalletsKit.authModal()
+      const kit = StellarWalletsKit as StellarWalletsKitApi
+      const result = await kit.authModal()
       const address = result?.address
 
       if (!address) {
         throw new Error('Failed to retrieve address from the wallet')
       }
+
+      const challenge = await postJson<Sep10ChallengeResponse>(
+        '/api/auth/stellar/challenge',
+        { address }
+      )
+      await validateSep10Challenge({ address, challenge })
+      const signedChallengeXdr = await signSep10Challenge({
+        kit,
+        address,
+        challenge,
+      })
+      const verified = await postJson<Sep10VerifyResponse>(
+        '/api/auth/stellar/verify',
+        { address, transactionXdr: signedChallengeXdr }
+      )
 
       const newWallet: Wallet = {
         address: address,
@@ -93,9 +341,11 @@ export function StellarWalletProvider({
         avatarUri: '',
         roles: [],
         isUpdating: false,
+        stellarSession: verified.session,
       }
 
       addWallets([newWallet])
+      updateWallet(address, newWallet)
       identifyWallet({ address, chainFamily: 'stellar' })
 
       // Deselect other active wallets
@@ -117,8 +367,14 @@ export function StellarWalletProvider({
     }
   }
 
-  const disconnectStellar = (address: string) => {
-    removeWallet(address)
+  const disconnectStellar = async (address: string) => {
+    try {
+      await deleteJson<{ ok: boolean }>('/api/auth/stellar/session')
+    } catch (err) {
+      console.warn('Failed to clear Stellar server session:', err)
+    } finally {
+      removeWallet(address)
+    }
   }
 
   return (

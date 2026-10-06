@@ -351,6 +351,32 @@ describe('toSupplyProduct', () => {
     expect(p.apyMonthly).toBeUndefined()
     expect(p.apyYearly).toBeUndefined()
   })
+
+  it('surfaces Stellar rows from the shared rate tables as rankable products', () => {
+    const p = toSupplyProduct(
+      row(
+        {
+          id: 'blend:v2:stellar:pool:usdc:supply',
+          provider: 'blend',
+          version: 'v2',
+          protocolName: 'BlendV2Stellar',
+          chainId: -1,
+          chainName: 'Stellar',
+          assetAddress:
+            'CBIELJKKRXQGD2WBM5NVOPEDQMVLM3X6M6M55EATFMSVGEJYXNZIU3OV',
+          protocolAddress:
+            'CCLBPEYS3TEEQM5AVJ4EJ32VZBEK6WLIITF5F4BRVACF6GQYGKSKMWYB',
+        },
+        { apyNet: 0.051, apyDaily: 0.05 }
+      )
+    )
+
+    expect(p.protocol).toBe('blend_v2')
+    expect(p.network).toBe('stellar')
+    expect(p.poolChainId).toBe(-1)
+    expect(p.apy).toBe(0.051)
+    expect(p.apyDaily).toBe(0.05)
+  })
 })
 
 describe('toBorrowProduct', () => {

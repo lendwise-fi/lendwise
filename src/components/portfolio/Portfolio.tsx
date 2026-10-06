@@ -2,8 +2,7 @@
 
 import { useEffect, useMemo } from 'react'
 
-import { Activity, TrendingDown, TrendingUp } from 'lucide-react'
-import { Address } from 'viem'
+import { Activity, AlertTriangle, TrendingDown, TrendingUp } from 'lucide-react'
 import { useAccount } from 'wagmi'
 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
@@ -11,6 +10,8 @@ import { WalletNotConnected } from '@/components/wallet'
 import { protocolVersionName } from '@/config/protocols-meta'
 import { useCurrency } from '@/contexts'
 import { useLoadUserPositions } from '@/hooks/useLoadUserPositions'
+import type { PortfolioWalletInput } from '@/lib/portfolio/types'
+import { healthFactorFromBorrowPositions } from '@/lib/risk/portfolio-health'
 import { useWalletStore } from '@/stores/walletStore'
 
 import { BorrowingTable, SupplyingTable } from '.'
@@ -21,32 +22,50 @@ export function Portfolio() {
   const { address: evmAddress, isConnected: isEvmConnected } = useAccount()
   const { wallets } = useWalletStore()
 
-  // Derive unified connection state across chain families
-  const activeStellarWallet = useMemo(
-    () =>
-      wallets.find(
-        (w) => w.chainFamily === 'stellar' && w.isConnected && w.isActive
-      ),
-    [wallets]
-  )
-  const isConnected = isEvmConnected || !!activeStellarWallet
-  const address = evmAddress ?? activeStellarWallet?.address
-
   const { rate, loading: conversionLoading } = useCurrency()
 
-  const addresses = useMemo(
-    () => wallets.map((wallet) => wallet.address as Address),
-    [wallets]
-  )
+  const portfolioWallets = useMemo<PortfolioWalletInput[]>(() => {
+    const connected: PortfolioWalletInput[] = []
 
-  const { userPositions, fetchUserPositions, isPending, error } =
-    useLoadUserPositions(addresses)
+    for (const wallet of wallets) {
+      if (!wallet.isConnected) continue
+      if (wallet.chainFamily !== 'evm' && wallet.chainFamily !== 'stellar') {
+        continue
+      }
+      connected.push({
+        address: wallet.address,
+        chainFamily: wallet.chainFamily,
+      })
+    }
+
+    if (
+      isEvmConnected &&
+      evmAddress &&
+      !connected.some(
+        (wallet) => wallet.address.toLowerCase() === evmAddress.toLowerCase()
+      )
+    ) {
+      connected.push({ address: evmAddress, chainFamily: 'evm' })
+    }
+
+    return connected
+  }, [evmAddress, isEvmConnected, wallets])
+
+  const isConnected = portfolioWallets.length > 0
+
+  const {
+    userPositions,
+    fetchUserPositions,
+    isPending,
+    error,
+    partialFailures,
+  } = useLoadUserPositions(portfolioWallets)
 
   useEffect(() => {
-    if (address) {
+    if (portfolioWallets.length > 0) {
       fetchUserPositions()
     }
-  }, [address])
+  }, [fetchUserPositions, portfolioWallets])
 
   const PROTOCOL_COLORS = [
     '#06B6D4',
@@ -132,20 +151,42 @@ export function Portfolio() {
   const netPosition =
     portfolioSummary.totalSupplying.value -
     portfolioSummary.totalBorrowing.value
-  const healthRatio =
-    portfolioSummary.totalBorrowing.value > 0
-      ? (
-          portfolioSummary.totalSupplying.value /
-          portfolioSummary.totalBorrowing.value
-        ).toFixed(2)
-      : '∞'
+  const healthFactor = healthFactorFromBorrowPositions(borrowData)
+  const healthRatio = formatHealthFactor(healthFactor)
+  const hasUnknownRisk = healthFactor.status === 'unknown'
 
   return (
     <div className="flex h-full overflow-hidden">
       {/* Sidebar — desktop only */}
-      <PortfolioSidebar summary={portfolioSummary} />
+      <PortfolioSidebar
+        summary={portfolioSummary}
+        healthFactor={healthFactor}
+      />
 
       <div className="flex flex-1 flex-col overflow-hidden">
+        {partialFailures.length > 0 ? (
+          <div className="border-border flex items-start gap-2 border-b bg-amber-500/10 px-4 py-3 text-sm text-amber-200">
+            <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+            <span>
+              Partial data:{' '}
+              {partialFailures
+                .map((f) => f.protocolId ?? f.chainFamily)
+                .join(', ')}{' '}
+              temporarily unavailable.
+            </span>
+          </div>
+        ) : null}
+
+        {hasUnknownRisk ? (
+          <div className="border-border flex items-start gap-2 border-b bg-rose-500/10 px-4 py-3 text-sm text-rose-200">
+            <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+            <span>
+              Risk and valuation incomplete: a reserve price or risk parameter
+              is missing, so health is shown as unknown.
+            </span>
+          </div>
+        ) : null}
+
         {/* Mobile summary bar */}
         <div className="bg-card/40 grid grid-cols-4 gap-2 border-b px-4 py-3 md:hidden">
           <div>
@@ -243,4 +284,12 @@ export function Portfolio() {
       </div>
     </div>
   )
+}
+
+function formatHealthFactor(
+  result: ReturnType<typeof healthFactorFromBorrowPositions>
+) {
+  if (result.status === 'unknown') return 'Unknown'
+  if (result.status === 'no-liability') return '∞'
+  return result.healthFactor.toFixed(2)
 }

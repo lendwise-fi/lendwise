@@ -77,6 +77,10 @@ export interface ReconcileReport {
       { gaps: number; byRefetch: number; byNeighbor: number }
     >
   }
+  adapterFamilies: Record<
+    string,
+    { adapterId: string; historyRefetch: boolean }[]
+  >
   fetch: {
     requested: number
     returned: number

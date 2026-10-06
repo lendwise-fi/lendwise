@@ -1,6 +1,8 @@
 import { Activity, TrendingDown, TrendingUp } from 'lucide-react'
 import { Cell, Pie, PieChart, ResponsiveContainer } from 'recharts'
 
+import type { HealthFactorResult } from '@/lib/risk/health-factor'
+
 type BreakdownItem = { name: string; value: number; color: string }
 
 type PortfolioSummary = {
@@ -12,16 +14,15 @@ type PortfolioSummary = {
 
 export default function PortfolioSidebar({
   summary,
+  healthFactor,
 }: {
   summary: PortfolioSummary
+  healthFactor: HealthFactorResult
 }) {
   const { totalSupplying, totalBorrowing, supplyBreakdown, borrowBreakdown } =
     summary
   const netPosition = totalSupplying.value - totalBorrowing.value
-  const healthRatio =
-    totalBorrowing.value > 0
-      ? (totalSupplying.value / totalBorrowing.value).toFixed(2)
-      : '∞'
+  const healthRatio = formatHealthFactor(healthFactor)
 
   return (
     <aside className="border-border bg-card/40 hidden w-72 shrink-0 flex-col overflow-y-auto border-r md:flex">
@@ -151,4 +152,10 @@ function DonutWithLegend({ data }: { data: BreakdownItem[] }) {
       </div>
     </div>
   )
+}
+
+function formatHealthFactor(result: HealthFactorResult) {
+  if (result.status === 'unknown') return 'Unknown'
+  if (result.status === 'no-liability') return '∞'
+  return result.healthFactor.toFixed(2)
 }
