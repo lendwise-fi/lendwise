@@ -152,7 +152,7 @@ export function borrowPositionsFromReadings({
   })
 }
 
-async function loadReadings(addresses: string[]) {
+async function loadReadings() {
   const net = network()
   const poolId = blendV21PoolId()
   const pool = await PoolV2.load(net, poolId)
@@ -186,7 +186,7 @@ async function readUser(
 export const blendV21TestnetAdapter: StellarAppAdapter = {
   async getUserSupplyPositions({ addresses }) {
     if (addresses.length === 0) return []
-    const ctx = await loadReadings(addresses)
+    const ctx = await loadReadings()
     const perUser = await Promise.all(
       addresses.map(async (userAddress) => {
         const { readings } = await readUser(ctx, userAddress)
@@ -202,7 +202,7 @@ export const blendV21TestnetAdapter: StellarAppAdapter = {
 
   async getUserBorrowPositions({ addresses }) {
     if (addresses.length === 0) return []
-    const ctx = await loadReadings(addresses)
+    const ctx = await loadReadings()
     const perUser = await Promise.all(
       addresses.map(async (userAddress) => {
         const { readings, healthFactor } = await readUser(ctx, userAddress)
