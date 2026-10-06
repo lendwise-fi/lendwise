@@ -35,4 +35,8 @@ export const STELLAR_APP_ADAPTERS: Partial<
     import('@/lib/protocols/stellar/testnet/portfolio').then(
       (m) => m.stellarTestnetPortfolioAdapter
     ),
+  blend_v2: () =>
+    import('@/lib/protocols/stellar/testnet/blend-v2-1-pool').then(
+      (m) => m.blendV21TestnetAdapter
+    ),
 }
