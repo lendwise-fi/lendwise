@@ -122,6 +122,7 @@ QStash cron.
 | [Tranche 2 testnet runbook](docs/tranche-2-testnet.md)               | Health factor, Stellar portfolio merge, partial-failure demo        |
 | [Tranche 3 mainnet runbook](docs/tranche-3-mainnet.md)               | CCTP bridge, trustline preflight, Iris attestation, mint QA         |
 | [Blend v2.1 testnet connector](docs/blend-v2-1-testnet-connector.md) | Example protocol connector on the general Stellar adapter interface |
+| [Stellar and EVM bridge audit](docs/security-audit-stellar-evm.md)   | Findings, fixes and open items for SEP-10 and CCTP                  |
 | [Contributing guide](CONTRIBUTING.md)                                | Setup, quality bar, PR process                                      |
 
 ## Contributing
