@@ -43,7 +43,6 @@ beforeEach(() => {
   horizon.account = null
   process.env.STELLAR_SEP10_SIGNING_SECRET = server.secret()
   process.env.STELLAR_SESSION_SECRET = 'test-session-secret'
-  process.env.STELLAR_NETWORK_PASSPHRASE = Networks.PUBLIC
 })
 
 afterEach(() => {
@@ -62,8 +61,7 @@ async function signedChallenge(
 }
 
 describe('stellar SEP-10 challenge', () => {
-  it('issues a sequence-0, server-signed ManageData challenge on mainnet by default', async () => {
-    delete process.env.STELLAR_NETWORK_PASSPHRASE
+  it('issues a sequence-0, server-signed ManageData challenge on mainnet', async () => {
     const challenge = await issueStellarChallenge(user.publicKey())
 
     expect(challenge.networkPassphrase).toBe(Networks.PUBLIC)

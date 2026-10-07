@@ -28,21 +28,6 @@ interface Sep10SessionResponse {
   session: StellarSession
 }
 
-// Literal passphrases rather than the SDK's `Networks`, so this module does not
-// pull @stellar/stellar-sdk into the initial bundle.
-const PUBLIC_PASSPHRASE = 'Public Global Stellar Network ; September 2015'
-const TESTNET_PASSPHRASE = 'Test SDF Network ; September 2015'
-
-/**
- * The network the wallet must sign for. Mainnet unless the deployment says
- * otherwise — and it must say the same thing as the server's
- * `STELLAR_NETWORK_PASSPHRASE`, since a challenge signed for one passphrase
- * does not verify under the other.
- */
-function expectedNetworkPassphrase(): string {
-  return process.env.NEXT_PUBLIC_STELLAR_NETWORK_PASSPHRASE || PUBLIC_PASSPHRASE
-}
-
 const StellarWalletContext = createContext<
   StellarWalletContextType | undefined
 >(undefined)
@@ -82,8 +67,11 @@ async function validateSep10Challenge({
   address: string
   challenge: Sep10ChallengeResponse
 }): Promise<void> {
-  const { Keypair, Transaction } = await import('@stellar/stellar-sdk')
-  if (challenge.networkPassphrase !== expectedNetworkPassphrase()) {
+  const { Keypair, Networks, Transaction } =
+    await import('@stellar/stellar-sdk')
+  // Mainnet only, like the server (lib/auth/stellar-sep10.ts): a challenge for
+  // any other passphrase is refused before the wallet is asked to sign it.
+  if (challenge.networkPassphrase !== Networks.PUBLIC) {
     throw new Error(
       'Challenge network does not match configured Stellar network'
     )
@@ -163,10 +151,7 @@ export function StellarWalletProvider({
           await import('@creit-tech/stellar-wallets-kit/modules/xbull')
 
         StellarWalletsKit.init({
-          network:
-            expectedNetworkPassphrase() === TESTNET_PASSPHRASE
-              ? Networks.TESTNET
-              : Networks.PUBLIC,
+          network: Networks.PUBLIC,
           modules: [
             new AlbedoModule(),
             new FreighterModule(),

@@ -17,14 +17,9 @@ import {
 
 const CHALLENGE_TIMEOUT_SECONDS = 5 * 60
 const SESSION_TTL_SECONDS = 7 * 24 * 60 * 60
-const HOME_DOMAIN =
-  process.env.STELLAR_HOME_DOMAIN ??
-  process.env.NEXT_PUBLIC_APP_DOMAIN ??
-  'lendwise.fi'
-const WEB_AUTH_DOMAIN =
-  process.env.STELLAR_WEB_AUTH_DOMAIN ??
-  process.env.NEXT_PUBLIC_APP_DOMAIN ??
-  HOME_DOMAIN
+// `||`, not `??`: an empty variable (as copied from .env.example) means unset.
+const HOME_DOMAIN = process.env.STELLAR_HOME_DOMAIN || 'lendwise.fi'
+const WEB_AUTH_DOMAIN = process.env.STELLAR_WEB_AUTH_DOMAIN || HOME_DOMAIN
 const CHALLENGE_NAME = HOME_DOMAIN + ' auth'
 
 export interface StellarSessionPayload {
@@ -70,15 +65,13 @@ function signingKeypair(): Keypair {
   return Keypair.fromSecret(secret)
 }
 
-export function stellarNetworkPassphrase(): string {
-  return process.env.STELLAR_NETWORK_PASSPHRASE ?? Networks.PUBLIC
-}
+// LendWise reads and authenticates on Stellar mainnet only — the same network
+// the Blend adapters are pinned to (blend/common/api.ts). The client signs for
+// the same SDK constant, so the two cannot drift apart through configuration.
+const NETWORK_PASSPHRASE = Networks.PUBLIC
 
 function horizonUrl(): string {
-  if (process.env.STELLAR_HORIZON_URL) return process.env.STELLAR_HORIZON_URL
-  return stellarNetworkPassphrase() === Networks.TESTNET
-    ? 'https://horizon-testnet.stellar.org'
-    : 'https://horizon.stellar.org'
+  return process.env.STELLAR_HORIZON_URL || 'https://horizon.stellar.org'
 }
 
 function assertPublicKey(address: string): void {
@@ -98,7 +91,7 @@ export async function issueStellarChallenge(
 ): Promise<StellarChallengePayload> {
   assertPublicKey(address)
   const server = signingKeypair()
-  const networkPassphrase = stellarNetworkPassphrase()
+  const networkPassphrase = NETWORK_PASSPHRASE
   const now = Math.floor(Date.now() / 1000)
   const timeout = now + CHALLENGE_TIMEOUT_SECONDS
   const nonce = randomBytes(48).toString('base64url')
@@ -288,7 +281,7 @@ export function verifySessionToken(
     if (typeof payload.address !== 'string') return null
     // A session issued on another network (testnet cookie on mainnet) is not
     // a session here.
-    if (payload.networkPassphrase !== stellarNetworkPassphrase()) return null
+    if (payload.networkPassphrase !== NETWORK_PASSPHRASE) return null
     if (typeof payload.issuedAt !== 'number') return null
     if (typeof payload.expiresAt !== 'number') return null
     if (payload.expiresAt <= Math.floor(Date.now() / 1000)) return null
@@ -307,7 +300,7 @@ export async function verifyStellarChallenge({
 }): Promise<{ session: StellarSessionPayload; token: string }> {
   assertPublicKey(address)
   const server = signingKeypair()
-  const networkPassphrase = stellarNetworkPassphrase()
+  const networkPassphrase = NETWORK_PASSPHRASE
   const tx = new Transaction(transactionXdr, networkPassphrase)
 
   if (tx.source !== server.publicKey()) {

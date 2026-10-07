@@ -244,10 +244,9 @@ flowchart TD
   httpOnly session cookie. Challenges are single-use and sessions revocable through Upstash Redis,
   which is therefore required in production. After a refresh, a persisted Stellar wallet counts as
   connected only if `/api/auth/stellar/session` still validates its cookie.
-- **Network passphrase.** Server (`STELLAR_NETWORK_PASSPHRASE`) and wallet
-  (`NEXT_PUBLIC_STELLAR_NETWORK_PASSPHRASE`) both default to mainnet and must agree — a challenge
-  signed for one passphrase cannot verify under the other; the client refuses a mismatched
-  challenge before signing, and a session cookie from another network is not a session.
+- **Mainnet only.** Server and wallet both use the SDK's `Networks.PUBLIC`, like the Blend
+  adapters — there is no network setting to get wrong. The client refuses a challenge for any
+  other passphrase before signing, and a session cookie from another network is not a session.
 - **Market data vs. positions are two distinct pipelines.** Market data (part 1/2) describes what
   a Blend pool as a whole offers; positions describe what one authenticated wallet holds in it.
   Blend positions are **never** written into `apy_hourly`/`apy_daily` or the nightly cron —
