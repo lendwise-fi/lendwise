@@ -29,8 +29,9 @@ yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
 
-# local env files
-.env*.local
+# local env files — every .env* except the committed template
+.env*
+!.env.example
 
 # vercel
 .vercel
@@ -41,9 +42,6 @@ pnpm-debug.log*
 # GraphQL Code Generator
 **/generated/
 next-env.d.ts
-
-.env
-.env.local
 
 # Claude Code
 .claude/worktrees/
