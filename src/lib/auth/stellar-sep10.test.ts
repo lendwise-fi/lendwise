@@ -44,6 +44,7 @@ beforeEach(() => {
   horizon.account = null
   process.env.STELLAR_SEP10_SIGNING_SECRET = server.secret()
   process.env.STELLAR_SESSION_SECRET = 'test-session-secret'
+  process.env.VERCEL_PROJECT_PRODUCTION_URL = DOMAIN
 })
 
 afterEach(() => {
@@ -94,12 +95,31 @@ describe('stellar SEP-10 challenge', () => {
   })
 
   it('refuses a host too long for a ManageData name', async () => {
+    const long = `${'a'.repeat(60)}.vercel.app`
+    process.env.VERCEL_BRANCH_URL = long
+    await expect(
+      issueStellarChallenge({ address: user.publicKey(), domain: long })
+    ).rejects.toThrow('cannot be used as a SEP-10 domain')
+  })
+
+  it('refuses a forged host that is not one of this deployment', async () => {
     await expect(
       issueStellarChallenge({
         address: user.publicKey(),
-        domain: `${'a'.repeat(60)}.vercel.app`,
+        domain: 'evil.example',
       })
-    ).rejects.toThrow('cannot be used as a SEP-10 domain')
+    ).rejects.toThrow('not an allowed sign-in domain')
+  })
+
+  it('accepts the deployment and branch hosts Vercel sets', async () => {
+    process.env.VERCEL_URL = 'dashboard-abc123-smarttdev.vercel.app'
+    const challenge = await issueStellarChallenge({
+      address: user.publicKey(),
+      domain: 'dashboard-abc123-smarttdev.vercel.app',
+    })
+    expect(challenge.webAuthDomain).toBe(
+      'dashboard-abc123-smarttdev.vercel.app'
+    )
   })
 })
 
@@ -180,7 +200,20 @@ describe('stellar SEP-10 verification', () => {
     ).rejects.toThrow('operation source does not match address')
   })
 
-  it('rejects a challenge replayed on another domain', async () => {
+  it('rejects a challenge replayed on another of our hosts', async () => {
+    const xdr = await signedChallenge([user])
+    process.env.VERCEL_URL = 'dashboard-abc123-smarttdev.vercel.app'
+
+    await expect(
+      verifyStellarChallenge({
+        address: user.publicKey(),
+        transactionXdr: xdr,
+        domain: 'dashboard-abc123-smarttdev.vercel.app',
+      })
+    ).rejects.toThrow('Challenge nonce is malformed')
+  })
+
+  it('rejects verification on a forged host', async () => {
     const xdr = await signedChallenge([user])
 
     await expect(
@@ -189,7 +222,7 @@ describe('stellar SEP-10 verification', () => {
         transactionXdr: xdr,
         domain: 'evil.example',
       })
-    ).rejects.toThrow('Challenge nonce is malformed')
+    ).rejects.toThrow('not an allowed sign-in domain')
   })
 
   it('rejects a challenge not issued by this server', async () => {

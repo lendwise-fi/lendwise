@@ -81,15 +81,47 @@ function assertPublicKey(address: string): void {
   }
 }
 
+function hostOf(value: string | undefined): string | null {
+  if (!value) return null
+  return value
+    .replace(/^https?:\/\//, '')
+    .split(/[/:]/)[0]
+    .toLowerCase()
+}
+
+/**
+ * The hosts this deployment answers on, from the system variables Vercel sets
+ * on every deployment — the production domain, the branch URL and the
+ * deployment URL — plus localhost outside production. Nothing to configure.
+ */
+function allowedDomains(): Set<string> {
+  const hosts = [
+    process.env.VERCEL_PROJECT_PRODUCTION_URL,
+    process.env.VERCEL_BRANCH_URL,
+    process.env.VERCEL_URL,
+  ].map(hostOf)
+  if (process.env.NODE_ENV !== 'production')
+    hosts.push('localhost', '127.0.0.1')
+  return new Set(hosts.filter((h): h is string => h !== null))
+}
+
 /**
  * The domain a challenge is bound to: the host the sign-in request reached
  * (lendwise.fi, or a preview deployment's own host), passed in by the route.
  * It is both SEP-10's home domain (`<domain> auth`) and its
  * `web_auth_domain`, and the client checks it against the page it is on, so
  * a challenge minted for one site cannot be replayed on another.
+ *
+ * The host comes from request headers, so it is only trusted when it is one
+ * of this deployment's own hosts: otherwise a phishing server could forge
+ * `Host: evil.example`, obtain a challenge bound to its own domain — which its
+ * page would then accept — and trade the victim's signature for a session.
  */
 function assertDomain(domain: string): void {
-  if (!domain || Buffer.byteLength(domain) > MAX_DOMAIN_BYTES) {
+  if (!allowedDomains().has(domain.toLowerCase())) {
+    throw new Error('Host is not an allowed sign-in domain')
+  }
+  if (Buffer.byteLength(domain) > MAX_DOMAIN_BYTES) {
     throw new Error('Host name cannot be used as a SEP-10 domain')
   }
 }
