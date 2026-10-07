@@ -2,7 +2,8 @@ import { Ratelimit } from '@upstash/ratelimit'
 import { Redis } from '@upstash/redis'
 
 /**
- * IP-based rate limiting for the public API surface (/api/graphql, /api/optimizer).
+ * IP-based rate limiting for the public API surface (/api/graphql,
+ * /api/optimizer, /api/auth/stellar).
  *
  * Fails OPEN by design: if Upstash is unconfigured (local dev, CI) or unreachable,
  * requests are allowed rather than rejected. Availability of lendwise.fi outranks
@@ -70,6 +71,13 @@ export const graphqlLimiter = createLimiter(60, 'lw:gql')
 
 /** 10 req/min/IP — fronts the CPU-bound solver, so it is the expensive path. */
 export const optimizerLimiter = createLimiter(10, 'lw:opt')
+
+/**
+ * 20 req/min/IP — Stellar sign-in (SEP-10 challenge + verify). A human signs
+ * in a handful of times; this only caps scripted challenge minting and
+ * signature-verification floods (each verify may hit Horizon).
+ */
+export const stellarAuthLimiter = createLimiter(20, 'lw:sep10')
 
 /**
  * Client IP from the first hop of `x-forwarded-for`. Falls back to a shared

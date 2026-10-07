@@ -2,6 +2,13 @@ import type { WalletClient } from 'viem'
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 
+export interface StellarSession {
+  address: string
+  networkPassphrase: string
+  issuedAt: number
+  expiresAt: number
+}
+
 export interface Wallet {
   address: string
   name: string
@@ -15,6 +22,7 @@ export interface Wallet {
   avatarUri: string
   roles: string[]
   isUpdating: boolean
+  stellarSession?: StellarSession
 }
 
 export interface Network {
