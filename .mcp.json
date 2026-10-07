@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "rness": {
+      "command": "node",
+      "args": [
+        "../../.rness/node_modules/@rness/cli/dist/bin/rness.js",
+        "mcp"
+      ]
+    }
+  }
+}

@@ -1,0 +1,21 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "rness",
+  "description": "The rness workspace in Claude Code: /rness:status, /rness:adr, /rness:spec, /rness:plan.",
+  "author": {
+    "name": "rness-dev",
+    "url": "https://rness.dev"
+  },
+  "homepage": "https://rness.dev",
+  "repository": "https://github.com/rness-dev/rness",
+  "license": "MIT",
+  "keywords": [
+    "rness",
+    "agents",
+    "claude-code",
+    "adr",
+    "specification",
+    "plan"
+  ],
+  "types": "./types/index.d.ts"
+}
