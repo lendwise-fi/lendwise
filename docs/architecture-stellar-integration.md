@@ -125,45 +125,58 @@ flowchart TD
 
 ```mermaid
 flowchart TD
-    BackfillScript["scripts/backfill-history.ts<br/>pnpm backfill:history -- --protocol blend_v2 --write<br/>PROTOCOL-BLIND — knows only adapter.getApyHistory"] --> Registry3{{"YIELD_ADAPTERS<br/>same registry as spot — no script changes"}}
-    Registry3 --> BlendHistory["blend_v1 / blend_v2<br/>getApyHistory() — NEW<br/>blend/v1/apy-history.ts · blend/v2/apy-history.ts"]
+    BackfillScript["scripts/backfill-history.ts<br/>pnpm backfill:history -- --protocol blend --chains -1 --write<br/>PROTOCOL-BLIND — knows only adapter.getApyHistory"] --> Registry3{{"YIELD_ADAPTERS<br/>same registry as spot — no script changes"}}
+    CLI["scripts/stellar-history.ts<br/>pnpm stellar:history -- --protocol blend_v2 --contract C…<br/>one contract → hourly CSV, no DB write"] --> Registry3
+    Registry3 --> BlendHistory["blend_v1 / blend_v2 getApyHistory()<br/>blend/common/apy-history.ts — Blend decoder"]
 
-    Hubble[("Stellar Hubble<br/>historical Blend reserve states")] --> BlendHistory
-    BlendHistory --> Reconstruct["Historical-state reconstruction — NEW<br/>reserve states → one point per (product, day):<br/>supply/borrow APY · total supplied/borrowed liquidity<br/>utilization · ir_mod · util · r_base · r_one · r_two · r_three · reactivity"]
+    Hubble[("Stellar Hubble — BigQuery<br/>crypto_stellar.contract_data<br/>(+ history_contract_events, opt-in)")] --> Module
+    BlendHistory --> Module["stellar/hubble-history.ts — generic module<br/>fetch the decoder's storage keys (ledger_key_hash)<br/>replay writes → one storage snapshot per HOUR/DAY bucket"]
+    Module -->|"snapshot per bucket"| Decode["Blend decoder hook<br/>ResConfig + ResData + pool Config<br/>→ SDK Reserve.accrue() at bucket end<br/>supply/borrow APY · supplied · borrowed · utilization"]
 
-    Reconstruct --> Enrich["enrichPointsWithUsd()<br/>backfill/enrich-usd.ts — prices points missing USD<br/>from another provider's same-day observation"]
+    Decode --> Enrich["enrichPointsWithUsd()<br/>backfill/enrich-usd.ts — prices points missing USD<br/>from another provider's same-day observation"]
     Enrich --> Insert["backfillDailyRows()<br/>INSERT add-only, ON CONFLICT DO NOTHING"]
     Enrich --> Patch["patchDailyMarketState()<br/>PATCH fill-only, COALESCE(existing, incoming)"]
-    Insert --> Daily2[("apy_daily<br/>backfilled directly, target 90+ days")]
+    Insert --> Daily2[("apy_daily")]
     Patch --> Daily2
 
-    Daily2 --> Chart["Blend market page on lendwise.fi<br/>historical APY chart"]
-
-    Reconcile2["Nightly /api/yield/apy/reconcile<br/>(part 1)"] -.->|"same getApyHistory,<br/>used for 7-day gap healing"| BlendHistory
+    Reconcile2["Nightly /api/yield/apy/reconcile<br/>(part 1)"] -.->|"same getApyHistory, HOUR,<br/>used for gap healing"| BlendHistory
 
     classDef core fill:#e5e7eb,stroke:#6b7280,color:#111827;
     classDef stellar fill:#dcfce7,stroke:#16a34a,color:#111827,stroke-width:2px;
 
-    class BackfillScript,Registry3,Enrich,Insert,Patch,Daily2,Chart,Reconcile2 core;
-    class BlendHistory,Hubble,Reconstruct stellar;
+    class BackfillScript,Registry3,Enrich,Insert,Patch,Daily2,Reconcile2 core;
+    class BlendHistory,Hubble,Module,Decode,CLI stellar;
 ```
 
 **Reading the diagram**
 
-- Blend has **no subgraph and no history API** of its own, so historical data has to be
-  **reconstructed from Stellar Hubble**, not fetched from an existing endpoint.
-- **This is not event replay.** The approach reconstructs one point per (product, day) from
-  historical **reserve states**, matching the shape every other `getApyHistory` implementation
-  already returns.
-- This branch is **separate from spot ingestion**: spot reads live Soroban RPC state on a
-  10-minute cron and writes `apy_hourly`; historical reconstruction is consumed by two existing,
-  protocol-blind callers of `adapter.getApyHistory()` — the manual `scripts/backfill-history.ts`
-  harness, which writes straight into `apy_daily` (`backfillDailyRows` for missing days,
-  `patchDailyMarketState` to fill market columns on rows that already exist), and the nightly
-  reconcile job's gap-healing (part 1) — **neither requires any change**, only registering
-  `blend_v1`/`blend_v2`'s `getApyHistory()`.
-- Output lands in the same `apy_daily` table every other protocol writes to, which is what lets the
-  optimizer (part 5) rank Blend without any Blend-specific handling downstream.
+- Blend has **no subgraph and no history API** of its own, so history is **reconstructed from
+  Stellar Hubble**, the public BigQuery mirror of the ledger.
+- **Two halves.** `src/lib/protocols/stellar/hubble-history.ts` is protocol-blind: it queries
+  `contract_data` for exactly the storage keys a decoder names (matched on `ledger_key_hash` =
+  sha256 of the `LedgerKey` XDR, the formula stellar-etl uses), seeds each key with its last value
+  before the window, replays every later write, and hands the decoder one storage snapshot per
+  complete HOUR or DAY bucket. A Stellar adapter supplies only the decoder
+  (`StellarHistoryDecoder`: `contractId`, `ledgerKeys`, `decode`) and gets `getApyHistory` from it.
+- **Blend's decoder recomputes rates the way the SDK does.** Rates are not stored on-chain; the
+  pool stores their inputs. The decoder parses `ResConfig(asset)`, `ResData(asset)` and the pool
+  `Config` (backstop take rate) with the SDK's own parsers, accrues the reserve to the bucket's end
+  with `Reserve.accrue()`, and applies the same APR→APY split as `apy-spot.ts` — so a backfilled
+  hour and a collected hour are computed identically. A test pins this against real mainnet
+  storage for a v1 and a v2 pool (`blend/common/__tests__/fixtures/`).
+- **Pools On Ice / Frozen still reconstruct.** Their storage is intact and still accrues; status
+  only blocks new actions.
+- **Not reconstructed:** BLND emissions (`rewards` = 0) and USD amounts (filled downstream by
+  `enrichPointsWithUsd`, or left NULL).
+- **Cost guard.** The seed scan reaches back to Blend's launch (2024-05), and `contract_data` is
+  clustered on `last_modified_ledger` first, so the `contract_id` filter prunes little. Every job
+  carries `maximumBytesBilled` (`HUBBLE_MAX_BYTES_BILLED`, default 20 GiB); over it, BigQuery
+  refuses and the products are reported as failures — the reconcile job then heals from donors.
+  `pnpm stellar:history -- … --dry-run` prices a window without running it.
+- **Callers.** The backfill harness and the nightly reconcile job call `getApyHistory()` unchanged —
+  Stellar's internal chain id is `-1`, so the backfill needs `--chains -1`. The pool, asset and
+  storage version come from the meta Blend writes at `getProducts` time (`poolId`, `assetId`,
+  `version`), never from parsing the productId.
 
 ---
 
@@ -171,17 +184,17 @@ flowchart TD
 
 ```mermaid
 flowchart TD
-    subgraph Auth["Wallet connection — shipped · SEP-10 authentication — NEW (1.2)"]
+    subgraph Auth["Wallet connection + SEP-10 authentication"]
         direction TB
-        Wallets["Freighter / xBull / Lobstr / Albedo"] --> StellarKit["StellarWalletContext.tsx<br/>StellarWalletsKit.authModal() — shipped"]
-        StellarKit -.->|"connect today: bare public key"| Challenge["LendWise backend issues<br/>SEP-10 challenge — NEW"]
-        Challenge --> Sign["Wallet signs challenge — NEW"]
-        Sign --> Verify["LendWise backend<br/>verifies signature — NEW"]
-        Verify --> Session["Authenticated Stellar session — NEW"]
+        Wallets["Freighter / xBull / Lobstr / Albedo"] --> StellarKit["StellarWalletContext.tsx<br/>StellarWalletsKit.authModal()"]
+        StellarKit --> Challenge["POST /api/auth/stellar/challenge<br/>server-signed tx: seq 0, ManageData nonce,<br/>web_auth_domain, 5-min time bounds"]
+        Challenge --> Sign["Wallet signs challenge<br/>StellarWalletsKit.signTransaction — never submitted"]
+        Sign --> Verify["POST /api/auth/stellar/verify<br/>signatures vs account signers/threshold,<br/>nonce consumed once (Redis GETDEL)"]
+        Verify --> Session["httpOnly session cookie (7 days)<br/>GET /api/auth/stellar/session after refresh"]
     end
 
-    StellarKit --> Store["Zustand walletStore<br/>chainFamily: 'evm' | 'stellar' | 'bitcoin' — shipped"]
-    Session -.->|"NEW: persist session,<br/>not just the address"| Store
+    StellarKit --> Store["Zustand walletStore<br/>chainFamily: 'evm' | 'stellar' | 'bitcoin'"]
+    Session -->|"stellarSession on the wallet;<br/>revalidated on every load"| Store
 
     subgraph MarketData["Market data — from part 1 (unchanged)"]
         direction TB
@@ -222,13 +235,19 @@ flowchart TD
 
 **Reading the diagram**
 
-- **Auth (top) — connection is shipped, authentication is not.** `StellarWalletContext.tsx`
-  already connects **Freighter, xBull, Lobstr, and Albedo** via `StellarWalletsKit.authModal()`
-  and writes the address into the existing `walletStore`, which already carries a `chainFamily`
-  discriminator (`'evm' | 'stellar' | 'bitcoin'`). What's missing, and what 1.2 adds, is the
-  **SEP-10** round trip on top of that connection: the backend issues a challenge transaction, the
-  wallet signs it, the backend verifies the signature, and only then is an authenticated
-  **session** — not just a bare public key — persisted.
+- **Auth (top) — SEP-10 on top of the wallet connection.** `StellarWalletContext.tsx` connects
+  **Freighter, xBull, Lobstr and Albedo** via `StellarWalletsKit.authModal()`, then runs the
+  **SEP-10** round trip (`src/lib/auth/stellar-sep10.ts`): the server issues a challenge signed by
+  `STELLAR_SEP10_SIGNING_SECRET`, the client checks it is a genuine challenge for this address and
+  network before asking the wallet to sign it, and the server verifies the signatures against the
+  account's signers and medium threshold (any extra signature is rejected) before setting an
+  httpOnly session cookie. Challenges are single-use and sessions revocable through Upstash Redis,
+  which is therefore required in production. After a refresh, a persisted Stellar wallet counts as
+  connected only if `/api/auth/stellar/session` still validates its cookie.
+- **Network passphrase.** Server (`STELLAR_NETWORK_PASSPHRASE`) and wallet
+  (`NEXT_PUBLIC_STELLAR_NETWORK_PASSPHRASE`) both default to mainnet and must agree — a challenge
+  signed for one passphrase cannot verify under the other; the client refuses a mismatched
+  challenge before signing, and a session cookie from another network is not a session.
 - **Market data vs. positions are two distinct pipelines.** Market data (part 1/2) describes what
   a Blend pool as a whole offers; positions describe what one authenticated wallet holds in it.
   Blend positions are **never** written into `apy_hourly`/`apy_daily` or the nightly cron —
@@ -356,30 +375,30 @@ via CCTP — with no DEX swap, third-party bridge, or fiat on-ramp step in the p
 
 ## 7. New vs existing — at a glance
 
-| Brick                                  | Status         | Library / path                                                                                            |
-| :------------------------------------- | :------------- | :-------------------------------------------------------------------------------------------------------- |
-| Adapter registry                       | existing       | `YIELD_ADAPTERS` — `src/config/protocols-server.ts`                                                       |
-| Spot collection                        | existing       | `collectApySpot()` — `app/actions/apy-snapshots.actions.ts`                                               |
-| EVM lending data                       | existing       | The Graph subgraphs via `createGraphQLClient()` (URQL)                                                    |
-| `apy_hourly` / `apy_daily`             | existing       | `repositories/apy.ts` + Drizzle schema                                                                    |
-| Nightly reconcile (aggregate/heal)     | existing       | `/api/yield/apy/reconcile` — `runReconcile()`, 7-day sliding window                                       |
-| GraphQL serving                        | existing       | `graphql-yoga` `/api/graphql`                                                                             |
-| Existing EVM position fetch            | existing       | portfolio data-fetch layer                                                                                |
-| Existing optimizer ranking engine      | existing       | optimizer module, unchanged                                                                               |
-| Blend V1 spot adapter                  | **shipped**    | `src/lib/protocols/blend/v1/apy-spot.ts`                                                                  |
-| Blend V2 spot adapter                  | **shipped**    | `src/lib/protocols/blend/v2/apy-spot.ts`                                                                  |
-| Blend data source                      | **shipped**    | `@blend-capital/blend-sdk` + `@stellar/stellar-sdk` over Soroban RPC                                      |
-| Stellar wallet connection              | **shipped**    | `StellarWalletContext.tsx` — Freighter / xBull / Lobstr / Albedo                                          |
-| `chainFamily` store field              | **shipped**    | `src/stores/walletStore.ts`                                                                               |
-| **Blend rate-parameter fields**        | **NEW (1.1a)** | `ir_mod` / `util` / `r_base` / `r_one` / `r_two` / `r_three` / `reactivity` + failure-path tests          |
-| **Blend historical adapter**           | **NEW (1.1b)** | `blend/v1/apy-history.ts` + `blend/v2/apy-history.ts` — `getApyHistory()`                                 |
-| **Stellar Hubble backfill**            | **NEW (1.1b)** | historical reserve-state reconstruction, consumed by existing `scripts/backfill-history.ts` and reconcile |
-| **SEP-10 authentication**              | **NEW (1.2)**  | backend challenge endpoint + client-side signing flow + session persistence                               |
-| **Blend position reads**               | **NEW (2.1a)** | `PoolUser.load` + bToken/dToken conversion                                                                |
-| **Health factor calculation**          | **NEW (2.1b)** | per-reserve collateral/liability factors, reused oracle price map                                         |
-| **Portfolio merge**                    | **NEW (2.2b)** | `Promise.allSettled` + partial-data indicator                                                             |
-| **CCTP trustline check & ChangeTrust** | **NEW (3.1b)** | `src/lib/execution/cctp/trustline.ts`                                                                     |
-| **CCTP burn (EVM) + forwarder mint**   | **NEW (3.1a)** | `src/lib/execution/cctp/` — Circle CCTP V2 + Stellar Soroban contracts                                    |
-| **CCTP attestation → Blend deposit**   | **NEW (3.1c)** | Circle Iris polling client + chained Blend Supply call                                                    |
-| **Optimizer ranking surfacing**        | **NEW (3.2a)** | Blend added as ranked venue + deep link into CCTP flow                                                    |
-| **Monitoring / gap-heal extension**    | **NEW (3.2b)** | Blend registered into existing reconcile + `pipeline_reports`                                             |
+| Brick                                  | Status         | Library / path                                                                                     |
+| :------------------------------------- | :------------- | :------------------------------------------------------------------------------------------------- |
+| Adapter registry                       | existing       | `YIELD_ADAPTERS` — `src/config/protocols-server.ts`                                                |
+| Spot collection                        | existing       | `collectApySpot()` — `app/actions/apy-snapshots.actions.ts`                                        |
+| EVM lending data                       | existing       | The Graph subgraphs via `createGraphQLClient()` (URQL)                                             |
+| `apy_hourly` / `apy_daily`             | existing       | `repositories/apy.ts` + Drizzle schema                                                             |
+| Nightly reconcile (aggregate/heal)     | existing       | `/api/yield/apy/reconcile` — `runReconcile()`, 7-day sliding window                                |
+| GraphQL serving                        | existing       | `graphql-yoga` `/api/graphql`                                                                      |
+| Existing EVM position fetch            | existing       | portfolio data-fetch layer                                                                         |
+| Existing optimizer ranking engine      | existing       | optimizer module, unchanged                                                                        |
+| Blend V1 spot adapter                  | **shipped**    | `src/lib/protocols/blend/v1/apy-spot.ts`                                                           |
+| Blend V2 spot adapter                  | **shipped**    | `src/lib/protocols/blend/v2/apy-spot.ts`                                                           |
+| Blend data source                      | **shipped**    | `@blend-capital/blend-sdk` + `@stellar/stellar-sdk` over Soroban RPC                               |
+| Stellar wallet connection              | **shipped**    | `StellarWalletContext.tsx` — Freighter / xBull / Lobstr / Albedo                                   |
+| `chainFamily` store field              | **shipped**    | `src/stores/walletStore.ts`                                                                        |
+| **Blend rate-parameter fields**        | **NEW (1.1a)** | `ir_mod` / `util` / `r_base` / `r_one` / `r_two` / `r_three` / `reactivity` + failure-path tests   |
+| Blend historical adapter               | **shipped**    | `blend/common/apy-history.ts` (decoder) — `getApyHistory()` on `blend_v1` / `blend_v2`             |
+| Stellar Hubble reconstruction          | **shipped**    | `stellar/hubble-history.ts`; consumed by `backfill-history.ts`, reconcile, `stellar-history.ts`    |
+| SEP-10 authentication                  | **shipped**    | `/api/auth/stellar/{challenge,verify,session}` + `lib/auth/stellar-sep10.ts` + client signing flow |
+| **Blend position reads**               | **NEW (2.1a)** | `PoolUser.load` + bToken/dToken conversion                                                         |
+| **Health factor calculation**          | **NEW (2.1b)** | per-reserve collateral/liability factors, reused oracle price map                                  |
+| **Portfolio merge**                    | **NEW (2.2b)** | `Promise.allSettled` + partial-data indicator                                                      |
+| **CCTP trustline check & ChangeTrust** | **NEW (3.1b)** | `src/lib/execution/cctp/trustline.ts`                                                              |
+| **CCTP burn (EVM) + forwarder mint**   | **NEW (3.1a)** | `src/lib/execution/cctp/` — Circle CCTP V2 + Stellar Soroban contracts                             |
+| **CCTP attestation → Blend deposit**   | **NEW (3.1c)** | Circle Iris polling client + chained Blend Supply call                                             |
+| **Optimizer ranking surfacing**        | **NEW (3.2a)** | Blend added as ranked venue + deep link into CCTP flow                                             |
+| **Monitoring / gap-heal extension**    | **NEW (3.2b)** | Blend registered into existing reconcile + `pipeline_reports`                                      |

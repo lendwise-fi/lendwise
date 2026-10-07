@@ -101,6 +101,11 @@ export async function fetchBlendV1Products(
             },
             address: poolId,
             meta: {
+              // Native identifiers, read back by getApyHistory (see
+              // common/apy-history.ts) — never parsed out of the productId.
+              poolId,
+              assetId,
+              version: Version.V1.toLowerCase(),
               wasmHash: pool.metadata?.wasmHash ?? '',
               admin: pool.metadata?.admin ?? '',
               name: pool.metadata?.name ?? '',
@@ -142,6 +147,9 @@ export async function fetchBlendV1Products(
             },
             address: poolId,
             meta: {
+              poolId,
+              assetId,
+              version: Version.V1.toLowerCase(),
               wasmHash: pool.metadata?.wasmHash ?? '',
               admin: pool.metadata?.admin ?? '',
               name: pool.metadata?.name ?? '',

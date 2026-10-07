@@ -1,4 +1,10 @@
 export interface BlendSupplyMeta {
+  /** Pool contract (UPPERCASE strkey) — where the reserve's state lives. */
+  poolId: string
+  /** Reserve asset contract. */
+  assetId: string
+  /** 'v1' | 'v2' — selects the storage layout when decoding history. */
+  version: string
   wasmHash: string
   admin: string
   name: string
@@ -14,6 +20,12 @@ export interface BlendSupplyMeta {
 }
 
 export interface BlendBorrowMeta {
+  /** Pool contract (UPPERCASE strkey) — where the reserve's state lives. */
+  poolId: string
+  /** Reserve asset contract. */
+  assetId: string
+  /** 'v1' | 'v2' — selects the storage layout when decoding history. */
+  version: string
   wasmHash: string
   admin: string
   name: string
