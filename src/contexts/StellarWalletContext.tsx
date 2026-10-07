@@ -19,8 +19,6 @@ interface Sep10ChallengeResponse {
   networkPassphrase: string
   transactionXdr: string
   expiresAt: string
-  homeDomain: string
-  webAuthDomain: string
   serverSigningKey: string
 }
 
@@ -103,8 +101,11 @@ async function validateSep10Challenge({
   if (authOp.source !== address) {
     throw new Error('Challenge operation source does not match address')
   }
+  // SEP-10: the challenge must name the site we are on, not whatever domain
+  // the response claims.
+  const domain = window.location.hostname
   if (
-    authOp.name !== challenge.homeDomain + ' auth' ||
+    authOp.name !== `${domain} auth` ||
     manageDataValue(authOp.value).length < 32
   ) {
     throw new Error('Challenge nonce is malformed')
@@ -119,7 +120,7 @@ async function validateSep10Challenge({
   if (webAuthOp.source !== challenge.serverSigningKey) {
     throw new Error('web_auth_domain operation must be server-sourced')
   }
-  if (manageDataValue(webAuthOp.value) !== challenge.webAuthDomain) {
+  if (manageDataValue(webAuthOp.value) !== domain) {
     throw new Error('web_auth_domain does not match server domain')
   }
 }

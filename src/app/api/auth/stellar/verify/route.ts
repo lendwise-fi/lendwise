@@ -44,6 +44,7 @@ export async function POST(request: NextRequest) {
     const { session, token } = await verifyStellarChallenge({
       address,
       transactionXdr,
+      domain: request.nextUrl.hostname,
     })
 
     const res = NextResponse.json({ session })

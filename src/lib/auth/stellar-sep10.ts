@@ -17,10 +17,9 @@ import {
 
 const CHALLENGE_TIMEOUT_SECONDS = 5 * 60
 const SESSION_TTL_SECONDS = 7 * 24 * 60 * 60
-// `||`, not `??`: an empty variable (as copied from .env.example) means unset.
-const HOME_DOMAIN = process.env.STELLAR_HOME_DOMAIN || 'lendwise.fi'
-const WEB_AUTH_DOMAIN = process.env.STELLAR_WEB_AUTH_DOMAIN || HOME_DOMAIN
-const CHALLENGE_NAME = HOME_DOMAIN + ' auth'
+// ManageData names and values are capped at 64 bytes; the auth op's name is
+// `<domain> auth`.
+const MAX_DOMAIN_BYTES = 64 - ' auth'.length
 
 export interface StellarSessionPayload {
   // Session ID, used to revoke the session on sign-out.
@@ -82,14 +81,32 @@ function assertPublicKey(address: string): void {
   }
 }
 
+/**
+ * The domain a challenge is bound to: the host the sign-in request reached
+ * (lendwise.fi, or a preview deployment's own host), passed in by the route.
+ * It is both SEP-10's home domain (`<domain> auth`) and its
+ * `web_auth_domain`, and the client checks it against the page it is on, so
+ * a challenge minted for one site cannot be replayed on another.
+ */
+function assertDomain(domain: string): void {
+  if (!domain || Buffer.byteLength(domain) > MAX_DOMAIN_BYTES) {
+    throw new Error('Host name cannot be used as a SEP-10 domain')
+  }
+}
+
 function txHashKey(tx: Transaction): string {
   return tx.hash().toString('base64url')
 }
 
-export async function issueStellarChallenge(
+export async function issueStellarChallenge({
+  address,
+  domain,
+}: {
   address: string
-): Promise<StellarChallengePayload> {
+  domain: string
+}): Promise<StellarChallengePayload> {
   assertPublicKey(address)
+  assertDomain(domain)
   const server = signingKeypair()
   const networkPassphrase = NETWORK_PASSPHRASE
   const now = Math.floor(Date.now() / 1000)
@@ -104,7 +121,7 @@ export async function issueStellarChallenge(
     .addOperation(
       Operation.manageData({
         source: address,
-        name: CHALLENGE_NAME,
+        name: `${domain} auth`,
         value: nonce,
       })
     )
@@ -112,7 +129,7 @@ export async function issueStellarChallenge(
       Operation.manageData({
         source: server.publicKey(),
         name: 'web_auth_domain',
-        value: WEB_AUTH_DOMAIN,
+        value: domain,
       })
     )
     .build()
@@ -127,8 +144,8 @@ export async function issueStellarChallenge(
     transactionXdr,
     transaction: transactionXdr,
     expiresAt: new Date(timeout * 1000).toISOString(),
-    homeDomain: HOME_DOMAIN,
-    webAuthDomain: WEB_AUTH_DOMAIN,
+    homeDomain: domain,
+    webAuthDomain: domain,
     serverSigningKey: server.publicKey(),
   }
 }
@@ -294,11 +311,14 @@ export function verifySessionToken(
 export async function verifyStellarChallenge({
   address,
   transactionXdr,
+  domain,
 }: {
   address: string
   transactionXdr: string
+  domain: string
 }): Promise<{ session: StellarSessionPayload; token: string }> {
   assertPublicKey(address)
+  assertDomain(domain)
   const server = signingKeypair()
   const networkPassphrase = NETWORK_PASSPHRASE
   const tx = new Transaction(transactionXdr, networkPassphrase)
@@ -323,7 +343,7 @@ export async function verifyStellarChallenge({
     throw new Error('Challenge operation source does not match address')
   }
   if (
-    authOp.name !== CHALLENGE_NAME ||
+    authOp.name !== `${domain} auth` ||
     manageDataValue(authOp.value).length < 32
   ) {
     throw new Error('Challenge nonce is malformed')
@@ -338,7 +358,7 @@ export async function verifyStellarChallenge({
       if (op.source !== server.publicKey()) {
         throw new Error('web_auth_domain operation must be server-sourced')
       }
-      if (manageDataValue(op.value) !== WEB_AUTH_DOMAIN) {
+      if (manageDataValue(op.value) !== domain) {
         throw new Error('web_auth_domain does not match server domain')
       }
       sawWebAuthDomain = true

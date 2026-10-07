@@ -33,6 +33,7 @@ vi.mock('@stellar/stellar-sdk', async (importOriginal) => {
 })
 
 const ORIGINAL_ENV = { ...process.env }
+const DOMAIN = 'lendwise.fi'
 
 let server: Keypair
 let user: Keypair
@@ -54,7 +55,10 @@ async function signedChallenge(
   signers: Keypair[],
   passphrase: string = Networks.PUBLIC
 ): Promise<string> {
-  const challenge = await issueStellarChallenge(user.publicKey())
+  const challenge = await issueStellarChallenge({
+    address: user.publicKey(),
+    domain: DOMAIN,
+  })
   const tx = new Transaction(challenge.transactionXdr, passphrase)
   for (const kp of signers) tx.sign(kp)
   return tx.toXDR()
@@ -62,7 +66,10 @@ async function signedChallenge(
 
 describe('stellar SEP-10 challenge', () => {
   it('issues a sequence-0, server-signed ManageData challenge on mainnet', async () => {
-    const challenge = await issueStellarChallenge(user.publicKey())
+    const challenge = await issueStellarChallenge({
+      address: user.publicKey(),
+      domain: DOMAIN,
+    })
 
     expect(challenge.networkPassphrase).toBe(Networks.PUBLIC)
     expect(challenge.serverSigningKey).toBe(server.publicKey())
@@ -73,7 +80,7 @@ describe('stellar SEP-10 challenge', () => {
     expect(tx.operations[0]).toMatchObject({
       type: 'manageData',
       source: user.publicKey(),
-      name: `${challenge.homeDomain} auth`,
+      name: `${DOMAIN} auth`,
     })
     expect(
       tx.signatures.some((s) => server.verify(tx.hash(), s.signature()))
@@ -81,20 +88,33 @@ describe('stellar SEP-10 challenge', () => {
   })
 
   it('rejects an invalid public key', async () => {
-    await expect(issueStellarChallenge('not-a-key')).rejects.toThrow(
-      'Invalid Stellar public key'
-    )
+    await expect(
+      issueStellarChallenge({ address: 'not-a-key', domain: DOMAIN })
+    ).rejects.toThrow('Invalid Stellar public key')
+  })
+
+  it('refuses a host too long for a ManageData name', async () => {
+    await expect(
+      issueStellarChallenge({
+        address: user.publicKey(),
+        domain: `${'a'.repeat(60)}.vercel.app`,
+      })
+    ).rejects.toThrow('cannot be used as a SEP-10 domain')
   })
 })
 
 describe('stellar SEP-10 verification', () => {
   it('accepts a challenge only after the wallet signs it, and only once', async () => {
-    const challenge = await issueStellarChallenge(user.publicKey())
+    const challenge = await issueStellarChallenge({
+      address: user.publicKey(),
+      domain: DOMAIN,
+    })
 
     await expect(
       verifyStellarChallenge({
         address: user.publicKey(),
         transactionXdr: challenge.transactionXdr,
+        domain: DOMAIN,
       })
     ).rejects.toThrow('two signatures')
 
@@ -104,6 +124,7 @@ describe('stellar SEP-10 verification', () => {
     const { session, token } = await verifyStellarChallenge({
       address: user.publicKey(),
       transactionXdr: tx.toXDR(),
+      domain: DOMAIN,
     })
     expect(session.address).toBe(user.publicKey())
     expect(session.networkPassphrase).toBe(Networks.PUBLIC)
@@ -113,6 +134,7 @@ describe('stellar SEP-10 verification', () => {
       verifyStellarChallenge({
         address: user.publicKey(),
         transactionXdr: tx.toXDR(),
+        domain: DOMAIN,
       })
     ).rejects.toThrow('consumed or expired')
   })
@@ -123,7 +145,11 @@ describe('stellar SEP-10 verification', () => {
     const xdr = await signedChallenge([user], Networks.TESTNET)
 
     await expect(
-      verifyStellarChallenge({ address: user.publicKey(), transactionXdr: xdr })
+      verifyStellarChallenge({
+        address: user.publicKey(),
+        transactionXdr: xdr,
+        domain: DOMAIN,
+      })
     ).rejects.toThrow('missing the wallet signature')
   })
 
@@ -134,7 +160,11 @@ describe('stellar SEP-10 verification', () => {
 
     vi.setSystemTime(new Date('2030-01-01T00:06:00Z'))
     await expect(
-      verifyStellarChallenge({ address: user.publicKey(), transactionXdr: xdr })
+      verifyStellarChallenge({
+        address: user.publicKey(),
+        transactionXdr: xdr,
+        domain: DOMAIN,
+      })
     ).rejects.toThrow('outside its valid time window')
   })
 
@@ -145,8 +175,21 @@ describe('stellar SEP-10 verification', () => {
       verifyStellarChallenge({
         address: Keypair.random().publicKey(),
         transactionXdr: xdr,
+        domain: DOMAIN,
       })
     ).rejects.toThrow('operation source does not match address')
+  })
+
+  it('rejects a challenge replayed on another domain', async () => {
+    const xdr = await signedChallenge([user])
+
+    await expect(
+      verifyStellarChallenge({
+        address: user.publicKey(),
+        transactionXdr: xdr,
+        domain: 'evil.example',
+      })
+    ).rejects.toThrow('Challenge nonce is malformed')
   })
 
   it('rejects a challenge not issued by this server', async () => {
@@ -154,7 +197,11 @@ describe('stellar SEP-10 verification', () => {
     process.env.STELLAR_SEP10_SIGNING_SECRET = Keypair.random().secret()
 
     await expect(
-      verifyStellarChallenge({ address: user.publicKey(), transactionXdr: xdr })
+      verifyStellarChallenge({
+        address: user.publicKey(),
+        transactionXdr: xdr,
+        domain: DOMAIN,
+      })
     ).rejects.toThrow('does not match server signer')
   })
 
@@ -172,12 +219,14 @@ describe('stellar SEP-10 verification', () => {
       verifyStellarChallenge({
         address: user.publicKey(),
         transactionXdr: await signedChallenge([user]),
+        domain: DOMAIN,
       })
     ).rejects.toThrow('do not meet account threshold')
 
     const { session } = await verifyStellarChallenge({
       address: user.publicKey(),
       transactionXdr: await signedChallenge([user, cosigner]),
+      domain: DOMAIN,
     })
     expect(session.address).toBe(user.publicKey())
   })
@@ -194,6 +243,7 @@ describe('stellar SEP-10 verification', () => {
       verifyStellarChallenge({
         address: user.publicKey(),
         transactionXdr: await signedChallenge([user, Keypair.random()]),
+        domain: DOMAIN,
       })
     ).rejects.toThrow('unrecognized signatures')
   })

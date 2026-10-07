@@ -8,7 +8,8 @@ import { clientIp, stellarAuthLimiter } from '@/lib/ratelimit'
  *
  * GET `?account=G…` is the SEP-10 shape; POST `{ address }` is what the
  * LendWise client sends. Both return the same server-signed challenge
- * transaction (sequence 0, ManageData nonce, 5-minute time bounds).
+ * transaction (sequence 0, ManageData nonce, 5-minute time bounds), bound to
+ * the host the request reached.
  */
 async function rateLimited(request: NextRequest) {
   const { success, retryAfter } = await stellarAuthLimiter.limit(
@@ -21,12 +22,17 @@ async function rateLimited(request: NextRequest) {
   )
 }
 
-async function challengeResponse(address: unknown) {
+async function challengeResponse(request: NextRequest, address: unknown) {
   if (typeof address !== 'string' || address.length === 0) {
     return NextResponse.json({ error: 'account is required' }, { status: 400 })
   }
   try {
-    return NextResponse.json(await issueStellarChallenge(address))
+    return NextResponse.json(
+      await issueStellarChallenge({
+        address,
+        domain: request.nextUrl.hostname,
+      })
+    )
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error)
     const status = /not configured|required in production/.test(message)
@@ -39,7 +45,7 @@ async function challengeResponse(address: unknown) {
 export async function GET(request: NextRequest) {
   const limited = await rateLimited(request)
   if (limited) return limited
-  return challengeResponse(request.nextUrl.searchParams.get('account'))
+  return challengeResponse(request, request.nextUrl.searchParams.get('account'))
 }
 
 export async function POST(request: NextRequest) {
@@ -49,5 +55,5 @@ export async function POST(request: NextRequest) {
     address?: unknown
     account?: unknown
   }
-  return challengeResponse(body.address ?? body.account)
+  return challengeResponse(request, body.address ?? body.account)
 }
