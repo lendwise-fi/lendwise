@@ -16,8 +16,6 @@
  * Usage:
  *   pnpm blend:bootstrap
  */
-import { Version } from '@blend-capital/blend-sdk'
-
 import { getBigQueryClient } from '@/lib/bigquery/client'
 import {
   syncProviderProducts,
@@ -25,9 +23,16 @@ import {
 } from '@/lib/db/repositories/products'
 import { getBackstop } from '@/lib/protocols/blend/common/api'
 import { BLEND_PROVIDER } from '@/lib/protocols/blend/common/config'
+import { BLEND_DEPLOYMENTS } from '@/lib/protocols/blend/common/deployments'
 import { fetchBlendPoolDeploys } from '@/lib/protocols/blend/common/hubble'
-import { fetchBlendV1Products } from '@/lib/protocols/blend/v1/products'
 import { fetchBlendV2Products } from '@/lib/protocols/blend/v2/products'
+
+/**
+ * The deployments LendWise collects — the ones registered in
+ * `src/config/protocols-server.ts`. v1 and v2 are retired (every pool frozen
+ * or on ice); seeding them would reopen what `retire-products.ts` closed.
+ */
+const DEPLOYMENTS = [BLEND_DEPLOYMENTS['v2.1']]
 
 async function main(): Promise<void> {
   console.log('\n🔄 Blend catalogue bootstrap (Hubble)\n')
@@ -43,43 +48,40 @@ async function main(): Promise<void> {
   }
 
   // Factory addresses are read off the backstops, never hardcoded.
-  const [v1Backstop, v2Backstop] = await Promise.all([
-    getBackstop({ version: Version.V1 }),
-    getBackstop({ version: Version.V2 }),
-  ])
-  const factories = {
-    v1: v1Backstop.config.poolFactory,
-    v2: v2Backstop.config.poolFactory,
-  }
+  const backstops = await Promise.all(
+    DEPLOYMENTS.map((deployment) => getBackstop({ deployment }))
+  )
+  const factories = Object.fromEntries(
+    DEPLOYMENTS.map((d, i) => [d.label, backstops[i].config.poolFactory])
+  )
 
   const deploys = await fetchBlendPoolDeploys(client, factories)
   console.log(
-    `  Hubble Deploy events: ${deploys.v1.length} V1, ${deploys.v2.length} V2 ` +
+    `  Hubble Deploy events: ${DEPLOYMENTS.map((d) => `${deploys[d.label].length} ${d.label}`).join(', ')} ` +
       '(includes never-launched redeployments — filtered on load)\n'
   )
 
-  if (deploys.v1.length + deploys.v2.length === 0) {
+  if (Object.values(deploys).every((ids) => ids.length === 0)) {
     console.warn(
-      '⚠️  Hubble returned no Deploy events for either factory. Check the ' +
+      '⚠️  Hubble returned no Deploy events for any factory. Check the ' +
         'factory addresses read off the backstops, or the query. Leaving ' +
         '`products` untouched.\n'
     )
     process.exit(0)
   }
 
-  // `fetchBlendV{1,2}Products` loads each pool over RPC and drops status-6
+  // `fetchBlendV2Products` loads each pool over RPC and drops status-6
   // (Setup / never-launched) pools, so the ghost redeployments Hubble surfaces
-  // are discarded here. Called unconditionally: an empty `poolIds` falls
-  // through to the adapter's own factory Deploy scan alone (`[]` if that is
-  // also empty).
-  const [v1Products, v2Products] = await Promise.all([
-    fetchBlendV1Products({ poolIds: deploys.v1 }),
-    fetchBlendV2Products({ poolIds: deploys.v2 }),
-  ])
+  // are discarded here. Every collected deployment runs the v2 pool contract.
+  const perDeployment = await Promise.all(
+    DEPLOYMENTS.map((d) =>
+      fetchBlendV2Products(d, { poolIds: deploys[d.label] })
+    )
+  )
 
-  const allProducts = [...v1Products, ...v2Products]
+  const allProducts = perDeployment.flat()
   console.log(
-    `  Live products: ${v1Products.length} V1 + ${v2Products.length} V2 ` +
+    `  Live products: ${DEPLOYMENTS.map((d, i) => `${perDeployment[i].length} ${d.label}`).join(' + ')} ` +
       `= ${allProducts.length}\n`
   )
 
@@ -93,8 +95,9 @@ async function main(): Promise<void> {
 
   await upsertProducts(allProducts)
 
-  // ONE reconciliation call spanning both versions. A per-version call would
-  // read the other version's absent ids as "delisted" and close its periods.
+  // ONE reconciliation call spanning every collected deployment. A
+  // per-deployment call would read the others' absent ids as "delisted" and
+  // close their periods.
   const fetchedIds = allProducts.map((p) => p._id)
   const r = await syncProviderProducts(BLEND_PROVIDER, fetchedIds, new Date())
 

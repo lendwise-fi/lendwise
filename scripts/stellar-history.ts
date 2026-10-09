@@ -8,9 +8,9 @@
  * would store. Nothing is written to the database.
  *
  * Usage:
- *   pnpm stellar:history -- --protocol blend_v2 --contract C… --days 30 --dry-run
- *   pnpm stellar:history -- --protocol blend_v2 --contract C… --days 30
- *   pnpm stellar:history -- --protocol blend_v1 --contract C… \
+ *   pnpm stellar:history -- --protocol blend_v2.1 --contract C… --days 30 --dry-run
+ *   pnpm stellar:history -- --protocol blend_v2.1 --contract C… --days 30
+ *   pnpm stellar:history -- --protocol blend_v2.1 --contract C… \
  *     --from 2025-01-01 --to 2025-02-01 --interval HOUR --out path.csv
  *
  * --dry-run prices the Hubble queries (bytes processed) without running them.
@@ -53,7 +53,7 @@ async function main(): Promise<void> {
 
   if (!protocol || !(protocol in YIELD_ADAPTERS) || !contract) {
     console.error(
-      'Usage: --protocol <blend_v1|blend_v2> --contract <C…> [--days N | --from YYYY-MM-DD --to YYYY-MM-DD] [--interval HOUR|DAY] [--dry-run] [--out file.csv]'
+      'Usage: --protocol <adapter id, e.g. blend_v2.1> --contract <C…> [--days N | --from YYYY-MM-DD --to YYYY-MM-DD] [--interval HOUR|DAY] [--dry-run] [--out file.csv]'
     )
     process.exit(1)
   }

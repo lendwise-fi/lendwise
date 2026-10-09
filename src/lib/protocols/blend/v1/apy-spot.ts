@@ -18,6 +18,7 @@ import {
   primeTokenMetadata,
 } from '../common/api'
 import { BLEND_PROVIDER } from '../common/config'
+import { BLEND_DEPLOYMENTS } from '../common/deployments'
 import {
   buildProductId,
   computeEmissionsApr,
@@ -51,7 +52,7 @@ export async function fetchBlendV1ApySpot(
   // The pool set comes from `./listing` in `spot` mode — the `products`
   // catalogue only (`opts.poolIds`), no factory scan: the catalogue is
   // authoritative for what to collect.
-  const poolIds = await blendPoolIds('v1', opts, 'spot')
+  const poolIds = await blendPoolIds(BLEND_DEPLOYMENTS.v1, opts, 'spot')
   if (poolIds.length === 0) {
     console.warn('[cron:blend_v1] no pool ids resolved — skipping')
     return []
@@ -60,7 +61,7 @@ export async function fetchBlendV1ApySpot(
 
   // Fetched after the early return: the backstop is only needed for the BLND
   // reward-token pricing below, and an empty catalogue has nothing to price.
-  const backstop = await getBackstop({ version: Version.V1 })
+  const backstop = await getBackstop({ deployment: BLEND_DEPLOYMENTS.v1 })
 
   // Shared by every reserve below: BLND has no oracle feed of its own (see
   // getBlndPriceUsd), and the reward token itself is one BLND contract for

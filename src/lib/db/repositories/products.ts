@@ -190,58 +190,7 @@ export async function syncProviderProducts(
     staleIds = staleIds.filter((id) => !freshIds.has(id))
   }
 
-  if (staleIds.length > 0) {
-    await db
-      .update(products)
-      .set({ active: false, updatedAt: syncStartedAt })
-      .where(inArray(products.id, staleIds))
-
-    const ids = sql`(${sql.join(
-      staleIds.map((v) => sql`${v}`),
-      sql`, `
-    )})`
-    // Correlated subquery, NOT `UPDATE … FROM`: a FROM-join without a join key
-    // cross-joins and rewrites every row in the table.
-    //
-    // The boundary is the hour after the last hour the pool lived through WHOLE,
-    // capped at the moment the catalogue stopped listing it, and never before the
-    // period began. Each part of that earns its place:
-    //
-    //   + 1h — the sync is a poll, so it learns of a delisting up to an hour late.
-    //     Closing at "now" would leave the intervening hours expected and empty: a
-    //     phantom gap, and a heal attempt against a market that no longer exists.
-    //   `quality_count >= 6` — the LAST hour of a pool's life is usually a partial
-    //     one: the market vanished from the API mid-hour, so we collected 1 spot of
-    //     6. Closing after it would mark that hour "expected" and score it
-    //     incomplete — reporting a defect where there was none. The pool did not
-    //     fail to report; it ceased to exist. Closing AT it drops a stub hour from
-    //     the denominator and keeps every hour the pool actually lived through.
-    //   `NOT healed` — a healed row is not evidence the market was alive. The heal
-    //     job fabricated two nearest-neighbor rows for an frxUSD market two days
-    //     AFTER it was delisted; a boundary drawn from max(hour) swallowed them and
-    //     held the period open across a stretch the pool did not exist in.
-    //   LEAST(…, syncStartedAt) — a hard cap. Whatever rows exist, a pool cannot be
-    //     expected past the point its provider stopped listing it.
-    await db.execute(sql`
-      UPDATE product_availability_periods pap
-      SET deactivated_at = GREATEST(
-        LEAST(
-          COALESCE(
-            (SELECT date_trunc('hour', max(h.hour)) + interval '1 hour'
-               FROM apy_hourly h
-              WHERE h.product_id = pap.product_id
-                AND NOT h.healed
-                AND h.quality_count >= 6),
-            ${syncStartedAt}
-          ),
-          ${syncStartedAt}
-        ),
-        pap.activated_at
-      )
-      WHERE pap.product_id IN ${ids}
-        AND pap.deactivated_at IS NULL
-    `)
-  }
+  if (staleIds.length > 0) await closeAvailability(staleIds, syncStartedAt)
 
   // Anything returned without an open period is newly listed OR relisted after a
   // dead stretch. Both open a period; ON CONFLICT DO NOTHING absorbs the race
@@ -271,6 +220,71 @@ export async function syncProviderProducts(
     deactivated: staleIds.length,
     unchanged: fetchedIds.length - activated,
   }
+}
+
+/**
+ * Close the open availability periods of `productIds` and mark them inactive:
+ * the pipeline stops expecting them (gap detection, heal, /status).
+ *
+ * Used by `syncProviderProducts` for a delisting, and by
+ * `scripts/retire-products.ts` for a deliberate retirement — the one case the
+ * collapse guard rightly refuses to infer from a shrunken enumeration.
+ */
+export async function closeAvailability(
+  productIds: string[],
+  at: Date
+): Promise<void> {
+  if (productIds.length === 0) return
+  await db
+    .update(products)
+    .set({ active: false, updatedAt: at })
+    .where(inArray(products.id, productIds))
+
+  const ids = sql`(${sql.join(
+    productIds.map((v) => sql`${v}`),
+    sql`, `
+  )})`
+  // Correlated subquery, NOT `UPDATE … FROM`: a FROM-join without a join key
+  // cross-joins and rewrites every row in the table.
+  //
+  // The boundary is the hour after the last hour the pool lived through WHOLE,
+  // capped at the moment the catalogue stopped listing it, and never before the
+  // period began. Each part of that earns its place:
+  //
+  //   + 1h — the sync is a poll, so it learns of a delisting up to an hour late.
+  //     Closing at "now" would leave the intervening hours expected and empty: a
+  //     phantom gap, and a heal attempt against a market that no longer exists.
+  //   `quality_count >= 6` — the LAST hour of a pool's life is usually a partial
+  //     one: the market vanished from the API mid-hour, so we collected 1 spot of
+  //     6. Closing after it would mark that hour "expected" and score it
+  //     incomplete — reporting a defect where there was none. The pool did not
+  //     fail to report; it ceased to exist. Closing AT it drops a stub hour from
+  //     the denominator and keeps every hour the pool actually lived through.
+  //   `NOT healed` — a healed row is not evidence the market was alive. The heal
+  //     job fabricated two nearest-neighbor rows for an frxUSD market two days
+  //     AFTER it was delisted; a boundary drawn from max(hour) swallowed them and
+  //     held the period open across a stretch the pool did not exist in.
+  //   LEAST(…, at) — a hard cap. Whatever rows exist, a pool cannot be
+  //     expected past the point its provider stopped listing it.
+  await db.execute(sql`
+    UPDATE product_availability_periods pap
+    SET deactivated_at = GREATEST(
+      LEAST(
+        COALESCE(
+          (SELECT date_trunc('hour', max(h.hour)) + interval '1 hour'
+             FROM apy_hourly h
+            WHERE h.product_id = pap.product_id
+              AND NOT h.healed
+              AND h.quality_count >= 6),
+          ${at}
+        ),
+        ${at}
+      ),
+      pap.activated_at
+    )
+    WHERE pap.product_id IN ${ids}
+      AND pap.deactivated_at IS NULL
+  `)
 }
 
 // ─── Availability flicker cleanup ───────────────────────────────────────────

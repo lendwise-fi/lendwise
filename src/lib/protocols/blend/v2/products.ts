@@ -1,5 +1,3 @@
-import { Version } from '@blend-capital/blend-sdk'
-
 import type { BorrowProduct, Collateral, SupplyProduct } from '@/lib/db/types'
 import type { FetchOpts } from '@/lib/protocols/core/types'
 
@@ -10,29 +8,34 @@ import {
   primeTokenMetadata,
 } from '../common/api'
 import { BLEND_PROVIDER } from '../common/config'
+import type { BlendDeployment } from '../common/deployments'
 import { buildProductId } from '../common/utils'
 import { blendPoolIds } from '../listing'
 import { BLEND_V2_CHAINS } from './config'
 
 /**
- * Fetch static pool metadata for every Blend V2 pool.
+ * Fetch static pool metadata for every pool of a deployment running the v2
+ * pool contract — v2 itself, and v2.1 (see `../common/deployments`).
  * Returns SupplyProduct and BorrowProduct — one reserve → two documents.
- * Called by the daily pools sync job.
+ * Called by the hourly pools sync job.
  *
  * The pool set comes from `./listing` — `opts.poolIds` (the `products`
- * catalogue, injected by the pipeline) unioned with a fresh factory Deploy scan.
+ * catalogue, injected by the pipeline) unioned with the deployment's backstop
+ * reward zone and a fresh factory Deploy scan.
  */
 export async function fetchBlendV2Products(
+  deployment: BlendDeployment,
   opts?: FetchOpts
 ): Promise<(SupplyProduct | BorrowProduct)[]> {
+  const tag = `[pools:blend_${deployment.label}]`
   // No `opts.chainIds` handling: Blend is single-chain (Stellar, id -1), so the
   // filter is a no-op here. `apy-spot.ts` still threads it for a log line only.
-  const poolIds = await blendPoolIds('v2', opts, 'catalogue')
+  const poolIds = await blendPoolIds(deployment, opts, 'catalogue')
   if (poolIds.length === 0) {
-    console.warn('[pools:blend_v2] no pool ids resolved — skipping')
+    console.warn(`${tag} no pool ids resolved — skipping`)
     return []
   }
-  console.log(`[pools:blend_v2] ${poolIds.length} pools`)
+  console.log(`${tag} ${poolIds.length} pools`)
 
   const products: (SupplyProduct | BorrowProduct)[] = []
   let borrowProductsCount = 0
@@ -41,7 +44,7 @@ export async function fetchBlendV2Products(
 
   for (const poolId of poolIds) {
     try {
-      const pool = await getPool({ version: Version.V2, poolId })
+      const pool = await getPool({ version: deployment.sdk, poolId })
 
       // Hubble surfaces every historical `Deploy`, including superseded
       // redeployments still in `status: Setup` with no positions; skip them.
@@ -49,7 +52,7 @@ export async function fetchBlendV2Products(
       // user funds and must stay listed.
       if (pool.metadata?.status === 6) {
         console.log(
-          `[pools:blend_v2] pool ${poolId} skipped: status 6 (setup / not launched)`
+          `${tag} pool ${poolId} skipped: status 6 (setup / not launched)`
         )
         continue
       }
@@ -91,13 +94,13 @@ export async function fetchBlendV2Products(
             poolId,
             assetId,
             kind: 'supply',
-            version: Version.V2,
+            version: deployment.label,
           }),
           kind: 'supply',
           protocol: {
             provider: BLEND_PROVIDER,
             type: 'reserve',
-            version: Version.V2.toLowerCase(),
+            version: deployment.label,
             subgraphUrl: '',
             name,
             chain: {
@@ -110,7 +113,7 @@ export async function fetchBlendV2Products(
               // common/apy-history.ts) — never parsed out of the productId.
               poolId,
               assetId,
-              version: Version.V2.toLowerCase(),
+              version: deployment.label,
               wasmHash: pool.metadata?.wasmHash ?? '',
               admin: pool.metadata?.admin ?? '',
               name: pool.metadata?.name ?? '',
@@ -142,13 +145,13 @@ export async function fetchBlendV2Products(
             poolId,
             assetId,
             kind: 'borrow',
-            version: Version.V2,
+            version: deployment.label,
           }),
           kind: 'borrow',
           protocol: {
             provider: BLEND_PROVIDER,
             type: 'reserve',
-            version: Version.V2.toLowerCase(),
+            version: deployment.label,
             subgraphUrl: '',
             name,
             chain: {
@@ -159,7 +162,7 @@ export async function fetchBlendV2Products(
             meta: {
               poolId,
               assetId,
-              version: Version.V2.toLowerCase(),
+              version: deployment.label,
               wasmHash: pool.metadata?.wasmHash ?? '',
               admin: pool.metadata?.admin ?? '',
               name: pool.metadata?.name ?? '',
@@ -190,7 +193,7 @@ export async function fetchBlendV2Products(
     } catch (err) {
       if (isRpcRefusal(err)) throw err // 500 → QStash replays
       console.error(
-        `[pools:blend_v2] pool ${poolId} skipped: ${
+        `${tag} pool ${poolId} skipped: ${
           err instanceof Error ? err.message : err
         }`
       )

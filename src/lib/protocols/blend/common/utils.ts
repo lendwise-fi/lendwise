@@ -3,6 +3,10 @@ import { FixedMath, Version } from '@blend-capital/blend-sdk'
 
 import type { Kind } from '@/lib/db/types'
 
+/**
+ * `version` is the deployment label (`'v2.1'`, see `./deployments`) or, as v1
+ * passes it, the SDK `Version` — lowercased, both read `v1` / `v2`.
+ */
 export function buildProductId({
   poolId,
   assetId,
@@ -12,7 +16,7 @@ export function buildProductId({
   poolId: string
   assetId: string
   kind: Kind
-  version?: Version
+  version?: string
 }): string {
   return `blend:${version.toLowerCase()}:stellar:pool:${poolId.toLowerCase()}:${assetId.toLowerCase()}:${kind}`
 }

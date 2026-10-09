@@ -10,6 +10,7 @@ import {
   primeTokenMetadata,
 } from '../common/api'
 import { BLEND_PROVIDER } from '../common/config'
+import { BLEND_DEPLOYMENTS } from '../common/deployments'
 import { buildProductId } from '../common/utils'
 import { blendPoolIds } from '../listing'
 import { BLEND_V1_CHAINS } from './config'
@@ -27,7 +28,7 @@ export async function fetchBlendV1Products(
 ): Promise<(SupplyProduct | BorrowProduct)[]> {
   // No `opts.chainIds` handling: Blend is single-chain (Stellar, id -1), so the
   // filter is a no-op here. `apy-spot.ts` still threads it for a log line only.
-  const poolIds = await blendPoolIds('v1', opts, 'catalogue')
+  const poolIds = await blendPoolIds(BLEND_DEPLOYMENTS.v1, opts, 'catalogue')
   if (poolIds.length === 0) {
     console.warn('[pools:blend_v1] no pool ids resolved — skipping')
     return []

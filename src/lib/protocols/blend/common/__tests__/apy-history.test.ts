@@ -13,12 +13,14 @@ import { aprToApyDaily } from '@/lib/utils'
 
 import { blendHistoryDecoder } from '../apy-history'
 import fixedV1 from './fixtures/fixed-v1-reserve.json'
+import fixedV2_1 from './fixtures/fixed-v2-1-reserve.json'
 import fixedV2 from './fixtures/fixed-v2-reserve.json'
 
 /**
- * Fixtures are real mainnet storage (Soroban RPC `getLedgerEntries`) for the
- * first reserve of each Fixed pool — both On Ice — encoded exactly as Hubble
- * stores `contract_data` rows. `expected` is what the Blend SDK's own
+ * Fixtures are real mainnet storage (Soroban RPC `getLedgerEntries`) for a
+ * reserve of each Fixed pool — v1 and v2 On Ice, v2.1 Active (its USDC
+ * reserve, 26 % utilized) — encoded exactly as Hubble stores `contract_data`
+ * rows. v2.1 runs the v2 contract, so it decodes with `Version.V2`. `expected` is what the Blend SDK's own
  * `Reserve.load` computed from the chain at `timestamp`. The decoder, given the
  * same storage and the same instant, must agree with the SDK.
  */
@@ -58,6 +60,7 @@ function target(fixture: Fixture, kind: 'supply' | 'borrow'): HistoryTarget {
 describe.each([
   ['v1', fixedV1 as Fixture, Version.V1],
   ['v2', fixedV2 as Fixture, Version.V2],
+  ['v2.1', fixedV2_1 as Fixture, Version.V2],
 ])('blendHistoryDecoder %s (real mainnet storage)', (_, fixture, version) => {
   const decoder = blendHistoryDecoder(version)
   const bucket = bucketAt(fixture, fixture.timestamp)

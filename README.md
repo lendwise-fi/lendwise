@@ -60,7 +60,7 @@ Here is how to allocate your capital — matched to your risk profile and invest
 | **Aave V3**                    |    ✅    |    ✅    |   ✅    |  ✅  |    ✅    |    ✅     |  ✅   | ✅  |    —    |
 | **Morpho** (Blue + MetaMorpho) |    ✅    |    ✅    |   ✅    |  ✅  |    ✅    |     —     |   —   |  —  |    —    |
 | **Compound V3**                |    ✅    |    ✅    |   ✅    |  ✅  |    ✅    |     —     |   —   |  —  |    —    |
-| **Blend** (V1 + V2)            |    —     |    —     |    —    |  —   |    —     |     —     |   —   |  —  |   ✅    |
+| **Blend** (v2.1)               |    —     |    —     |    —    |  —   |    —     |     —     |   —   |  —  |   ✅    |
 
 Want another protocol? **[Request it](https://github.com/lendwise-fi/lendwise/issues/new?template=protocol_request.yml)** — or
 [build the adapter yourself](#contributing): it's ~5 files with a test harness to validate it.

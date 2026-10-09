@@ -33,21 +33,18 @@ flowchart TD
     %% ---------- Blend adapters (already implemented, non-GraphQL path, same uniform per-version layout as EVM) ----------
     subgraph STELLAR["Blend adapters — no subgraph, no GraphQL"]
         direction TB
-        BlendV1["blend_v1<br/>blend/v1/apy-spot.ts<br/>fetchBlendV1ApySpot()"]
-        BlendV2["blend_v2<br/>blend/v2/apy-spot.ts<br/>fetchBlendV2ApySpot()"]
+        BlendV21["blend_v2.1<br/>blend/v2_1 → blend/v2/apy-spot.ts<br/>fetchBlendV2ApySpot(deployment v2.1)"]
         BlendSvc["blend/common/api.ts<br/>getBackstop · getPool · getPoolPrices"]
         BlendSDK["@blend-capital/blend-sdk<br/>+ @stellar/stellar-sdk"]
         SorobanRPC[("Soroban RPC<br/>paced ~300ms/call<br/>Backstop.load · PoolV1/V2.load")]
-        BlendV1 --> BlendSvc
-        BlendV2 --> BlendSvc
+        BlendV21 --> BlendSvc
         BlendSvc --> BlendSDK --> SorobanRPC
     end
 
     Registry -->|"aave_v3"| Aave
     Registry -->|"morpho_v1"| Morpho
     Registry -->|"compound_v3"| Compound
-    Registry -->|"blend_v1"| BlendV1
-    Registry -->|"blend_v2"| BlendV2
+    Registry -->|"blend_v2.1"| BlendV21
 
     %% ---------- Per-reserve market data — each adapter returns SpotPayload[] already normalized ----------
     SorobanRPC --> BlendFields["Per reserve, live today:<br/>supply/borrow APY (aprToApyDaily)<br/>total supplied/borrowed liquidity · utilization<br/><br/>1.1a hardening adds:<br/>ir_mod · util · r_base · r_one · r_two · r_three · reactivity<br/>+ tests for no-oracle-pool and RPC-refusal paths"]
@@ -76,7 +73,7 @@ flowchart TD
 
     class Cron,SpotRoute,Collect,Registry,Validate,ApyRepo,Hourly,ReconcileCron,ReconcileRoute,Aggregate,Daily,Reports,GraphQLServer,UI core;
     class Aave,Morpho,Compound,GqlClient,TheGraph,EvmFields evm;
-    class BlendV1,BlendV2,BlendSvc,BlendSDK,SorobanRPC,BlendFields stellar;
+    class BlendV21,BlendSvc,BlendSDK,SorobanRPC,BlendFields stellar;
 ```
 
 **Reading the diagram** — matches the code as implemented, not a future design.
@@ -84,13 +81,20 @@ flowchart TD
 - The trigger, registry, `apy_hourly`/`apy_daily`, the nightly reconcile job, and the GraphQL
   serving layer are **shared and unchanged** — protocol-agnostic by design. `YIELD_ADAPTERS` in
   `src/config/protocols-server.ts` is the actual registry: a plain record of lazy dynamic imports
-  keyed by protocol id (`aave_v3`, `morpho_v1`, `compound_v3`, `blend_v1`, `blend_v2`).
+  keyed by protocol id (`aave_v3`, `morpho_v1`, `compound_v3`, `blend_v2.1`).
   `collectApySpot()` calls `getApySpot()` on every registered id via `Promise.allSettled`.
 - Existing EVM protocols read through **The Graph subgraphs** via `createGraphQLClient()`.
-- **Blend has no subgraph**, so `blend_v1`/`blend_v2` bypass GraphQL entirely, reading **Soroban
-  contracts** through the **Blend SDK**. Both share `blend/common/api.ts`, which discovers the
-  live pool set from `Backstop.load(...).config.rewardZone` rather than a hardcoded list, and
-  serializes every RPC read behind a ~300ms pacing queue to stay under Soroban RPC's rate limit.
+- **Blend has no subgraph**, so `blend_v2.1` bypasses GraphQL entirely, reading **Soroban
+  contracts** through the **Blend SDK** via `blend/common/api.ts`, which serializes every RPC
+  read behind a ~300ms pacing queue to stay under Soroban RPC's rate limit.
+- **Blend deployments, not versions** (`blend/common/deployments.ts`). v2.1 runs the very same
+  pool contract as v2 (same wasm, storage layout and SDK classes) behind its own backstop and
+  factory, so `blend_v2.1` reuses v2's code with its own catalogue (`version` = `v2.1`). The pool
+  set is the `products` catalogue ∪ the backstop's reward zone ∪ the factory's `Deploy` events
+  of the last ~7 days (`blend/listing.ts`); the reward zone is what catalogues a pool older than
+  the RPC's event window. **`blend_v1` and `blend_v2` are retired** — every pool of both is frozen
+  or on ice since the exploit: unregistered from the three registries, their code kept, their
+  rows and history kept, their availability periods closed by `scripts/retire-products.ts`.
   This is the same uniform `<protocol>/<version>/apy-spot.ts` layout every EVM adapter already
   follows (`aave/v3/`, `morpho/v1/`, `compound/v3/`) — not a Blend-specific exception.
 - **Already live:** supply/borrow APY, total supplied/borrowed liquidity, and utilization per

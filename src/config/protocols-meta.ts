@@ -1,6 +1,5 @@
 import { AAVE_V3_META } from '@/lib/protocols/aave/v3/meta'
-import { BLEND_V1_META } from '@/lib/protocols/blend/v1/meta'
-import { BLEND_V2_META } from '@/lib/protocols/blend/v2/meta'
+import { BLEND_V2_1_META } from '@/lib/protocols/blend/v2_1/meta'
 import { COMPOUND_V3_META } from '@/lib/protocols/compound/v3/meta'
 import { MORPHO_V1_META } from '@/lib/protocols/morpho/v1/meta'
 
@@ -14,8 +13,12 @@ export const PROTOCOLS_META = {
   ...AAVE_V3_META,
   ...MORPHO_V1_META,
   ...COMPOUND_V3_META,
-  ...BLEND_V1_META,
-  ...BLEND_V2_META,
+  // Blend v1 and v2 are retired — every pool of both is frozen or on ice — and
+  // unregistered here, in protocols-server and in protocols-presentation
+  // together: reconcile walks this map and loads each adapter. Their code
+  // stays (v2.1 runs v2's), their rows and history stay in the database, and
+  // `scripts/retire-products.ts` closed their availability periods.
+  ...BLEND_V2_1_META,
 } as const
 
 export type ProtocolName = keyof typeof PROTOCOLS_META

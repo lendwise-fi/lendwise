@@ -13,13 +13,10 @@ import {
 } from '@blend-capital/blend-sdk'
 import { Address, Networks, rpc as stellarRpc } from '@stellar/stellar-sdk'
 
+import type { BlendDeployment } from './deployments'
 import type { TokenMetadata } from './types'
 
 const RPC = process.env.STELLAR_RPC ?? 'https://mainnet.sorobanrpc.com'
-const BACKSTOP_ADDRESS = {
-  [Version.V1]: process.env.NEXT_PUBLIC_BACKSTOP_V1 || '',
-  [Version.V2]: process.env.NEXT_PUBLIC_BACKSTOP_V2 || '',
-} as const
 
 const network: Network = {
   rpc: RPC,
@@ -121,22 +118,23 @@ function pacedRpc<T>(fn: () => Promise<T>): Promise<T> {
 }
 
 /**
- * Fetches the backstop data.
- * @param enabled - Whether the query is enabled (optional - defaults to true)
- * @returns Query result with the backstop data.
+ * The deployment's backstop: its config names the pool factory, the reward
+ * zone and the BLND token.
  */
 export async function getBackstop({
-  version,
+  deployment,
   rpc,
 }: {
-  version?: Version
+  deployment: BlendDeployment
   rpc?: string
 }): Promise<Backstop> {
-  return await pacedRpc(() =>
-    Backstop.load(
-      { ...network, rpc: rpc ?? network.rpc },
-      BACKSTOP_ADDRESS[version ?? Version.V1]
+  if (!deployment.backstop) {
+    throw new Error(
+      `Blend ${deployment.label} backstop address is not configured`
     )
+  }
+  return await pacedRpc(() =>
+    Backstop.load({ ...network, rpc: rpc ?? network.rpc }, deployment.backstop)
   )
 }
 
@@ -160,10 +158,11 @@ export async function getPool({
 
 /**
  * Every pool address the factory has deployed, read from its `Deploy` events
- * over the RPC's full retention window (~7 days on mainnet). This is the ONLY
- * on-chain enumeration Blend exposes: the factory contract has `is_pool` (a
- * validator) and `deploy`, but no `get_pools`, and blend-sdk 3.3.0 ships no
- * `PoolFactoryV2` reader. `blend/listing.ts` unions it into the `getProducts`
+ * over the RPC's full retention window (~7 days on mainnet). Besides the
+ * backstop's reward zone — which only lists the pools earning emissions — this
+ * is the only on-chain enumeration Blend exposes: the factory contract has
+ * `is_pool` (a validator) and `deploy`, but no `get_pools`, and blend-sdk 3.3
+ * ships no `PoolFactoryV2` reader. `blend/listing.ts` unions it into the `getProducts`
  * pool set — it catches a pool minted in the last week before it lands in
  * `products`.
  *
@@ -180,13 +179,8 @@ export async function getPool({
  * `primeTokenMetadata`).
  */
 export async function getFactoryDeployedPools(
-  version: 'v1' | 'v2'
+  factoryId: string
 ): Promise<string[]> {
-  const backstop = await getBackstop({
-    version: version === 'v2' ? Version.V2 : Version.V1,
-  })
-  const factoryId = backstop.config.poolFactory
-
   const server = new stellarRpc.Server(network.rpc, network.opts)
 
   // Oldest ledger the RPC still serves events for; +1 keeps us strictly inside
@@ -228,7 +222,7 @@ export async function getFactoryDeployedPools(
   if (truncated) {
     console.warn(
       `[blend:discovery] factory Deploy scan hit the ${MAX_PAGES}-page guard ` +
-        `for ${version}; the pool list may be incomplete`
+        `for ${factoryId}; the pool list may be incomplete`
     )
   }
 

@@ -44,6 +44,10 @@ beforeEach(() => {
   mocks.distinctProtocolAddresses.mockResolvedValue(['POOL_A', 'POOL_B'])
 })
 
+// Synthetic adapter ids: the mechanism is protocol-blind, and these need not be
+// registered (Blend v1/v2 no longer are).
+const ids = (...xs: string[]) => xs as ProtocolName[]
+
 describe('catalogueFetchOpts', () => {
   it('skips an adapter with no ownsMarketDiscovery field', async () => {
     mocks.adapters = { aave_v3: adapter({ provider: 'aave', version: 'v3' }) }
@@ -82,7 +86,7 @@ describe('catalogueFetchOpts', () => {
       }),
     }
 
-    const out = await catalogueFetchOpts(['blend_v2'] as ProtocolName[], {
+    const out = await catalogueFetchOpts(ids('blend_v2'), {
       activeOnly: true,
     })
 
@@ -93,7 +97,7 @@ describe('catalogueFetchOpts', () => {
         activeOnly: true,
       }
     )
-    expect(out.get('blend_v2' as ProtocolName)).toEqual({
+    expect(out.get(ids('blend_v2')[0])).toEqual({
       poolIds: ['POOL_A', 'POOL_B'],
     })
   })
@@ -107,7 +111,7 @@ describe('catalogueFetchOpts', () => {
       }),
     }
 
-    await catalogueFetchOpts(['blend_v1'] as ProtocolName[], {
+    await catalogueFetchOpts(ids('blend_v1'), {
       activeOnly: false,
     })
 
@@ -136,7 +140,7 @@ describe('catalogueFetchOpts', () => {
     }
 
     const out = await catalogueFetchOpts(
-      ['aave_v3', 'blend_v1', 'blend_v2'] as ProtocolName[],
+      ids('aave_v3', 'blend_v1', 'blend_v2'),
       { activeOnly: false }
     )
 

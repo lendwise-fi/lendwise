@@ -11,7 +11,7 @@
 
 The integration spans five parts, matching the submission's tranche structure:
 
-1. **Blend spot market data** — live rates and reserve parameters from Blend V1/V2.
+1. **Blend spot market data** — live rates and reserve parameters from Blend v2.1 (v1/v2 retired).
 2. **Blend historical data** — reserve-state reconstruction from Stellar Hubble.
 3. **Wallet, auth & portfolio** — SEP-10, Blend position reads, health factor, unified portfolio.
 4. **CCTP execution** — native USDC from an EVM chain into a Blend deposit.
@@ -47,21 +47,18 @@ flowchart TD
     %% ---------- Blend adapters (already implemented, non-GraphQL path, same uniform per-version layout as EVM) ----------
     subgraph STELLAR["Blend adapters — no subgraph, no GraphQL"]
         direction TB
-        BlendV1["blend_v1<br/>blend/v1/apy-spot.ts<br/>fetchBlendV1ApySpot()"]
-        BlendV2["blend_v2<br/>blend/v2/apy-spot.ts<br/>fetchBlendV2ApySpot()"]
+        BlendV21["blend_v2.1<br/>blend/v2_1 → blend/v2/apy-spot.ts<br/>fetchBlendV2ApySpot(deployment v2.1)"]
         BlendSvc["blend/common/api.ts<br/>getBackstop · getPool · getPoolPrices"]
         BlendSDK["@blend-capital/blend-sdk<br/>+ @stellar/stellar-sdk"]
         SorobanRPC[("Soroban RPC<br/>paced ~300ms/call<br/>Backstop.load · PoolV1/V2.load")]
-        BlendV1 --> BlendSvc
-        BlendV2 --> BlendSvc
+        BlendV21 --> BlendSvc
         BlendSvc --> BlendSDK --> SorobanRPC
     end
 
     Registry -->|"aave_v3"| Aave
     Registry -->|"morpho_v1"| Morpho
     Registry -->|"compound_v3"| Compound
-    Registry -->|"blend_v1"| BlendV1
-    Registry -->|"blend_v2"| BlendV2
+    Registry -->|"blend_v2.1"| BlendV21
 
     %% ---------- Per-reserve market data — each adapter returns SpotPayload[] already normalized ----------
     SorobanRPC --> BlendFields["Per reserve, live today:<br/>supply/borrow APY (aprToApyDaily)<br/>total supplied/borrowed liquidity · utilization<br/><br/>1.1a hardening adds:<br/>ir_mod · util · r_base · r_one · r_two · r_three · reactivity<br/>+ tests for no-oracle-pool and RPC-refusal paths"]
@@ -90,7 +87,7 @@ flowchart TD
 
     class Cron,SpotRoute,Collect,Registry,Validate,ApyRepo,Hourly,ReconcileCron,ReconcileRoute,Aggregate,Daily,Reports,GraphQLServer,UI core;
     class Aave,Morpho,Compound,GqlClient,TheGraph,EvmFields evm;
-    class BlendV1,BlendV2,BlendSvc,BlendSDK,SorobanRPC,BlendFields stellar;
+    class BlendV21,BlendSvc,BlendSDK,SorobanRPC,BlendFields stellar;
 ```
 
 **Reading the diagram** — matches the code as implemented, not a future design.
@@ -98,13 +95,20 @@ flowchart TD
 - The trigger, registry, `apy_hourly`/`apy_daily`, the nightly reconcile job, and the GraphQL
   serving layer are **shared and unchanged** — protocol-agnostic by design. `YIELD_ADAPTERS` in
   `src/config/protocols-server.ts` is the actual registry: a plain record of lazy dynamic imports
-  keyed by protocol id (`aave_v3`, `morpho_v1`, `compound_v3`, `blend_v1`, `blend_v2`).
+  keyed by protocol id (`aave_v3`, `morpho_v1`, `compound_v3`, `blend_v2.1`).
   `collectApySpot()` calls `getApySpot()` on every registered id via `Promise.allSettled`.
 - Existing EVM protocols read through **The Graph subgraphs** via `createGraphQLClient()`.
-- **Blend has no subgraph**, so `blend_v1`/`blend_v2` bypass GraphQL entirely, reading **Soroban
-  contracts** through the **Blend SDK**. Both share `blend/common/api.ts`, which discovers the
-  live pool set from `Backstop.load(...).config.rewardZone` rather than a hardcoded list, and
-  serializes every RPC read behind a ~300ms pacing queue to stay under Soroban RPC's rate limit.
+- **Blend has no subgraph**, so `blend_v2.1` bypasses GraphQL entirely, reading **Soroban
+  contracts** through the **Blend SDK** via `blend/common/api.ts`, which serializes every RPC
+  read behind a ~300ms pacing queue to stay under Soroban RPC's rate limit.
+- **Blend deployments, not versions** (`blend/common/deployments.ts`). v2.1 runs the very same
+  pool contract as v2 (same wasm, storage layout and SDK classes) behind its own backstop and
+  factory, so `blend_v2.1` reuses v2's code with its own catalogue (`version` = `v2.1`). The pool
+  set is the `products` catalogue ∪ the backstop's reward zone ∪ the factory's `Deploy` events
+  of the last ~7 days (`blend/listing.ts`); the reward zone is what catalogues a pool older than
+  the RPC's event window. **`blend_v1` and `blend_v2` are retired** — every pool of both is frozen
+  or on ice since the exploit: unregistered from the three registries, their code kept, their
+  rows and history kept, their availability periods closed by `scripts/retire-products.ts`.
   This is the same uniform `<protocol>/<version>/apy-spot.ts` layout every EVM adapter already
   follows (`aave/v3/`, `morpho/v1/`, `compound/v3/`) — not a Blend-specific exception.
 - **Already live:** supply/borrow APY, total supplied/borrowed liquidity, and utilization per
@@ -126,8 +130,8 @@ flowchart TD
 ```mermaid
 flowchart TD
     BackfillScript["scripts/backfill-history.ts<br/>pnpm backfill:history -- --protocol blend --chains -1 --write<br/>PROTOCOL-BLIND — knows only adapter.getApyHistory"] --> Registry3{{"YIELD_ADAPTERS<br/>same registry as spot — no script changes"}}
-    CLI["scripts/stellar-history.ts<br/>pnpm stellar:history -- --protocol blend_v2 --contract C…<br/>one contract → hourly CSV, no DB write"] --> Registry3
-    Registry3 --> BlendHistory["blend_v1 / blend_v2 getApyHistory()<br/>blend/common/apy-history.ts — Blend decoder"]
+    CLI["scripts/stellar-history.ts<br/>pnpm stellar:history -- --protocol blend_v2.1 --contract C…<br/>one contract → hourly CSV, no DB write"] --> Registry3
+    Registry3 --> BlendHistory["blend_v2.1 getApyHistory()<br/>blend/common/apy-history.ts — Blend decoder"]
 
     Hubble[("Stellar Hubble — BigQuery<br/>crypto_stellar.contract_data<br/>(+ history_contract_events, opt-in)")] --> Module
     BlendHistory --> Module["stellar/hubble-history.ts — generic module<br/>fetch the decoder's storage keys (ledger_key_hash)<br/>replay writes → one storage snapshot per HOUR/DAY bucket"]
@@ -345,7 +349,7 @@ flowchart TD
   across every registered adapter in `YIELD_ADAPTERS`, over a 7-day sliding window
   (`RECONCILE_WINDOW_DAYS`). Registering Blend into that existing gap-detection/healing cycle — no
   new monitoring infrastructure — means every night LendWise checks for holes in the Blend record
-  and heals them once `blend_v1`/`blend_v2` implement `getApyHistory()` (part 2), with one row per
+  and heals them through `blend_v2.1`'s `getApyHistory()` (part 2), with one row per
   run logged into the same `pipeline_reports` table every other protocol uses.
 
 ---
@@ -385,13 +389,14 @@ via CCTP — with no DEX swap, third-party bridge, or fiat on-ramp step in the p
 | GraphQL serving                        | existing       | `graphql-yoga` `/api/graphql`                                                                      |
 | Existing EVM position fetch            | existing       | portfolio data-fetch layer                                                                         |
 | Existing optimizer ranking engine      | existing       | optimizer module, unchanged                                                                        |
-| Blend V1 spot adapter                  | **shipped**    | `src/lib/protocols/blend/v1/apy-spot.ts`                                                           |
-| Blend V2 spot adapter                  | **shipped**    | `src/lib/protocols/blend/v2/apy-spot.ts`                                                           |
+| Blend V1 spot adapter                  | retired        | `src/lib/protocols/blend/v1/apy-spot.ts` — unregistered, pools frozen                              |
+| Blend V2 spot adapter                  | retired        | `src/lib/protocols/blend/v2/apy-spot.ts` — code reused by v2.1                                     |
+| Blend v2.1 adapter                     | **shipped**    | `src/lib/protocols/blend/v2_1/` — v2 code, v2.1 backstop (`blend/common/deployments.ts`)           |
 | Blend data source                      | **shipped**    | `@blend-capital/blend-sdk` + `@stellar/stellar-sdk` over Soroban RPC                               |
 | Stellar wallet connection              | **shipped**    | `StellarWalletContext.tsx` — Freighter / xBull / Lobstr / Albedo                                   |
 | `chainFamily` store field              | **shipped**    | `src/stores/walletStore.ts`                                                                        |
 | **Blend rate-parameter fields**        | **NEW (1.1a)** | `ir_mod` / `util` / `r_base` / `r_one` / `r_two` / `r_three` / `reactivity` + failure-path tests   |
-| Blend historical adapter               | **shipped**    | `blend/common/apy-history.ts` (decoder) — `getApyHistory()` on `blend_v1` / `blend_v2`             |
+| Blend historical adapter               | **shipped**    | `blend/common/apy-history.ts` (decoder) — `getApyHistory()` on `blend_v2.1`                        |
 | Stellar Hubble reconstruction          | **shipped**    | `stellar/hubble-history.ts`; consumed by `backfill-history.ts`, reconcile, `stellar-history.ts`    |
 | SEP-10 authentication                  | **shipped**    | `/api/auth/stellar/{challenge,verify,session}` + `lib/auth/stellar-sep10.ts` + client signing flow |
 | **Blend position reads**               | **NEW (2.1a)** | `PoolUser.load` + bToken/dToken conversion                                                         |

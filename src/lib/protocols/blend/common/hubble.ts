@@ -22,12 +22,13 @@ interface DeployRow {
  *
  * The query is parameterized on `@factory_ids` — the factory addresses are
  * never string-interpolated. Pool ids come back as UPPERCASE strkey already;
- * `.toUpperCase()` is a cheap guard. Output is deduped and sorted per version.
+ * `.toUpperCase()` is a cheap guard. Output is deduped and sorted per
+ * deployment label (the keys of `factories`).
  */
-export async function fetchBlendPoolDeploys(
+export async function fetchBlendPoolDeploys<K extends string>(
   client: BigQuery,
-  factories: { v1: string; v2: string }
-): Promise<{ v1: string[]; v2: string[] }> {
+  factories: Record<K, string>
+): Promise<Record<K, string[]>> {
   const query = `
     SELECT DISTINCT
       JSON_VALUE(data_decoded, '$.address') AS pool_id,
@@ -39,24 +40,23 @@ export async function fetchBlendPoolDeploys(
       AND successful AND in_successful_contract_call
   `
 
+  const labels = Object.keys(factories) as K[]
   const [job] = await client.createQueryJob({
     query,
-    params: { factory_ids: [factories.v1, factories.v2] },
+    params: { factory_ids: labels.map((label) => factories[label]) },
     location: 'US',
   })
   const [rows] = (await job.getQueryResults()) as [DeployRow[]]
 
-  const v1 = new Set<string>()
-  const v2 = new Set<string>()
+  const byFactory = new Map(
+    labels.map((label) => [factories[label], new Set<string>()])
+  )
   for (const row of rows) {
     if (!row.pool_id) continue
-    const poolId = row.pool_id.toUpperCase()
-    if (row.factory_id === factories.v1) v1.add(poolId)
-    else if (row.factory_id === factories.v2) v2.add(poolId)
+    byFactory.get(row.factory_id)?.add(row.pool_id.toUpperCase())
   }
 
-  return {
-    v1: [...v1].sort(),
-    v2: [...v2].sort(),
-  }
+  return Object.fromEntries(
+    labels.map((label) => [label, [...byFactory.get(factories[label])!].sort()])
+  ) as Record<K, string[]>
 }

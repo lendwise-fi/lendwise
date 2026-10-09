@@ -3,7 +3,7 @@ export interface BlendSupplyMeta {
   poolId: string
   /** Reserve asset contract. */
   assetId: string
-  /** 'v1' | 'v2' — selects the storage layout when decoding history. */
+  /** Deployment label — 'v1' | 'v2' | 'v2.1' (see ./deployments). */
   version: string
   wasmHash: string
   admin: string
@@ -24,7 +24,7 @@ export interface BlendBorrowMeta {
   poolId: string
   /** Reserve asset contract. */
   assetId: string
-  /** 'v1' | 'v2' — selects the storage layout when decoding history. */
+  /** Deployment label — 'v1' | 'v2' | 'v2.1' (see ./deployments). */
   version: string
   wasmHash: string
   admin: string

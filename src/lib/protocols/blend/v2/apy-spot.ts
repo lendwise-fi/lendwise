@@ -1,5 +1,3 @@
-import { Version } from '@blend-capital/blend-sdk'
-
 import type {
   BorrowMarketState,
   RewardItem,
@@ -18,6 +16,7 @@ import {
   primeTokenMetadata,
 } from '../common/api'
 import { BLEND_PROVIDER } from '../common/config'
+import type { BlendDeployment } from '../common/deployments'
 import {
   buildProductId,
   computeEmissionsApr,
@@ -27,7 +26,8 @@ import { blendPoolIds } from '../listing'
 import { BLEND_V2_CHAINS } from './config'
 
 /**
- * Fetch current APY snapshots for all active Blend V2 pools.
+ * Fetch current APY snapshots for every catalogued pool of a deployment running
+ * the v2 pool contract (v2, v2.1).
  * One reserve → two documents (supply + borrow).
  *
  * Rates come from the SDK's own IRM (`reserve.supplyApr`/`borrowApr`, already
@@ -37,30 +37,30 @@ import { BLEND_V2_CHAINS } from './config'
  * which would be inconsistent with every other protocol's stored APY here.
  */
 export async function fetchBlendV2ApySpot(
+  deployment: BlendDeployment,
   opts?: FetchOpts
 ): Promise<SpotPayload[]> {
+  const tag = `[cron:blend_${deployment.label}]`
   let chainIds = Object.keys(BLEND_V2_CHAINS).map(Number)
   if (opts?.chainIds?.length) {
     chainIds = chainIds.filter((id) => opts.chainIds!.includes(id))
   }
 
-  console.log(
-    `[cron:blend_v2] Fetching APY spot for chains: ${chainIds.join(', ')}`
-  )
+  console.log(`${tag} Fetching APY spot for chains: ${chainIds.join(', ')}`)
 
   // The pool set comes from `./listing` in `spot` mode — the `products`
   // catalogue only (`opts.poolIds`), no factory scan: the catalogue is
   // authoritative for what to collect.
-  const poolIds = await blendPoolIds('v2', opts, 'spot')
+  const poolIds = await blendPoolIds(deployment, opts, 'spot')
   if (poolIds.length === 0) {
-    console.warn('[cron:blend_v2] no pool ids resolved — skipping')
+    console.warn(`${tag} no pool ids resolved — skipping`)
     return []
   }
-  console.log(`[cron:blend_v2] ${poolIds.length} pools`)
+  console.log(`${tag} ${poolIds.length} pools`)
 
   // Fetched after the early return: the backstop is only needed for the BLND
   // reward-token pricing below, and an empty catalogue has nothing to price.
-  const backstop = await getBackstop({ version: Version.V2 })
+  const backstop = await getBackstop({ deployment })
 
   // Shared by every reserve below: BLND has no oracle feed of its own (see
   // getBlndPriceUsd), and the reward token itself is one BLND contract for
@@ -74,7 +74,7 @@ export async function fetchBlendV2ApySpot(
 
   for (const poolId of poolIds) {
     try {
-      const pool = await getPool({ version: Version.V2, poolId })
+      const pool = await getPool({ version: deployment.sdk, poolId })
 
       // Hubble surfaces every historical `Deploy`, including superseded
       // redeployments still in `status: Setup` with no positions; skip them.
@@ -82,7 +82,7 @@ export async function fetchBlendV2ApySpot(
       // user funds and must stay listed.
       if (pool.metadata?.status === 6) {
         console.log(
-          `[cron:blend_v2] pool ${poolId} skipped: status 6 (setup / not launched)`
+          `${tag} pool ${poolId} skipped: status 6 (setup / not launched)`
         )
         continue
       }
@@ -96,9 +96,7 @@ export async function fetchBlendV2ApySpot(
       const oracleId = pool.metadata?.oracle
       let prices = new Map<string, number>()
       if (!oracleId) {
-        console.warn(
-          `[cron:blend_v2] Pool ${poolId} has no oracle — USD values unknown`
-        )
+        console.warn(`${tag} Pool ${poolId} has no oracle — USD values unknown`)
       } else {
         // Not guarded: getPoolPrices only throws when the RPC REFUSED us, and
         // that has to reach the route as a 500 so QStash re-runs the job. A
@@ -199,7 +197,7 @@ export async function fetchBlendV2ApySpot(
             poolId,
             assetId,
             kind: 'supply',
-            version: Version.V2,
+            version: deployment.label,
           }),
           kind: 'supply',
           protocol: BLEND_PROVIDER,
@@ -228,7 +226,7 @@ export async function fetchBlendV2ApySpot(
             poolId,
             assetId,
             kind: 'borrow',
-            version: Version.V2,
+            version: deployment.label,
           }),
           kind: 'borrow',
           protocol: BLEND_PROVIDER,
@@ -258,7 +256,7 @@ export async function fetchBlendV2ApySpot(
     } catch (err) {
       if (isRpcRefusal(err)) throw err // 500 → QStash replays
       console.error(
-        `[cron:blend_v2] pool ${poolId} skipped: ${
+        `${tag} pool ${poolId} skipped: ${
           err instanceof Error ? err.message : err
         }`
       )
@@ -267,7 +265,7 @@ export async function fetchBlendV2ApySpot(
 
   const borrows = snapshots.filter((s) => s.kind === 'borrow').length
   console.log(
-    `[cron:blend_v2] Fetched ${snapshots.length} snapshots (${snapshots.length - borrows} supply + ${borrows} borrow)`
+    `${tag} Fetched ${snapshots.length} snapshots (${snapshots.length - borrows} supply + ${borrows} borrow)`
   )
   return snapshots
 }

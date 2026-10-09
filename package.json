@@ -20,6 +20,7 @@
     "table:parity:borrow": "dotenv -- tsx scripts/table-parity.ts borrow",
     "backfill:history": "dotenv -- tsx scripts/backfill-history.ts",
     "stellar:history": "dotenv -- tsx scripts/stellar-history.ts",
+    "retire:products": "dotenv -- tsx scripts/retire-products.ts",
     "fix:amount-units": "dotenv -- tsx scripts/fix-amount-units.ts",
     "clean:non-finite-apy": "dotenv -- tsx scripts/clean-non-finite-apy.ts",
     "clean:reward-spikes": "dotenv -- tsx scripts/clean-reward-spikes.ts",

@@ -28,6 +28,7 @@ import {
 import { aprToApyDaily } from '@/lib/utils'
 
 import { BLEND_PROVIDER } from './config'
+import type { BlendDeployment } from './deployments'
 
 /**
  * Blend's decoder for the Hubble history module.
@@ -284,7 +285,7 @@ async function historyTargets(
 
 export async function getBlendApyHistory(
   params: HistoryParams,
-  { version }: { version: Version }
+  { deployment }: { deployment: BlendDeployment }
 ): Promise<HistoryResult> {
   const client = getBigQueryClient()
   if (!client) {
@@ -293,7 +294,7 @@ export async function getBlendApyHistory(
     )
   }
 
-  const targets = await historyTargets(params, version.toLowerCase())
+  const targets = await historyTargets(params, deployment.label)
   if (targets.length === 0) return { points: [], failures: [] }
 
   return fetchStellarHubbleHistory({
@@ -302,7 +303,7 @@ export async function getBlendApyHistory(
     startTimestamp: params.startTimestamp,
     endTimestamp: params.endTimestamp,
     interval: params.interval,
-    decoder: blendHistoryDecoder(version),
+    decoder: blendHistoryDecoder(deployment.sdk),
     onProgress: params.onProgress,
   })
 }

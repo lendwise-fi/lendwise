@@ -11,8 +11,7 @@ describe('PROTOCOLS_META', () => {
   it('exposes every live protocol with complete metadata', () => {
     expect(Object.keys(PROTOCOLS_META).sort()).toEqual([
       'aave_v3',
-      'blend_v1',
-      'blend_v2',
+      'blend_v2.1',
       'compound_v3',
       'morpho_v1',
     ])
@@ -28,6 +27,9 @@ describe('PROTOCOLS_META', () => {
     expect(protocolVersionName('nope')).toBe('n/a')
     expect(protocolDisplayName('morpho_v1')).toBe('Morpho')
     expect(adapterIdsForProvider('compound')).toEqual(['compound_v3'])
+    // Retired Blend versions are not adapters any more: heal never loads them.
+    expect(adapterIdsForProvider('blend')).toEqual(['blend_v2.1'])
+    expect(protocolVersionName('blend_v2.1')).toBe('Blend v2.1')
     expect(adapterIdsForProvider('unknown')).toEqual([])
   })
 })

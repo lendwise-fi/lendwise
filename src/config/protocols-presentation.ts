@@ -1,7 +1,6 @@
 // src/config/protocols-presentation.ts — how each protocol's rows are displayed
 import { AAVE_V3_PRESENTATION } from '@/lib/protocols/aave/v3/presentation'
-import { BLEND_V1_PRESENTATION } from '@/lib/protocols/blend/v1/presentation'
-import { BLEND_V2_PRESENTATION } from '@/lib/protocols/blend/v2/presentation'
+import { BLEND_V2_1_PRESENTATION } from '@/lib/protocols/blend/v2_1/presentation'
 import { COMPOUND_V3_PRESENTATION } from '@/lib/protocols/compound/v3/presentation'
 import type { ProtocolPresentation } from '@/lib/protocols/core/presentation'
 import { MORPHO_V1_PRESENTATION } from '@/lib/protocols/morpho/v1/presentation'
@@ -31,6 +30,5 @@ export const PROTOCOLS_PRESENTATION: Partial<
   ...AAVE_V3_PRESENTATION,
   ...MORPHO_V1_PRESENTATION,
   ...COMPOUND_V3_PRESENTATION,
-  ...BLEND_V1_PRESENTATION,
-  ...BLEND_V2_PRESENTATION,
+  ...BLEND_V2_1_PRESENTATION,
 }
