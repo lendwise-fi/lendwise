@@ -30,6 +30,9 @@ describe('PROTOCOLS_META', () => {
     // Retired Blend versions are not adapters any more: heal never loads them.
     expect(adapterIdsForProvider('blend')).toEqual(['blend_v2.1'])
     expect(protocolVersionName('blend_v2.1')).toBe('Blend v2.1')
+    // …but their rows still get a name.
+    expect(protocolVersionName('blend_v1')).toBe('Blend v1')
+    expect(protocolDisplayName('blend_v2')).toBe('Blend')
     expect(adapterIdsForProvider('unknown')).toEqual([])
   })
 })
