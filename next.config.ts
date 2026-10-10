@@ -5,10 +5,13 @@ const nextConfig: NextConfig = {
   skipTrailingSlashRedirect: true,
   async rewrites() {
     return [
-      // VitePress docs — separate Vercel project proxied under /docs (SEO: same domain)
+      // VitePress docs — separate Vercel project proxied under /docs (SEO: same domain).
+      // Target the docs project's PRODUCTION domain, which follows every deploy.
+      // `docs-lendwise.vercel.app` is a manually assigned alias that stayed on an
+      // August build, so /docs stopped updating without any error.
       {
         source: '/docs/:path*',
-        destination: 'https://docs-lendwise.vercel.app/:path*',
+        destination: 'https://lendwise-docs.vercel.app/:path*',
       },
       {
         source: '/ingest/static/:path*',
