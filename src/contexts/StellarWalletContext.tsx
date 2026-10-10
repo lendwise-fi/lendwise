@@ -2,6 +2,15 @@
 
 import React, { createContext, useContext, useEffect, useState } from 'react'
 
+import { Button } from '@/components/ui/button'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
 import { identifyWallet } from '@/lib/analytics/identifyWallet'
 import { formatAddress } from '@/lib/utils'
 import { useWalletStore } from '@/stores/walletStore'
@@ -53,6 +62,22 @@ const SWK_THEME = {
   'border-radius': 'var(--radius)',
   // The app's font variable is declared on <body>, below <html>: inherit it.
   'font-family': 'inherit',
+}
+
+/**
+ * Wallets that sign in a browser popup opened by this page (`window.open`).
+ * Connecting already opened one, for the address, and spent the click that
+ * allowed it; the challenge only arrives after a server round trip, so the
+ * signing popup would be blocked — Albedo then waits forever, silently. For
+ * these, the user confirms with a click first, which lets the popup open.
+ * Extension (Freighter, xBull) and WalletConnect (Lobstr) wallets are unaffected.
+ */
+const SIGNS_IN_A_POPUP = new Set(['albedo'])
+
+interface SignPrompt {
+  walletName: string
+  resolve: () => void
+  reject: (error: Error) => void
 }
 
 const StellarWalletContext = createContext<
@@ -162,6 +187,13 @@ export function StellarWalletProvider({
   const [isConnecting, setIsConnecting] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [initialized, setInitialized] = useState(false)
+  const [signPrompt, setSignPrompt] = useState<SignPrompt | null>(null)
+
+  /** Resolves when the user clicks "Sign", rejects if they cancel. */
+  const confirmSigning = (walletName: string) =>
+    new Promise<void>((resolve, reject) =>
+      setSignPrompt({ walletName, resolve, reject })
+    )
 
   const { addWallets, updateWallet, removeWallet } = useWalletStore()
 
@@ -253,6 +285,10 @@ export function StellarWalletProvider({
         { address }
       )
       await validateSep10Challenge({ address, challenge })
+      const wallet = StellarWalletsKit.selectedModule
+      if (SIGNS_IN_A_POPUP.has(wallet.productId)) {
+        await confirmSigning(wallet.productName)
+      }
       const { signedTxXdr } = await StellarWalletsKit.signTransaction(
         challenge.transactionXdr,
         { networkPassphrase: challenge.networkPassphrase, address }
@@ -323,6 +359,45 @@ export function StellarWalletProvider({
       value={{ connectStellar, disconnectStellar, isConnecting, error }}
     >
       {children}
+      <Dialog
+        open={signPrompt !== null}
+        onOpenChange={(open) => {
+          if (open || !signPrompt) return
+          signPrompt.reject(new Error('Stellar sign-in cancelled'))
+          setSignPrompt(null)
+        }}
+      >
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Verify your wallet</DialogTitle>
+            <DialogDescription>
+              Sign a short challenge with {signPrompt?.walletName} to prove you
+              own this address. It is never sent to the Stellar network, so it
+              costs nothing.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                signPrompt?.reject(new Error('Stellar sign-in cancelled'))
+                setSignPrompt(null)
+              }}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={() => {
+                // Resolving here, inside the click, lets the wallet's popup open.
+                signPrompt?.resolve()
+                setSignPrompt(null)
+              }}
+            >
+              Sign with {signPrompt?.walletName}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </StellarWalletContext.Provider>
   )
 }
