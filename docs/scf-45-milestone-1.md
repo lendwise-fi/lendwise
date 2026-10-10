@@ -153,7 +153,11 @@ another network does not verify, and a session issued on another network is not 
    "Connect Stellar Wallet" of the criterion).
 2. Pick **Freighter**, **xBull**, **Lobstr** or **Albedo**, and approve the connection.
 3. The wallet asks to sign a transaction with a `ManageData` operation named `lendwise.fi auth`:
-   this is the SEP-10 challenge. Sign it — nothing is submitted, no fee is charged.
+   this is the SEP-10 challenge. Sign it — nothing is submitted, no fee is charged. (Wallets
+   display the transaction's fee field, 0.00002 XLM; it is never paid, and it would be charged
+   to the server's account, the transaction source, not yours.) **Albedo** signs in a browser
+   popup, so LendWise first asks for one click — **Sign with Albedo** — which lets the browser
+   open it.
 4. The address is connected. **Refresh the page**: it is still connected.
 5. Server-side check: in the browser's developer tools, `GET /api/auth/stellar/session` answers
    **200** with the session for that address; without the session cookie it answers **401**.
@@ -165,6 +169,20 @@ curl "https://lendwise.fi/api/auth/stellar/challenge?account=<your G… address>
 # → networkPassphrase "Public Global Stellar Network ; September 2015",
 #   homeDomain / webAuthDomain "lendwise.fi", transactionXdr, serverSigningKey
 ```
+
+### Tested wallets (mainnet, 2026-10-10)
+
+Each signing prompt shows the same challenge: domain `lendwise.fi`, sequence number 0, the
+`lendwise.fi auth` nonce operation sourced by the user's address, and the `web_auth_domain`
+operation sourced by the server key `GAIJ…XNFG` — the transaction's source, which is also the
+`serverSigningKey` the challenge endpoint returns.
+
+| Wallet                                 | Signing the SEP-10 challenge                                                                                                                                                                                                                             | Connected on lendwise.fi                                                                                                |
+| -------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
+| **Freighter** (extension)              | <img src="scf-45/freighter-sign.png" width="200" alt="Freighter signing the lendwise.fi SEP-10 challenge">                                                                                                                                               | <img src="scf-45/freighter-connected.png" width="420" alt="lendwise.fi with the Freighter address GB2K…EQ4T connected"> |
+| **xBull** (extension)                  | <img src="scf-45/xbull-sign-1.png" width="200" alt="xBull signing the challenge: network PUBLIC, sequence 0, lendwise.fi auth"> <img src="scf-45/xbull-sign-2.png" width="200" alt="xBull signing the challenge: web_auth_domain lendwise.fi">           | <img src="scf-45/xbull-connected.png" width="420" alt="lendwise.fi with the xBull address GC6Y…K7KG connected">         |
+| **LOBSTR** (mobile, via WalletConnect) | <img src="scf-45/lobstr-sign-1.jpg" width="200" alt="LOBSTR signature request from lendwise.fi, transaction source GAIJ…XNFG"> <img src="scf-45/lobstr-sign-2.jpg" width="200" alt="LOBSTR showing the lendwise.fi auth and web_auth_domain operations"> | —                                                                                                                       |
+| **Albedo** (web popup)                 | Re-test pending after the fix for its signing popup (see step 3)                                                                                                                                                                                         | —                                                                                                                       |
 
 ---
 
