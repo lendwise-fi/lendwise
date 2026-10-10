@@ -5,6 +5,9 @@ Evidence for the two Tranche 1 deliverables of LendWise's
 each success criterion, and where to check it — in this public repository and live on
 [lendwise.fi](https://lendwise.fi).
 
+**Demo video:** [youtu.be/iSZs8NeHuDY](https://youtu.be/iSZs8NeHuDY) — both deliverables, live on
+lendwise.fi.
+
 | Deliverable                                                                               | Success criterion                                                                                                                                                                                  | Status    |
 | ----------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------- |
 | [1 — Stellar historical data](#1--stellar-historical-data)                                | Module in the public repository, tests passing in CI, registered in the generic backfill script; hourly state series for a given Soroban contract from Hubble, output published alongside the code | Delivered |
