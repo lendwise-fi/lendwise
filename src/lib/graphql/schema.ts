@@ -8,10 +8,14 @@ export const typeDefs = /* GraphQL */ `
 
   # ─── Enums ──────────────────────────────────────────────────────────────────
 
+  # One value per provider in PROTOCOLS_META (src/config/protocols-meta.ts) —
+  # a row whose provider is missing here fails to serialize, and with it the
+  # whole response. __tests__/schema.test.ts holds the two in step.
   enum ProtocolName {
     aave
     morpho
     compound
+    blend
   }
 
   enum RewardSource {
@@ -163,7 +167,7 @@ export const typeDefs = /* GraphQL */ `
   }
 
   type ProductProtocol {
-    "Normalized provider identifier — aave | morpho | compound."
+    "Normalized provider identifier — aave | morpho | compound | blend."
     provider: ProtocolName!
     "Product type — reserve | market | vault."
     type: String!
@@ -341,11 +345,11 @@ export const typeDefs = /* GraphQL */ `
   input HourlyFilters {
     "Filter by a batch of exact productIds — max 50."
     productIds: [String!]
-    "Filter by protocol name — aave | morpho | compound."
+    "Filter by protocol name — aave | morpho | compound | blend."
     protocol: ProtocolName
     "Filter by native market name — e.g. AaveV3Ethereum, MorphoBlueEthereum."
     market: String
-    "Filter by chain ID."
+    "Filter by chain ID — the EVM chain id, or -1 for Stellar."
     chainId: Int
     "Filter by loan asset symbol — e.g. USDC, WETH."
     asset: String
