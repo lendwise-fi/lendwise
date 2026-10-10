@@ -116,10 +116,11 @@ QStash cron.
 
 ## Documentation
 
-| Doc                                              | What's inside                                         |
-| ------------------------------------------------ | ----------------------------------------------------- |
-| [Protocol adapters](src/lib/protocols/README.md) | Architecture, adapter contract, how to add a protocol |
-| [Contributing guide](CONTRIBUTING.md)            | Setup, quality bar, PR process                        |
+| Doc                                                 | What's inside                                                              |
+| --------------------------------------------------- | -------------------------------------------------------------------------- |
+| [SCF #45 — Milestone 1](docs/scf-45-milestone-1.md) | Stellar Community Fund Tranche 1: deliverables, success criteria, evidence |
+| [Protocol adapters](src/lib/protocols/README.md)    | Architecture, adapter contract, how to add a protocol                      |
+| [Contributing guide](CONTRIBUTING.md)               | Setup, quality bar, PR process                                             |
 
 ## Contributing
 
