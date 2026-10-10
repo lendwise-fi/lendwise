@@ -26,6 +26,35 @@ interface Sep10SessionResponse {
   session: StellarSession
 }
 
+/**
+ * The wallet modal's colors, as the app's own theme tokens. The kit writes each
+ * value into a `--swk-*` custom property on <html>, where the `.dark` class
+ * next-themes toggles also lives — so the modal follows light and dark mode
+ * with no listener. Without this it kept the kit's light default in dark mode.
+ * (`lighter` and `light` are unused by the kit's components.)
+ */
+const SWK_THEME = {
+  background: 'var(--popover)',
+  'background-secondary': 'var(--muted)',
+  'foreground-strong': 'var(--foreground)',
+  foreground: 'var(--popover-foreground)',
+  'foreground-secondary': 'var(--muted-foreground)',
+  primary: 'var(--primary)',
+  'primary-foreground': 'var(--primary-foreground)',
+  transparent: 'rgba(0, 0, 0, 0)',
+  lighter: 'var(--muted)',
+  light: 'var(--accent)',
+  'light-gray': 'var(--muted-foreground)',
+  gray: 'var(--muted-foreground)',
+  danger: 'var(--destructive)',
+  border: 'var(--border)',
+  shadow:
+    '0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -4px rgba(0, 0, 0, 0.1)',
+  'border-radius': 'var(--radius)',
+  // The app's font variable is declared on <body>, below <html>: inherit it.
+  'font-family': 'inherit',
+}
+
 const StellarWalletContext = createContext<
   StellarWalletContextType | undefined
 >(undefined)
@@ -153,6 +182,7 @@ export function StellarWalletProvider({
 
         StellarWalletsKit.init({
           network: Networks.PUBLIC,
+          theme: SWK_THEME,
           modules: [
             new AlbedoModule(),
             new FreighterModule(),
