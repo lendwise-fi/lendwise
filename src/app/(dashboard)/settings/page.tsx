@@ -4,7 +4,7 @@ import { Suspense, useEffect, useState } from 'react'
 
 import { useRouter, useSearchParams } from 'next/navigation'
 
-import { ConnectButton } from '@rainbow-me/rainbowkit'
+import { useConnectModal } from '@rainbow-me/rainbowkit'
 import {
   AlertTriangle,
   CheckCircle,
@@ -52,12 +52,14 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { Switch } from '@/components/ui/switch'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { WalletAvatar } from '@/components/wallet'
+import { NetworkFamilySelectorDialog } from '@/components/wallet/NetworkFamilySelectorDialog'
 import { CHAINS } from '@/config/chains'
 import {
   SUPPORTED_CURRENCIES,
   formatCurrencyDisplay,
 } from '@/config/currencies'
 import { useCurrency } from '@/contexts'
+import { useStellarWallet } from '@/contexts/StellarWalletContext'
 import { useMultiWalletManager } from '@/hooks/useMultiWalletManager'
 import { formatAddress } from '@/lib/utils'
 import { useWalletStore } from '@/stores/walletStore'
@@ -97,6 +99,10 @@ interface OrdersResponse {
 }
 
 function SettingsContent() {
+  // Same entry point as the navbar: pick EVM or Stellar, then the wallet.
+  const [showNetworkDialog, setShowNetworkDialog] = useState(false)
+  const { openConnectModal } = useConnectModal()
+  const { connectStellar } = useStellarWallet()
   const [user] = useState<User | null>(null)
   const [orders] = useState<OrdersResponse | null>(null)
   const [loading] = useState(false)
@@ -686,16 +692,15 @@ function SettingsContent() {
                       <p className="text-muted-foreground mb-4">
                         Connect your wallet to manage your DeFi positions
                       </p>
-                      <ConnectButton.Custom>
-                        {({ openConnectModal, mounted }) => {
-                          if (!mounted) return null
-                          return (
-                            <Button onClick={openConnectModal}>
-                              Connect Wallet
-                            </Button>
-                          )
-                        }}
-                      </ConnectButton.Custom>
+                      <Button onClick={() => setShowNetworkDialog(true)}>
+                        Connect Wallet
+                      </Button>
+                      <NetworkFamilySelectorDialog
+                        open={showNetworkDialog}
+                        onOpenChange={setShowNetworkDialog}
+                        onSelectEVM={() => openConnectModal?.()}
+                        onSelectStellar={connectStellar}
+                      />
                     </div>
                   )
                 }

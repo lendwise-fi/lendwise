@@ -41,11 +41,11 @@ export function NetworkFamilySelectorDialog({
         <div className="relative z-10 flex flex-col gap-6 p-6">
           <DialogHeader className="text-left">
             <DialogTitle className="font-outfit from-foreground to-foreground/80 bg-linear-to-r bg-clip-text text-2xl font-bold text-transparent">
-              Choose Network Family
+              Connect a Wallet
             </DialogTitle>
             <DialogDescription className="text-muted-foreground/90 mt-1 text-sm">
-              Select the ecosystem you want to connect to. You can bridge or
-              manage your yields across chains.
+              Choose the network your wallet runs on. You can connect several
+              and manage your yields across chains.
             </DialogDescription>
           </DialogHeader>
 
@@ -73,10 +73,11 @@ export function NetworkFamilySelectorDialog({
                 </div>
                 <div>
                   <h4 className="text-foreground text-base font-semibold">
-                    EVM Chains
+                    EVM Wallet
                   </h4>
                   <p className="text-muted-foreground mt-1 max-w-65 text-xs">
-                    Ethereum, Arbitrum, Base, Optimism, Polygon, and more.
+                    MetaMask, Rabby, Coinbase and more, on Ethereum, Arbitrum,
+                    Base, Optimism, Polygon and other EVM chains.
                   </p>
                 </div>
               </div>
@@ -108,10 +109,11 @@ export function NetworkFamilySelectorDialog({
                 </div>
                 <div>
                   <h4 className="text-foreground text-base font-semibold">
-                    Stellar Network
+                    Stellar Wallet
                   </h4>
                   <p className="text-muted-foreground mt-1 max-w-65 text-xs">
-                    Access Blend protocol.
+                    Freighter, xBull, Lobstr or Albedo, for Blend markets on
+                    Stellar.
                   </p>
                 </div>
               </div>

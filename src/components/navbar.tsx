@@ -73,7 +73,7 @@ export function Navbar() {
               onClick={() => setShowNetworkDialog(true)}
               className="hidden sm:flex"
             >
-              Connect wallet
+              Connect Wallet
             </Button>
           )}
 
@@ -114,7 +114,7 @@ export function Navbar() {
                   }}
                   className="mt-4 mb-2 w-full"
                 >
-                  Connect wallet
+                  Connect Wallet
                 </Button>
               )}
             </nav>

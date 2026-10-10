@@ -149,7 +149,8 @@ another network does not verify, and a session issued on another network is not 
 
 ### Reviewer walkthrough on lendwise.fi
 
-1. Open [lendwise.fi](https://lendwise.fi) → **Connect wallet** → **Stellar Network**.
+1. Open [lendwise.fi](https://lendwise.fi) → **Connect Wallet** → **Stellar Wallet** (the
+   "Connect Stellar Wallet" of the criterion).
 2. Pick **Freighter**, **xBull**, **Lobstr** or **Albedo**, and approve the connection.
 3. The wallet asks to sign a transaction with a `ManageData` operation named `lendwise.fi auth`:
    this is the SEP-10 challenge. Sign it — nothing is submitted, no fee is charged.

@@ -77,7 +77,7 @@ export function WalletNotConnected() {
             className="group bg-primary text-primary-foreground shadow-primary/20 hover:bg-primary/90 inline-flex cursor-pointer items-center gap-2.5 rounded-xl px-6 py-3 text-sm font-semibold shadow-lg transition-all"
           >
             <Wallet className="h-4 w-4" />
-            Connect wallet
+            Connect Wallet
             <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
           </button>
 
