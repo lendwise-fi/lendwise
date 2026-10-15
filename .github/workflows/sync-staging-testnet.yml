@@ -1,0 +1,26 @@
+name: Sync staging/testnet
+
+# staging/testnet mirrors mainnet so Vercel deploys the same commit a second
+# time with the testnet Preview variables (lendwise-testnet.vercel.app). Never
+# commit to it: every push to mainnet overwrites it.
+on:
+  push:
+    branches: [mainnet]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: sync-staging-testnet
+  cancel-in-progress: true
+
+jobs:
+  mirror:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: mainnet
+          fetch-depth: 0
+      - run: git push --force origin HEAD:refs/heads/staging/testnet
