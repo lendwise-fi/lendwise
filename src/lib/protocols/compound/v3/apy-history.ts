@@ -5,7 +5,7 @@ import {
   MARKET_DAILY_ACCOUNTING,
   MARKET_HOURLY_ACCOUNTING,
 } from '@/lib/protocols/compound/v3/queries'
-import { buildProductId } from '@/lib/protocols/compound/v3/utils'
+import { buildProductId, cometApy } from '@/lib/protocols/compound/v3/utils'
 import { requestedProducts } from '@/lib/protocols/core/history-result'
 import {
   createGraphQLClient,
@@ -92,13 +92,7 @@ function snapshotToPoints(
     timestamp: ts,
     productId: supplyProductId,
     kind: 'supply',
-    apy: {
-      base: Number(acc.supplyApr),
-      rewards: Number(acc.rewardSupplyApr),
-      fees: 0,
-      net: Number(acc.netSupplyApr),
-      rewardItems: [],
-    },
+    apy: cometApy(acc, 'supply'),
     market: {
       supplyAssets: whole(acc.totalBaseSupply),
       supplyAssetsUsd,
@@ -111,13 +105,7 @@ function snapshotToPoints(
     timestamp: ts,
     productId: borrowProductId,
     kind: 'borrow',
-    apy: {
-      base: Number(acc.borrowApr),
-      rewards: Number(acc.rewardBorrowApr),
-      fees: 0,
-      net: Number(acc.netBorrowApr),
-      rewardItems: [],
-    },
+    apy: cometApy(acc, 'borrow'),
     market: {
       supplyAssets: whole(acc.totalBaseSupply),
       supplyAssetsUsd,

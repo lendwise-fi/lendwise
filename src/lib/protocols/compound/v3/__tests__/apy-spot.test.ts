@@ -1,5 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { aprToApyPerSecond } from '@/lib/utils'
+
 /**
  * Spot fetcher tests for Compound V3.
  *
@@ -159,6 +161,25 @@ describe('fetchCompoundV3ApySpot', () => {
       .market as unknown as Record<string, number>
 
     expect(supply.supplyAssets).toBe(2_500_000_000)
+  })
+
+  it('stores the per-second APR the subgraph reports as APY', async () => {
+    // The subgraph's `supplyApr`/`borrowApr` are Comet's per-second rate times
+    // seconds per year: an APR. Rates are stored as APY, so the base rate is
+    // compounded per second; reward APRs stay linear, as for Morpho.
+    const { fetchCompoundV3ApySpot, url } = await load()
+    marketsByUrl[url(1)] = [USDC_ETH]
+
+    const payloads = await fetchCompoundV3ApySpot({ chainIds: [1] })
+    const apy = (kind: 'supply' | 'borrow') =>
+      payloads.find((p) => p.kind === kind)!.apy
+
+    expect(apy('supply').base).toBeCloseTo(aprToApyPerSecond(0.05), 12)
+    expect(apy('supply').rewards).toBe(0.01)
+    expect(apy('supply').net).toBeCloseTo(aprToApyPerSecond(0.05) + 0.01, 12)
+    expect(apy('borrow').base).toBeCloseTo(aprToApyPerSecond(0.09), 12)
+    expect(apy('borrow').rewards).toBe(0.01)
+    expect(apy('borrow').net).toBeCloseTo(aprToApyPerSecond(0.09) - 0.01, 12)
   })
 
   it('throws with the failing chain when a subgraph errors', async () => {

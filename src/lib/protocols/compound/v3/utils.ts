@@ -1,10 +1,11 @@
 import { arbitrum, base, mainnet, optimism, polygon } from 'viem/chains'
 
-import type { Kind } from '@/lib/db/types'
+import type { ApyBreakdown, Kind } from '@/lib/db/types'
 import {
   CHAIN_SLUG_MAP,
   type RegisteredChainId,
 } from '@/lib/protocols/core/toolkit'
+import { aprToApyPerSecond } from '@/lib/utils'
 
 // ─── Pool ID builder ──────────────────────────────────────────────────────────
 export function buildProductId(
@@ -20,6 +21,40 @@ export function buildProductId(
       `No slug registered for chainId ${chain.id} — add it to chain-slugs.ts`
     )
   return `compoundcomet:v3:${network}:market:${marketId}:${kind}`
+}
+
+// ─── Rates ────────────────────────────────────────────────────────────────────
+
+/**
+ * The subgraph's `supplyApr`/`borrowApr` are Comet's per-second rate times
+ * seconds per year, i.e. an APR. Rates are stored as APY, and Comet accrues
+ * interest every second, so the base rate is compounded per second. Reward
+ * APRs stay linear: COMP is a separate asset, not compounded into the
+ * position (the same rule as Morpho's rewards). Spot and history both read
+ * rates through here so their rows agree.
+ */
+export function cometApy(
+  accounting: {
+    supplyApr: unknown
+    rewardSupplyApr: unknown
+    borrowApr: unknown
+    rewardBorrowApr: unknown
+  },
+  kind: Kind
+): ApyBreakdown {
+  const base = aprToApyPerSecond(
+    Number(kind === 'supply' ? accounting.supplyApr : accounting.borrowApr)
+  )
+  const rewards = Number(
+    kind === 'supply' ? accounting.rewardSupplyApr : accounting.rewardBorrowApr
+  )
+  return {
+    base,
+    rewards,
+    fees: 0,
+    net: kind === 'supply' ? base + rewards : base - rewards,
+    rewardItems: [],
+  }
 }
 
 // ============================================================================

@@ -10,7 +10,7 @@ import type { FetchOpts } from '@/lib/protocols/core/types'
 
 import { COMPOUND_PROVIDER } from '../common/config'
 import { COMPOUND_V3_CHAINS } from './config'
-import { buildProductId } from './utils'
+import { buildProductId, cometApy } from './utils'
 
 /**
  * Fetch current supply and borrow APY for all Compound V3 markets across all chains.
@@ -88,13 +88,7 @@ export async function fetchCompoundV3ApySpot(
           protocol: COMPOUND_PROVIDER,
           chainId,
           asset: market.configuration.symbol,
-          apy: {
-            base: Number(market.accounting.supplyApr),
-            rewards: Number(market.accounting.rewardSupplyApr),
-            fees: 0,
-            net: Number(market.accounting.netSupplyApr),
-            rewardItems: [],
-          },
+          apy: cometApy(market.accounting, 'supply'),
           market: {
             supplyAssets: whole(market.accounting.totalBaseSupply),
             supplyAssetsUsd: Number(market.accounting.totalBaseSupplyUsd),
@@ -111,13 +105,7 @@ export async function fetchCompoundV3ApySpot(
           protocol: COMPOUND_PROVIDER,
           chainId,
           asset: market.configuration.symbol,
-          apy: {
-            base: Number(market.accounting.borrowApr),
-            rewards: Number(market.accounting.rewardBorrowApr),
-            fees: 0,
-            net: Number(market.accounting.netBorrowApr),
-            rewardItems: [],
-          },
+          apy: cometApy(market.accounting, 'borrow'),
           market: {
             supplyAssets: whole(market.accounting.totalBaseSupply),
             supplyAssetsUsd: Number(market.accounting.totalBaseSupplyUsd),

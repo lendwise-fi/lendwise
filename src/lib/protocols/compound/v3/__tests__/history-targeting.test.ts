@@ -4,6 +4,7 @@ import {
   MARKETS_ALL,
   MARKET_HOURLY_ACCOUNTING,
 } from '@/lib/protocols/compound/v3/queries'
+import { aprToApyPerSecond } from '@/lib/utils'
 
 /**
  * Targeting tests for Compound's history adapter.
@@ -245,5 +246,18 @@ describe('getCompoundApyHistory — why a product went unanswered', () => {
     const result = await run({ productIds: [pid(MARKET_A, 'supply')] })
 
     expect(reasonFor(result, pid(MARKET_A, 'supply'))).toMatch(/cannot tell/i)
+  })
+})
+
+describe('getCompoundApyHistory — rate units', () => {
+  it('stores the per-second APR the subgraph reports as APY', async () => {
+    // Same conversion as the spot fetcher, so history and spot rows agree.
+    const result = await run({ productIds: [pid(MARKET_A, 'supply')] })
+    const { points } = result as {
+      points: { apy: { base: number; net: number } }[]
+    }
+
+    expect(points[0].apy.base).toBeCloseTo(aprToApyPerSecond(0.05), 12)
+    expect(points[0].apy.net).toBeCloseTo(aprToApyPerSecond(0.05), 12)
   })
 })
