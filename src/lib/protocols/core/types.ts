@@ -244,11 +244,18 @@ export interface AppAdapter {
 }
 
 /**
- * Position contract of a Stellar lending adapter: `G…` addresses in, the same
- * position and risk-account shapes out as an EVM AppAdapter.
+ * Position contract of a lending adapter whose wallets are plain strings, not
+ * viem addresses: the same position and risk-account shapes out as an EVM
+ * AppAdapter.
  */
-export interface StellarPositionsAdapter {
+interface StringAddressPositionsAdapter {
   getUserSupplyPositions(p: { addresses: string[] }): Promise<SupplyPosition[]>
   getUserBorrowPositions(p: { addresses: string[] }): Promise<BorrowPosition[]>
   getRiskAccounts?(p: { addresses: string[] }): Promise<RiskAccount[]>
 }
+
+/** Stellar lending adapter: `G…` addresses in. */
+export type StellarPositionsAdapter = StringAddressPositionsAdapter
+
+/** Solana lending adapter: base58 addresses in, case kept. */
+export type SolanaPositionsAdapter = StringAddressPositionsAdapter

@@ -68,7 +68,8 @@ export class KaminoApiError extends Error {
 async function request<T>(
   path: string,
   params: Record<string, string | readonly string[]>,
-  schema: ZodType<T>
+  schema: ZodType<T>,
+  timeoutMs: number = KAMINO_REQUEST_TIMEOUT_MS
 ): Promise<T> {
   const url = new URL(path, KAMINO_API_URL)
   for (const [key, value] of Object.entries(params)) {
@@ -81,14 +82,14 @@ async function request<T>(
   try {
     response = await fetch(url, {
       headers: { Accept: 'application/json' },
-      signal: AbortSignal.timeout(KAMINO_REQUEST_TIMEOUT_MS),
+      signal: AbortSignal.timeout(timeoutMs),
     })
   } catch (error) {
     if (error instanceof Error && error.name === 'TimeoutError') {
       throw new KaminoApiError(
         'timeout',
         path,
-        `no response within ${KAMINO_REQUEST_TIMEOUT_MS} ms`
+        `no response within ${timeoutMs} ms`
       )
     }
     throw new KaminoApiError(
@@ -131,11 +132,14 @@ async function request<T>(
  * Parses each item on its own: a malformed item is skipped (not fatal) and
  * reported in one `console.warn` with the count and the first few ids, so one
  * bad reserve, row or obligation cannot take the rest of the payload down.
+ * `strict` rejects instead, for callers that must not show a partial answer
+ * as complete.
  */
 function parseEach<T>(
   path: string,
   items: readonly (readonly [string, unknown])[],
-  schema: ZodType<T>
+  schema: ZodType<T>,
+  opts: { strict?: boolean } = {}
 ): (readonly [string, T])[] {
   const out: (readonly [string, T])[] = []
   const skipped: string[] = []
@@ -143,6 +147,13 @@ function parseEach<T>(
     const parsed = schema.safeParse(raw)
     if (parsed.success) out.push([id, parsed.data] as const)
     else skipped.push(id)
+  }
+  if (skipped.length > 0 && opts.strict) {
+    throw new KaminoApiError(
+      'invalid-response',
+      path,
+      `${skipped.length} malformed item(s): ${skipped.slice(0, 5).join(', ')}`
+    )
   }
   if (skipped.length > 0) {
     console.warn(
@@ -297,20 +308,28 @@ export async function fetchReserveHistory(params: {
   return [...byTimestamp.values()].sort((a, b) => a.timestamp - b.timestamp)
 }
 
-/** Obligations of `wallet` in `market` (empty when the wallet has none). */
+/**
+ * Obligations of `wallet` in `market` (empty when the wallet has none). Both
+ * path segments are escaped; base58 case is kept. `strict` rejects the call
+ * when any obligation is malformed (wallet positions: a hidden loan would
+ * understate the risk); `timeoutMs` overrides `KAMINO_REQUEST_TIMEOUT_MS`.
+ */
 export async function fetchObligations(
   market: string,
-  wallet: string
+  wallet: string,
+  opts: { strict?: boolean; timeoutMs?: number } = {}
 ): Promise<KaminoObligation[]> {
-  const path = `/kamino-market/${market}/users/${wallet}/obligations`
+  const path = `/kamino-market/${encodeURIComponent(market)}/users/${encodeURIComponent(wallet)}/obligations`
   const raw = await request(
     path,
     { env: KAMINO_ENV },
-    obligationsResponseSchema
+    obligationsResponseSchema,
+    opts.timeoutMs
   )
   return parseEach(
     path,
     raw.map((o, i) => [String(i), o] as const),
-    obligationSchema
+    obligationSchema,
+    { strict: opts.strict }
   ).map(([, o]) => o)
 }

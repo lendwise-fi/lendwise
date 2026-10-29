@@ -2,6 +2,7 @@
 
 import {
   APP_ADAPTERS,
+  solanaPositionAdapters,
   stellarPositionAdapters,
 } from '@/config/protocols-server'
 import { cachedEvmHoldings } from '@/lib/evm/holdings-cache'
@@ -19,6 +20,7 @@ import type {
 } from '@/lib/portfolio/types'
 import type { AppAdapter } from '@/lib/protocols/core/types'
 import { computeRiskAccounts } from '@/lib/risk/compute'
+import { getSolanaWalletHoldings } from '@/lib/solana/wallet-holdings'
 import { getStellarWalletHoldings } from '@/lib/stellar/wallet-holdings'
 
 const evmAdapters: Record<string, () => Promise<AppAdapter>> =
@@ -44,7 +46,9 @@ export async function loadUserPortfolio(
   return loadPortfolio(sanitizeWalletInputs(wallets), {
     evmAdapters,
     stellarAdapters: stellarPositionAdapters(),
+    solanaAdapters: solanaPositionAdapters(),
     stellarHoldings: (addresses) => getStellarWalletHoldings(addresses),
+    solanaHoldings: (addresses) => getSolanaWalletHoldings(addresses),
     evmHoldings,
     computeRisk: (accounts) => computeRiskAccounts(accounts),
   })

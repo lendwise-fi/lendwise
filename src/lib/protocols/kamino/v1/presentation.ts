@@ -26,10 +26,14 @@ export function kaminoPoolName(p: ProductRow): string {
  * in its router; app.kamino.finance redirects to kamino.com). One page serves
  * both the supply and the borrow side. Base58 keys, case kept.
  */
+export function kaminoReserveUrl(market: string, reserve: string): string {
+  return `https://kamino.com/borrow/reserve/${market}/${reserve}`
+}
+
 export function kaminoProductLink(p: ProductRow): string {
   const market = (p.meta as Partial<KaminoSupplyMeta> | null)?.market
   if (!market) return ''
-  return `https://kamino.com/borrow/reserve/${market}/${p.protocolAddress}`
+  return kaminoReserveUrl(market, p.protocolAddress)
 }
 
 export const KAMINO_V1_PRESENTATION = {

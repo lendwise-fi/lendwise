@@ -38,6 +38,9 @@
       "borrows": [
         {
           "borrowReserve": "d4A2prbA2whesmvHaL88BH6Ewn5N4bTSU2Ze8P6Bc4Q",
+          "cumulativeBorrowRateBsf": {
+            "value": ["1348683594802653065", "0", "0", "0"]
+          },
           "borrowedAmountSf": "1736446294425523242990594",
           "marketValueSf": "149774460626003746",
           "borrowFactorAdjustedMarketValueSf": "149774460626003746"

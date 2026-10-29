@@ -10,6 +10,9 @@ export const MAX_PORTFOLIO_WALLETS = 10
 /** Failure `source` of the Horizon wallet-holdings read. */
 export const STELLAR_WALLET_SOURCE = 'stellar_wallet'
 
+/** Failure `source` of the Solana JSON-RPC wallet-holdings read (SOL and SPL). */
+export const SOLANA_WALLET_SOURCE = 'solana_wallet'
+
 /**
  * Failure `source` of the EVM wallet-balances read. One chain that could not
  * be read is `evm_wallet:<slug>`.
@@ -24,7 +27,7 @@ export interface PortfolioWalletInput {
 /** One source that could not be read; every other source is still shown. */
 export interface PortfolioPartialFailure {
   chainFamily: PortfolioChainFamily
-  /** Adapter id, STELLAR_WALLET_SOURCE, EVM_WALLET_SOURCE[:slug], or the family itself. */
+  /** Adapter id, STELLAR_WALLET_SOURCE, SOLANA_WALLET_SOURCE, EVM_WALLET_SOURCE[:slug], or the family itself. */
   source: string
   message: string
 }

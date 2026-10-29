@@ -217,7 +217,7 @@ describe('fetchReserveAccounts', () => {
     expect(urls[1].searchParams.getAll('markets')).toEqual(['M10'])
     expect(urls[0].searchParams.get('env')).toBe('mainnet-beta')
     const usdc = result.find((a) => a.reserve === USDC_RESERVE)
-    expect(usdc).toEqual({
+    expect(usdc).toMatchObject({
       market: PRIMARY,
       reserve: USDC_RESERVE,
       mint: 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v',
@@ -225,6 +225,30 @@ describe('fetchReserveAccounts', () => {
       symbol: 'USDC',
     })
     expect(result.find((a) => a.symbol === 'strongSOL')?.decimals).toBe(9)
+  })
+
+  it('decodes the risk config and the rates that convert obligation amounts', async () => {
+    fetchMock.mockResolvedValue(jsonResponse(accountData))
+
+    const result = await fetchReserveAccounts([PRIMARY])
+
+    // Same values as /reserves/batch/stats (maxLTV 0.8, liqLTV 0.9,
+    // borrowFactor 1) and an independent decode of the same bytes.
+    const usdc = result.find((a) => a.reserve === USDC_RESERVE)
+    expect(usdc).toMatchObject({
+      maxLtv: 0.8,
+      liquidationThreshold: 0.9,
+      borrowFactor: 1,
+      elevationGroups: [1, 3, 6, 8],
+    })
+    expect(usdc?.liquidityPerCToken).toBeCloseTo(1.2079418585535433, 12)
+    expect(usdc?.cumulativeBorrowRate).toBeCloseTo(1.3067757536014906, 12)
+    const strong = result.find((a) => a.symbol === 'strongSOL')
+    expect(strong).toMatchObject({
+      liquidationThreshold: 0.55,
+      borrowFactor: 1.25,
+      elevationGroups: [2],
+    })
   })
 
   it('skips an undecodable account with a warning', async () => {
@@ -424,6 +448,80 @@ describe('fetchObligations', () => {
     fetchMock.mockResolvedValue(jsonResponse([]))
 
     await expect(fetchObligations(PRIMARY, 'WalletAddr1')).resolves.toEqual([])
+  })
+
+  it('keeps the debt cumulative borrow rate and the market elevation groups', async () => {
+    const withMarket = structuredClone(obligations[0]) as Record<
+      string,
+      unknown
+    >
+    withMarket.market = {
+      address: PRIMARY,
+      state: {
+        elevationGroups: [
+          { id: 2, ltvPct: 87, liquidationThresholdPct: 92 },
+          { id: 0, ltvPct: 0, liquidationThresholdPct: 0 },
+          'garbage',
+        ],
+      },
+    }
+    fetchMock.mockResolvedValue(jsonResponse([withMarket, obligations[0]]))
+
+    const [full, bare] = await fetchObligations(PRIMARY, 'WalletAddr1')
+
+    // value[0] / 2^60, the low limb first.
+    expect(full.borrows[0].cumulativeBorrowRate).toBeCloseTo(1.1697965, 6)
+    expect(full.borrows[0].amountSf).toBe('1736446294425523242990594')
+    expect(full.elevationGroups).toEqual([
+      { id: 2, ltv: 0.87, liquidationThreshold: 0.92 },
+    ])
+    expect(bare.elevationGroups).toEqual([])
+  })
+
+  it('escapes the market and wallet path segments, case kept', async () => {
+    fetchMock.mockResolvedValue(jsonResponse([]))
+
+    await fetchObligations('Mkt/1', 'Wa?l#Let')
+
+    expect(String(fetchMock.mock.calls[0][0])).toContain(
+      '/kamino-market/Mkt%2F1/users/Wa%3Fl%23Let/obligations?env=mainnet-beta'
+    )
+  })
+
+  it('keeps an obligation whose refreshed ratio is NaN (no collateral value)', async () => {
+    // Seen live: a deposit in a reserve with max LTV 0 makes loanToValue 0/0.
+    const noCollateral = structuredClone(obligations[0])
+    noCollateral.refreshedStats.loanToValue = 'NaN'
+    fetchMock.mockResolvedValue(jsonResponse([noCollateral]))
+
+    const [obligation] = await fetchObligations(PRIMARY, 'WalletAddr1', {
+      strict: true,
+    })
+
+    expect(obligation.stats?.loanToValue).toBeNull()
+    expect(obligation.stats?.userTotalDeposit).toBeCloseTo(0.6775, 3)
+  })
+
+  it('rejects a malformed obligation in strict mode instead of skipping it', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    fetchMock.mockResolvedValue(
+      jsonResponse([{ obligationAddress: 'broken' }, obligations[0]])
+    )
+
+    await expect(
+      fetchObligations(PRIMARY, 'WalletAddr1', { strict: true })
+    ).rejects.toMatchObject({ kind: 'invalid-response' })
+    warn.mockRestore()
+  })
+
+  it('applies a per-call timeout', async () => {
+    const timeout = vi.spyOn(AbortSignal, 'timeout')
+    fetchMock.mockResolvedValue(jsonResponse([]))
+
+    await fetchObligations(PRIMARY, 'WalletAddr1', { timeoutMs: 1234 })
+
+    expect(timeout).toHaveBeenCalledWith(1234)
+    timeout.mockRestore()
   })
 })
 

@@ -48,6 +48,19 @@ export const KAMINO_REWARD_SYMBOLS: Readonly<Record<string, string>> = {
 }
 
 /**
+ * Wallet positions: one obligations call per (market x wallet), at most this
+ * many in flight. 50 markets for one wallet took 1.3 s at 4, without a 429
+ * (2026-10-29).
+ */
+export const KAMINO_POSITIONS_CONCURRENCY = 4
+
+/**
+ * Time limit of one obligations call. Below the portfolio's per-source limit
+ * (12 s), so one slow market fails fast instead of eating the whole budget.
+ */
+export const KAMINO_OBLIGATIONS_TIMEOUT_MS = 6_000
+
+/**
  * Reserves whose history is fetched at the same time by `getApyHistory`.
  * Kamino publishes no rate limit, so this stays small; each reserve already
  * issues its chunks one after the other.

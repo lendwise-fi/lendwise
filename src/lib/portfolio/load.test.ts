@@ -9,9 +9,14 @@ import type { WalletHolding } from './types'
 
 const G = 'GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN'
 const EVM = '0x52908400098527886E0F7030069857D2E4169EE7'
+const SOL = 'AKjdwZT5d1S9YA6NPYyBZ5jAUAXYVJaYAVCd38hJiKS4'
 const wallets = [
   { address: EVM, chainFamily: 'evm' as const },
   { address: G, chainFamily: 'stellar' as const },
+]
+const allWallets = [
+  ...wallets,
+  { address: SOL, chainFamily: 'solana' as const },
 ]
 
 const supply = (id: string) => ({ id }) as SupplyPosition
@@ -46,7 +51,9 @@ function deps(overrides: Partial<PortfolioDeps> = {}): PortfolioDeps {
   return {
     evmAdapters: { aave_v3: async () => source([supply('aave')]) },
     stellarAdapters: { 'blend_v2.1': async () => source([supply('blend')]) },
+    solanaAdapters: { kamino_v1: async () => source([supply('kamino')]) },
     stellarHoldings: async () => [],
+    solanaHoldings: async () => [],
     evmHoldings: async () => ({ holdings: [], failedNetworks: [] }),
     computeRisk: async (accounts) =>
       accounts.map((a) => ({
@@ -386,6 +393,143 @@ describe('loadPortfolio', () => {
         message: 'Temporarily unavailable',
       },
     ])
+  })
+
+  describe('Solana', () => {
+    const solHolding = (code: string): WalletHolding => ({
+      chainFamily: 'solana',
+      network: 'solana',
+      owner: SOL,
+      assetType: code === 'SOL' ? 'native' : 'spl',
+      code,
+      issuer: null,
+      balance: 1,
+      priceUsd: null,
+      valueUsd: null,
+    })
+
+    it('loads Kamino positions and Solana balances beside EVM and Stellar', async () => {
+      const result = await loadPortfolio(
+        allWallets,
+        deps({ solanaHoldings: async () => [solHolding('SOL')] })
+      )
+      expect(result.positions.supply.kamino_v1).toEqual([supply('kamino')])
+      expect(result.positions.supply.aave_v3).toEqual([supply('aave')])
+      expect(result.positions.supply['blend_v2.1']).toEqual([supply('blend')])
+      expect(result.holdings.map((h) => h.code)).toEqual(['SOL'])
+      expect(result.failures).toEqual([])
+    })
+
+    it('hands Solana sources the base58 addresses only, case kept', async () => {
+      const kamino = source<string>([])
+      const solanaHoldings = vi.fn(async () => [])
+      await loadPortfolio(
+        allWallets,
+        deps({
+          solanaAdapters: { kamino_v1: async () => kamino },
+          solanaHoldings,
+        })
+      )
+      expect(kamino.calls).toEqual([[SOL]])
+      expect(solanaHoldings).toHaveBeenCalledWith([SOL])
+    })
+
+    it('reads nothing on Solana without a Solana wallet', async () => {
+      const kamino = source<string>([])
+      const solanaHoldings = vi.fn(async () => [])
+      await loadPortfolio(
+        wallets,
+        deps({
+          solanaAdapters: { kamino_v1: async () => kamino },
+          solanaHoldings,
+        })
+      )
+      expect(kamino.calls).toEqual([])
+      expect(solanaHoldings).not.toHaveBeenCalled()
+    })
+
+    it('flags Kamino when it is down and keeps EVM, Stellar and the Solana balances', async () => {
+      const result = await loadPortfolio(
+        allWallets,
+        deps({
+          solanaAdapters: { kamino_v1: async () => failing('Kamino 503') },
+          solanaHoldings: async () => [solHolding('SOL')],
+        })
+      )
+      expect(result.failures).toEqual([
+        {
+          chainFamily: 'solana',
+          source: 'kamino_v1',
+          message: 'Temporarily unavailable',
+        },
+      ])
+      expect(result.positions.supply.aave_v3).toEqual([supply('aave')])
+      expect(result.positions.supply['blend_v2.1']).toEqual([supply('blend')])
+      expect(result.positions.supply.kamino_v1).toBeUndefined()
+      expect(result.holdings.map((h) => h.code)).toEqual(['SOL'])
+    })
+
+    it('flags the Solana wallet when the RPC is down and keeps Kamino', async () => {
+      const result = await loadPortfolio(
+        allWallets,
+        deps({
+          solanaHoldings: async () => {
+            throw new Error('[solana] getBalance: HTTP 429')
+          },
+        })
+      )
+      expect(result.failures).toEqual([
+        {
+          chainFamily: 'solana',
+          source: 'solana_wallet',
+          message: 'Temporarily unavailable',
+        },
+      ])
+      expect(result.positions.supply.kamino_v1).toEqual([supply('kamino')])
+      expect(result.positions.supply.aave_v3).toEqual([supply('aave')])
+    })
+
+    it('times out a Kamino read that never settles', async () => {
+      const result = await loadPortfolio(
+        allWallets,
+        deps({
+          sourceTimeoutMs: 20,
+          solanaAdapters: { kamino_v1: () => new Promise(() => {}) },
+        })
+      )
+      expect(result.failures).toEqual([
+        {
+          chainFamily: 'solana',
+          source: 'kamino_v1',
+          message: 'Temporarily unavailable',
+        },
+      ])
+      expect(result.positions.supply.aave_v3).toEqual([supply('aave')])
+    })
+
+    it('computes risk on the Kamino accounts with the other families', async () => {
+      const computeRisk = vi.fn(async () => [])
+      await loadPortfolio(
+        allWallets,
+        deps({
+          evmAdapters: {
+            morpho_v1: async () => source([], [account('evm-1')]),
+          },
+          stellarAdapters: {
+            'blend_v2.1': async () => source([], [account('xlm-1')]),
+          },
+          solanaAdapters: {
+            kamino_v1: async () => source([], [account('sol-1')]),
+          },
+          computeRisk,
+        })
+      )
+      expect(computeRisk).toHaveBeenCalledWith([
+        account('evm-1'),
+        account('xlm-1'),
+        account('sol-1'),
+      ])
+    })
   })
 
   describe('source time limit', () => {

@@ -114,6 +114,16 @@ describe('portfolio view helpers', () => {
         message: '',
       })
     ).toBe('EVM wallet · Unknown-net')
+    expect(
+      failureLabel({
+        chainFamily: 'solana',
+        source: 'solana_wallet',
+        message: '',
+      })
+    ).toBe('Solana wallet')
+    expect(
+      failureLabel({ chainFamily: 'solana', source: 'kamino_v1', message: '' })
+    ).toBe('Solana · Kamino Lend')
   })
 
   it('counts distinct risk accounts that have no result', () => {

@@ -3,6 +3,7 @@ import type { ProtocolName } from '@/config/protocols-meta'
 import { stellarNetworkId } from '@/config/stellar-network'
 import type {
   AppAdapter,
+  SolanaPositionsAdapter,
   StellarPositionsAdapter,
   YieldAdapter,
 } from '@/lib/protocols/core/types'
@@ -78,4 +79,21 @@ export function stellarPositionAdapters(
       )
   }
   return adapters
+}
+
+/**
+ * Solana position sources, read for base58 addresses only. A function like
+ * `stellarPositionAdapters`, but without a network gate: Solana data is
+ * mainnet-beta on every deployment, testnet.lendwise.fi included (spec 0008).
+ */
+export function solanaPositionAdapters(): Record<
+  string,
+  () => Promise<SolanaPositionsAdapter>
+> {
+  return {
+    kamino_v1: () =>
+      import('@/lib/protocols/kamino/v1/positions').then(
+        (m) => m.positionsAdapter
+      ),
+  }
 }

@@ -5,13 +5,14 @@ import { redactRpcSecrets } from '@/lib/evm/redact'
 import type { RiskAccount, RiskAccountResult } from '@/lib/risk/types'
 import type { BorrowPosition, SupplyPosition, UserPosition } from '@/types'
 
-import { routePortfolioWallets } from './routing'
+import { type RoutedPortfolioWallets, routePortfolioWallets } from './routing'
 import {
   EVM_WALLET_SOURCE,
   type EvmWalletHoldings,
   type PortfolioChainFamily,
   type PortfolioPartialFailure,
   type PortfolioWalletInput,
+  SOLANA_WALLET_SOURCE,
   STELLAR_WALLET_SOURCE,
   type UserPortfolioResult,
   type WalletHolding,
@@ -20,7 +21,7 @@ import {
 } from './types'
 import { withTimeout } from './with-timeout'
 
-/** What the merge needs from any adapter, EVM or Stellar. */
+/** What the merge needs from any adapter, EVM, Stellar or Solana. */
 export interface PositionsSource<A extends string> {
   getUserSupplyPositions(p: { addresses: A[] }): Promise<SupplyPosition[]>
   getUserBorrowPositions(p: { addresses: A[] }): Promise<BorrowPosition[]>
@@ -35,8 +36,10 @@ type Loaders<A extends string> = Record<
 export interface PortfolioDeps {
   evmAdapters: Loaders<Address>
   stellarAdapters: Loaders<string>
+  solanaAdapters: Loaders<string>
   evmHoldings(addresses: Address[]): Promise<EvmWalletHoldings>
   stellarHoldings(addresses: string[]): Promise<WalletHolding[]>
+  solanaHoldings(addresses: string[]): Promise<WalletHolding[]>
   computeRisk(accounts: RiskAccount[]): Promise<RiskAccountResult[]>
   /** Per-source time limit; defaults to `SOURCE_TIMEOUT_MS`. */
   sourceTimeoutMs?: number
@@ -177,41 +180,90 @@ async function loadEvm(
   return result
 }
 
-async function loadStellar(
+/**
+ * A family whose wallets are plain strings (Stellar `G…`, Solana base58): its
+ * position adapters and one holdings read, each settled on its own.
+ */
+async function loadStringFamily(
+  chainFamily: Exclude<PortfolioChainFamily, 'evm'>,
   addresses: string[],
-  deps: PortfolioDeps
+  sources: {
+    adapters: Loaders<string>
+    holdings(addresses: string[]): Promise<WalletHolding[]>
+    walletSource: string
+  },
+  timeoutMs: number
 ): Promise<FamilyResult> {
   if (addresses.length === 0) return emptyFamily()
   const [adapters, holdings] = await Promise.allSettled([
-    loadAdapters(
-      'stellar',
-      addresses,
-      deps.stellarAdapters,
-      sourceTimeoutMs(deps)
-    ),
+    loadAdapters(chainFamily, addresses, sources.adapters, timeoutMs),
     withTimeout(
-      Promise.resolve().then(() => deps.stellarHoldings(addresses)),
-      sourceTimeoutMs(deps)
+      Promise.resolve().then(() => sources.holdings(addresses)),
+      timeoutMs
     ),
   ])
   const result =
     adapters.status === 'fulfilled' ? adapters.value : emptyFamily()
   if (adapters.status === 'rejected') {
-    result.failures.push(failure('stellar', 'stellar', adapters.reason))
+    result.failures.push(failure(chainFamily, chainFamily, adapters.reason))
   }
   if (holdings.status === 'fulfilled') result.holdings = holdings.value
   else {
     result.failures.push(
-      failure('stellar', STELLAR_WALLET_SOURCE, holdings.reason)
+      failure(chainFamily, sources.walletSource, holdings.reason)
     )
   }
   return result
 }
 
 /**
- * EVM and Stellar positions in one result. Each family — and each source in
- * it — settles on its own: a source that rejects becomes a partial failure and
- * the rest of the portfolio still renders.
+ * One loader per chain family, each reading its routed addresses and its own
+ * deps. Typed over every `ChainFamily`: a new family does not compile until it
+ * has a loader here and its sources in `PortfolioDeps`.
+ */
+const FAMILY_LOADERS: {
+  [F in PortfolioChainFamily]: (
+    addresses: RoutedPortfolioWallets[F],
+    deps: PortfolioDeps
+  ) => Promise<FamilyResult>
+} = {
+  evm: (addresses, deps) => loadEvm(addresses, deps),
+  stellar: (addresses, deps) =>
+    loadStringFamily(
+      'stellar',
+      addresses,
+      {
+        adapters: deps.stellarAdapters,
+        holdings: deps.stellarHoldings,
+        walletSource: STELLAR_WALLET_SOURCE,
+      },
+      sourceTimeoutMs(deps)
+    ),
+  solana: (addresses, deps) =>
+    loadStringFamily(
+      'solana',
+      addresses,
+      {
+        adapters: deps.solanaAdapters,
+        holdings: deps.solanaHoldings,
+        walletSource: SOLANA_WALLET_SOURCE,
+      },
+      sourceTimeoutMs(deps)
+    ),
+}
+
+function loadFamily<F extends PortfolioChainFamily>(
+  family: F,
+  routed: RoutedPortfolioWallets,
+  deps: PortfolioDeps
+): Promise<FamilyResult> {
+  return FAMILY_LOADERS[family](routed[family], deps)
+}
+
+/**
+ * EVM, Stellar and Solana positions in one result. Each family — and each
+ * source in it — settles on its own: a source that rejects becomes a partial
+ * failure and the rest of the portfolio still renders.
  */
 export async function loadPortfolio(
   wallets: PortfolioWalletInput[],
@@ -219,16 +271,15 @@ export async function loadPortfolio(
 ): Promise<UserPortfolioResult> {
   const routed = routePortfolioWallets(wallets)
 
-  const families: [PortfolioChainFamily, () => Promise<FamilyResult>][] = [
-    ['evm', () => loadEvm(routed.evm, deps)],
-    ['stellar', () => loadStellar(routed.stellar, deps)],
-  ]
-  const settled = await Promise.allSettled(families.map(([, run]) => run()))
+  const families = Object.keys(FAMILY_LOADERS) as PortfolioChainFamily[]
+  const settled = await Promise.allSettled(
+    families.map((family) => loadFamily(family, routed, deps))
+  )
 
   const loaded: FamilyResult[] = []
   const failures: PortfolioPartialFailure[] = []
   settled.forEach((s, i) => {
-    const chainFamily = families[i][0]
+    const chainFamily = families[i]
     if (s.status === 'fulfilled') {
       loaded.push(s.value)
       failures.push(...s.value.failures)

@@ -1,5 +1,7 @@
 import { z } from 'zod'
 
+import type { DecodedReserveAccount } from './reserve-account'
+
 /**
  * Tolerant zod schemas for the public Kamino API. Unknown fields are ignored
  * (zod objects strip them), numeric strings become numbers, and each schema
@@ -212,6 +214,60 @@ export type KaminoReserveHistoryPoint = z.output<typeof historyRowSchema>
 /** Placeholder for an unused slot in the fixed-size on-chain arrays. */
 const EMPTY_RESERVE = '11111111111111111111111111111111'
 
+const u64String = z.string().regex(/^\d+$/)
+
+/**
+ * Kamino "big scaled fraction" (`BigFractionBytes`: a u256 as four u64 limbs,
+ * low limb first, x 2^60) -> number.
+ */
+const bsfToNumber = z
+  .object({ value: z.array(u64String).length(4) })
+  .transform(({ value }) => {
+    const raw = value.reduce(
+      (acc, limb, i) => acc + (BigInt(limb) << BigInt(64 * i)),
+      0n
+    )
+    return Number(raw) / SF_SCALE
+  })
+
+const elevationGroupSchema = z.object({
+  id: z.number().int().positive(),
+  ltvPct: num,
+  liquidationThresholdPct: num,
+})
+
+/**
+ * The market's elevation groups (eMode), as the obligation response carries
+ * them in `market.state.elevationGroups` (the on-chain LendingMarket). Unused
+ * slots (id 0) and malformed entries are dropped; a missing market is [].
+ */
+const elevationGroupsSchema = z
+  .array(z.unknown())
+  .nullish()
+  .transform((items) =>
+    (items ?? []).flatMap((item) => {
+      const parsed = elevationGroupSchema.safeParse(item)
+      if (!parsed.success) return []
+      return [
+        {
+          id: parsed.data.id,
+          ltv: parsed.data.ltvPct / 100,
+          liquidationThreshold: parsed.data.liquidationThresholdPct / 100,
+        },
+      ]
+    })
+  )
+
+/**
+ * A refreshed-stats value. The API writes ratios over a zero base as "NaN"
+ * (`loanToValue` of an obligation whose deposits all have max LTV 0): null
+ * here, rather than a rejected obligation.
+ */
+const statNum = z
+  .union([z.number(), z.string().trim().min(1)])
+  .transform(Number)
+  .transform((n) => (Number.isFinite(n) ? n : null))
+
 const obligationSchema = z
   .object({
     obligationAddress: z.string(),
@@ -219,14 +275,14 @@ const obligationSchema = z
     humanTag: z.string().nullish(),
     refreshedStats: z
       .object({
-        userTotalDeposit: num,
-        userTotalBorrow: num,
-        userTotalBorrowBorrowFactorAdjusted: num,
-        borrowLimit: num,
-        borrowLiquidationLimit: num,
-        liquidationLtv: num,
-        loanToValue: num,
-        netAccountValue: num,
+        userTotalDeposit: statNum,
+        userTotalBorrow: statNum,
+        userTotalBorrowBorrowFactorAdjusted: statNum,
+        borrowLimit: statNum,
+        borrowLiquidationLimit: statNum,
+        liquidationLtv: statNum,
+        loanToValue: statNum,
+        netAccountValue: statNum,
       })
       .nullish(),
     state: z.object({
@@ -243,11 +299,17 @@ const obligationSchema = z
       borrows: z.array(
         z.object({
           borrowReserve: z.string(),
+          cumulativeBorrowRateBsf: bsfToNumber,
           borrowedAmountSf: z.string(),
           marketValueSf: sfToNumber,
         })
       ),
     }),
+    market: z
+      .object({
+        state: z.object({ elevationGroups: elevationGroupsSchema }),
+      })
+      .nullish(),
   })
   .transform((o) => ({
     address: o.obligationAddress,
@@ -256,6 +318,8 @@ const obligationSchema = z
     tag: o.obligationTag ?? null,
     humanTag: o.humanTag ?? null,
     elevationGroup: o.state.elevationGroup ?? 0,
+    /** The market's elevation groups, to weigh an obligation in one. */
+    elevationGroups: o.market?.state.elevationGroups ?? [],
     /** Non-empty deposit slots; `amount` is raw collateral-token units. */
     deposits: o.state.deposits
       .filter(
@@ -266,7 +330,12 @@ const obligationSchema = z
         amount: d.depositedAmount,
         marketValueUsd: d.marketValueSf,
       })),
-    /** Non-empty borrow slots; `amountSf` is the on-chain scaled-fraction (x 2^60) liquidity amount. */
+    /**
+     * Non-empty borrow slots. `amountSf` is the on-chain scaled-fraction
+     * (x 2^60) liquidity amount at `cumulativeBorrowRate`, the reserve rate of
+     * the obligation's last refresh: today's debt is
+     * `amountSf / 2^60 x reserveRate / cumulativeBorrowRate`.
+     */
     borrows: o.state.borrows
       .filter(
         (b) => b.borrowReserve !== EMPTY_RESERVE && b.borrowedAmountSf !== '0'
@@ -274,6 +343,7 @@ const obligationSchema = z
       .map((b) => ({
         reserve: b.borrowReserve,
         amountSf: b.borrowedAmountSf,
+        cumulativeBorrowRate: b.cumulativeBorrowRateBsf,
         marketValueUsd: b.marketValueSf,
       })),
     stats: o.refreshedStats ?? null,
@@ -282,11 +352,11 @@ export const obligationsResponseSchema = z.array(z.unknown())
 export { obligationSchema }
 export type KaminoObligation = z.output<typeof obligationSchema>
 
-/** Mint, decimals and symbol of a reserve, decoded from its on-chain account. */
-export interface KaminoReserveAccount {
+/**
+ * A reserve as decoded from its on-chain account: mint, decimals and symbol,
+ * plus the risk config and rates that weigh and convert obligation amounts.
+ */
+export interface KaminoReserveAccount extends DecodedReserveAccount {
   market: string
   reserve: string
-  mint: string
-  decimals: number
-  symbol: string
 }

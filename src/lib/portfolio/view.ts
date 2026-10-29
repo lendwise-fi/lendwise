@@ -7,6 +7,7 @@ import type { BorrowPosition } from '@/types'
 import {
   EVM_WALLET_SOURCE,
   type PortfolioPartialFailure,
+  SOLANA_WALLET_SOURCE,
   STELLAR_WALLET_SOURCE,
   type WalletHolding,
 } from './types'
@@ -71,6 +72,7 @@ export function sortableHealth(row: BorrowRow): number {
 export function failureLabel(f: PortfolioPartialFailure): string {
   const family = familyLabel(f.chainFamily)
   if (f.source === STELLAR_WALLET_SOURCE) return 'Stellar wallet'
+  if (f.source === SOLANA_WALLET_SOURCE) return 'Solana wallet'
   if (f.source === EVM_WALLET_SOURCE) return 'EVM wallet'
   if (f.source.startsWith(`${EVM_WALLET_SOURCE}:`)) {
     return `EVM wallet · ${networkName(f.source.slice(EVM_WALLET_SOURCE.length + 1))}`
