@@ -142,8 +142,10 @@ describe('fetchReserveStats', () => {
     ])
   })
 
-  it('rejects a reserve whose APY is not numeric', async () => {
-    const broken = {
+  it('skips a malformed reserve, warns, and keeps the others', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const partial = {
+      ...reserveStats,
       [USDC_RESERVE]: {
         ...reserveStats[USDC_RESERVE],
         supplyApy: { current: 'abc' },
@@ -152,15 +154,50 @@ describe('fetchReserveStats', () => {
     fetchMock.mockImplementation(async (input) =>
       jsonResponse(
         new URL(String(input)).pathname === '/reserves/batch/stats'
-          ? broken
+          ? partial
           : marketsMetadata
       )
     )
 
+    const result = await fetchReserveStats([PRIMARY, FIXED_MARKET])
+
+    expect(result).toHaveLength(6)
+    expect(result.map((r) => r.reserve)).not.toContain(USDC_RESERVE)
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining(USDC_RESERVE))
+    warn.mockRestore()
+  })
+
+  it('rejects a body that is not an object', async () => {
+    fetchMock.mockResolvedValue(jsonResponse([1, 2]))
+
     await expect(fetchReserveStats([PRIMARY])).rejects.toMatchObject({
-      name: 'KaminoApiError',
       kind: 'invalid-response',
     })
+  })
+
+  it('tags batch 2 reserves with batch 2 markets and drops reserves absent from metadata', async () => {
+    const many = Array.from({ length: 101 }, (_, i) => `Market${i}`)
+    const stat = reserveStats[USDC_RESERVE]
+    fetchMock.mockImplementation(async (input) => {
+      const url = new URL(String(input))
+      const requested = url.searchParams.get('market')!.split(',')
+      const isFirst = requested.length === 100
+      if (url.pathname === '/reserves/batch/stats') {
+        return jsonResponse(isFirst ? { R1: stat, ORPHAN: stat } : { R2: stat })
+      }
+      return jsonResponse(
+        isFirst
+          ? { Market0: { reserves: ['R1'] } }
+          : { Market100: { reserves: ['R2'] } }
+      )
+    })
+
+    const result = await fetchReserveStats(many)
+
+    expect(result.map((r) => [r.market, r.reserve])).toEqual([
+      ['Market0', 'R1'],
+      ['Market100', 'R2'],
+    ])
   })
 })
 
@@ -253,6 +290,26 @@ describe('fetchReserveHistory', () => {
     ])
   })
 
+  it('skips a malformed history row and keeps the rest', async () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const rows = [
+      ...historyHourly.history.slice(0, 2),
+      { timestamp: 'not a date', metrics: {} },
+    ]
+    fetchMock.mockResolvedValue(jsonResponse({ history: rows }))
+
+    const result = await fetchReserveHistory({
+      market: PRIMARY,
+      reserve: USDC_RESERVE,
+      start: Date.parse('2026-10-28T00:00:00Z'),
+      end: Date.parse('2026-10-28T03:00:00Z'),
+      frequency: 'hour',
+    })
+
+    expect(result).toHaveLength(2)
+    vi.restoreAllMocks()
+  })
+
   it('returns nothing and calls nothing for an empty range', async () => {
     const rows = await fetchReserveHistory({
       market: PRIMARY,
@@ -289,6 +346,18 @@ describe('fetchObligations', () => {
     expect(obligation.borrows[0].marketValueUsd).toBeCloseTo(0.1299, 3)
     expect(obligation.stats?.loanToValue).toBeCloseTo(0.2333, 3)
     expect(obligation.stats?.userTotalDeposit).toBeCloseTo(0.6775, 3)
+  })
+
+  it('skips an obligation with a non-integer scaled fraction instead of throwing', async () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const bad = structuredClone(obligations[0])
+    bad.state.deposits[0].marketValueSf = 1.5 as unknown as string
+    fetchMock.mockResolvedValue(jsonResponse([bad, obligations[0]]))
+
+    const result = await fetchObligations(PRIMARY, 'WalletAddr1')
+
+    expect(result).toHaveLength(1)
+    vi.restoreAllMocks()
   })
 
   it('returns an empty list when the wallet has no obligation', async () => {

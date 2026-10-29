@@ -13,11 +13,14 @@ import {
   type KaminoObligation,
   type KaminoReserveHistoryPoint,
   type KaminoReserveStatsBody,
+  historyRowSchema,
   marketsMetadataResponseSchema,
   marketsResponseSchema,
+  obligationSchema,
   obligationsResponseSchema,
   reserveHistoryResponseSchema,
   reserveStatsResponseSchema,
+  reserveStatsSchema,
 } from './schemas'
 
 export type {
@@ -116,6 +119,31 @@ async function request<T>(
   return parsed.data
 }
 
+/**
+ * Parses each item on its own: a malformed item is skipped (not fatal) and
+ * reported in one `console.warn` with the count and the first few ids, so one
+ * bad reserve, row or obligation cannot take the rest of the payload down.
+ */
+function parseEach<T>(
+  path: string,
+  items: readonly (readonly [string, unknown])[],
+  schema: ZodType<T>
+): (readonly [string, T])[] {
+  const out: (readonly [string, T])[] = []
+  const skipped: string[] = []
+  for (const [id, raw] of items) {
+    const parsed = schema.safeParse(raw)
+    if (parsed.success) out.push([id, parsed.data] as const)
+    else skipped.push(id)
+  }
+  if (skipped.length > 0) {
+    console.warn(
+      `[kamino] ${path}: skipped ${skipped.length} malformed item(s): ${skipped.slice(0, 5).join(', ')}`
+    )
+  }
+  return out
+}
+
 function chunk<T>(items: readonly T[], size: number): T[][] {
   const out: T[][] = []
   for (let i = 0; i < items.length; i += size) {
@@ -152,10 +180,16 @@ export async function fetchReserveStats(
         marketsMetadataResponseSchema
       ),
     ])
+    const path = '/reserves/batch/stats'
     for (const [marketAddress, { reserves }] of Object.entries(metadata)) {
-      for (const reserve of reserves) {
-        const body = stats[reserve]
-        if (body) out.push({ ...body, market: marketAddress, reserve })
+      const wanted = reserves.filter((r) => r in stats)
+      const parsed = parseEach(
+        path,
+        wanted.map((r) => [r, stats[r]] as const),
+        reserveStatsSchema
+      )
+      for (const [reserve, body] of parsed) {
+        out.push({ ...body, market: marketAddress, reserve })
       }
     }
   }
@@ -191,19 +225,30 @@ export async function fetchReserveHistory(params: {
       },
       reserveHistoryResponseSchema
     )
-    for (const point of history) byTimestamp.set(point.timestamp, point)
+    const points = parseEach(
+      path,
+      history.map((row, i) => [String(i), row] as const),
+      historyRowSchema
+    )
+    for (const [, point] of points) byTimestamp.set(point.timestamp, point)
   }
   return [...byTimestamp.values()].sort((a, b) => a.timestamp - b.timestamp)
 }
 
 /** Obligations of `wallet` in `market` (empty when the wallet has none). */
-export function fetchObligations(
+export async function fetchObligations(
   market: string,
   wallet: string
 ): Promise<KaminoObligation[]> {
-  return request(
-    `/kamino-market/${market}/users/${wallet}/obligations`,
+  const path = `/kamino-market/${market}/users/${wallet}/obligations`
+  const raw = await request(
+    path,
     { env: KAMINO_ENV },
     obligationsResponseSchema
   )
+  return parseEach(
+    path,
+    raw.map((o, i) => [String(i), o] as const),
+    obligationSchema
+  ).map(([, o]) => o)
 }

@@ -19,7 +19,7 @@ const SF_SCALE = 2 ** 60
 
 /** Kamino "scaled fraction" (value * 2^60, as a decimal string) -> number. */
 const sfToNumber = z
-  .union([z.string().regex(/^\d+$/), z.number()])
+  .union([z.string().regex(/^\d+$/), z.number().int().nonnegative()])
   .transform((v) => Number(BigInt(v)) / SF_SCALE)
 
 // ── Markets ──────────────────────────────────────────────────────────────────
@@ -136,10 +136,7 @@ export const reserveStatsSchema = z
     maxLiquidationBonus: r.maxLiquidationBonus,
   }))
 /** `/reserves/batch/stats`: reserve address -> stats (the payload carries no market). */
-export const reserveStatsResponseSchema = z.record(
-  z.string(),
-  reserveStatsSchema
-)
+export const reserveStatsResponseSchema = z.record(z.string(), z.unknown())
 export type KaminoReserveStatsBody = z.output<typeof reserveStatsSchema>
 
 // ── Reserve history ──────────────────────────────────────────────────────────
@@ -191,8 +188,9 @@ const historyRowSchema = z
     borrowFactor: m.borrowFactor,
   }))
 export const reserveHistoryResponseSchema = z.object({
-  history: z.array(historyRowSchema),
+  history: z.array(z.unknown()),
 })
+export { historyRowSchema }
 export type KaminoReserveHistoryPoint = z.output<typeof historyRowSchema>
 
 // ── Obligations ──────────────────────────────────────────────────────────────
@@ -266,5 +264,6 @@ const obligationSchema = z
       })),
     stats: o.refreshedStats ?? null,
   }))
-export const obligationsResponseSchema = z.array(obligationSchema)
+export const obligationsResponseSchema = z.array(z.unknown())
+export { obligationSchema }
 export type KaminoObligation = z.output<typeof obligationSchema>
