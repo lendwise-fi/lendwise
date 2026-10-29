@@ -20,6 +20,7 @@ import type {
 } from '@/lib/portfolio/types'
 import type { AppAdapter } from '@/lib/protocols/core/types'
 import { computeRiskAccounts } from '@/lib/risk/compute'
+import { cachedSolanaHoldings } from '@/lib/solana/holdings-cache'
 import { getSolanaWalletHoldings } from '@/lib/solana/wallet-holdings'
 import { getStellarWalletHoldings } from '@/lib/stellar/wallet-holdings'
 
@@ -40,6 +41,11 @@ const evmHoldings = cachedEvmHoldings((addresses) =>
   })
 )
 
+// Same for Solana: three RPC calls per wallet on every load otherwise.
+const solanaHoldings = cachedSolanaHoldings((addresses) =>
+  getSolanaWalletHoldings(addresses)
+)
+
 export async function loadUserPortfolio(
   wallets: PortfolioWalletInput[]
 ): Promise<UserPortfolioResult> {
@@ -48,7 +54,7 @@ export async function loadUserPortfolio(
     stellarAdapters: stellarPositionAdapters(),
     solanaAdapters: solanaPositionAdapters(),
     stellarHoldings: (addresses) => getStellarWalletHoldings(addresses),
-    solanaHoldings: (addresses) => getSolanaWalletHoldings(addresses),
+    solanaHoldings,
     evmHoldings,
     computeRisk: (accounts) => computeRiskAccounts(accounts),
   })
