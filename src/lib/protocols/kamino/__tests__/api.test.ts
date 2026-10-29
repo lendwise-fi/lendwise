@@ -15,6 +15,8 @@ import {
 } from '../common/config'
 import marketsMetadata from './fixtures/markets-metadata.json'
 import markets from './fixtures/markets.json'
+// Recorded obligation; its address and owner are synthetic (sha256 of a
+// label, base58), its market, reserves and amounts are real.
 import obligations from './fixtures/obligations.json'
 import historyDaily from './fixtures/reserve-history-daily-legacy.json'
 import historyHourly from './fixtures/reserve-history-hourly.json'
