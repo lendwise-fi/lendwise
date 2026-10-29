@@ -3,6 +3,10 @@ import { existsSync } from 'node:fs'
 import path from 'node:path'
 import { describe, expect, it } from 'vitest'
 
+import {
+  type SolanaChallengePayload,
+  buildSiwsMessage,
+} from '@/lib/auth/solana-siws'
 import type { SolanaSession, Wallet } from '@/stores/walletStore'
 
 import {
@@ -254,31 +258,28 @@ describe('solanaAccountChange', () => {
 })
 
 describe('siwsChallengeProblem', () => {
-  // The server's challenge, as documented by the sign-in routes.
+  // The challenge the server issues, its message built by the server's own
+  // `buildSiwsMessage`: a change of the server format that this check would
+  // refuse (and so break every sign-in) fails here.
   const challenge = (overrides: Partial<SiwsChallenge> = {}): SiwsChallenge => {
-    const nonce = '72a0d9854f7617da3c6dea3563a98d34'
-    return {
+    const issued: SolanaChallengePayload = {
       address: ALICE,
-      nonce,
-      message: [
-        `localhost:3000 wants you to sign in with your Solana account:`,
-        ALICE,
-        '',
-        'Sign in to LendWise with this Solana account. Signing sends no transaction and costs no fee.',
-        '',
-        'URI: http://localhost:3000',
-        'Version: 1',
-        'Chain ID: mainnet',
-        `Nonce: ${nonce}`,
-        'Issued At: 2026-10-29T11:37:13.000Z',
-        'Expiration Time: 2026-10-29T11:42:13.000Z',
-      ].join('\n'),
+      nonce: '72a0d9854f7617da3c6dea3563a98d34',
       domain: 'localhost:3000',
       uri: 'http://localhost:3000',
       issuedAt: '2026-10-29T11:37:13.000Z',
       expiresAt: '2026-10-29T11:42:13.000Z',
-      ...overrides,
+      message: '',
     }
+    issued.message = buildSiwsMessage({
+      domain: issued.domain,
+      uri: issued.uri,
+      address: issued.address,
+      nonce: issued.nonce,
+      issuedAt: issued.issuedAt,
+      expirationTime: issued.expiresAt,
+    })
+    return { ...issued, ...overrides }
   }
 
   it("accepts the server's challenge for this account, whatever host it names", () => {
