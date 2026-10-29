@@ -5,7 +5,7 @@
  * table here and changing variables, nothing else.
  */
 
-/** Networks reached over RPC: every tx chain (registry slugs) and Stellar's Soroban RPC. */
+/** Networks reached over RPC: every tx chain (registry slugs), Stellar's Soroban RPC and Solana. */
 export const RPC_NETWORKS = [
   'ethereum',
   'arbitrum',
@@ -24,6 +24,7 @@ export const RPC_NETWORKS = [
   'megaeth',
   'monad',
   'stellar',
+  'solana',
 ] as const
 export type RpcNetwork = (typeof RPC_NETWORKS)[number]
 
@@ -56,6 +57,8 @@ const PROVIDERS: Record<RpcProvider, ProviderTable> = {
       megaeth: 'megaeth-mainnet',
       monad: 'monad-mainnet',
       stellar: 'stellar-mainnet',
+      // Not served: Solana runs on its public RPC (PUBLIC_RPC_DEFAULTS).
+      solana: null,
     },
     url: (network, key) => `https://${network}.infura.io/v3/${key}`,
   },
@@ -79,9 +82,22 @@ const PROVIDERS: Record<RpcProvider, ProviderTable> = {
       megaeth: 'megaeth',
       monad: 'monad',
       stellar: 'stellar',
+      // dRPC serves Solana on paid plans only, unverified for our key.
+      solana: null,
     },
     url: (network, key) => `https://lb.drpc.live/${network}/${key}`,
   },
+}
+
+/**
+ * Networks the server reaches on a public endpoint when no `RPC_URL_<SLUG>`
+ * is set, never through a provider key. Solana: dRPC serves it on paid plans
+ * only (unverified for our key) and Infura not at all, so the provider tables
+ * above hold `null` for it and the public mainnet RPC (100 req/10 s per IP)
+ * is the default, paced by `src/lib/solana/rpc.ts`.
+ */
+export const PUBLIC_RPC_DEFAULTS: Partial<Record<RpcNetwork, string>> = {
+  solana: 'https://api.mainnet-beta.solana.com',
 }
 
 const NETWORKS: ReadonlySet<string> = new Set(RPC_NETWORKS)

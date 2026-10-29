@@ -112,6 +112,14 @@ export const ASSET_TO_COINGECKO_ID: Record<string, string> = {
   CBETH: 'coinbase-wrapped-staked-eth',
   WSTETH: 'wrapped-steth',
 
+  // Solana
+  SOL: 'solana',
+  JITOSOL: 'jito-staked-sol',
+  MSOL: 'msol',
+  JUPSOL: 'jupiter-staked-sol',
+  JLP: 'jupiter-perpetuals-liquidity-provider-token',
+  BONK: 'bonk',
+
   // Add more as needed
 }
 

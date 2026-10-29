@@ -110,6 +110,32 @@ describe('resolveServerRpc', () => {
     ).toThrow(/RPC_API_KEY/)
   })
 
+  it('reaches Solana on the public mainnet RPC, with no provider config', () => {
+    expect(resolveServerRpc('solana', {})).toEqual({
+      url: 'https://api.mainnet-beta.solana.com',
+      headers: {},
+    })
+    // The provider key is never used for Solana, whatever provider is set.
+    expect(resolveServerRpc('solana', { ...base })).toEqual({
+      url: 'https://api.mainnet-beta.solana.com',
+      headers: {},
+    })
+  })
+
+  it('lets RPC_URL_SOLANA replace the public RPC', () => {
+    expect(
+      resolveServerRpc('solana', {
+        RPC_URL_SOLANA: 'https://sol.example.org/key',
+        RPC_URL_SOLANA_SECRET: 's',
+      })
+    ).toEqual({
+      url: 'https://sol.example.org/key',
+      headers: {
+        Authorization: `Basic ${Buffer.from(':s').toString('base64')}`,
+      },
+    })
+  })
+
   it('needs no provider config when the network is overridden', () => {
     expect(
       resolveServerRpc('monad', { RPC_URL_MONAD: 'https://monad.example.org' })

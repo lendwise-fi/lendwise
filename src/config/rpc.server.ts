@@ -2,6 +2,7 @@ import 'server-only'
 
 import { cachedRpcJwt } from './rpc-jwt'
 import {
+  PUBLIC_RPC_DEFAULTS,
   type RpcNetwork,
   type RpcProvider,
   isRpcProvider,
@@ -67,7 +68,9 @@ function providerAuth(
  * own `RPC_URL_<SLUG>_SECRET` — the provider's secret never goes to another
  * host. Otherwise the provider URL with the server key and that provider's
  * own proof (Infura: the key's secret as Basic auth; dRPC: a signed JWT).
- * Null when the provider does not serve the network.
+ * A network with a public default (Solana) falls back to it, before and
+ * without any provider config. Null when the provider does not serve the
+ * network.
  */
 export function resolveServerRpc(
   network: RpcNetwork,
@@ -81,6 +84,9 @@ export function resolveServerRpc(
       headers: basicAuth(env[`${overrideVar}_SECRET`]?.trim()),
     }
   }
+
+  const publicDefault = PUBLIC_RPC_DEFAULTS[network]
+  if (publicDefault) return { url: publicDefault, headers: {} }
 
   const provider = env.NEXT_PUBLIC_RPC_PROVIDER?.trim()
   if (!isRpcProvider(provider)) {

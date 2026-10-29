@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
 import {
+  PUBLIC_RPC_DEFAULTS,
   RPC_NETWORKS,
   isRpcNetwork,
   isRpcProvider,
@@ -21,7 +22,7 @@ describe('rpcUrl', () => {
   })
 
   it('serves every network on Infura', () => {
-    for (const n of RPC_NETWORKS) {
+    for (const n of RPC_NETWORKS.filter((n) => n !== 'solana')) {
       expect(rpcUrl('infura', n, 'k')).toMatch(
         /^https:\/\/[a-z]+(-mainnet)?\.infura\.io\/v3\/k$/
       )
@@ -41,11 +42,19 @@ describe('rpcUrl', () => {
   })
 
   it('serves every network on dRPC', () => {
-    for (const n of RPC_NETWORKS) {
+    for (const n of RPC_NETWORKS.filter((n) => n !== 'solana')) {
       expect(rpcUrl('drpc', n, 'k')).toMatch(
         /^https:\/\/lb\.drpc\.live\/[a-z]+\/k$/
       )
     }
+  })
+
+  it('serves Solana on no provider: it has a public default instead', () => {
+    expect(rpcUrl('infura', 'solana', 'k')).toBeNull()
+    expect(rpcUrl('drpc', 'solana', 'k')).toBeNull()
+    expect(PUBLIC_RPC_DEFAULTS.solana).toBe(
+      'https://api.mainnet-beta.solana.com'
+    )
   })
 
   it('refuses an empty key instead of building a broken URL', () => {

@@ -35,10 +35,10 @@ export interface WalletHolding {
   /** Chain slug of the registry: 'stellar', 'linea', 'base', … */
   network: string
   owner: string
-  /** 'credit' = Stellar trustline, 'erc20' = EVM token contract. */
-  assetType: 'native' | 'credit' | 'erc20'
+  /** 'credit' = Stellar trustline, 'erc20' = EVM token contract, 'spl' = Solana token mint. */
+  assetType: 'native' | 'credit' | 'erc20' | 'spl'
   code: string
-  /** Stellar issuer or ERC-20 contract; null for the native asset. */
+  /** Stellar issuer, ERC-20 contract or SPL mint; null for the native asset. */
   issuer: string | null
   balance: number
   priceUsd: number | null
