@@ -61,6 +61,33 @@ export const KAMINO_POSITIONS_CONCURRENCY = 4
 export const KAMINO_OBLIGATIONS_TIMEOUT_MS = 6_000
 
 /**
+ * Wallets one positions read covers; the portfolio flags the others as
+ * unavailable. A cold read costs one obligations call per market per wallet
+ * (50 markets on 2026-10-29). At 4 in flight and up to 223 ms per call
+ * (measured), that is up to 2.8 s per wallet. Three wallets, plus the reserve
+ * accounts and stats of the markets with a loan (about 2 s), fit the 12 s
+ * source limit.
+ */
+export const KAMINO_POSITIONS_MAX_WALLETS = 3
+
+/**
+ * How long one (market, wallet) obligations list is reused. Opening a page
+ * runs several portfolio loads within seconds; this makes them one read, as
+ * EVM_HOLDINGS_TTL_MS does for EVM balances. Kamino itself serves these
+ * responses from a cache of about 300 s, so 30 s adds little staleness.
+ */
+export const KAMINO_OBLIGATIONS_TTL_MS = 30_000
+
+/**
+ * How long the market list and each market's reserve accounts and stats are
+ * reused, across wallets. These change slowly: weights change by governance,
+ * and the exchange and borrow rates move by about 1e-6 in 5 minutes at 10 %
+ * APY. Kamino caches its responses for about as long. The health factor's
+ * prices do not come from here: they come from `apy_hourly`.
+ */
+export const KAMINO_MARKET_DATA_TTL_MS = 300_000
+
+/**
  * Reserves whose history is fetched at the same time by `getApyHistory`.
  * Kamino publishes no rate limit, so this stays small; each reserve already
  * issues its chunks one after the other.

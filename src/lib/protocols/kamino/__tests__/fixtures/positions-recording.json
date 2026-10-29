@@ -1,5 +1,5 @@
 {
-  "_note": "Kamino API, primary market, recorded together at 2026-10-29T12:46:49Z: obligations per wallet (/kamino-market/{m}/users/{w}/obligations), the Reserve accounts they touch (/kamino-market/reserves/account-data), their batch stats and metadata (/reserves/batch/stats, /markets/batch/metadata) and each obligation's /klend/loans/{obligation} (amount oracle, test only). Trimmed to the fields read.",
+  "_note": "Kamino API, primary market, recorded together at 2026-10-29T12:46:49Z: obligations per wallet (/kamino-market/{m}/users/{w}/obligations), the Reserve accounts they touch (/kamino-market/reserves/account-data), their batch stats and metadata (/reserves/batch/stats, /markets/batch/metadata) and each obligation's /klend/loans/{obligation} (amount oracle, test only). Trimmed to the fields read. Wallet and obligation addresses are synthetic (sha256 of a label, base58); markets, reserves, mints and account bytes are real.",
   "recordedAt": "2026-10-29T12:46:49Z",
   "market": "7u3HeHxYDLhnCoErrtycNokbQYbWGzLs6JSDqGAv5PfF",
   "obligations": {

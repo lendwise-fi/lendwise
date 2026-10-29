@@ -10,18 +10,25 @@ import {
   type KaminoReserveAccount,
   type KaminoReserveStats,
 } from '../../common/api'
-import { KAMINO_POSITIONS_CONCURRENCY } from '../../common/config'
+import {
+  KAMINO_MARKET_DATA_TTL_MS,
+  KAMINO_OBLIGATIONS_TTL_MS,
+  KAMINO_POSITIONS_CONCURRENCY,
+  KAMINO_POSITIONS_MAX_WALLETS,
+} from '../../common/config'
 import { decodeReserveAccount } from '../../common/reserve-account'
-import { obligationSchema } from '../../common/schemas'
+import { obligationSchema, reserveStatsSchema } from '../../common/schemas'
 import { assetPriceUsd } from '../apy-spot'
 import {
   borrowPositionsFromReading,
+  clearKaminoPositionsCache,
   kaminoPriceKey,
   loadKaminoReadings,
   positionsAdapter,
   readingFromObligation,
   riskAccountFromReading,
   supplyPositionsFromReading,
+  weightsMatchStats,
 } from '../positions'
 
 vi.mock('@/lib/risk/prices', () => ({
@@ -93,6 +100,8 @@ const urls = () => fetchMock.mock.calls.map(([input]) => new URL(String(input)))
 afterEach(() => {
   fetchMock.mockReset()
   vi.restoreAllMocks()
+  vi.useRealTimers()
+  clearKaminoPositionsCache()
 })
 
 /** The recording through the real client, without the network. */
@@ -271,6 +280,109 @@ describe('loadKaminoReadings', () => {
     await expect(loadKaminoReadings([WALLET_A])).rejects.toThrow(BSOL)
   })
 
+  it('issues no call once the signal aborts', async () => {
+    const controller = new AbortController()
+    let started = 0
+    fetchMock.mockImplementation(async (input) => {
+      const url = new URL(String(input))
+      if (!url.pathname.endsWith('/obligations')) return serveRecording(url)
+      started++
+      // The source deadline passes while the first calls are in flight.
+      if (started === KAMINO_POSITIONS_CONCURRENCY) controller.abort()
+      await new Promise((resolve) => setTimeout(resolve, 2))
+      return json([])
+    })
+    const wallets = Array.from(
+      { length: 3 },
+      (_, i) => `${WALLET_A.slice(0, -1)}${i}`
+    )
+
+    await expect(
+      loadKaminoReadings(wallets, { signal: controller.signal })
+    ).rejects.toBeDefined()
+    const issued = urls().length
+    await new Promise((resolve) => setTimeout(resolve, 20))
+
+    // markets + the calls already in flight; none of the other 2 x 3 - 4.
+    expect(started).toBe(KAMINO_POSITIONS_CONCURRENCY)
+    expect(urls()).toHaveLength(issued)
+  })
+
+  it('issues nothing when the signal has already aborted', async () => {
+    fetchMock.mockImplementation(async (input) =>
+      serveRecording(new URL(String(input)))
+    )
+    await expect(
+      loadKaminoReadings([WALLET_A], { signal: AbortSignal.abort() })
+    ).rejects.toBeDefined()
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+
+  it('serves a repeated read from the cache without a call', async () => {
+    const first = await recordedReadings()
+    const calls = fetchMock.mock.calls.length
+    expect(calls).toBeGreaterThan(0)
+
+    const second = await loadKaminoReadings([WALLET_A, WALLET_B])
+
+    expect(fetchMock.mock.calls.length).toBe(calls)
+    expect(second).toEqual(first)
+  })
+
+  it('shares market data across wallets and re-reads lists after their TTL', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    await recordedReadings()
+    const before = urls().length
+
+    // Another wallet: only its obligation lists are new.
+    const other = `${WALLET_B.slice(0, -1)}9`
+    await loadKaminoReadings([other])
+    const newCalls = urls().slice(before)
+    expect(newCalls).toHaveLength(MARKETS_BODY.length)
+    expect(newCalls.every((u) => u.pathname.endsWith('/obligations'))).toBe(
+      true
+    )
+
+    // Obligation lists expire first; markets, accounts and stats later.
+    vi.setSystemTime(Date.now() + KAMINO_OBLIGATIONS_TTL_MS)
+    const mark = urls().length
+    await loadKaminoReadings([WALLET_A])
+    expect(
+      urls()
+        .slice(mark)
+        .every((u) => u.pathname.endsWith('/obligations'))
+    ).toBe(true)
+    expect(urls().length - mark).toBe(MARKETS_BODY.length)
+
+    vi.setSystemTime(Date.now() + KAMINO_MARKET_DATA_TTL_MS)
+    const late = urls().length
+    await loadKaminoReadings([WALLET_A])
+    const paths = urls()
+      .slice(late)
+      .map((u) => u.pathname)
+    expect(paths).toContain('/v2/kamino-market')
+    expect(paths).toContain('/kamino-market/reserves/account-data')
+    expect(paths).toContain('/reserves/batch/stats')
+  })
+
+  it('keeps no failed read', async () => {
+    fetchMock.mockImplementation(async (input) => {
+      const url = new URL(String(input))
+      if (url.pathname === '/kamino-market/reserves/account-data') {
+        return new Response('boom', { status: 502 })
+      }
+      return serveRecording(url)
+    })
+    await expect(loadKaminoReadings([WALLET_A])).rejects.toMatchObject({
+      status: 502,
+    })
+
+    fetchMock.mockImplementation(async (input) =>
+      serveRecording(new URL(String(input)))
+    )
+    await expect(loadKaminoReadings([WALLET_A])).resolves.toHaveLength(4)
+  })
+
   it('reads nothing without a wallet', async () => {
     await expect(loadKaminoReadings([])).resolves.toEqual([])
     expect(fetchMock).not.toHaveBeenCalled()
@@ -341,7 +453,7 @@ describe('Kamino health factor', () => {
     const reading = readingFromObligation(obligation, {
       marketName: 'SOL/BTC Market',
       reserves,
-      stats: new Map(),
+      stats: statsMap(),
     })
     expect(riskAccountFromReading(reading)!.reserves).toEqual([
       expect.objectContaining({ symbol: 'bSOL', collateralWeight: 0.92 }),
@@ -354,7 +466,7 @@ describe('Kamino health factor', () => {
     const reading = readingFromObligation(obligation, {
       marketName: 'SOL/BTC Market',
       reserves: reserveMap(),
-      stats: new Map(),
+      stats: statsMap(),
     })
     const account = riskAccountFromReading(reading)!
     expect(account.reserves[0].collateralWeight).toBeNull()
@@ -363,6 +475,55 @@ describe('Kamino health factor', () => {
       reason: 'invalid-weight',
       symbols: ['bSOL'],
     })
+  })
+
+  it('confirms every recorded reserve weight with its batch stats', () => {
+    const stats = statsMap()
+    for (const reserve of reserveMap().values()) {
+      expect(weightsMatchStats(reserve, stats.get(reserve.reserve))).toBe(true)
+    }
+    const [any] = reserveMap().values()
+    expect(weightsMatchStats(any, undefined)).toBe(false)
+  })
+
+  it('fails closed on a reserve whose decoded weights the stats contradict', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const tampered = structuredClone(recording.stats) as Record<
+      string,
+      Record<string, unknown>
+    >
+    tampered[SOL].borrowFactor = '1.5'
+    tampered[USDC].liqLTV = '0.85'
+    fetchMock.mockImplementation(async (input) => {
+      const url = new URL(String(input))
+      if (url.pathname === '/reserves/batch/stats') return json(tampered)
+      return serveRecording(url)
+    })
+
+    const readings = await loadKaminoReadings([WALLET_A, WALLET_B])
+
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining(SOL))
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining(USDC))
+    const prices = recordedPrices()
+    const results = readings.flatMap((r) => {
+      const account = riskAccountFromReading(r)
+      return account ? [calculateHealthFactor(account.reserves, prices)] : []
+    })
+    // Every recorded loan touches SOL or USDC: none gets a number.
+    expect(results).toHaveLength(5)
+    for (const result of results) {
+      expect(result).toMatchObject({
+        status: 'unknown',
+        reason: 'invalid-weight',
+      })
+    }
+    const leverage = riskAccountFromReading(
+      readings.find((r) => r.obligation === LEVERAGE)!
+    )!
+    expect(leverage.reserves).toEqual([
+      expect.objectContaining({ symbol: 'USDC', collateralWeight: null }),
+      expect.objectContaining({ symbol: 'SOL', liabilityWeight: null }),
+    ])
   })
 
   it('is unknown when a reserve has no price', async () => {
@@ -488,6 +649,31 @@ describe('positionsAdapter', () => {
     ).toHaveLength(1)
   })
 
+  it(`declares a cap of ${KAMINO_POSITIONS_MAX_WALLETS} wallets and refuses more`, async () => {
+    expect(positionsAdapter.maxAddresses).toBe(KAMINO_POSITIONS_MAX_WALLETS)
+    const many = Array.from(
+      { length: KAMINO_POSITIONS_MAX_WALLETS + 1 },
+      (_, i) => `${WALLET_A.slice(0, -1)}${i}`
+    )
+    await expect(
+      positionsAdapter.getUserSupplyPositions({ addresses: many })
+    ).rejects.toThrow(`at most ${KAMINO_POSITIONS_MAX_WALLETS}`)
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+
+  it('passes the portfolio signal down to the Kamino calls', async () => {
+    fetchMock.mockImplementation(async (input) =>
+      serveRecording(new URL(String(input)))
+    )
+    await expect(
+      positionsAdapter.getUserSupplyPositions({
+        addresses: [WALLET_A],
+        signal: AbortSignal.abort(),
+      })
+    ).rejects.toBeDefined()
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+
   it('escapes the wallet in the request path', async () => {
     fetchMock.mockImplementation(async (input) =>
       serveRecording(new URL(String(input)))
@@ -506,6 +692,15 @@ function findObligation(address: string): KaminoObligation {
     all.find(
       (o) => (o as { obligationAddress: string }).obligationAddress === address
     )
+  )
+}
+
+function statsMap(): Map<string, KaminoReserveStats> {
+  return new Map(
+    Object.entries(recording.stats).map(([reserve, raw]) => [
+      reserve,
+      { ...reserveStatsSchema.parse(raw), market: MARKET, reserve },
+    ])
   )
 }
 

@@ -21,11 +21,25 @@ import {
 } from './types'
 import { withTimeout } from './with-timeout'
 
-/** What the merge needs from any adapter, EVM, Stellar or Solana. */
+/**
+ * What the merge needs from any adapter, EVM, Stellar or Solana. `signal`
+ * aborts at the source's deadline; `maxAddresses` caps the wallets of one
+ * call (see `SolanaPositionsAdapter`).
+ */
 export interface PositionsSource<A extends string> {
-  getUserSupplyPositions(p: { addresses: A[] }): Promise<SupplyPosition[]>
-  getUserBorrowPositions(p: { addresses: A[] }): Promise<BorrowPosition[]>
-  getRiskAccounts?(p: { addresses: A[] }): Promise<RiskAccount[]>
+  maxAddresses?: number
+  getUserSupplyPositions(p: {
+    addresses: A[]
+    signal?: AbortSignal
+  }): Promise<SupplyPosition[]>
+  getUserBorrowPositions(p: {
+    addresses: A[]
+    signal?: AbortSignal
+  }): Promise<BorrowPosition[]>
+  getRiskAccounts?(p: {
+    addresses: A[]
+    signal?: AbortSignal
+  }): Promise<RiskAccount[]>
 }
 
 type Loaders<A extends string> = Record<
@@ -85,6 +99,26 @@ function failure(
   return { chainFamily, source, message: GENERIC_FAILURE_MESSAGE }
 }
 
+/**
+ * A source that read only `maxAddresses` of the wallets: the rest are flagged
+ * like a failure (the banner names the source), not silently dropped.
+ */
+function walletLimitFailure(
+  chainFamily: PortfolioChainFamily,
+  source: string,
+  skipped: number,
+  limit: number
+): PortfolioPartialFailure {
+  console.warn(
+    `[portfolio] ${chainFamily}/${source}: ${skipped} wallet(s) over the limit of ${limit} not read`
+  )
+  return {
+    chainFamily,
+    source,
+    message: `${skipped} wallet(s) over the limit of ${limit} not read`,
+  }
+}
+
 /** Every adapter of a family, each settled on its own. */
 async function loadAdapters<A extends string>(
   chainFamily: PortfolioChainFamily,
@@ -99,6 +133,10 @@ async function loadAdapters<A extends string>(
   const settled = await Promise.allSettled(
     entries.map(async ([, load]) => {
       const deadline = Date.now() + timeoutMs
+      // Aborts with the deadline: an adapter that fans out stops issuing
+      // calls instead of running on after the source has been given up.
+      const signal = AbortSignal.timeout(Math.max(0, timeoutMs))
+      let read = addresses
       let riskRead:
         | Promise<
             { ok: true; value: RiskAccount[] } | { ok: false; reason: unknown }
@@ -106,28 +144,41 @@ async function loadAdapters<A extends string>(
         | undefined
       const positions = async () => {
         const adapter = await load()
+        if (adapter.maxAddresses != null) {
+          read = addresses.slice(0, Math.max(0, adapter.maxAddresses))
+        }
+        const query = { addresses: read, signal }
         // Concurrent on purpose: adapters dedupe the shared upstream read.
         // Risk settles apart: its failure must not discard good positions.
         riskRead = Promise.resolve(
           adapter.getRiskAccounts
-            ? adapter.getRiskAccounts({ addresses })
+            ? adapter.getRiskAccounts(query)
             : ([] as RiskAccount[])
         ).then(
           (value) => ({ ok: true as const, value }),
           (reason: unknown) => ({ ok: false as const, reason })
         )
         const [supply, borrow] = await Promise.all([
-          adapter.getUserSupplyPositions({ addresses }),
-          adapter.getUserBorrowPositions({ addresses }),
+          adapter.getUserSupplyPositions(query),
+          adapter.getUserBorrowPositions(query),
         ])
-        return { supply, borrow }
+        return { supply, borrow, limit: adapter.maxAddresses }
       }
-      const { supply, borrow } = await withTimeout(positions(), timeoutMs)
+      const { supply, borrow, limit } = await withTimeout(
+        positions(),
+        timeoutMs
+      )
       const risk = await withTimeout(
         riskRead as NonNullable<typeof riskRead>,
         deadline - Date.now()
       ).catch((reason: unknown) => ({ ok: false as const, reason }))
-      return { supply, borrow, risk }
+      return {
+        supply,
+        borrow,
+        risk,
+        skipped: addresses.length - read.length,
+        limit,
+      }
     })
   )
 
@@ -139,6 +190,16 @@ async function loadAdapters<A extends string>(
       if (s.value.risk.ok) result.riskAccounts.push(...s.value.risk.value)
       else
         result.failures.push(failure(chainFamily, source, s.value.risk.reason))
+      if (s.value.skipped > 0) {
+        result.failures.push(
+          walletLimitFailure(
+            chainFamily,
+            source,
+            s.value.skipped,
+            s.value.limit ?? 0
+          )
+        )
+      }
     } else {
       result.failures.push(failure(chainFamily, source, s.reason))
     }

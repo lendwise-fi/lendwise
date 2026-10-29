@@ -65,12 +65,29 @@ export class KaminoApiError extends Error {
   }
 }
 
+/**
+ * `timeoutMs` bounds this call; `signal` is the caller's own deadline: once it
+ * aborts, the call is not issued (or is cut) and rejects as `timeout`.
+ */
+export interface KaminoRequestOptions {
+  timeoutMs?: number
+  signal?: AbortSignal
+}
+
 async function request<T>(
   path: string,
   params: Record<string, string | readonly string[]>,
   schema: ZodType<T>,
-  timeoutMs: number = KAMINO_REQUEST_TIMEOUT_MS
+  opts: KaminoRequestOptions = {}
 ): Promise<T> {
+  const timeoutMs = opts.timeoutMs ?? KAMINO_REQUEST_TIMEOUT_MS
+  if (opts.signal?.aborted) {
+    throw new KaminoApiError(
+      'timeout',
+      path,
+      "aborted at the caller's deadline"
+    )
+  }
   const url = new URL(path, KAMINO_API_URL)
   for (const [key, value] of Object.entries(params)) {
     for (const v of typeof value === 'string' ? [value] : value) {
@@ -82,9 +99,18 @@ async function request<T>(
   try {
     response = await fetch(url, {
       headers: { Accept: 'application/json' },
-      signal: AbortSignal.timeout(timeoutMs),
+      signal: opts.signal
+        ? AbortSignal.any([AbortSignal.timeout(timeoutMs), opts.signal])
+        : AbortSignal.timeout(timeoutMs),
     })
   } catch (error) {
+    if (opts.signal?.aborted) {
+      throw new KaminoApiError(
+        'timeout',
+        path,
+        "aborted at the caller's deadline"
+      )
+    }
     if (error instanceof Error && error.name === 'TimeoutError') {
       throw new KaminoApiError(
         'timeout',
@@ -172,8 +198,10 @@ function chunk<T>(items: readonly T[], size: number): T[][] {
 }
 
 /** All lending markets (`/v2/kamino-market`). Addresses keep their base58 case. */
-export function fetchMarkets(): Promise<KaminoMarket[]> {
-  return request('/v2/kamino-market', {}, marketsResponseSchema)
+export function fetchMarkets(
+  opts: KaminoRequestOptions = {}
+): Promise<KaminoMarket[]> {
+  return request('/v2/kamino-market', {}, marketsResponseSchema, opts)
 }
 
 /**
@@ -183,7 +211,8 @@ export function fetchMarkets(): Promise<KaminoMarket[]> {
  * to tag every reserve with its market.
  */
 export async function fetchReserveStats(
-  markets: readonly string[]
+  markets: readonly string[],
+  opts: KaminoRequestOptions = {}
 ): Promise<KaminoReserveStats[]> {
   const out: KaminoReserveStats[] = []
   for (const batch of chunk(
@@ -192,11 +221,17 @@ export async function fetchReserveStats(
   )) {
     const market = batch.join(',')
     const [stats, metadata] = await Promise.all([
-      request('/reserves/batch/stats', { market }, reserveStatsResponseSchema),
+      request(
+        '/reserves/batch/stats',
+        { market },
+        reserveStatsResponseSchema,
+        opts
+      ),
       request(
         '/markets/batch/metadata',
         { market },
-        marketsMetadataResponseSchema
+        marketsMetadataResponseSchema,
+        opts
       ),
     ])
     const path = '/reserves/batch/stats'
@@ -223,7 +258,8 @@ export async function fetchReserveStats(
  * cannot be decoded is skipped with a warning.
  */
 export async function fetchReserveAccounts(
-  markets: readonly string[]
+  markets: readonly string[],
+  opts: KaminoRequestOptions = {}
 ): Promise<KaminoReserveAccount[]> {
   const path = '/kamino-market/reserves/account-data'
   const out: KaminoReserveAccount[] = []
@@ -234,7 +270,8 @@ export async function fetchReserveAccounts(
     const raw = await request(
       path,
       { markets: batch, env: KAMINO_ENV },
-      reserveAccountsResponseSchema
+      reserveAccountsResponseSchema,
+      opts
     )
     for (const entry of raw) {
       const items = parseEach(
@@ -312,19 +349,19 @@ export async function fetchReserveHistory(params: {
  * Obligations of `wallet` in `market` (empty when the wallet has none). Both
  * path segments are escaped; base58 case is kept. `strict` rejects the call
  * when any obligation is malformed (wallet positions: a hidden loan would
- * understate the risk); `timeoutMs` overrides `KAMINO_REQUEST_TIMEOUT_MS`.
+ * understate the risk); see `KaminoRequestOptions` for the time limits.
  */
 export async function fetchObligations(
   market: string,
   wallet: string,
-  opts: { strict?: boolean; timeoutMs?: number } = {}
+  opts: KaminoRequestOptions & { strict?: boolean } = {}
 ): Promise<KaminoObligation[]> {
   const path = `/kamino-market/${encodeURIComponent(market)}/users/${encodeURIComponent(wallet)}/obligations`
   const raw = await request(
     path,
     { env: KAMINO_ENV },
     obligationsResponseSchema,
-    opts.timeoutMs
+    { timeoutMs: opts.timeoutMs, signal: opts.signal }
   )
   return parseEach(
     path,

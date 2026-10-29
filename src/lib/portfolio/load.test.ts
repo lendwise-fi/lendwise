@@ -507,6 +507,71 @@ describe('loadPortfolio', () => {
       expect(result.positions.supply.aave_v3).toEqual([supply('aave')])
     })
 
+    // Synthetic base58 keys (32 bytes), no real wallet.
+    const SOL_WALLETS = [
+      SOL,
+      'qfW7mP3Qj9ADkju9JkXmqMAEZJDWSCYXHeiwQwXNP1s',
+      'HyvV6PHz5MgMaa9BQSgT3FeD4NUFesGx4UmDLvwiLpb',
+      'DctTH9Gb8xDVt4LNE7yh3TzKwxgmUshdzvf6TVqs4S3D',
+    ]
+
+    it('reads at most maxAddresses wallets and flags the others, never silently', async () => {
+      vi.spyOn(console, 'warn').mockImplementation(() => {})
+      const kamino = { ...source<string>([supply('kamino')]), maxAddresses: 3 }
+      const solanaHoldings = vi.fn(async () => [])
+      const result = await loadPortfolio(
+        SOL_WALLETS.map((address) => ({
+          address,
+          chainFamily: 'solana' as const,
+        })),
+        deps({
+          solanaAdapters: { kamino_v1: async () => kamino },
+          solanaHoldings,
+        })
+      )
+      expect(kamino.calls).toEqual([SOL_WALLETS.slice(0, 3)])
+      // Balances are one cheap RPC read per wallet: all of them.
+      expect(solanaHoldings).toHaveBeenCalledWith(SOL_WALLETS)
+      expect(result.positions.supply.kamino_v1).toEqual([supply('kamino')])
+      expect(result.failures).toEqual([
+        {
+          chainFamily: 'solana',
+          source: 'kamino_v1',
+          message: '1 wallet(s) over the limit of 3 not read',
+        },
+      ])
+    })
+
+    it('hands each source a signal that aborts at its deadline', async () => {
+      let seen: AbortSignal | undefined
+      const result = await loadPortfolio(
+        allWallets,
+        deps({
+          sourceTimeoutMs: 20,
+          solanaAdapters: {
+            kamino_v1: async () => ({
+              getUserSupplyPositions: ({ signal }) => {
+                seen = signal
+                return new Promise<SupplyPosition[]>(() => {})
+              },
+              getUserBorrowPositions: () =>
+                new Promise<BorrowPosition[]>(() => {}),
+            }),
+          },
+        })
+      )
+      expect(result.failures).toEqual([
+        {
+          chainFamily: 'solana',
+          source: 'kamino_v1',
+          message: 'Temporarily unavailable',
+        },
+      ])
+      // Same deadline as the source limit; let a timer of that tick run.
+      await new Promise((resolve) => setTimeout(resolve, 5))
+      expect(seen?.aborted).toBe(true)
+    })
+
     it('computes risk on the Kamino accounts with the other families', async () => {
       const computeRisk = vi.fn(async () => [])
       await loadPortfolio(

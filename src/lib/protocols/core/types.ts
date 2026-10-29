@@ -244,14 +244,30 @@ export interface AppAdapter {
 }
 
 /**
+ * What a portfolio read hands a positions adapter: the wallets, and the
+ * source's deadline. An adapter that fans out stops issuing calls once
+ * `signal` aborts.
+ */
+export interface PositionsQuery {
+  addresses: string[]
+  signal?: AbortSignal
+}
+
+/**
  * Position contract of a lending adapter whose wallets are plain strings, not
  * viem addresses: the same position and risk-account shapes out as an EVM
  * AppAdapter.
  */
 interface StringAddressPositionsAdapter {
-  getUserSupplyPositions(p: { addresses: string[] }): Promise<SupplyPosition[]>
-  getUserBorrowPositions(p: { addresses: string[] }): Promise<BorrowPosition[]>
-  getRiskAccounts?(p: { addresses: string[] }): Promise<RiskAccount[]>
+  /**
+   * Most wallets one call covers, for an adapter whose cost grows per wallet.
+   * The portfolio passes at most this many and reports the others as
+   * unavailable, never silently dropped.
+   */
+  maxAddresses?: number
+  getUserSupplyPositions(p: PositionsQuery): Promise<SupplyPosition[]>
+  getUserBorrowPositions(p: PositionsQuery): Promise<BorrowPosition[]>
+  getRiskAccounts?(p: PositionsQuery): Promise<RiskAccount[]>
 }
 
 /** Stellar lending adapter: `G…` addresses in. */

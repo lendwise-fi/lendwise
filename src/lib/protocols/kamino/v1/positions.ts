@@ -1,5 +1,6 @@
 import { CHAIN_SLUG_MAP } from '@/lib/protocols/core/toolkit/chain-slugs'
 import { dedupeInFlight } from '@/lib/protocols/core/toolkit/inflight'
+import { TtlCache } from '@/lib/protocols/core/toolkit/ttl-cache'
 import { toBaseUnits } from '@/lib/protocols/core/toolkit/units'
 import type { SolanaPositionsAdapter } from '@/lib/protocols/core/types'
 import { resolveRiskPrices } from '@/lib/risk/prices'
@@ -14,6 +15,7 @@ import {
 import type { BorrowPosition, SupplyPosition } from '@/types'
 
 import {
+  type KaminoMarket,
   type KaminoObligation,
   type KaminoReserveAccount,
   type KaminoReserveStats,
@@ -23,8 +25,11 @@ import {
   fetchReserveStats,
 } from '../common/api'
 import {
+  KAMINO_MARKET_DATA_TTL_MS,
   KAMINO_OBLIGATIONS_TIMEOUT_MS,
+  KAMINO_OBLIGATIONS_TTL_MS,
   KAMINO_POSITIONS_CONCURRENCY,
+  KAMINO_POSITIONS_MAX_WALLETS,
 } from '../common/config'
 import { SOLANA_CHAIN_ID } from '../listing'
 import { assetPriceUsd } from './apy-spot'
@@ -49,6 +54,12 @@ import { buildProductId } from './utils'
  * reserve's last refresh, not projected to the current slot). Weights follow
  * the same SDK: in an elevation group the reserve belongs to, the group's
  * liquidation threshold and a borrow factor of 1; otherwise the reserve's own.
+ * The decoded weights must match the reserve's batch stats, or that reserve's
+ * weights are unknown and every health factor exposed to it fails closed.
+ *
+ * Cost: a cold read is one call per market and wallet, so a read covers at
+ * most `KAMINO_POSITIONS_MAX_WALLETS` wallets, stops issuing calls when the
+ * caller's signal aborts, and reuses lists and market data for a short TTL.
  */
 
 const PROTOCOL = 'kamino_v1' as const
@@ -75,8 +86,8 @@ export interface KaminoDepositReading extends KaminoPositionReading {
 }
 
 export interface KaminoBorrowReading extends KaminoPositionReading {
-  /** Effective for this obligation: 1 in eMode. */
-  borrowFactor: number
+  /** Effective for this obligation: 1 in eMode; null = unverified reserve. */
+  borrowFactor: number | null
 }
 
 export interface KaminoObligationReading {
@@ -103,13 +114,50 @@ export function kaminoPriceKey(market: string, reserve: string): PriceKey {
   return { productId: buildProductId(market, reserve, 'supply'), leg: 'asset' }
 }
 
+/** Below this, a decoded weight and its batch-stats value are the same. */
+const WEIGHT_TOLERANCE = 1e-6
+
+/**
+ * The decoded weights (u8 / u64 percentages of the on-chain config) equal the
+ * reserve's batch stats (`maxLTV`, `liqLTV`, `borrowFactor`). A mismatch means
+ * the decoder read the wrong bytes (layout change), or the two reads are from
+ * either side of a config change: either way the weights are not trusted.
+ * Missing stats cannot vouch for them either.
+ */
+export function weightsMatchStats(
+  reserve: KaminoReserveAccount,
+  stats: KaminoReserveStats | undefined
+): boolean {
+  if (!stats) return false
+  return (
+    Math.abs(reserve.liquidationThreshold - stats.liquidationLtv) <=
+      WEIGHT_TOLERANCE &&
+    Math.abs(reserve.maxLtv - stats.maxLtv) <= WEIGHT_TOLERANCE &&
+    Math.abs(reserve.borrowFactor - stats.borrowFactor) <= WEIGHT_TOLERANCE
+  )
+}
+
+const UNKNOWN_WEIGHTS = {
+  liquidationThreshold: null,
+  maxLtv: null,
+  borrowFactor: null,
+}
+
 /**
  * klend-sdk `getLtvForReserve` / `getBorrowFactorForReserve`: the group's
  * weights apply only when the obligation is in a group AND the reserve is in
- * that group. A group the market does not list leaves the threshold unknown,
- * so the health factor fails closed.
+ * that group. A group the market does not list, or a reserve whose decoded
+ * weights the stats do not confirm, leaves the weights unknown, so the health
+ * factor fails closed.
  */
-function weightsFor(o: KaminoObligation, reserve: KaminoReserveAccount) {
+function weightsFor(
+  o: KaminoObligation,
+  reserve: KaminoReserveAccount,
+  ctx: KaminoMarketContext
+) {
+  if (!weightsMatchStats(reserve, ctx.stats.get(reserve.reserve))) {
+    return UNKNOWN_WEIGHTS
+  }
   const inGroup =
     o.elevationGroup !== 0 && reserve.elevationGroups.includes(o.elevationGroup)
   if (!inGroup) {
@@ -164,7 +212,7 @@ export function readingFromObligation(
     elevationGroup: o.elevationGroup,
     deposits: o.deposits.map((d) => {
       const reserve = reserveOf(d.reserve)
-      const { liquidationThreshold, maxLtv } = weightsFor(o, reserve)
+      const { liquidationThreshold, maxLtv } = weightsFor(o, reserve, ctx)
       return {
         ...base(reserve),
         amount:
@@ -195,7 +243,7 @@ export function readingFromObligation(
             reserve.reserve,
             (s) => s.borrowApyBreakdown.borrow - s.borrowApyBreakdown.incentives
           ) ?? 0,
-        borrowFactor: weightsFor(o, reserve).borrowFactor,
+        borrowFactor: weightsFor(o, reserve, ctx).borrowFactor,
       }
     }),
   }
@@ -251,7 +299,8 @@ export function riskAccountFromReading(
     x.liability += b.amount
     // The health factor divides by liabilityWeight: 1 / borrowFactor turns
     // that into Kamino's borrow-factor-adjusted debt.
-    x.liabilityWeight = b.borrowFactor > 0 ? 1 / b.borrowFactor : null
+    x.liabilityWeight =
+      b.borrowFactor != null && b.borrowFactor > 0 ? 1 / b.borrowFactor : null
   }
   return {
     id: accountId(r),
@@ -364,18 +413,21 @@ export function borrowPositionsFromReading(
 
 /**
  * `fn` over `items`, at most `limit` at a time, results in order. The first
- * rejection rejects the whole call and stops scheduling new items.
+ * rejection rejects the whole call; neither it nor an aborted `signal` lets a
+ * new item start.
  */
 async function mapBounded<T, R>(
   items: readonly T[],
   limit: number,
-  fn: (item: T) => Promise<R>
+  fn: (item: T) => Promise<R>,
+  signal?: AbortSignal
 ): Promise<R[]> {
   const results = new Array<R>(items.length)
   let next = 0
   let failed = false
   const worker = async () => {
     while (!failed && next < items.length) {
+      signal?.throwIfAborted()
       const i = next++
       try {
         results[i] = await fn(items[i])
@@ -391,82 +443,162 @@ async function mapBounded<T, R>(
   return results
 }
 
+// Shared by every wallet and every load of this server instance. Only complete
+// reads are kept; a failure is retried by the next load.
+const marketsCache = new TtlCache<KaminoMarket[]>({
+  ttlMs: KAMINO_MARKET_DATA_TTL_MS,
+  maxEntries: 1,
+})
+const accountsCache = new TtlCache<KaminoReserveAccount[]>({
+  ttlMs: KAMINO_MARKET_DATA_TTL_MS,
+  maxEntries: 200,
+})
+const statsCache = new TtlCache<KaminoReserveStats[]>({
+  ttlMs: KAMINO_MARKET_DATA_TTL_MS,
+  maxEntries: 200,
+})
+const obligationsCache = new TtlCache<KaminoObligation[]>({
+  ttlMs: KAMINO_OBLIGATIONS_TTL_MS,
+  maxEntries: 5_000,
+})
+
+/** Tests: forget every cached Kamino read. */
+export function clearKaminoPositionsCache(): void {
+  marketsCache.clear()
+  accountsCache.clear()
+  statsCache.clear()
+  obligationsCache.clear()
+}
+
 /**
  * Every obligation of `addresses` across Kamino's markets, converted. Any
- * failed read rejects: a partial answer would show a loan as absent.
+ * failed read rejects: a partial answer would show a loan as absent. Once
+ * `signal` aborts, no further call is issued.
  */
 export async function loadKaminoReadings(
-  addresses: string[]
+  addresses: string[],
+  opts: { signal?: AbortSignal } = {}
 ): Promise<KaminoObligationReading[]> {
   if (addresses.length === 0) return []
-  const markets = await fetchMarkets()
+  const { signal } = opts
+  signal?.throwIfAborted()
+  const markets = await marketsCache.get('all', () => fetchMarkets({ signal }))
   const pairs = markets.flatMap((m) =>
     addresses.map((wallet) => ({ market: m.address, wallet }))
   )
   const obligations = (
-    await mapBounded(pairs, KAMINO_POSITIONS_CONCURRENCY, (p) =>
-      fetchObligations(p.market, p.wallet, {
-        strict: true,
-        timeoutMs: KAMINO_OBLIGATIONS_TIMEOUT_MS,
-      })
+    await mapBounded(
+      pairs,
+      KAMINO_POSITIONS_CONCURRENCY,
+      (p) =>
+        obligationsCache.get(`${p.market}:${p.wallet}`, () =>
+          fetchObligations(p.market, p.wallet, {
+            strict: true,
+            timeoutMs: KAMINO_OBLIGATIONS_TIMEOUT_MS,
+            signal,
+          })
+        ),
+      signal
     )
   ).flat()
   if (obligations.length === 0) return []
 
-  // Reserve accounts (~11 KB each) and stats only where there is a loan.
+  // Reserve accounts (~11 KB each) and stats only where there is a loan, one
+  // market per call so each is cached on its own across wallets.
   const used = [...new Set(obligations.map((o) => o.market))]
-  const [accounts, stats] = await Promise.all([
-    fetchReserveAccounts(used),
-    fetchReserveStats(used),
-  ])
+  signal?.throwIfAborted()
+  const perMarket = await Promise.all(
+    used.map((market) =>
+      Promise.all([
+        accountsCache.get(market, () =>
+          fetchReserveAccounts([market], { signal })
+        ),
+        statsCache.get(market, () => fetchReserveStats([market], { signal })),
+      ])
+    )
+  )
   const names = new Map(markets.map((m) => [m.address, m.name]))
   const contexts = new Map<string, KaminoMarketContext>(
-    used.map((market) => [
-      market,
-      {
+    used.map((market, i) => {
+      const [accounts, stats] = perMarket[i]
+      const context: KaminoMarketContext = {
         marketName: names.get(market) ?? market,
-        reserves: new Map(
-          accounts.filter((a) => a.market === market).map((a) => [a.reserve, a])
-        ),
-        stats: new Map(
-          stats.filter((s) => s.market === market).map((s) => [s.reserve, s])
-        ),
-      },
-    ])
+        reserves: new Map(accounts.map((a) => [a.reserve, a])),
+        stats: new Map(stats.map((s) => [s.reserve, s])),
+      }
+      warnUnverifiedWeights(market, context)
+      return [market, context]
+    })
   )
   return obligations.map((o) =>
     readingFromObligation(o, contexts.get(o.market) as KaminoMarketContext)
   )
 }
 
+function warnUnverifiedWeights(market: string, ctx: KaminoMarketContext) {
+  const unverified = [...ctx.reserves.values()].filter(
+    (r) => !weightsMatchStats(r, ctx.stats.get(r.reserve))
+  )
+  if (unverified.length === 0) return
+  console.warn(
+    `[kamino] market ${market}: decoded weights not confirmed by batch stats for ${unverified.length} reserve(s), health factor unknown: ${unverified
+      .slice(0, 5)
+      .map((r) => r.reserve)
+      .join(', ')}`
+  )
+}
+
 const byAddresses = (addresses: string[]) => [...addresses].sort().join(',')
-const readingsOnce = dedupeInFlight(byAddresses, loadKaminoReadings)
-const pricedOnce = dedupeInFlight(byAddresses, async (addresses: string[]) => {
-  const readings = await readingsOnce(addresses)
-  const prices = await resolveRiskPrices(
-    readings.flatMap((r) =>
-      [...r.deposits, ...r.borrows].map((p) =>
-        kaminoPriceKey(r.market, p.reserve)
+
+// One read per wallet set at a time: the portfolio asks for supply, borrow and
+// risk at once, with the same signal.
+const readingsOnce = dedupeInFlight(
+  (q: { addresses: string[]; signal?: AbortSignal }) =>
+    byAddresses(q.addresses),
+  (q: { addresses: string[]; signal?: AbortSignal }) => {
+    if (q.addresses.length > KAMINO_POSITIONS_MAX_WALLETS) {
+      // The portfolio slices to maxAddresses; anything else is a bug, and
+      // reading silently fewer wallets would hide their loans.
+      return Promise.reject(
+        new Error(
+          `[kamino] ${q.addresses.length} wallets: at most ${KAMINO_POSITIONS_MAX_WALLETS} per read`
+        )
+      )
+    }
+    return loadKaminoReadings(q.addresses, { signal: q.signal })
+  }
+)
+const pricedOnce = dedupeInFlight(
+  (q: { addresses: string[]; signal?: AbortSignal }) =>
+    byAddresses(q.addresses),
+  async (q: { addresses: string[]; signal?: AbortSignal }) => {
+    const readings = await readingsOnce(q)
+    const prices = await resolveRiskPrices(
+      readings.flatMap((r) =>
+        [...r.deposits, ...r.borrows].map((p) =>
+          kaminoPriceKey(r.market, p.reserve)
+        )
       )
     )
-  )
-  return { readings, prices }
-})
+    return { readings, prices }
+  }
+)
 
 export const positionsAdapter: SolanaPositionsAdapter = {
-  async getUserSupplyPositions({ addresses }) {
-    if (addresses.length === 0) return []
-    const { readings, prices } = await pricedOnce(addresses)
+  maxAddresses: KAMINO_POSITIONS_MAX_WALLETS,
+  async getUserSupplyPositions(q) {
+    if (q.addresses.length === 0) return []
+    const { readings, prices } = await pricedOnce(q)
     return readings.flatMap((r) => supplyPositionsFromReading(r, prices))
   },
-  async getUserBorrowPositions({ addresses }) {
-    if (addresses.length === 0) return []
-    const { readings, prices } = await pricedOnce(addresses)
+  async getUserBorrowPositions(q) {
+    if (q.addresses.length === 0) return []
+    const { readings, prices } = await pricedOnce(q)
     return readings.flatMap((r) => borrowPositionsFromReading(r, prices))
   },
-  async getRiskAccounts({ addresses }) {
-    if (addresses.length === 0) return []
-    const readings = await readingsOnce(addresses)
+  async getRiskAccounts(q) {
+    if (q.addresses.length === 0) return []
+    const readings = await readingsOnce(q)
     return readings.flatMap((r) => riskAccountFromReading(r) ?? [])
   },
 }
