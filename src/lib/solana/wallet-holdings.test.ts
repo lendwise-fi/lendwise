@@ -158,6 +158,24 @@ describe('getSolanaWalletHoldings', () => {
     expect(holdings[0]).toMatchObject({ code: 'FOO', priceUsd: 3, valueUsd: 3 })
   })
 
+  it('prefers the catalogue symbol over the static one for the price lookup', async () => {
+    const price = vi.fn(async (s: string) => (s === 'jitoSOL' ? 250 : null))
+    const symbolsByMint = vi.fn(async () => new Map([[JITOSOL, 'jitoSOL']]))
+    const holdings = await getSolanaWalletHoldings([A], {
+      rpc: fakeRpc({ token: [acct(JITOSOL, '2000000000', 9)] }),
+      price,
+      symbolsByMint,
+    })
+    expect(symbolsByMint).toHaveBeenCalledWith([JITOSOL])
+    expect(price).toHaveBeenCalledWith('jitoSOL')
+    expect(price).not.toHaveBeenCalledWith('JitoSOL')
+    expect(holdings[0]).toMatchObject({
+      code: 'jitoSOL',
+      priceUsd: 250,
+      valueUsd: 500,
+    })
+  })
+
   it('shows a holding unpriced when the price lookup fails', async () => {
     const holdings = await getSolanaWalletHoldings([A], {
       rpc: fakeRpc({ sol: 1 }),

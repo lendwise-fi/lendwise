@@ -19,8 +19,9 @@ const SOLANA_CHAIN_ID = -2
 
 /**
  * Mint -> symbol for the tokens a Solana wallet most often holds. A token
- * account carries no symbol, so this and the Kamino catalogue (`products`)
- * are what name a mint; any other mint shows by its shortened address.
+ * account carries no symbol: the Kamino catalogue (`products`) names a mint
+ * first, this map only the mints the catalogue lacks; any other mint shows
+ * by its shortened address.
  * Mints checked against Kamino reserve data on 2026-10-29.
  */
 export const SOLANA_KNOWN_MINTS: Readonly<Record<string, string>> = {
@@ -119,18 +120,14 @@ export async function getSolanaWalletHoldings(
     })
   )
 
-  const unknownMints = [
-    ...new Set(
-      perOwner
-        .flatMap((o) => o.spl.map((t) => t.mint))
-        .filter((m) => !(m in SOLANA_KNOWN_MINTS))
-    ),
-  ]
-  const catalogue = await symbolsByMint(unknownMints).catch(
+  // The catalogue names a mint as `latestPrice` matches it (`asset_symbol`
+  // exactly), so it wins; the static map covers mints the catalogue lacks.
+  const mints = [...new Set(perOwner.flatMap((o) => o.spl.map((t) => t.mint)))]
+  const catalogue = await symbolsByMint(mints).catch(
     () => new Map<string, string>()
   )
   const symbolOf = (mint: string): string | null =>
-    SOLANA_KNOWN_MINTS[mint] ?? catalogue.get(mint) ?? null
+    catalogue.get(mint) ?? SOLANA_KNOWN_MINTS[mint] ?? null
 
   const base = { chainFamily: 'solana' as const, network: 'solana' }
   const pending = perOwner.flatMap(({ owner, sol, spl }) => [
