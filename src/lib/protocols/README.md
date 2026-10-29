@@ -42,6 +42,10 @@ src/lib/protocols/
 ├── morpho/common/ + v1/       # same shape; v1/config.ts also owns MORPHO_V1_INGESTION
 ├── compound/common/ + v3/     # same shape; per-chain subgraph overrides live in
 │   └── {ethereum,polygon,…}/  #   chain dirs consumed via createChainRegistry
+├── kamino/                    # REST API, no SDK — see "A REST adapter without an SDK" below
+│   ├── common/                #   config, api (typed REST client), reserve-account (decoder), schemas
+│   ├── listing.ts             #   THE predicate (Active + variable-rate reserves)
+│   └── v1/                    #   index.ts, meta.ts, products.ts, apy-spot.ts, apy-history.ts, positions.ts
 └── blend/                     # catalogue-seeded (ownsMarketDiscovery: false) — see below
     ├── common/                #   config, api (RPC), utils — shared by v1 + v2
     ├── listing.ts            #   THE predicate, at PROVIDER level (one rule, both versions)
@@ -299,7 +303,7 @@ yield-only contribution is a valid contribution.
    | ------------- | ------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
    | Protocol logo | `public/icons/protocol/{provider}.svg` — filename is `provider`, i.e. `id.split('_')[0]`, so all versions share one file | Protocol chip and badge fall back to two grey initials                                                                                                                                 |
    | Network logo  | `public/icons/network/{slug}.svg` — only for a chain nothing else covers                                                 | Network chip and badge fall back to initials                                                                                                                                           |
-   | New chain     | `src/lib/protocols/core/toolkit/chain-slugs.ts` — non-EVM gets an assigned NEGATIVE chainId                              | `defaultNetworkSlug()` throws and takes the whole `/supply` load with it                                                                                                               |
+   | New chain     | `src/lib/protocols/core/toolkit/chain-slugs.ts` — non-EVM gets an assigned NEGATIVE chainId (Stellar `-1`, Solana `-2`)  | `defaultNetworkSlug()` throws and takes the whole `/supply` load with it                                                                                                               |
    | Row name      | `poolName` hook in `{name}/{version}/presentation.ts`                                                                    | Defaults to `asset_name`. Fine when one asset means one market per chain (Aave, Compound) — **wrong for a protocol with several pools per chain**, which then renders N identical rows |
    | External link | `productLink` hook, same file                                                                                            | Defaults to `''` and the row simply has no link — decorative, safe to defer                                                                                                            |
 
@@ -309,6 +313,32 @@ yield-only contribution is a valid contribution.
 8. **Prove it** — `pnpm adapter:test acme_v2` (see Validation below).
 
 That's it. No DB migration: productIds, tables, and repositories are protocol-agnostic.
+
+## A REST adapter without an SDK — Kamino
+
+Kamino Lend (`kamino_v1`, Solana chain `-2`, CAIP-2 `solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp`) reads
+its public REST API (`https://api.kamino.finance`) with plain `fetch` and zod schemas
+(`kamino/common/api.ts`, `schemas.ts`). No Kamino SDK is used.
+
+- **Discovery** — `/v2/kamino-market` lists the markets; `/reserves/batch/stats` gives the spot
+  rates; `/kamino-market/{market}/reserves/{reserve}/metrics/history` gives hourly and daily
+  history.
+- **Decoded account data** — the stats endpoint carries no mint, decimals or symbol. They are
+  decoded from the raw reserve accounts returned by `/kamino-market/reserves/account-data`
+  (`common/reserve-account.ts`). That read must succeed as a whole: any failure rejects
+  `getProducts`, because the catalogue sync treats a product missing from the result as delisted —
+  a partial catalogue would delist live markets.
+- **Listing** — `listing.ts` keeps `status === 'Active'` and variable-rate reserves, with no
+  ingestion floor; products, spot and history all import it.
+- **APY** — base is the lending rate; rewards are Kamino's own incentives. LST underlying yield,
+  points and seasons are excluded.
+- **productId** — `kamino:v1:solana:reserve:<market>:<reserve>:<supply|borrow>`. Base58 addresses
+  are case-sensitive, so their case is kept.
+
+Wallets and positions are not part of the adapter contract above: Solana wallets (Phantom, Solflare
+via Wallet Standard) sign in with Sign-In With Solana (`/api/auth/solana/*`), balances are read
+server-side over JSON-RPC (`RPC_URL_SOLANA`, `SOLANA_RPC_MIN_INTERVAL_MS` in `.env.example`), and
+`kamino/v1/positions.ts` returns Kamino positions with their health factor.
 
 ## Conventions
 
