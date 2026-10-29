@@ -46,3 +46,10 @@ export const KAMINO_REWARD_SYMBOLS: Readonly<Record<string, string>> = {
   jtojtomepa8beP8AuQc6eXt5FriJwfFMwQx2v2f9mCL: 'JTO',
   strng7mqqc1MBJJV6vMzYbEqnwVGvKKGKedeCvtktWA: 'strongSOL',
 }
+
+/**
+ * Reserves whose history is fetched at the same time by `getApyHistory`.
+ * Kamino publishes no rate limit, so this stays small; each reserve already
+ * issues its chunks one after the other.
+ */
+export const KAMINO_HISTORY_CONCURRENCY = 3
