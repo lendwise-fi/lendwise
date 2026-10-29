@@ -5,6 +5,7 @@ import {
   fetchMarkets,
   fetchObligations,
   fetchReserveHistory,
+  fetchReserveMetrics,
   fetchReserveStats,
 } from '../common/api'
 import {
@@ -17,6 +18,7 @@ import markets from './fixtures/markets.json'
 import obligations from './fixtures/obligations.json'
 import historyDaily from './fixtures/reserve-history-daily-legacy.json'
 import historyHourly from './fixtures/reserve-history-hourly.json'
+import reserveMetrics from './fixtures/reserve-metrics.json'
 import reserveStats from './fixtures/reserve-stats.json'
 
 const PRIMARY = '7u3HeHxYDLhnCoErrtycNokbQYbWGzLs6JSDqGAv5PfF'
@@ -198,6 +200,43 @@ describe('fetchReserveStats', () => {
       ['Market0', 'R1'],
       ['Market100', 'R2'],
     ])
+  })
+})
+
+describe('fetchReserveMetrics', () => {
+  it('reads symbol and mint per reserve and skips malformed items', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    fetchMock.mockResolvedValue(
+      jsonResponse([...reserveMetrics, { reserve: 'X' }, null])
+    )
+
+    const result = await fetchReserveMetrics(PRIMARY)
+
+    const url = calledUrls()[0]
+    expect(url.pathname).toBe(`/kamino-market/${PRIMARY}/reserves/metrics`)
+    expect(url.searchParams.get('env')).toBe('mainnet-beta')
+    expect(result).toHaveLength(5)
+    expect(result.find((m) => m.reserve === USDC_RESERVE)).toEqual({
+      reserve: USDC_RESERVE,
+      symbol: 'USDC',
+      mint: 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v',
+    })
+    expect(warn).toHaveBeenCalledTimes(1)
+    warn.mockRestore()
+  })
+
+  it('normalizes errors and rejects a non-array body', async () => {
+    fetchMock.mockResolvedValue(jsonResponse({ nope: true }))
+    await expect(fetchReserveMetrics(PRIMARY)).rejects.toMatchObject({
+      kind: 'invalid-response',
+    })
+    fetchMock.mockResolvedValue(
+      new Response('x', { status: 500, statusText: 'Boom' })
+    )
+    await expect(fetchReserveMetrics(PRIMARY)).rejects.toMatchObject({
+      kind: 'http',
+      status: 500,
+    })
   })
 })
 

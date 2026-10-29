@@ -12,6 +12,7 @@ import {
   type KaminoMarket,
   type KaminoObligation,
   type KaminoReserveHistoryPoint,
+  type KaminoReserveMetric,
   type KaminoReserveStatsBody,
   historyRowSchema,
   marketsMetadataResponseSchema,
@@ -19,6 +20,8 @@ import {
   obligationSchema,
   obligationsResponseSchema,
   reserveHistoryResponseSchema,
+  reserveMetricSchema,
+  reserveMetricsResponseSchema,
   reserveStatsResponseSchema,
   reserveStatsSchema,
 } from './schemas'
@@ -27,6 +30,7 @@ export type {
   KaminoMarket,
   KaminoObligation,
   KaminoReserveHistoryPoint,
+  KaminoReserveMetric,
 } from './schemas'
 
 /** Reserve spot stats, tagged with the market it belongs to. */
@@ -194,6 +198,27 @@ export async function fetchReserveStats(
     }
   }
   return out
+}
+
+/**
+ * Symbol and mint of every reserve of `market` (`/reserves/metrics`). Batch
+ * stats carry neither, so the catalogue reads them here. Malformed items are
+ * skipped like everywhere else.
+ */
+export async function fetchReserveMetrics(
+  market: string
+): Promise<KaminoReserveMetric[]> {
+  const path = `/kamino-market/${market}/reserves/metrics`
+  const raw = await request(
+    path,
+    { env: KAMINO_ENV },
+    reserveMetricsResponseSchema
+  )
+  return parseEach(
+    path,
+    raw.map((m, i) => [String(i), m] as const),
+    reserveMetricSchema
+  ).map(([, m]) => m)
 }
 
 /**

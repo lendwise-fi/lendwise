@@ -139,6 +139,23 @@ export const reserveStatsSchema = z
 export const reserveStatsResponseSchema = z.record(z.string(), z.unknown())
 export type KaminoReserveStatsBody = z.output<typeof reserveStatsSchema>
 
+// ── Reserve metrics (symbols) ────────────────────────────────────────────────
+
+/** `/kamino-market/{market}/reserves/metrics`: array, we keep the symbol only. */
+export const reserveMetricsResponseSchema = z.array(z.unknown())
+export const reserveMetricSchema = z
+  .object({
+    reserve: z.string().min(1),
+    liquidityToken: z.string().min(1),
+    liquidityTokenMint: z.string().min(1),
+  })
+  .transform((m) => ({
+    reserve: m.reserve,
+    symbol: m.liquidityToken,
+    mint: m.liquidityTokenMint,
+  }))
+export type KaminoReserveMetric = z.output<typeof reserveMetricSchema>
+
 // ── Reserve history ──────────────────────────────────────────────────────────
 
 const historyRowSchema = z
