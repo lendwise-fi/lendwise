@@ -49,9 +49,46 @@ export function walletRowMenu(
   wallet: { chainFamily: ChainFamily; isConnected: boolean },
   hasClient: boolean
 ): { connect: 'Connect' | 'Sign in' | null; remove: 'Remove' | 'Disconnect' } {
-  if (wallet.chainFamily === 'stellar' && !wallet.isConnected)
-    return { connect: 'Sign in', remove: 'Remove' }
-  if (wallet.chainFamily === 'evm' && !hasClient)
-    return { connect: 'Connect', remove: 'Remove' }
-  return { connect: null, remove: 'Disconnect' }
+  const connected = isWalletConnected(wallet, hasClient)
+  switch (wallet.chainFamily) {
+    case 'stellar':
+      return connected
+        ? { connect: null, remove: 'Disconnect' }
+        : { connect: 'Sign in', remove: 'Remove' }
+    case 'evm':
+      return connected
+        ? { connect: null, remove: 'Disconnect' }
+        : { connect: 'Connect', remove: 'Remove' }
+    case 'solana':
+      // No reconnect handler until the Solana connection lands.
+      return {
+        connect: null,
+        remove: connected ? 'Disconnect' : 'Remove',
+      }
+    default: {
+      const unreachable: never = wallet.chainFamily
+      return unreachable
+    }
+  }
+}
+
+/**
+ * Whether the row shows as connected: an EVM wallet needs a wagmi client, the
+ * other families carry their own connection flag.
+ */
+export function isWalletConnected(
+  wallet: { chainFamily: ChainFamily; isConnected: boolean },
+  hasClient: boolean
+): boolean {
+  switch (wallet.chainFamily) {
+    case 'evm':
+      return hasClient
+    case 'stellar':
+    case 'solana':
+      return wallet.isConnected
+    default: {
+      const unreachable: never = wallet.chainFamily
+      return unreachable
+    }
+  }
 }

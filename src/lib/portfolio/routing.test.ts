@@ -71,6 +71,14 @@ describe('sanitizeWalletInputs', () => {
     ).toEqual([sol])
   })
 
+  it('drops oversized addresses before any validation', () => {
+    expect(
+      sanitizeWalletInputs([
+        { address: 'z'.repeat(10_000), chainFamily: 'solana' },
+      ])
+    ).toEqual([])
+  })
+
   it('returns [] for non-array input', () => {
     expect(sanitizeWalletInputs(undefined)).toEqual([])
     expect(sanitizeWalletInputs({ address: G })).toEqual([])

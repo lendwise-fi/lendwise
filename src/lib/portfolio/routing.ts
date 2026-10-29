@@ -6,6 +6,9 @@ import { isSolanaAddress } from '@/lib/wallet/address'
 
 import { MAX_PORTFOLIO_WALLETS, type PortfolioWalletInput } from './types'
 
+/** Far above any real address (Stellar 56, EVM 42, Solana 44). */
+const MAX_ADDRESS_LENGTH = 128
+
 const CHAIN_FAMILIES: readonly ChainFamily[] = ['evm', 'stellar', 'solana']
 
 export type RoutedPortfolioWallets = Record<ChainFamily, string[]> & {
@@ -55,6 +58,7 @@ export function sanitizeWalletInputs(input: unknown): PortfolioWalletInput[] {
       typeof w === 'object' &&
       w !== null &&
       typeof (w as { address?: unknown }).address === 'string' &&
+      (w as { address: string }).address.length <= MAX_ADDRESS_LENGTH &&
       CHAIN_FAMILIES.includes(
         (w as { chainFamily?: unknown }).chainFamily as ChainFamily
       )

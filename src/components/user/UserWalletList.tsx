@@ -21,7 +21,11 @@ import { useStellarWallet } from '@/contexts/StellarWalletContext'
 import { useMultiWalletManager } from '@/hooks/useMultiWalletManager'
 import { formatAddress } from '@/lib/utils'
 import { expectReconnect, reconnectHint } from '@/lib/wallet/reconnect'
-import { walletRowMenu, walletSubtitle } from '@/lib/wallet/wallet-label'
+import {
+  isWalletConnected,
+  walletRowMenu,
+  walletSubtitle,
+} from '@/lib/wallet/wallet-label'
 import { type Wallet, useWalletStore } from '@/stores/walletStore'
 
 import { WalletAvatar } from '../wallet/WalletAvatar'
@@ -102,7 +106,6 @@ const WalletRow = ({ wallet }: { wallet: Wallet }) => {
   // Display ENS name if available, otherwise formatted address
   const displayName = wallet.ens || formatAddress(wallet.address)
   const hasClient = !!clients[wallet.address.toLowerCase()]
-  const isStellar = wallet.chainFamily === 'stellar'
   const menu = walletRowMenu(wallet, hasClient)
 
   return (
@@ -113,7 +116,7 @@ const WalletRow = ({ wallet }: { wallet: Wallet }) => {
       <div className="flex items-center gap-x-3">
         <div className="relative flex h-8 w-8 items-center justify-center rounded-full">
           <WalletAvatar address={wallet.address} size={30} />
-          {(isStellar ? wallet.isConnected : hasClient) && (
+          {isWalletConnected(wallet, hasClient) && (
             <div className="bg-success absolute -top-0.5 -right-0.5 h-2.5 w-2.5 rounded-full border-2 border-white" />
           )}
         </div>

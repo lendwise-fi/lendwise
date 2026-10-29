@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest'
 
-import { walletRowMenu, walletSubtitle } from './wallet-label'
+import {
+  isWalletConnected,
+  walletRowMenu,
+  walletSubtitle,
+} from './wallet-label'
 
 describe('walletSubtitle', () => {
   it('names the EVM family, and says when there is no client', () => {
@@ -48,5 +52,34 @@ describe('walletRowMenu', () => {
     expect(
       walletRowMenu({ chainFamily: 'stellar', isConnected: true }, false)
     ).toEqual({ connect: null, remove: 'Disconnect' })
+    expect(
+      walletRowMenu({ chainFamily: 'solana', isConnected: true }, false)
+    ).toEqual({ connect: null, remove: 'Disconnect' })
+  })
+
+  it('only offers to remove a disconnected Solana wallet', () => {
+    expect(
+      walletRowMenu({ chainFamily: 'solana', isConnected: false }, false)
+    ).toEqual({ connect: null, remove: 'Remove' })
+  })
+})
+
+describe('isWalletConnected', () => {
+  it('reads the wagmi client for EVM and the flag for other families', () => {
+    expect(
+      isWalletConnected({ chainFamily: 'evm', isConnected: true }, false)
+    ).toBe(false)
+    expect(
+      isWalletConnected({ chainFamily: 'evm', isConnected: false }, true)
+    ).toBe(true)
+    expect(
+      isWalletConnected({ chainFamily: 'solana', isConnected: true }, false)
+    ).toBe(true)
+    expect(
+      isWalletConnected({ chainFamily: 'solana', isConnected: false }, true)
+    ).toBe(false)
+    expect(
+      isWalletConnected({ chainFamily: 'stellar', isConnected: true }, false)
+    ).toBe(true)
   })
 })

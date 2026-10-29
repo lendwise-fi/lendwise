@@ -22,6 +22,15 @@ describe('isSolanaAddress', () => {
     expect(isSolanaAddress(G)).toBe(false)
   })
 
+  it('bounds the input before decoding', () => {
+    const t = Date.now()
+    expect(isSolanaAddress('z'.repeat(10_000))).toBe(false)
+    expect(Date.now() - t).toBeLessThan(50)
+    expect(isSolanaAddress('1'.repeat(31))).toBe(false)
+    expect(isSolanaAddress('1'.repeat(45))).toBe(false)
+    expect(isSolanaAddress(SOL)).toBe(true)
+  })
+
   it('is case-sensitive: a lowercased address is another key', () => {
     expect(isSolanaAddress(SOL.toLowerCase())).toBe(false)
   })
