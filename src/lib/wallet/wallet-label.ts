@@ -1,19 +1,43 @@
+import type { ChainFamily } from '@/lib/protocols/core/toolkit/chain-slugs'
+
+/** Display name of a chain family. A new family fails to compile here. */
+export function familyLabel(family: ChainFamily): string {
+  switch (family) {
+    case 'evm':
+      return 'EVM'
+    case 'stellar':
+      return 'Stellar'
+    case 'solana':
+      return 'Solana'
+    default: {
+      const unreachable: never = family
+      return unreachable
+    }
+  }
+}
+
 /**
  * The line under a wallet in the wallet list: its family, and whether it can
  * sign right now (an EVM wallet needs a wagmi client, a Stellar wallet a
- * session).
+ * session, a Solana wallet a live connection).
  */
 export function walletSubtitle(
-  wallet: { chainFamily: string; isConnected: boolean },
+  wallet: { chainFamily: ChainFamily; isConnected: boolean },
   hasClient: boolean
-): string | null {
-  if (wallet.chainFamily === 'stellar') {
-    return wallet.isConnected ? 'Stellar' : 'Stellar · Not signed in'
+): string {
+  const label = familyLabel(wallet.chainFamily)
+  switch (wallet.chainFamily) {
+    case 'stellar':
+      return wallet.isConnected ? label : `${label} · Not signed in`
+    case 'evm':
+      return hasClient ? label : `${label} · Not connected`
+    case 'solana':
+      return wallet.isConnected ? label : `${label} · Not connected`
+    default: {
+      const unreachable: never = wallet.chainFamily
+      return unreachable
+    }
   }
-  if (wallet.chainFamily === 'evm') {
-    return hasClient ? 'EVM' : 'EVM · Not connected'
-  }
-  return null
 }
 
 /**
@@ -22,7 +46,7 @@ export function walletSubtitle(
  * disconnect.
  */
 export function walletRowMenu(
-  wallet: { chainFamily: string; isConnected: boolean },
+  wallet: { chainFamily: ChainFamily; isConnected: boolean },
   hasClient: boolean
 ): { connect: 'Connect' | 'Sign in' | null; remove: 'Remove' | 'Disconnect' } {
   if (wallet.chainFamily === 'stellar' && !wallet.isConnected)

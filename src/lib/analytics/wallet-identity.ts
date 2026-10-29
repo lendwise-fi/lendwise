@@ -16,8 +16,9 @@
  * This module is deliberately free of I/O so the decision can be unit-tested.
  * `identifyWallet` wraps it with the actual `localStorage` and `posthog` calls.
  */
+import type { ChainFamily } from '@/lib/protocols/core/toolkit/chain-slugs'
 
-export type ChainFamily = 'evm' | 'stellar'
+export type { ChainFamily }
 
 export interface StoredWalletIdentity {
   /** The `distinct_id` every wallet of this user is merged into. */

@@ -21,10 +21,13 @@ describe('walletSubtitle', () => {
     ).toBe('Stellar · Not signed in')
   })
 
-  it('has no subtitle for other families', () => {
+  it('names the Solana family', () => {
     expect(
-      walletSubtitle({ chainFamily: 'bitcoin', isConnected: true }, false)
-    ).toBeNull()
+      walletSubtitle({ chainFamily: 'solana', isConnected: true }, false)
+    ).toBe('Solana')
+    expect(
+      walletSubtitle({ chainFamily: 'solana', isConnected: false }, false)
+    ).toBe('Solana · Not connected')
   })
 })
 

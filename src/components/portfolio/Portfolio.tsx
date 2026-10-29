@@ -51,9 +51,7 @@ export function Portfolio() {
   // Every tracked wallet, as before, now tagged with its chain family; the
   // connected wagmi account is added when the store does not hold it yet.
   const walletsKey = [
-    ...wallets
-      .filter((w) => w.chainFamily === 'evm' || w.chainFamily === 'stellar')
-      .map((w) => `${w.chainFamily}:${w.address}`),
+    ...wallets.map((w) => `${w.chainFamily}:${w.address}`),
     isEvmConnected && evmAddress ? `evm:${evmAddress}` : '',
   ].join('|')
 

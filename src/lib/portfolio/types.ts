@@ -1,7 +1,8 @@
+import type { ChainFamily } from '@/lib/protocols/core/toolkit/chain-slugs'
 import type { RiskAccountResult } from '@/lib/risk/types'
 import type { UserPosition } from '@/types'
 
-export type PortfolioChainFamily = 'evm' | 'stellar'
+export type PortfolioChainFamily = ChainFamily
 
 /** Bounds the RPC work one call of the public server action can trigger. */
 export const MAX_PORTFOLIO_WALLETS = 10

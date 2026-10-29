@@ -217,11 +217,11 @@ export async function loadPortfolio(
   wallets: PortfolioWalletInput[],
   deps: PortfolioDeps
 ): Promise<UserPortfolioResult> {
-  const { evmAddresses, stellarAddresses } = routePortfolioWallets(wallets)
+  const routed = routePortfolioWallets(wallets)
 
   const families: [PortfolioChainFamily, () => Promise<FamilyResult>][] = [
-    ['evm', () => loadEvm(evmAddresses, deps)],
-    ['stellar', () => loadStellar(stellarAddresses, deps)],
+    ['evm', () => loadEvm(routed.evm, deps)],
+    ['stellar', () => loadStellar(routed.stellar, deps)],
   ]
   const settled = await Promise.allSettled(families.map(([, run]) => run()))
 

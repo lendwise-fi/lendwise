@@ -1,4 +1,6 @@
-export type ChainFamily = 'evm' | 'stellar'
+import type { ChainFamily } from '@/lib/protocols/core/toolkit/chain-slugs'
+
+export type { ChainFamily }
 
 /**
  * A price the spot pipeline already wrote to `apy_hourly`: the asset price of a

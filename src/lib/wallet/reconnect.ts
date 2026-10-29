@@ -1,6 +1,8 @@
+import type { ChainFamily } from '@/lib/protocols/core/toolkit/chain-slugs'
 import { formatAddress } from '@/lib/utils'
+import { normalizeAddress } from '@/lib/wallet/address'
 
-type Family = 'evm' | 'stellar'
+type Family = ChainFamily
 
 /** How long a row's reconnect request waits for the wallet to connect. */
 const EXPECTED_TTL_MS = 2 * 60 * 1000
@@ -49,9 +51,7 @@ export function reconnectHint({
 }): string | null {
   if (!expected) return null
   const same =
-    family === 'evm'
-      ? expected.toLowerCase() === actual.toLowerCase()
-      : expected === actual
+    normalizeAddress(family, expected) === normalizeAddress(family, actual)
   if (same) return null
   return `${walletName} is on ${formatAddress(actual)}. Switch it to ${formatAddress(expected)} to reconnect that address.`
 }

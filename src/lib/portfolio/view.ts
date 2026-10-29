@@ -1,6 +1,7 @@
 import { protocolVersionName } from '@/config/protocols-meta'
 import { CHAIN_BY_SLUG } from '@/lib/protocols/core/toolkit'
 import type { HealthFactorResult, RiskAccountResult } from '@/lib/risk/types'
+import { familyLabel } from '@/lib/wallet/wallet-label'
 import type { BorrowPosition } from '@/types'
 
 import {
@@ -68,7 +69,7 @@ export function sortableHealth(row: BorrowRow): number {
 }
 
 export function failureLabel(f: PortfolioPartialFailure): string {
-  const family = f.chainFamily === 'evm' ? 'EVM' : 'Stellar'
+  const family = familyLabel(f.chainFamily)
   if (f.source === STELLAR_WALLET_SOURCE) return 'Stellar wallet'
   if (f.source === EVM_WALLET_SOURCE) return 'EVM wallet'
   if (f.source.startsWith(`${EVM_WALLET_SOURCE}:`)) {
