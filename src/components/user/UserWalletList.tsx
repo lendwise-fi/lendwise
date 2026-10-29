@@ -17,10 +17,13 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { NetworkFamilySelectorDialog } from '@/components/wallet/NetworkFamilySelectorDialog'
+import { useSolanaWallet } from '@/contexts/SolanaWalletContext'
 import { useStellarWallet } from '@/contexts/StellarWalletContext'
+import { useConnectWalletFamily } from '@/hooks/useConnectWalletFamily'
 import { useMultiWalletManager } from '@/hooks/useMultiWalletManager'
 import { formatAddress } from '@/lib/utils'
 import { expectReconnect, reconnectHint } from '@/lib/wallet/reconnect'
+import { walletConnector } from '@/lib/wallet/wallet-families'
 import {
   isWalletConnected,
   walletRowMenu,
@@ -37,6 +40,7 @@ const WalletRow = ({ wallet }: { wallet: Wallet }) => {
   const { updateWallet, clients, wallets } = useWalletStore()
   const { disconnectAddress } = useMultiWalletManager()
   const { connectStellar, disconnectStellar } = useStellarWallet()
+  const { connectSolana, disconnectSolana } = useSolanaWallet()
   const { data: ensName } = useEnsName({
     address: wallet.address as Address,
     chainId: mainnet.id, // Always resolve ENS on mainnet
@@ -59,11 +63,18 @@ const WalletRow = ({ wallet }: { wallet: Wallet }) => {
   }
 
   // The wallet connects the account it is open on: the row's address is
-  // recorded so a different account gets a hint (WalletWatcher, connectStellar).
+  // recorded so a different account gets a hint (WalletWatcher,
+  // connectStellar, connectSolana).
   const handleConnect = () => {
-    if (wallet.chainFamily === 'stellar') {
+    const owner = walletConnector(wallet.chainFamily)
+    if (owner === 'stellar') {
       expectReconnect(wallet.address, 'stellar')
       void connectStellar()
+      return
+    }
+    if (owner === 'solana') {
+      expectReconnect(wallet.address, 'solana')
+      void connectSolana()
       return
     }
     if (openConnectModal) {
@@ -85,8 +96,13 @@ const WalletRow = ({ wallet }: { wallet: Wallet }) => {
   }
 
   const handleDisconnect = () => {
-    if (wallet.chainFamily === 'stellar') {
-      disconnectStellar(wallet.address)
+    const owner = walletConnector(wallet.chainFamily)
+    if (owner === 'stellar') {
+      void disconnectStellar(wallet.address)
+      return
+    }
+    if (owner === 'solana') {
+      void disconnectSolana(wallet.address)
       return
     }
 
@@ -171,8 +187,7 @@ export const UserWalletList = () => {
   const { wallets } = useWalletStore()
   const [showNetworkDialog, setShowNetworkDialog] = useState(false)
 
-  const { openConnectModal } = useConnectModal()
-  const { connectStellar } = useStellarWallet()
+  const connectWalletFamily = useConnectWalletFamily()
 
   return (
     <div className="p-2">
@@ -202,8 +217,7 @@ export const UserWalletList = () => {
       <NetworkFamilySelectorDialog
         open={showNetworkDialog}
         onOpenChange={setShowNetworkDialog}
-        onSelectEVM={() => openConnectModal?.()}
-        onSelectStellar={connectStellar}
+        onSelect={connectWalletFamily}
       />
     </div>
   )

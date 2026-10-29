@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest'
 
-import type { StellarSession, Wallet } from '@/stores/walletStore'
+import type {
+  SolanaSession,
+  StellarSession,
+  Wallet,
+} from '@/stores/walletStore'
 
 import {
   activeWalletUpdatesWithoutEvm,
@@ -20,6 +24,21 @@ const session = (
 ): StellarSession => ({
   address,
   networkPassphrase: 'Public Global Stellar Network ; September 2015',
+  issuedAt: NOW - 100,
+  expiresAt: NOW + 100,
+  ...overrides,
+})
+
+// Solana keys are case-sensitive base58.
+const SOL_A = 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v'
+const SOL_B = '7u3HeHxYDLhnCoErrtycNokbQYbWGzLs6JSDqGAv5PfF'
+const solSession = (
+  address: string,
+  overrides: Partial<SolanaSession> = {}
+): SolanaSession => ({
+  sid: 'sid',
+  address,
+  chain: 'solana:mainnet',
   issuedAt: NOW - 100,
   expiresAt: NOW + 100,
   ...overrides,
@@ -96,6 +115,28 @@ describe('isDisplayableActive', () => {
     expect(
       isDisplayableActive(wallet({ chainFamily: 'evm', isConnected: false }))
     ).toBe(true)
+  })
+
+  it('requires a Solana wallet to hold its own live session', () => {
+    const solana = (overrides: Partial<Wallet> = {}) =>
+      wallet({ address: SOL_A, chainFamily: 'solana', ...overrides })
+    expect(isDisplayableActive(solana({ isConnected: true }), NOW)).toBe(false)
+    expect(
+      isDisplayableActive(solana({ solanaSession: solSession(SOL_B) }), NOW)
+    ).toBe(false)
+    expect(
+      isDisplayableActive(solana({ solanaSession: solSession(SOL_A) }), NOW)
+    ).toBe(true)
+    expect(
+      isDisplayableActive(
+        solana({ solanaSession: solSession(SOL_A, { expiresAt: NOW }) }),
+        NOW
+      )
+    ).toBe(false)
+    // A Stellar session does not stand in for a Solana one.
+    expect(
+      isDisplayableActive(solana({ stellarSession: session(SOL_A) }), NOW)
+    ).toBe(false)
   })
 })
 
@@ -264,6 +305,83 @@ describe('activeWalletUpdatesWithoutEvm', () => {
           isCurrentlyConnected: true,
           isConnected: true,
         },
+      },
+    ])
+  })
+
+  const solana = (overrides: Partial<Wallet> = {}) =>
+    wallet({ address: SOL_A, chainFamily: 'solana', ...overrides })
+
+  it('hands the active slot to the Solana session once the EVM wallet is gone', () => {
+    const wallets = [
+      evm(),
+      solana({
+        isActive: false,
+        isCurrentlyConnected: false,
+        solanaSession: solSession(SOL_A),
+      }),
+    ]
+    expect(activeWalletUpdatesWithoutEvm(wallets, NOW)).toEqual([
+      {
+        address: '0xabc',
+        update: { isActive: false, isCurrentlyConnected: false },
+      },
+      {
+        address: SOL_A,
+        update: {
+          isActive: true,
+          isCurrentlyConnected: true,
+          isConnected: true,
+        },
+      },
+    ])
+  })
+
+  it('gives the slot to the newest sign-in when Stellar and Solana both hold a session', () => {
+    const stellarNewer = [
+      wallet({ stellarSession: session('GAAA', { issuedAt: NOW - 10 }) }),
+      solana({ solanaSession: solSession(SOL_A, { issuedAt: NOW - 500 }) }),
+    ]
+    expect(activeWalletUpdatesWithoutEvm(stellarNewer, NOW)).toEqual([
+      {
+        address: SOL_A,
+        update: { isActive: false, isCurrentlyConnected: false },
+      },
+    ])
+
+    const solanaNewer = [
+      wallet({ stellarSession: session('GAAA', { issuedAt: NOW - 500 }) }),
+      solana({
+        isActive: false,
+        isCurrentlyConnected: false,
+        solanaSession: solSession(SOL_A, { issuedAt: NOW - 10 }),
+      }),
+    ]
+    expect(activeWalletUpdatesWithoutEvm(solanaNewer, NOW)).toEqual([
+      {
+        address: 'GAAA',
+        update: { isActive: false, isCurrentlyConnected: false },
+      },
+      {
+        address: SOL_A,
+        update: {
+          isActive: true,
+          isCurrentlyConnected: true,
+          isConnected: true,
+        },
+      },
+    ])
+  })
+
+  it('takes the slot from a Solana wallet without a live session', () => {
+    const wallets = [
+      solana({ solanaSession: solSession(SOL_A, { expiresAt: NOW }) }),
+      solana({ address: SOL_B, isActive: false, isCurrentlyConnected: false }),
+    ]
+    expect(activeWalletUpdatesWithoutEvm(wallets, NOW)).toEqual([
+      {
+        address: SOL_A,
+        update: { isActive: false, isCurrentlyConnected: false },
       },
     ])
   })

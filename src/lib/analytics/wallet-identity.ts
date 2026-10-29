@@ -23,7 +23,7 @@ export type { ChainFamily }
 export interface StoredWalletIdentity {
   /** The `distinct_id` every wallet of this user is merged into. */
   canonicalDistinctId: string
-  /** Lower-cased addresses already linked to the canonical person. */
+  /** Addresses already linked to the canonical person, as {@link analyticsWalletId} gives them. */
   linkedWallets: string[]
   /** Distinct chain families this user has connected, in first-seen order. */
   chainFamilies: ChainFamily[]
@@ -34,7 +34,7 @@ export interface PlanWalletIdentityInput {
   stored: StoredWalletIdentity | null
   /** `posthog.get_distinct_id()` at call time, or `null` when unavailable. */
   currentDistinctId: string | null
-  /** Lower-cased wallet address being connected. */
+  /** Wallet address being connected, as {@link analyticsWalletId} gives it. */
   wallet: string
   chainFamily: ChainFamily
   ensName?: string | null
@@ -58,6 +58,28 @@ export interface WalletIdentityPlan {
   aliasWallet: string | null
   personProperties: Record<string, unknown>
   personPropertiesSetOnce: Record<string, unknown>
+}
+
+/**
+ * The address as PostHog knows it. EVM and Stellar addresses have always been
+ * sent lowercased, so they stay so: changing it would split existing persons.
+ * A Solana base58 key is case-sensitive and is sent as it is.
+ */
+export function analyticsWalletId(
+  family: ChainFamily,
+  address: string
+): string {
+  switch (family) {
+    case 'evm':
+    case 'stellar':
+      return address.toLowerCase()
+    case 'solana':
+      return address
+    default: {
+      const unreachable: never = family
+      return unreachable
+    }
+  }
 }
 
 export function planWalletIdentity({

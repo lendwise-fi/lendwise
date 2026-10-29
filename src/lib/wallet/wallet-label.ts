@@ -18,8 +18,8 @@ export function familyLabel(family: ChainFamily): string {
 
 /**
  * The line under a wallet in the wallet list: its family, and whether it can
- * sign right now (an EVM wallet needs a wagmi client, a Stellar wallet a
- * session, a Solana wallet a live connection).
+ * sign right now (an EVM wallet needs a wagmi client, a Stellar or Solana
+ * wallet a server session).
  */
 export function walletSubtitle(
   wallet: { chainFamily: ChainFamily; isConnected: boolean },
@@ -28,11 +28,10 @@ export function walletSubtitle(
   const label = familyLabel(wallet.chainFamily)
   switch (wallet.chainFamily) {
     case 'stellar':
+    case 'solana':
       return wallet.isConnected ? label : `${label} · Not signed in`
     case 'evm':
       return hasClient ? label : `${label} · Not connected`
-    case 'solana':
-      return wallet.isConnected ? label : `${label} · Not connected`
     default: {
       const unreachable: never = wallet.chainFamily
       return unreachable
@@ -52,6 +51,7 @@ export function walletRowMenu(
   const connected = isWalletConnected(wallet, hasClient)
   switch (wallet.chainFamily) {
     case 'stellar':
+    case 'solana':
       return connected
         ? { connect: null, remove: 'Disconnect' }
         : { connect: 'Sign in', remove: 'Remove' }
@@ -59,12 +59,6 @@ export function walletRowMenu(
       return connected
         ? { connect: null, remove: 'Disconnect' }
         : { connect: 'Connect', remove: 'Remove' }
-    case 'solana':
-      // No reconnect handler until the Solana connection lands.
-      return {
-        connect: null,
-        remove: connected ? 'Disconnect' : 'Remove',
-      }
     default: {
       const unreachable: never = wallet.chainFamily
       return unreachable
@@ -73,8 +67,8 @@ export function walletRowMenu(
 }
 
 /**
- * Whether the row shows as connected: an EVM wallet needs a wagmi client, the
- * other families carry their own connection flag.
+ * Whether the row shows as connected: an EVM wallet needs a wagmi client, a
+ * Stellar or Solana wallet is connected while it holds a server session.
  */
 export function isWalletConnected(
   wallet: { chainFamily: ChainFamily; isConnected: boolean },

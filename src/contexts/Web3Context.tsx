@@ -14,6 +14,7 @@ import { useTheme } from 'next-themes'
 import { WagmiProvider } from 'wagmi'
 import type { Config } from 'wagmi'
 
+import { SolanaWalletProvider } from './SolanaWalletContext'
 import { StellarWalletProvider } from './StellarWalletContext'
 
 const queryClient = new QueryClient()
@@ -74,7 +75,9 @@ export function Web3Provider({ children }: { children: React.ReactNode }) {
           modalSize="compact"
           theme={rainbowKitTheme(resolvedTheme === 'light' ? 'light' : 'dark')}
         >
-          <StellarWalletProvider>{children}</StellarWalletProvider>
+          <StellarWalletProvider>
+            <SolanaWalletProvider>{children}</SolanaWalletProvider>
+          </StellarWalletProvider>
         </RainbowKitProvider>
       </QueryClientProvider>
     </WagmiProvider>

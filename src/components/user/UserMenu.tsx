@@ -31,9 +31,11 @@ import {
 import { WalletAvatar } from '@/components/wallet/WalletAvatar'
 import { SUPPORTED_CURRENCIES, getCurrencyByCode } from '@/config/currencies'
 import { useCurrency } from '@/contexts'
+import { useSolanaWallet } from '@/contexts/SolanaWalletContext'
 import { useStellarWallet } from '@/contexts/StellarWalletContext'
 import { cn, formatAddress } from '@/lib/utils'
 import { isDisplayableActive } from '@/lib/wallet/stellar-wallets'
+import { walletConnector } from '@/lib/wallet/wallet-families'
 import { useWalletStore } from '@/stores/walletStore'
 
 import { ThemeSwitcher } from '../theme/ThemeSwitcher'
@@ -49,6 +51,7 @@ export const UserMenu = () => {
   const { wallets } = useWalletStore()
   const activeWallet = wallets.find((w) => w.isActive && isDisplayableActive(w))
   const { disconnectStellar } = useStellarWallet()
+  const { disconnectSolana } = useSolanaWallet()
 
   const handleCurrencySelect = (currencyCode: string) => {
     posthog.capture('currency_changed', {
@@ -206,8 +209,10 @@ export const UserMenu = () => {
     )
   }
 
-  // If active wallet is Stellar, render the dropdown without RainbowKit wrapper
-  if (activeWallet && activeWallet.chainFamily === 'stellar') {
+  // A Stellar or Solana active wallet: the dropdown without RainbowKit, which
+  // only knows the EVM account.
+  const connector = activeWallet && walletConnector(activeWallet.chainFamily)
+  if (activeWallet && connector && connector !== 'wagmi') {
     return (
       <DropdownMenu onOpenChange={handleOpenChange}>
         <DropdownMenuTrigger asChild>
@@ -220,8 +225,14 @@ export const UserMenu = () => {
           </Button>
         </DropdownMenuTrigger>
         {renderDropdownContent(() => {
-          posthog.capture('wallet_disconnected', { chain_family: 'stellar' })
-          disconnectStellar(activeWallet.address)
+          posthog.capture('wallet_disconnected', {
+            chain_family: activeWallet.chainFamily,
+          })
+          if (connector === 'stellar') {
+            void disconnectStellar(activeWallet.address)
+          } else {
+            void disconnectSolana(activeWallet.address)
+          }
         })}
       </DropdownMenu>
     )

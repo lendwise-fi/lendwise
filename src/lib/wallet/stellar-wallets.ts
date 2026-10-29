@@ -1,5 +1,7 @@
 import type { StellarSession, Wallet } from '@/stores/walletStore'
 
+import { currentSolanaSession } from './solana-wallets'
+
 /**
  * Partial store update applied to a persisted Stellar wallet on restore.
  * Only the wallet owning the server SEP-10 session stays connected; every
@@ -44,10 +46,11 @@ export function currentStellarSession(
 
 /**
  * Store updates for when no EVM wallet is connected. Connecting an EVM wallet
- * deactivates the Stellar one but leaves its session alive; when the EVM wallet
- * goes away, the navbar and the portfolio would show nobody signed in while the
- * bridge still shows the session's account. The wallet whose session the cookie
- * holds takes the active slot back; every other EVM or Stellar wallet leaves it.
+ * deactivates the Stellar or Solana one but leaves its session alive; when the
+ * EVM wallet goes away, the navbar and the portfolio would show nobody signed
+ * in while the session is still there. The wallet whose session was issued
+ * last, Stellar or Solana (each family has its own cookie), takes the active
+ * slot back, a tie going to Stellar; every other wallet leaves it.
  */
 export function activeWalletUpdatesWithoutEvm(
   wallets: readonly Pick<
@@ -58,18 +61,21 @@ export function activeWalletUpdatesWithoutEvm(
     | 'isConnected'
     | 'isCurrentlyConnected'
     | 'stellarSession'
+    | 'solanaSession'
   >[],
   now: number = Math.floor(Date.now() / 1000)
 ): { address: string; update: Partial<Wallet> }[] {
-  const session = currentStellarSession(wallets, now)
+  const stellar = currentStellarSession(wallets, now)
+  const solana = currentSolanaSession(wallets, now)
+  const owner =
+    solana && (!stellar || solana.issuedAt > stellar.issuedAt)
+      ? { family: 'solana' as const, address: solana.address }
+      : stellar && { family: 'stellar' as const, address: stellar.address }
   const updates: { address: string; update: Partial<Wallet> }[] = []
   for (const w of wallets) {
-    if (w.chainFamily !== 'evm' && w.chainFamily !== 'stellar') continue
-    const owner =
-      session !== null &&
-      w.chainFamily === 'stellar' &&
-      w.address === session.address
-    if (owner) {
+    const isOwner =
+      !!owner && w.chainFamily === owner.family && w.address === owner.address
+    if (isOwner) {
       if (!w.isActive || !w.isCurrentlyConnected || !w.isConnected)
         updates.push({
           address: w.address,
@@ -116,18 +122,32 @@ export function signedInDuringRestore(
 }
 
 /**
- * Whether an active wallet may be shown as the header wallet. A Stellar
- * wallet needs its own, unexpired session (expiresAt is in epoch seconds).
+ * Whether an active wallet may be shown as the header wallet. A Stellar or
+ * Solana wallet needs its own, unexpired session (expiresAt in epoch seconds).
  */
 export function isDisplayableActive(
-  wallet: Pick<Wallet, 'address' | 'chainFamily' | 'stellarSession'>,
+  wallet: Pick<
+    Wallet,
+    'address' | 'chainFamily' | 'stellarSession' | 'solanaSession'
+  >,
   now: number = Math.floor(Date.now() / 1000)
 ): boolean {
-  if (wallet.chainFamily !== 'stellar') return true
-  const session = wallet.stellarSession
-  return (
+  const ownLive = (
+    session: { address: string; expiresAt: number } | undefined
+  ) =>
     !!session && session.address === wallet.address && session.expiresAt > now
-  )
+  switch (wallet.chainFamily) {
+    case 'evm':
+      return true
+    case 'stellar':
+      return ownLive(wallet.stellarSession)
+    case 'solana':
+      return ownLive(wallet.solanaSession)
+    default: {
+      const unreachable: never = wallet.chainFamily
+      return unreachable
+    }
+  }
 }
 
 /**

@@ -3,6 +3,7 @@ import posthog from 'posthog-js'
 import {
   type ChainFamily,
   type StoredWalletIdentity,
+  analyticsWalletId,
   planWalletIdentity,
 } from '@/lib/analytics/wallet-identity'
 
@@ -58,7 +59,7 @@ export function identifyWallet({
     return
   }
 
-  const wallet = address.toLowerCase()
+  const wallet = analyticsWalletId(chainFamily, address)
 
   const plan = planWalletIdentity({
     stored: readIdentity(),

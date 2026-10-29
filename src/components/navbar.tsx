@@ -5,12 +5,10 @@ import { useState } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 
-import { useConnectModal } from '@rainbow-me/rainbowkit'
-
 import { MobileNavSheet } from '@/components/mobile-nav-sheet'
 import { Button } from '@/components/ui/button'
 import { NetworkFamilySelectorDialog } from '@/components/wallet/NetworkFamilySelectorDialog'
-import { useStellarWallet } from '@/contexts/StellarWalletContext'
+import { useConnectWalletFamily } from '@/hooks/useConnectWalletFamily'
 import { cn } from '@/lib/utils'
 import { useWalletStore } from '@/stores/walletStore'
 
@@ -35,8 +33,7 @@ export function Navbar() {
   const [open, setOpen] = useState(false)
   const [showNetworkDialog, setShowNetworkDialog] = useState(false)
 
-  const { openConnectModal } = useConnectModal()
-  const { connectStellar } = useStellarWallet()
+  const connectWalletFamily = useConnectWalletFamily()
 
   return (
     <header className="border-border bg-card sticky top-0 z-50 w-full border-b">
@@ -130,8 +127,7 @@ export function Navbar() {
       <NetworkFamilySelectorDialog
         open={showNetworkDialog}
         onOpenChange={setShowNetworkDialog}
-        onSelectEVM={() => openConnectModal?.()}
-        onSelectStellar={connectStellar}
+        onSelect={connectWalletFamily}
       />
     </header>
   )

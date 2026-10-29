@@ -4,7 +4,6 @@ import { Suspense, useEffect, useState } from 'react'
 
 import { useRouter, useSearchParams } from 'next/navigation'
 
-import { useConnectModal } from '@rainbow-me/rainbowkit'
 import {
   AlertTriangle,
   CheckCircle,
@@ -59,10 +58,16 @@ import {
   formatCurrencyDisplay,
 } from '@/config/currencies'
 import { useCurrency } from '@/contexts'
+import { useSolanaWallet } from '@/contexts/SolanaWalletContext'
 import { useStellarWallet } from '@/contexts/StellarWalletContext'
+import { useConnectWalletFamily } from '@/hooks/useConnectWalletFamily'
 import { useMultiWalletManager } from '@/hooks/useMultiWalletManager'
 import { formatAddress } from '@/lib/utils'
-import { useWalletStore } from '@/stores/walletStore'
+import { walletConnector } from '@/lib/wallet/wallet-families'
+import {
+  type Wallet as StoredWallet,
+  useWalletStore,
+} from '@/stores/walletStore'
 
 interface User {
   id: string
@@ -99,10 +104,11 @@ interface OrdersResponse {
 }
 
 function SettingsContent() {
-  // Same entry point as the navbar: pick EVM or Stellar, then the wallet.
+  // Same entry point as the navbar: pick the chain family, then the wallet.
   const [showNetworkDialog, setShowNetworkDialog] = useState(false)
-  const { openConnectModal } = useConnectModal()
-  const { connectStellar } = useStellarWallet()
+  const connectWalletFamily = useConnectWalletFamily()
+  const { disconnectStellar } = useStellarWallet()
+  const { disconnectSolana } = useSolanaWallet()
   const [user] = useState<User | null>(null)
   const [orders] = useState<OrdersResponse | null>(null)
   const [loading] = useState(false)
@@ -184,18 +190,28 @@ function SettingsContent() {
     }
   }
 
-  const handleDisconnectWallet = async (walletAddress: string) => {
+  const handleDisconnectWallet = async (
+    wallet: Pick<StoredWallet, 'address' | 'chainFamily'>
+  ) => {
+    const walletAddress = wallet.address
     try {
-      const isActiveAddress =
-        walletAddress.toLowerCase() === activeAddress?.toLowerCase()
-      const isLastAddress = wallets.length === 1
+      const connector = walletConnector(wallet.chainFamily)
+      if (connector === 'stellar') {
+        await disconnectStellar(walletAddress)
+      } else if (connector === 'solana') {
+        await disconnectSolana(walletAddress)
+      } else {
+        const isActiveAddress =
+          walletAddress.toLowerCase() === activeAddress?.toLowerCase()
+        const isLastAddress = wallets.length === 1
 
-      // Remove from our store
-      disconnectAddress(walletAddress as Address)
+        // Remove from our store
+        disconnectAddress(walletAddress as Address)
 
-      // If this is the active address or the last address, disconnect from wagmi
-      if (isActiveAddress || isLastAddress) {
-        disconnect()
+        // If this is the active address or the last address, disconnect from wagmi
+        if (isActiveAddress || isLastAddress) {
+          disconnect()
+        }
       }
 
       toast.success('Wallet disconnected')
@@ -695,8 +711,7 @@ function SettingsContent() {
                       <NetworkFamilySelectorDialog
                         open={showNetworkDialog}
                         onOpenChange={setShowNetworkDialog}
-                        onSelectEVM={() => openConnectModal?.()}
-                        onSelectStellar={connectStellar}
+                        onSelect={connectWalletFamily}
                       />
                     </div>
                   )
@@ -730,9 +745,7 @@ function SettingsContent() {
                           <Button
                             variant="outline"
                             size="sm"
-                            onClick={() =>
-                              handleDisconnectWallet(wallet.address)
-                            }
+                            onClick={() => handleDisconnectWallet(wallet)}
                           >
                             <span>Disconnect</span>
                             <LogOutIcon />

@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 
 import {
   type StoredWalletIdentity,
+  analyticsWalletId,
   planWalletIdentity,
 } from '@/lib/analytics/wallet-identity'
 
@@ -155,5 +156,24 @@ describe('planWalletIdentity', () => {
     expect(plan.personPropertiesSetOnce).toEqual({
       initial_chain_family: 'stellar',
     })
+  })
+})
+
+describe('analyticsWalletId', () => {
+  it('keeps EVM and Stellar ids lowercase, as PostHog already knows them', () => {
+    expect(
+      analyticsWalletId('evm', '0xAAAA000000000000000000000000000000000001')
+    ).toBe(EVM)
+    expect(
+      analyticsWalletId(
+        'stellar',
+        'GAAA000000000000000000000000000000000000000000000000000001'
+      )
+    ).toBe(STELLAR)
+  })
+
+  it('keeps a Solana address as it is: base58 is case-sensitive', () => {
+    const solana = 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v'
+    expect(analyticsWalletId('solana', solana)).toBe(solana)
   })
 })

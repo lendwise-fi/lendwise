@@ -25,13 +25,13 @@ describe('walletSubtitle', () => {
     ).toBe('Stellar · Not signed in')
   })
 
-  it('names the Solana family', () => {
+  it('says when a Solana wallet holds no session, as for Stellar', () => {
     expect(
       walletSubtitle({ chainFamily: 'solana', isConnected: true }, false)
     ).toBe('Solana')
     expect(
-      walletSubtitle({ chainFamily: 'solana', isConnected: false }, false)
-    ).toBe('Solana · Not connected')
+      walletSubtitle({ chainFamily: 'solana', isConnected: false }, true)
+    ).toBe('Solana · Not signed in')
   })
 })
 
@@ -57,10 +57,14 @@ describe('walletRowMenu', () => {
     ).toEqual({ connect: null, remove: 'Disconnect' })
   })
 
-  it('only offers to remove a disconnected Solana wallet', () => {
+  it('offers to sign a Solana wallet back in, as for Stellar', () => {
     expect(
       walletRowMenu({ chainFamily: 'solana', isConnected: false }, false)
-    ).toEqual({ connect: null, remove: 'Remove' })
+    ).toEqual({ connect: 'Sign in', remove: 'Remove' })
+    // A wagmi client says nothing about a Solana session.
+    expect(
+      walletRowMenu({ chainFamily: 'solana', isConnected: false }, true)
+    ).toEqual({ connect: 'Sign in', remove: 'Remove' })
   })
 })
 

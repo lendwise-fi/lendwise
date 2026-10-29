@@ -21,6 +21,7 @@ import {
   walletBalanceRows,
 } from '@/lib/portfolio/view'
 import { summarizeHealth } from '@/lib/risk/summary'
+import { hasActiveSignedInWallet } from '@/lib/wallet/wallet-families'
 import { useWalletStore } from '@/stores/walletStore'
 
 import { BorrowingTable, SupplyingTable, WalletBalancesTable } from '.'
@@ -36,15 +37,9 @@ export function Portfolio() {
   const { address: evmAddress, isConnected: isEvmConnected } = useAccount()
   const { wallets } = useWalletStore()
 
-  // Derive unified connection state across chain families
-  const activeStellarWallet = useMemo(
-    () =>
-      wallets.find(
-        (w) => w.chainFamily === 'stellar' && w.isConnected && w.isActive
-      ),
-    [wallets]
-  )
-  const isConnected = isEvmConnected || !!activeStellarWallet
+  // Connected: wagmi holds an EVM account, or a Stellar or Solana wallet is
+  // the active one and signed in.
+  const isConnected = isEvmConnected || hasActiveSignedInWallet(wallets)
 
   const { rate, loading: conversionLoading } = useCurrency()
 

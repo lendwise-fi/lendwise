@@ -12,6 +12,17 @@ export interface StellarSession {
   expiresAt: number
 }
 
+/** The Sign-In With Solana session, as `/api/auth/solana/session` returns it. */
+export interface SolanaSession {
+  sid: string
+  address: string
+  chain: string
+  /** Epoch seconds. */
+  issuedAt: number
+  /** Epoch seconds. */
+  expiresAt: number
+}
+
 export interface Wallet {
   address: string
   name: string
@@ -26,6 +37,7 @@ export interface Wallet {
   roles: string[]
   isUpdating: boolean
   stellarSession?: StellarSession
+  solanaSession?: SolanaSession
 }
 
 export interface Network {

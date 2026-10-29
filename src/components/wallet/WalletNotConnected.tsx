@@ -4,7 +4,6 @@ import { useState } from 'react'
 
 import Image from 'next/image'
 
-import { useConnectModal } from '@rainbow-me/rainbowkit'
 import { ArrowRight, Lock, Shield, TrendingUp, Wallet, Zap } from 'lucide-react'
 import { motion } from 'motion/react'
 
@@ -14,7 +13,7 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip'
 import { NetworkFamilySelectorDialog } from '@/components/wallet/NetworkFamilySelectorDialog'
-import { useStellarWallet } from '@/contexts/StellarWalletContext'
+import { useConnectWalletFamily } from '@/hooks/useConnectWalletFamily'
 
 const FEATURES = [
   {
@@ -39,7 +38,10 @@ interface SupportedWallet {
   logo: string
 }
 
-/** Logos in public/wallets: RainbowKit's for EVM, Stellar Wallets Kit's for Stellar. */
+/**
+ * Logos in public/wallets: RainbowKit's for EVM, Stellar Wallets Kit's for
+ * Stellar, Solana wallet-adapter's for Solana.
+ */
 const SUPPORTED: { family: string; wallets: SupportedWallet[] }[] = [
   {
     family: 'EVM',
@@ -57,6 +59,13 @@ const SUPPORTED: { family: string; wallets: SupportedWallet[] }[] = [
       { name: 'xBull', logo: '/wallets/xbull.png' },
       { name: 'LOBSTR', logo: '/wallets/lobstr.png' },
       { name: 'Albedo', logo: '/wallets/albedo.png' },
+    ],
+  },
+  {
+    family: 'Solana',
+    wallets: [
+      { name: 'Phantom', logo: '/wallets/phantom.svg' },
+      { name: 'Solflare', logo: '/wallets/solflare.svg' },
     ],
   },
 ]
@@ -87,8 +96,7 @@ function WalletLogo({ name, logo }: SupportedWallet) {
 export function WalletNotConnected() {
   const [showNetworkDialog, setShowNetworkDialog] = useState(false)
 
-  const { openConnectModal } = useConnectModal()
-  const { connectStellar } = useStellarWallet()
+  const connectWalletFamily = useConnectWalletFamily()
 
   return (
     <div className="relative flex h-full flex-col items-center justify-center overflow-hidden px-6 py-6">
@@ -204,8 +212,7 @@ export function WalletNotConnected() {
       <NetworkFamilySelectorDialog
         open={showNetworkDialog}
         onOpenChange={setShowNetworkDialog}
-        onSelectEVM={() => openConnectModal?.()}
-        onSelectStellar={connectStellar}
+        onSelect={connectWalletFamily}
       />
     </div>
   )
