@@ -8,7 +8,7 @@ import type { FamilyReport, ReconcileReport } from './types'
 
 /**
  * The chain family of an adapter, from the chains it declares: '-1' is
- * Stellar, every eip155 id is EVM (chain-slugs.ts). Null when its chains span
+ * Stellar, '-2' Solana, every eip155 id is EVM (chain-slugs.ts). Null when its chains span
  * several families or include one the registry does not know — reconcile then
  * records an error rather than guessing.
  */

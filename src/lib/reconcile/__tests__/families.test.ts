@@ -123,11 +123,17 @@ describe('adapterFamily', () => {
   it('reads the family from the chains an adapter declares', () => {
     expect(adapterFamily({ chains: { 1: { slug: 'ethereum' } } })).toBe('evm')
     expect(adapterFamily({ chains: STELLAR })).toBe('stellar')
+    expect(adapterFamily({ chains: { [-2]: { slug: 'solana' } } })).toBe(
+      'solana'
+    )
   })
 
   it('has no single family for mixed, unregistered or no chains', () => {
     expect(
       adapterFamily({ chains: { 1: { slug: 'ethereum' }, ...STELLAR } })
+    ).toBeNull()
+    expect(
+      adapterFamily({ chains: { ...STELLAR, [-2]: { slug: 'solana' } } })
     ).toBeNull()
     expect(
       adapterFamily({ chains: { 123456: { slug: 'nowhere' } } })

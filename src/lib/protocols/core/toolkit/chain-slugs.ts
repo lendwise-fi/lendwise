@@ -18,7 +18,7 @@
  * resolve the '@/' alias) and must stay dependency-free.
  */
 
-export type ChainFamily = 'evm' | 'stellar'
+export type ChainFamily = 'evm' | 'stellar' | 'solana'
 
 const REGISTRY = [
   // ── EVM — chainId is the real eip155 id ─────────────────────────────────────
@@ -61,6 +61,13 @@ const REGISTRY = [
     name: 'Stellar',
     family: 'stellar',
     caip2: 'stellar:pubnet',
+  },
+  {
+    chainId: -2,
+    slug: 'solana',
+    name: 'Solana',
+    family: 'solana',
+    caip2: 'solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp',
   },
 ] as const
 

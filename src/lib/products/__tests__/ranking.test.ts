@@ -186,6 +186,13 @@ describe('ranking — a Stellar adapter next to Aave, Morpho and Compound', () =
     }
   })
 
+  it('reads a Solana row as its own family and enters it through its protocol', () => {
+    expect(chainFamilyOfProduct({ poolChainId: -2 })).toBe('solana')
+    expect(
+      productEntry({ poolChainId: -2, assetSymbol: 'USDC', productId: 'p' })
+    ).toEqual({ kind: 'protocol' })
+  })
+
   it('keeps a non-USDC Stellar row on its protocol: CCTP only moves USDC', () => {
     expect(
       productEntry({ poolChainId: -1, assetSymbol: 'XLM', productId: 'p' })
