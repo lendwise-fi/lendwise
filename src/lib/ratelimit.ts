@@ -3,7 +3,7 @@ import { Redis } from '@upstash/redis'
 
 /**
  * IP-based rate limiting for the public API surface (/api/graphql,
- * /api/optimizer, /api/auth/stellar, /api/auth/solana).
+ * /api/optimizer, /api/auth/stellar, /api/auth/solana, the portfolio load).
  *
  * Fails OPEN by design: if Upstash is unconfigured (local dev, CI) or unreachable,
  * requests are allowed rather than rejected. Availability of lendwise.fi outranks
@@ -71,6 +71,20 @@ export const graphqlLimiter = createLimiter(60, 'lw:gql')
 
 /** 10 req/min/IP — fronts the CPU-bound solver, so it is the expensive path. */
 export const optimizerLimiter = createLimiter(10, 'lw:opt')
+
+/**
+ * Portfolio loads per minute per IP. A page open loads the portfolio a few
+ * times and a landed bridge transfer reloads it; 30 leaves room for several
+ * users behind one NAT and caps scripted loads, each of which fans out to EVM,
+ * Stellar and Solana RPC and to the Kamino API.
+ */
+export const PORTFOLIO_LOADS_PER_MINUTE = 30
+
+/** 30 req/min/IP — the `loadUserPortfolio` server action. */
+export const portfolioLimiter = createLimiter(
+  PORTFOLIO_LOADS_PER_MINUTE,
+  'lw:portfolio'
+)
 
 /**
  * 20 req/min/IP — Stellar sign-in (SEP-10 challenge + verify). A human signs

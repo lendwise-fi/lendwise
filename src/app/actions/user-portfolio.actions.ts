@@ -1,5 +1,7 @@
 'use server'
 
+import { headers } from 'next/headers'
+
 import {
   APP_ADAPTERS,
   solanaPositionAdapters,
@@ -13,12 +15,14 @@ import {
 import { holdingsChains } from '@/lib/evm/holdings-chains'
 import { getEvmWalletHoldings } from '@/lib/evm/wallet-holdings'
 import { loadPortfolio } from '@/lib/portfolio/load'
+import { limitPortfolioLoad } from '@/lib/portfolio/rate-limit'
 import { sanitizeWalletInputs } from '@/lib/portfolio/routing'
 import type {
+  LoadUserPortfolioResult,
   PortfolioWalletInput,
-  UserPortfolioResult,
 } from '@/lib/portfolio/types'
 import type { AppAdapter } from '@/lib/protocols/core/types'
+import { clientIp, portfolioLimiter } from '@/lib/ratelimit'
 import { computeRiskAccounts } from '@/lib/risk/compute'
 import { cachedSolanaHoldings } from '@/lib/solana/holdings-cache'
 import { getSolanaWalletHoldings } from '@/lib/solana/wallet-holdings'
@@ -46,16 +50,25 @@ const solanaHoldings = cachedSolanaHoldings((addresses) =>
   getSolanaWalletHoldings(addresses)
 )
 
+/**
+ * The portfolio of `wallets`, or the rate-limit shape once the caller's IP is
+ * over `PORTFOLIO_LOADS_PER_MINUTE`: every load fans out to RPC and API reads.
+ */
 export async function loadUserPortfolio(
   wallets: PortfolioWalletInput[]
-): Promise<UserPortfolioResult> {
-  return loadPortfolio(sanitizeWalletInputs(wallets), {
-    evmAdapters,
-    stellarAdapters: stellarPositionAdapters(),
-    solanaAdapters: solanaPositionAdapters(),
-    stellarHoldings: (addresses) => getStellarWalletHoldings(addresses),
-    solanaHoldings,
-    evmHoldings,
-    computeRisk: (accounts) => computeRiskAccounts(accounts),
+): Promise<LoadUserPortfolioResult> {
+  return limitPortfolioLoad({
+    ip: async () => clientIp(await headers()),
+    limit: (ip) => portfolioLimiter.limit(ip),
+    load: () =>
+      loadPortfolio(sanitizeWalletInputs(wallets), {
+        evmAdapters,
+        stellarAdapters: stellarPositionAdapters(),
+        solanaAdapters: solanaPositionAdapters(),
+        stellarHoldings: (addresses) => getStellarWalletHoldings(addresses),
+        solanaHoldings,
+        evmHoldings,
+        computeRisk: (accounts) => computeRiskAccounts(accounts),
+      }),
   })
 }

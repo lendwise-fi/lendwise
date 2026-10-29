@@ -8,6 +8,7 @@ import {
   type PortfolioWalletInput,
   type UserPortfolioResult,
   emptyPortfolio,
+  isPortfolioRateLimited,
 } from '@/lib/portfolio/types'
 
 export function useLoadUserPortfolio(wallets: PortfolioWalletInput[]) {
@@ -26,6 +27,11 @@ export function useLoadUserPortfolio(wallets: PortfolioWalletInput[]) {
       try {
         const result = await loadUserPortfolio(wallets)
         if (id !== latest.current) return
+        // Over the per-IP limit: shown like a failed load, the last read kept.
+        if (isPortfolioRateLimited(result)) {
+          setError(result.error)
+          return
+        }
         setPortfolio(result)
         setError(null)
       } catch (err) {

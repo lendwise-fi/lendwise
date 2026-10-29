@@ -62,6 +62,24 @@ export interface UserPortfolioResult {
   failures: PortfolioPartialFailure[]
 }
 
+/**
+ * A portfolio load refused by the per-IP rate limit: the body the optimizer
+ * answers with its 429, plus the seconds of its `Retry-After`.
+ */
+export interface PortfolioRateLimited {
+  error: string
+  retryAfter: number
+}
+
+/** What the `loadUserPortfolio` server action returns. */
+export type LoadUserPortfolioResult = UserPortfolioResult | PortfolioRateLimited
+
+export function isPortfolioRateLimited(
+  result: LoadUserPortfolioResult
+): result is PortfolioRateLimited {
+  return 'error' in result
+}
+
 export function emptyUserPositions(): UserPosition {
   return { supply: {}, borrow: {} }
 }
