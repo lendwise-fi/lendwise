@@ -6,16 +6,23 @@ import {
   Transaction,
   TransactionBuilder,
 } from '@stellar/stellar-sdk'
-import { createHmac, randomBytes, timingSafeEqual } from 'crypto'
+import { randomBytes } from 'crypto'
 
 import { stellarNetwork } from '@/config/stellar-network'
 import { stellarHorizonUrl } from '@/config/stellar-network.server'
 
-import { isProduction } from './redis'
+import {
+  openSessionToken,
+  sealSessionToken,
+  sessionSecretKey,
+} from './session-token'
+import { allowedDomains } from './sign-in-domains'
 import {
   consumeSep10Challenge,
   rememberSep10Challenge,
 } from './stellar-challenge-store'
+
+export { allowedDomains }
 
 const CHALLENGE_TIMEOUT_SECONDS = 5 * 60
 const SESSION_TTL_SECONDS = 7 * 24 * 60 * 60
@@ -83,37 +90,6 @@ function assertPublicKey(address: string): void {
   } catch {
     throw new Error('Invalid Stellar public key')
   }
-}
-
-function hostOf(value: string | undefined): string | null {
-  if (!value) return null
-  return value
-    .replace(/^https?:\/\//, '')
-    .split(/[/:]/)[0]
-    .toLowerCase()
-}
-
-/**
- * The hosts this deployment answers on, from the system variables Vercel sets
- * on every deployment — the production domain, the branch URL and the
- * deployment URL — plus localhost outside production. Extra hosts (custom
- * domains attached to a branch or project, which Vercel exposes in no
- * variable) come from `STELLAR_SIGN_IN_EXTRA_HOSTS`, comma-separated. Only
- * hosts this deployment actually answers on may be listed there. The sign-in
- * routes also check a request's `Origin` against it (same-origin.ts).
- */
-export function allowedDomains(): Set<string> {
-  const hosts = [
-    process.env.VERCEL_PROJECT_PRODUCTION_URL,
-    process.env.VERCEL_BRANCH_URL,
-    process.env.VERCEL_URL,
-    ...(process.env.STELLAR_SIGN_IN_EXTRA_HOSTS ?? '')
-      .split(',')
-      .map((h) => h.trim()),
-  ].map(hostOf)
-  if (process.env.NODE_ENV !== 'production')
-    hosts.push('localhost', '127.0.0.1')
-  return new Set(hosts.filter((h): h is string => !!h))
 }
 
 /**
@@ -293,28 +269,11 @@ async function verifyClientSignerThreshold({
 // Session tokens use a key derived from a dedicated session secret, never the
 // SEP-10 signing key itself. Production requires the dedicated secret.
 function sessionKey(): Buffer {
-  const configured = process.env.STELLAR_SESSION_SECRET
-  if (configured) {
-    return createHmac('sha256', configured)
-      .update('stellar-session-v1')
-      .digest()
-  }
-  if (isProduction()) {
-    throw new Error('STELLAR_SESSION_SECRET is not configured')
-  }
-  const signing = process.env.STELLAR_SEP10_SIGNING_SECRET
-  if (!signing) throw new Error('STELLAR_SESSION_SECRET is not configured')
-  return createHmac('sha256', signing).update('stellar-session-dev-v1').digest()
+  return sessionSecretKey('stellar-session-v1', 'stellar-session-dev-v1')
 }
 
 export function signSession(payload: StellarSessionPayload): string {
-  const body = Buffer.from(JSON.stringify(payload), 'utf8').toString(
-    'base64url'
-  )
-  const sig = createHmac('sha256', sessionKey())
-    .update(body)
-    .digest('base64url')
-  return body + '.' + sig
+  return sealSessionToken(payload, sessionKey())
 }
 
 export function verifySessionToken(
@@ -326,29 +285,20 @@ export function verifySessionToken(
   } catch {
     return null
   }
-  const [body, sig] = token.split('.')
-  if (!body || !sig) return null
-  const expected = createHmac('sha256', key).update(body).digest('base64url')
-  const a = Buffer.from(sig)
-  const b = Buffer.from(expected)
-  if (a.length !== b.length || !timingSafeEqual(a, b)) return null
-
-  try {
-    const payload = JSON.parse(
-      Buffer.from(body, 'base64url').toString('utf8')
-    ) as Partial<StellarSessionPayload>
-    if (typeof payload.sid !== 'string' || payload.sid.length < 16) return null
-    if (typeof payload.address !== 'string') return null
-    // A session issued on another network (testnet cookie on mainnet) is not
-    // a session here.
-    if (payload.networkPassphrase !== networkPassphrase()) return null
-    if (typeof payload.issuedAt !== 'number') return null
-    if (typeof payload.expiresAt !== 'number') return null
-    if (payload.expiresAt <= Math.floor(Date.now() / 1000)) return null
-    return payload as StellarSessionPayload
-  } catch {
-    return null
-  }
+  const payload = openSessionToken(
+    token,
+    key
+  ) as Partial<StellarSessionPayload> | null
+  if (!payload || typeof payload !== 'object') return null
+  if (typeof payload.sid !== 'string' || payload.sid.length < 16) return null
+  if (typeof payload.address !== 'string') return null
+  // A session issued on another network (testnet cookie on mainnet) is not
+  // a session here.
+  if (payload.networkPassphrase !== networkPassphrase()) return null
+  if (typeof payload.issuedAt !== 'number') return null
+  if (typeof payload.expiresAt !== 'number') return null
+  if (payload.expiresAt <= Math.floor(Date.now() / 1000)) return null
+  return payload as StellarSessionPayload
 }
 
 export async function verifyStellarChallenge({

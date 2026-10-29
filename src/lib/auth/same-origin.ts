@@ -7,8 +7,8 @@
  * server actions only, not of route handlers.
  *
  * - `Origin` present: its host must be one of `allowedHosts`
- *   (`allowedDomains()` of stellar-sep10.ts). A browser sends it on every POST
- *   and DELETE.
+ *   (`allowedDomains()` of sign-in-domains.ts). A browser sends it on every
+ *   POST and DELETE.
  * - `Origin` absent (a same-origin GET): `Sec-Fetch-Site` must be
  *   `same-origin`. Neither header means refused.
  * - A POST must be `application/json`: a form can only send urlencoded,

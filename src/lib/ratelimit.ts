@@ -3,7 +3,7 @@ import { Redis } from '@upstash/redis'
 
 /**
  * IP-based rate limiting for the public API surface (/api/graphql,
- * /api/optimizer, /api/auth/stellar).
+ * /api/optimizer, /api/auth/stellar, /api/auth/solana).
  *
  * Fails OPEN by design: if Upstash is unconfigured (local dev, CI) or unreachable,
  * requests are allowed rather than rejected. Availability of lendwise.fi outranks
@@ -78,6 +78,13 @@ export const optimizerLimiter = createLimiter(10, 'lw:opt')
  * signature-verification floods (each verify may hit Horizon).
  */
 export const stellarAuthLimiter = createLimiter(20, 'lw:sep10')
+
+/**
+ * 20 req/min/IP — Solana sign-in (SIWS challenge + verify), on the same
+ * budget as Stellar's: it caps scripted challenge minting (each one is a
+ * stored message) and signature-verification floods.
+ */
+export const solanaAuthLimiter = createLimiter(20, 'lw:siws')
 
 /**
  * 60 req/min per Stellar account — the CCTP bridge actions. The page polls a
