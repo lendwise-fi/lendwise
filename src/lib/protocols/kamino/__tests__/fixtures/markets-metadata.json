@@ -1,0 +1,23 @@
+{
+  "7u3HeHxYDLhnCoErrtycNokbQYbWGzLs6JSDqGAv5PfF": {
+    "name": "SOL/BTC Market",
+    "description": "SOL/BTC Pool",
+    "isCurated": false,
+    "reserves": [
+      "4eUxuaHSHNTftaui3XVW32d2Ph2hKBLpuMP25gQ5MqF4",
+      "5YpGenXaAowj4HS33AvirVb8P4tgue7S7YaY6MyYZ7LD",
+      "64AZMUHLB6NYvQSt41JTer4v8NAFDCz5sUPb7dYpCxa",
+      "A2J2CEwmwa9aTKbEfNoik6YTyNep9GtvNjU65okWYhwn",
+      "D6q6wuQSrifJKZYpR1M8R4YawnLDtDsMmWM1NbBmgJ59"
+    ]
+  },
+  "47tfyEG9SsdEnUm9cw5kY9BXngQGqu3LBoop9j5uTAv8": {
+    "name": "fixed-rate fixture market",
+    "description": "",
+    "isCurated": false,
+    "reserves": [
+      "8Lvi1DFPoAGPQ25qpRKzzRaSAnWdeVZqt9XmEapm8uLt",
+      "Msfbke5T1fWbSD1u6Wxya7Seh4R5ocdwVkDuYVWyVhv"
+    ]
+  }
+}

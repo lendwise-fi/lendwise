@@ -1,0 +1,18 @@
+[
+  {
+    "name": "SOL/BTC Market",
+    "isPrimary": true,
+    "description": "SOL/BTC Pool",
+    "lendingMarket": "7u3HeHxYDLhnCoErrtycNokbQYbWGzLs6JSDqGAv5PfF",
+    "lookupTable": "FGMSBiyVE8TvZcdQnZETAAKw28tkQJ2ccZy6pyp95URb",
+    "isCurated": false
+  },
+  {
+    "name": "OnRe Market",
+    "isPrimary": false,
+    "description": "OnRe Pool",
+    "lendingMarket": "47tfyEG9SsdEnUm9cw5kY9BXngQGqu3LBoop9j5uTAv8",
+    "lookupTable": "6D8Roriqv9yeDotBSFFKwDdHtvvn4eXYopdFx2zpBbDP",
+    "isCurated": false
+  }
+]

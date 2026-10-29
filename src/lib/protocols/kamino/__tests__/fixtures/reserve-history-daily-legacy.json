@@ -1,0 +1,71 @@
+{
+  "reserve": "D6q6wuQSrifJKZYpR1M8R4YawnLDtDsMmWM1NbBmgJ59",
+  "history": [
+    {
+      "timestamp": "2023-10-12T00:00:00.000Z",
+      "metrics": {
+        "status": "Active",
+        "symbol": "USDC",
+        "decimals": 6,
+        "mintAddress": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+        "assetPriceUSD": "1.000089439999999978840120595791063791976",
+        "supplyInterestAPY": 0.011288690685390157,
+        "borrowInterestAPY": 0.023068021378950698,
+        "supplyRewardsApy": null,
+        "borrowRewardsApy": null,
+        "depositTvl": "5227.2737174289882729",
+        "borrowTvl": "0.948387141840936191",
+        "loanToValue": null,
+        "loanToValuePct": 0.75,
+        "liquidationThreshold": 0.8,
+        "borrowFactor": 100,
+        "totalSupply": "5226.7203254635573786",
+        "totalBorrows": "0.94828635797563281974"
+      }
+    },
+    {
+      "timestamp": "2023-10-13T00:00:00.000Z",
+      "metrics": {
+        "status": "Active",
+        "symbol": "USDC",
+        "decimals": 6,
+        "mintAddress": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+        "assetPriceUSD": "1.000141499999999978445627130119178098848",
+        "supplyInterestAPY": 3.045197030247424e-7,
+        "borrowInterestAPY": 0.00020976383692283482,
+        "supplyRewardsApy": null,
+        "borrowRewardsApy": null,
+        "depositTvl": "8198.6632498981164993",
+        "borrowTvl": "6.3068675032906898446",
+        "loanToValue": null,
+        "loanToValuePct": 0.75,
+        "liquidationThreshold": 0.8,
+        "borrowFactor": 100,
+        "totalSupply": "8197.7554852195346007",
+        "totalBorrows": "6.3060345704851958654"
+      }
+    },
+    {
+      "timestamp": "2023-10-14T00:00:00.000Z",
+      "metrics": {
+        "status": "Active",
+        "symbol": "USDC",
+        "decimals": 6,
+        "mintAddress": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+        "assetPriceUSD": "1.000039999999999978420039958848520194738",
+        "supplyInterestAPY": 0.000001410643983152598,
+        "borrowInterestAPY": 0.000499356128875015,
+        "supplyRewardsApy": null,
+        "borrowRewardsApy": null,
+        "depositTvl": "8202.8686783511171333",
+        "borrowTvl": "22.946721355732895902",
+        "loanToValue": null,
+        "loanToValuePct": 0.75,
+        "liquidationThreshold": 0.8,
+        "borrowFactor": 100,
+        "totalSupply": "8202.2021807876643243",
+        "totalBorrows": "22.944910357218002702"
+      }
+    }
+  ]
+}

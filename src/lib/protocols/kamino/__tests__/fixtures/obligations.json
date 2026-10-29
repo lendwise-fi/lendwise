@@ -1,0 +1,50 @@
+[
+  {
+    "obligationAddress": "CPnDLL2Rq4SBA95AmU3oJXDufPKxhb8CxKRMGyHmFmeo",
+    "obligationTag": 1,
+    "humanTag": "Multiply",
+    "refreshedStats": {
+      "borrowLimit": "0.58939655085811448584",
+      "borrowLiquidationLimit": "0.62326991584996014595",
+      "userTotalBorrow": "0.15804930108152662944",
+      "userTotalBorrowBorrowFactorAdjusted": "0.15804930108152662944",
+      "userTotalDeposit": "0.67746729983691320212",
+      "userTotalCollateralDeposit": "0.67746729983691320212",
+      "userTotalLiquidatableDeposit": "0.67746729983691320212",
+      "liquidationLtv": "0.92",
+      "borrowUtilization": "0.26815443838519146646",
+      "netAccountValue": "0.51941799875538657268",
+      "leverage": "1.3042815255925661064",
+      "loanToValue": "0.23329436139511657582",
+      "potentialElevationGroupUpdate": 0
+    },
+    "state": {
+      "lendingMarket": "7u3HeHxYDLhnCoErrtycNokbQYbWGzLs6JSDqGAv5PfF",
+      "owner": "JAnVMDjQ6gjsX3ugdnGcFsAFxVzCP2CFbMMdbv84RoA1",
+      "tag": "1",
+      "elevationGroup": 2,
+      "depositedValueSf": "649756510190327551",
+      "borrowedAssetsMarketValueSf": "149774460626003746",
+      "borrowFactorAdjustedDebtValueSf": "149774460626003746",
+      "allowedBorrowValueSf": "565288163865584969",
+      "unhealthyBorrowValueSf": "597775989375101346",
+      "deposits": [
+        {
+          "depositReserve": "CHBNUPdjeo2N5QkZY2uAqv7TW5EbCTMsfvaskCBuxbom",
+          "depositedAmount": "5740682",
+          "marketValueSf": "649756510190327551"
+        }
+      ],
+      "borrows": [
+        {
+          "borrowReserve": "d4A2prbA2whesmvHaL88BH6Ewn5N4bTSU2Ze8P6Bc4Q",
+          "borrowedAmountSf": "1736446294425523242990594",
+          "marketValueSf": "149774460626003746",
+          "borrowFactorAdjustedMarketValueSf": "149774460626003746"
+        }
+      ]
+    },
+    "deposits": {},
+    "borrows": {}
+  }
+]
