@@ -2,6 +2,7 @@ import { AAVE_V3_META } from '@/lib/protocols/aave/v3/meta'
 import { BLEND_PROVIDER } from '@/lib/protocols/blend/common/config'
 import { BLEND_V2_1_META } from '@/lib/protocols/blend/v2_1/meta'
 import { COMPOUND_V3_META } from '@/lib/protocols/compound/v3/meta'
+import { KAMINO_V1_META } from '@/lib/protocols/kamino/v1/meta'
 import { MORPHO_V1_META } from '@/lib/protocols/morpho/v1/meta'
 import { isStellarYieldFixtureEnabled } from '@/lib/protocols/stellar/fixture/config'
 
@@ -21,6 +22,7 @@ export const PROTOCOLS_META = {
   // stays (v2.1 runs v2's), their rows and history stay in the database, and
   // `scripts/retire-products.ts` closed their availability periods.
   ...BLEND_V2_1_META,
+  ...KAMINO_V1_META,
 } as const
 
 export type ProtocolName = keyof typeof PROTOCOLS_META

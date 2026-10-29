@@ -23,6 +23,7 @@ const EXPECTED_HOOKS: Record<ProtocolName, string[]> = {
   morpho_v1: ['poolName', 'poolIdentity', 'productLink'],
   compound_v3: ['productLink'],
   'blend_v2.1': ['poolName', 'productLink'],
+  kamino_v1: ['poolName', 'productLink'],
 }
 
 describe('PROTOCOLS_PRESENTATION', () => {

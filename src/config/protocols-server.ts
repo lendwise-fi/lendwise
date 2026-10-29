@@ -19,6 +19,7 @@ export const YIELD_ADAPTERS: Record<ProtocolName, () => Promise<YieldAdapter>> =
       import('@/lib/protocols/compound/v3').then((m) => m.adapter),
     'blend_v2.1': () =>
       import('@/lib/protocols/blend/v2_1').then((m) => m.adapter),
+    kamino_v1: () => import('@/lib/protocols/kamino/v1').then((m) => m.adapter),
   }
 
 /**

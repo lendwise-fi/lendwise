@@ -27,4 +27,9 @@ describe('GraphQL schema', () => {
       expect.arrayContaining([...providers])
     )
   })
+
+  it('ProtocolName names kamino, and chainId documents -2 for Solana', () => {
+    expect(enumValues('ProtocolName')).toContain('kamino')
+    expect(typeDefs).toMatch(/-2 for Solana/)
+  })
 })

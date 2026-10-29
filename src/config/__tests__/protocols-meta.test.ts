@@ -13,6 +13,7 @@ describe('PROTOCOLS_META', () => {
       'aave_v3',
       'blend_v2.1',
       'compound_v3',
+      'kamino_v1',
       'morpho_v1',
     ])
     for (const meta of Object.values(PROTOCOLS_META)) {
@@ -33,6 +34,9 @@ describe('PROTOCOLS_META', () => {
     // …but their rows still get a name.
     expect(protocolVersionName('blend_v1')).toBe('Blend v1')
     expect(protocolDisplayName('blend_v2')).toBe('Blend')
+    expect(adapterIdsForProvider('kamino')).toEqual(['kamino_v1'])
+    expect(protocolVersionName('kamino_v1')).toBe('Kamino Lend')
+    expect(protocolDisplayName('kamino_v1')).toBe('Kamino')
     expect(adapterIdsForProvider('unknown')).toEqual([])
   })
 })

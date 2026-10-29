@@ -16,6 +16,7 @@ export const typeDefs = /* GraphQL */ `
     morpho
     compound
     blend
+    kamino
   }
 
   enum RewardSource {
@@ -167,7 +168,7 @@ export const typeDefs = /* GraphQL */ `
   }
 
   type ProductProtocol {
-    "Normalized provider identifier — aave | morpho | compound | blend."
+    "Normalized provider identifier — aave | morpho | compound | blend | kamino."
     provider: ProtocolName!
     "Product type — reserve | market | vault."
     type: String!
@@ -345,11 +346,11 @@ export const typeDefs = /* GraphQL */ `
   input HourlyFilters {
     "Filter by a batch of exact productIds — max 50."
     productIds: [String!]
-    "Filter by protocol name — aave | morpho | compound | blend."
+    "Filter by protocol name — aave | morpho | compound | blend | kamino."
     protocol: ProtocolName
     "Filter by native market name — e.g. AaveV3Ethereum, MorphoBlueEthereum."
     market: String
-    "Filter by chain ID — the EVM chain id, or -1 for Stellar."
+    "Filter by chain ID — the EVM chain id, -1 for Stellar, or -2 for Solana."
     chainId: Int
     "Filter by loan asset symbol — e.g. USDC, WETH."
     asset: String
