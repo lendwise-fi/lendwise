@@ -26,3 +26,23 @@ export const KAMINO_HISTORY_CHUNK_MS: Record<KaminoHistoryFrequency, number> = {
   hour: 30 * DAY_MS,
   day: 365 * DAY_MS,
 }
+
+/** `/reserves/account-data` returns ~11 KB per reserve: markets per call. */
+export const KAMINO_ACCOUNT_DATA_MARKETS_PER_CALL = 10
+
+/**
+ * Reward token mint -> symbol, for the reward mints seen in batch stats
+ * (2026-10-29). Sources: Kamino `/reserves/metrics` (liquidityToken of the
+ * reserve with that mint) for USDG, USDC, JTO, BONK, lanternSOL, strongSOL;
+ * Jupiter token API (lite-api.jup.ag/tokens/v2/search) and DexScreener for
+ * BLZE (Blaze), which is no Kamino reserve.
+ */
+export const KAMINO_REWARD_SYMBOLS: Readonly<Record<string, string>> = {
+  '2u1tszSeqZ3qBWF3uNGPFc8TzMk2tdiwknnRMWGWjGWH': 'USDG',
+  BLZEEuZUBVqFhj8adcCFPJvPVCiCyVmh3hkJMrU8KuJA: 'BLZE',
+  DezXAZ8z7PnrnRJjz3wXBoRgixCa6xjnB7YaB1pPB263: 'BONK',
+  EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v: 'USDC',
+  LnTRntk2kTfWEY6cVB8K9649pgJbt6dJLS1Ns1GZCWg: 'lanternSOL',
+  jtojtomepa8beP8AuQc6eXt5FriJwfFMwQx2v2f9mCL: 'JTO',
+  strng7mqqc1MBJJV6vMzYbEqnwVGvKKGKedeCvtktWA: 'strongSOL',
+}

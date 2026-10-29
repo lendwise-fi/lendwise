@@ -4,8 +4,8 @@ import type { BorrowProduct, SpotPayload, SupplyProduct } from '@/lib/db/types'
 
 import marketsMetadata from '../../__tests__/fixtures/markets-metadata.json'
 import markets from '../../__tests__/fixtures/markets.json'
-import reserveMetrics from '../../__tests__/fixtures/reserve-metrics.json'
 import reserveStats from '../../__tests__/fixtures/reserve-stats.json'
+import accountData from '../../__tests__/fixtures/reserves-account-data.json'
 import type { KaminoReserveStats } from '../../common/api'
 import { fetchReserveStats } from '../../common/api'
 import { isListedReserve } from '../../listing'
@@ -35,8 +35,8 @@ function route(url: URL): Response {
   if (url.pathname === '/v2/kamino-market') return json(markets)
   if (url.pathname === '/reserves/batch/stats') return json(reserveStats)
   if (url.pathname === '/markets/batch/metadata') return json(marketsMetadata)
-  if (url.pathname === `/kamino-market/${PRIMARY}/reserves/metrics`)
-    return json(reserveMetrics)
+  if (url.pathname === '/kamino-market/reserves/account-data')
+    return json(accountData)
   return new Response('not found', { status: 404 })
 }
 
@@ -94,13 +94,50 @@ describe('getProducts', () => {
     )
   })
 
-  it('does not fetch symbols for markets without a listed reserve', async () => {
+  it('reads account data only for markets with a listed reserve, and no metrics call', async () => {
     installRoutes()
     await adapter.getProducts()
-    const metricsCalls = fetchMock.mock.calls
-      .map(([i]) => new URL(String(i)).pathname)
-      .filter((p) => p.endsWith('/reserves/metrics'))
-    expect(metricsCalls).toEqual([`/kamino-market/${PRIMARY}/reserves/metrics`])
+    const urls = fetchMock.mock.calls.map(([i]) => new URL(String(i)))
+    const acct = urls.filter((u) => u.pathname.endsWith('/account-data'))
+    expect(acct).toHaveLength(1)
+    expect(acct[0].searchParams.getAll('markets')).toEqual([PRIMARY])
+    expect(urls.some((u) => u.pathname.endsWith('/reserves/metrics'))).toBe(
+      false
+    )
+  })
+
+  it('carries on-chain decimals on assets and collaterals', async () => {
+    installRoutes()
+    const products = await adapter.getProducts()
+    const supply = products.find((p) => p._id.endsWith(`${USDC}:supply`))!
+    expect(supply.asset.decimals).toBe(6)
+    const borrow = products.find((p) =>
+      p._id.endsWith(`${USDC}:borrow`)
+    ) as BorrowProduct
+    expect(borrow.asset.decimals).toBe(6)
+    expect(
+      borrow.collaterals.find((c) => c.symbol === 'strongSOL')?.decimals
+    ).toBe(9)
+  })
+
+  it('skips a reserve whose decoded mint differs from its stats mint', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    installRoutes()
+    const stale = structuredClone(reserveStats) as Record<
+      string,
+      { token: string }
+    >
+    stale[ADRASOL].token = USDC_MINT
+    fetchMock.mockImplementation(async (input) => {
+      const url = new URL(String(input))
+      if (url.pathname === '/reserves/batch/stats') return json(stale)
+      return route(url)
+    })
+    const ids = (await adapter.getProducts()).map((p) => p._id)
+    expect(ids.some((id) => id.includes(ADRASOL))).toBe(false)
+    expect(ids.some((id) => id.includes(STRONGSOL))).toBe(true)
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining(ADRASOL))
+    warn.mockRestore()
   })
 
   it('shapes the USDC supply product with meta read back by history', async () => {
@@ -158,17 +195,16 @@ describe('getProducts', () => {
     expect(fetchMock).not.toHaveBeenCalled()
   })
 
-  it('skips a market whose symbols cannot be read, without failing the rest', async () => {
-    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+  it('rejects when an account-data batch fails instead of dropping products', async () => {
     fetchMock.mockImplementation(async (input) => {
       const url = new URL(String(input))
-      if (url.pathname.endsWith('/reserves/metrics'))
+      if (url.pathname.endsWith('/account-data'))
         return new Response('boom', { status: 500 })
       return route(url)
     })
-    expect(await adapter.getProducts({ chainIds: [-2] })).toEqual([])
-    expect(warn).toHaveBeenCalled()
-    warn.mockRestore()
+    await expect(adapter.getProducts({ chainIds: [-2] })).rejects.toMatchObject(
+      { name: 'KaminoApiError', kind: 'http', status: 500 }
+    )
   })
 })
 
@@ -178,7 +214,7 @@ describe('getApySpot', () => {
     return adapter.getApySpot()
   }
 
-  it('emits one payload per product and no symbol request', async () => {
+  it('emits one payload per product and no metadata request', async () => {
     const payloads = await spot()
     expect(payloads.map((p) => p.productId).sort()).toEqual(
       [
@@ -189,7 +225,7 @@ describe('getApySpot', () => {
       ].sort()
     )
     const paths = fetchMock.mock.calls.map(([i]) => new URL(String(i)).pathname)
-    expect(paths.some((p) => p.endsWith('/reserves/metrics'))).toBe(false)
+    expect(paths.some((p) => p.includes('account-data'))).toBe(false)
   })
 
   it('computes USDC supply: base = lending, no reward, net = base', async () => {
@@ -247,13 +283,41 @@ describe('getApySpot', () => {
     expect(p.apy.net).toBeCloseTo(0.00772649351543883, 12) // underlying 4.7% excluded
     expect(p.apy.rewardItems).toEqual([
       {
-        token: { symbol: STRONGSOL_MINT, address: STRONGSOL_MINT },
+        token: { symbol: 'strongSOL', address: STRONGSOL_MINT },
         apr: 0.00772649351543883,
         apy: 0.00772649351543883,
         source: 'protocol',
         program: null,
       },
     ])
+  })
+
+  it('falls back to the mint and warns once for an unknown reward mint', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const all = await stats()
+    const usdc = all.find((r) => r.reserve === USDC)!
+    const { buildSpotPayloads } = await import('../apy-spot')
+    const unknown: KaminoReserveStats = {
+      ...usdc,
+      supplyRewards: [
+        { rewardToken: 'UnknownMint111', apy: 0.01, tokensPerSecond: null },
+        {
+          rewardToken: 'BLZEEuZUBVqFhj8adcCFPJvPVCiCyVmh3hkJMrU8KuJA',
+          apy: 0.02,
+          tokensPerSecond: null,
+        },
+      ],
+    }
+    buildSpotPayloads([unknown])
+    buildSpotPayloads([unknown])
+    const [supply] = buildSpotPayloads([unknown])
+    expect(supply.apy.rewardItems.map((r) => r.token.symbol)).toEqual([
+      'UnknownMint111',
+      'BLZE',
+    ])
+    expect(warn).toHaveBeenCalledTimes(1)
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining('UnknownMint111'))
+    warn.mockRestore()
   })
 
   it('subtracts borrow incentives from the borrow net', async () => {

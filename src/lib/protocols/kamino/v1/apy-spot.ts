@@ -12,7 +12,7 @@ import {
   fetchMarkets,
   fetchReserveStats,
 } from '../common/api'
-import { KAMINO_PROVIDER } from '../common/config'
+import { KAMINO_PROVIDER, KAMINO_REWARD_SYMBOLS } from '../common/config'
 import {
   SOLANA_CHAIN_ID,
   coversSolana,
@@ -21,14 +21,27 @@ import {
 } from '../listing'
 import { buildProductId } from './utils'
 
+const warnedRewardMints = new Set<string>()
+
+function rewardSymbol(mint: string): string {
+  const symbol = KAMINO_REWARD_SYMBOLS[mint]
+  if (symbol) return symbol
+  if (!warnedRewardMints.has(mint)) {
+    warnedRewardMints.add(mint)
+    console.warn(
+      `[cron:kamino_v1] Unknown reward mint ${mint}: add it to KAMINO_REWARD_SYMBOLS`
+    )
+  }
+  return mint
+}
+
 function rewardItems(
   rewards: KaminoReserveStats['supplyRewards']
 ): RewardItem[] {
   return rewards
     .filter((r) => r.apy > 0)
     .map((r) => ({
-      // The stats carry the reward mint only; no symbol is available here.
-      token: { symbol: r.rewardToken, address: r.rewardToken },
+      token: { symbol: rewardSymbol(r.rewardToken), address: r.rewardToken },
       apr: r.apy,
       apy: r.apy,
       source: 'protocol' as const,

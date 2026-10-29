@@ -139,22 +139,19 @@ export const reserveStatsSchema = z
 export const reserveStatsResponseSchema = z.record(z.string(), z.unknown())
 export type KaminoReserveStatsBody = z.output<typeof reserveStatsSchema>
 
-// ── Reserve metrics (symbols) ────────────────────────────────────────────────
+// ── Reserve account data (on-chain metadata) ────────────────────────────────
 
-/** `/kamino-market/{market}/reserves/metrics`: array, we keep the symbol only. */
-export const reserveMetricsResponseSchema = z.array(z.unknown())
-export const reserveMetricSchema = z
-  .object({
-    reserve: z.string().min(1),
-    liquidityToken: z.string().min(1),
-    liquidityTokenMint: z.string().min(1),
+/** `/kamino-market/reserves/account-data`: per market, base64 Reserve accounts. */
+export const reserveAccountsResponseSchema = z.array(
+  z.object({
+    market: z.string().min(1),
+    reserves: z.array(z.unknown()),
   })
-  .transform((m) => ({
-    reserve: m.reserve,
-    symbol: m.liquidityToken,
-    mint: m.liquidityTokenMint,
-  }))
-export type KaminoReserveMetric = z.output<typeof reserveMetricSchema>
+)
+export const reserveAccountItemSchema = z.object({
+  pubkey: z.string().min(1),
+  data: z.string().min(1),
+})
 
 // ── Reserve history ──────────────────────────────────────────────────────────
 
@@ -284,3 +281,12 @@ const obligationSchema = z
 export const obligationsResponseSchema = z.array(z.unknown())
 export { obligationSchema }
 export type KaminoObligation = z.output<typeof obligationSchema>
+
+/** Mint, decimals and symbol of a reserve, decoded from its on-chain account. */
+export interface KaminoReserveAccount {
+  market: string
+  reserve: string
+  mint: string
+  decimals: number
+  symbol: string
+}

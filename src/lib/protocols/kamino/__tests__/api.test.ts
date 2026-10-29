@@ -4,8 +4,8 @@ import {
   KaminoApiError,
   fetchMarkets,
   fetchObligations,
+  fetchReserveAccounts,
   fetchReserveHistory,
-  fetchReserveMetrics,
   fetchReserveStats,
 } from '../common/api'
 import {
@@ -18,8 +18,8 @@ import markets from './fixtures/markets.json'
 import obligations from './fixtures/obligations.json'
 import historyDaily from './fixtures/reserve-history-daily-legacy.json'
 import historyHourly from './fixtures/reserve-history-hourly.json'
-import reserveMetrics from './fixtures/reserve-metrics.json'
 import reserveStats from './fixtures/reserve-stats.json'
+import accountData from './fixtures/reserves-account-data.json'
 
 const PRIMARY = '7u3HeHxYDLhnCoErrtycNokbQYbWGzLs6JSDqGAv5PfF'
 const FIXED_MARKET = '47tfyEG9SsdEnUm9cw5kY9BXngQGqu3LBoop9j5uTAv8'
@@ -203,37 +203,58 @@ describe('fetchReserveStats', () => {
   })
 })
 
-describe('fetchReserveMetrics', () => {
-  it('reads symbol and mint per reserve and skips malformed items', async () => {
+describe('fetchReserveAccounts', () => {
+  it('decodes mint, decimals and symbol, repeating the markets param in batches', async () => {
+    fetchMock.mockImplementation(async () => jsonResponse(accountData))
+    const many = Array.from({ length: 11 }, (_, i) => `M${i}`)
+
+    const result = await fetchReserveAccounts(many)
+
+    const urls = calledUrls()
+    expect(urls).toHaveLength(2)
+    expect(urls[0].pathname).toBe('/kamino-market/reserves/account-data')
+    expect(urls[0].searchParams.getAll('markets')).toHaveLength(10)
+    expect(urls[1].searchParams.getAll('markets')).toEqual(['M10'])
+    expect(urls[0].searchParams.get('env')).toBe('mainnet-beta')
+    const usdc = result.find((a) => a.reserve === USDC_RESERVE)
+    expect(usdc).toEqual({
+      market: PRIMARY,
+      reserve: USDC_RESERVE,
+      mint: 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v',
+      decimals: 6,
+      symbol: 'USDC',
+    })
+    expect(result.find((a) => a.symbol === 'strongSOL')?.decimals).toBe(9)
+  })
+
+  it('skips an undecodable account with a warning', async () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
     fetchMock.mockResolvedValue(
-      jsonResponse([...reserveMetrics, { reserve: 'X' }, null])
+      jsonResponse([
+        {
+          market: PRIMARY,
+          reserves: [
+            ...accountData[0].reserves,
+            { pubkey: 'BAD', data: 'AAAA' },
+          ],
+        },
+      ])
     )
-
-    const result = await fetchReserveMetrics(PRIMARY)
-
-    const url = calledUrls()[0]
-    expect(url.pathname).toBe(`/kamino-market/${PRIMARY}/reserves/metrics`)
-    expect(url.searchParams.get('env')).toBe('mainnet-beta')
-    expect(result).toHaveLength(5)
-    expect(result.find((m) => m.reserve === USDC_RESERVE)).toEqual({
-      reserve: USDC_RESERVE,
-      symbol: 'USDC',
-      mint: 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v',
-    })
+    const result = await fetchReserveAccounts([PRIMARY])
+    expect(result).toHaveLength(3)
     expect(warn).toHaveBeenCalledTimes(1)
     warn.mockRestore()
   })
 
-  it('normalizes errors and rejects a non-array body', async () => {
+  it('rejects when a batch fails or the body has the wrong shape', async () => {
     fetchMock.mockResolvedValue(jsonResponse({ nope: true }))
-    await expect(fetchReserveMetrics(PRIMARY)).rejects.toMatchObject({
+    await expect(fetchReserveAccounts([PRIMARY])).rejects.toMatchObject({
       kind: 'invalid-response',
     })
     fetchMock.mockResolvedValue(
       new Response('x', { status: 500, statusText: 'Boom' })
     )
-    await expect(fetchReserveMetrics(PRIMARY)).rejects.toMatchObject({
+    await expect(fetchReserveAccounts([PRIMARY])).rejects.toMatchObject({
       kind: 'http',
       status: 500,
     })

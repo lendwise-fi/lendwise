@@ -1,6 +1,7 @@
 import type { ZodType } from 'zod'
 
 import {
+  KAMINO_ACCOUNT_DATA_MARKETS_PER_CALL,
   KAMINO_API_URL,
   KAMINO_ENV,
   KAMINO_HISTORY_CHUNK_MS,
@@ -8,20 +9,21 @@ import {
   KAMINO_REQUEST_TIMEOUT_MS,
   type KaminoHistoryFrequency,
 } from './config'
+import { decodeReserveAccount } from './reserve-account'
 import {
   type KaminoMarket,
   type KaminoObligation,
+  type KaminoReserveAccount,
   type KaminoReserveHistoryPoint,
-  type KaminoReserveMetric,
   type KaminoReserveStatsBody,
   historyRowSchema,
   marketsMetadataResponseSchema,
   marketsResponseSchema,
   obligationSchema,
   obligationsResponseSchema,
+  reserveAccountItemSchema,
+  reserveAccountsResponseSchema,
   reserveHistoryResponseSchema,
-  reserveMetricSchema,
-  reserveMetricsResponseSchema,
   reserveStatsResponseSchema,
   reserveStatsSchema,
 } from './schemas'
@@ -30,7 +32,7 @@ export type {
   KaminoMarket,
   KaminoObligation,
   KaminoReserveHistoryPoint,
-  KaminoReserveMetric,
+  KaminoReserveAccount,
 } from './schemas'
 
 /** Reserve spot stats, tagged with the market it belongs to. */
@@ -65,12 +67,14 @@ export class KaminoApiError extends Error {
 
 async function request<T>(
   path: string,
-  params: Record<string, string>,
+  params: Record<string, string | readonly string[]>,
   schema: ZodType<T>
 ): Promise<T> {
   const url = new URL(path, KAMINO_API_URL)
   for (const [key, value] of Object.entries(params)) {
-    url.searchParams.set(key, value)
+    for (const v of typeof value === 'string' ? [value] : value) {
+      url.searchParams.append(key, v)
+    }
   }
 
   let response: Response
@@ -201,24 +205,57 @@ export async function fetchReserveStats(
 }
 
 /**
- * Symbol and mint of every reserve of `market` (`/reserves/metrics`). Batch
- * stats carry neither, so the catalogue reads them here. Malformed items are
- * skipped like everywhere else.
+ * Mint, decimals and symbol of every reserve of the given markets, decoded from
+ * the on-chain Reserve accounts (`/reserves/account-data`, `markets` repeated,
+ * batches of `KAMINO_ACCOUNT_DATA_MARKETS_PER_CALL`). A failing batch throws:
+ * the catalogue must not treat a partial read as a delisting. An account that
+ * cannot be decoded is skipped with a warning.
  */
-export async function fetchReserveMetrics(
-  market: string
-): Promise<KaminoReserveMetric[]> {
-  const path = `/kamino-market/${market}/reserves/metrics`
-  const raw = await request(
-    path,
-    { env: KAMINO_ENV },
-    reserveMetricsResponseSchema
-  )
-  return parseEach(
-    path,
-    raw.map((m, i) => [String(i), m] as const),
-    reserveMetricSchema
-  ).map(([, m]) => m)
+export async function fetchReserveAccounts(
+  markets: readonly string[]
+): Promise<KaminoReserveAccount[]> {
+  const path = '/kamino-market/reserves/account-data'
+  const out: KaminoReserveAccount[] = []
+  for (const batch of chunk(
+    [...new Set(markets)],
+    KAMINO_ACCOUNT_DATA_MARKETS_PER_CALL
+  )) {
+    const raw = await request(
+      path,
+      { markets: batch, env: KAMINO_ENV },
+      reserveAccountsResponseSchema
+    )
+    for (const entry of raw) {
+      const items = parseEach(
+        path,
+        entry.reserves.map((r, i) => [String(i), r] as const),
+        reserveAccountItemSchema
+      )
+      const decoded: [string, KaminoReserveAccount][] = []
+      const failed: string[] = []
+      for (const [, item] of items) {
+        try {
+          decoded.push([
+            item.pubkey,
+            {
+              market: entry.market,
+              reserve: item.pubkey,
+              ...decodeReserveAccount(item.data),
+            },
+          ])
+        } catch {
+          failed.push(item.pubkey)
+        }
+      }
+      if (failed.length > 0) {
+        console.warn(
+          `[kamino] ${path}: skipped ${failed.length} undecodable account(s): ${failed.slice(0, 5).join(', ')}`
+        )
+      }
+      for (const [, account] of decoded) out.push(account)
+    }
+  }
+  return out
 }
 
 /**

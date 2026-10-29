@@ -2,10 +2,10 @@ import type { BorrowProduct, Collateral, SupplyProduct } from '@/lib/db/types'
 import type { FetchOpts } from '@/lib/protocols/core/types'
 
 import {
-  type KaminoReserveMetric,
+  type KaminoReserveAccount,
   type KaminoReserveStats,
   fetchMarkets,
-  fetchReserveMetrics,
+  fetchReserveAccounts,
   fetchReserveStats,
 } from '../common/api'
 import { KAMINO_API_URL, KAMINO_PROVIDER } from '../common/config'
@@ -18,42 +18,18 @@ import {
 import type { KaminoBorrowMeta, KaminoSupplyMeta } from './types'
 import { buildProductId } from './utils'
 
-/** Markets whose symbols are read in parallel. */
-const METRICS_CONCURRENCY = 4
-
 const CHAIN = { id: SOLANA_CHAIN_ID, name: 'solana' }
-
-async function mapWithConcurrency<T, R>(
-  items: readonly T[],
-  limit: number,
-  fn: (item: T) => Promise<R>
-): Promise<R[]> {
-  const out: R[] = new Array(items.length)
-  let next = 0
-  const worker = async () => {
-    while (next < items.length) {
-      const i = next++
-      out[i] = await fn(items[i])
-    }
-  }
-  await Promise.all(
-    Array.from({ length: Math.min(limit, items.length) }, worker)
-  )
-  return out
-}
 
 /**
  * Full catalogue: one supply product per listed reserve, plus a borrow product
  * when the reserve is borrowable (see `isBorrowableReserve`).
  *
- * Batch stats carry no symbol, so each market with at least one listed reserve
- * is read once through `/reserves/metrics`. A market whose symbols cannot be
- * read is skipped with a warning (its products come back at the next sync);
- * the other markets are unaffected.
- *
- * Decimals are not published by either endpoint, so `asset.decimals` is 0
- * here. Nothing in the catalogue reads it; token amounts of positions are
- * converted from the history/obligation payloads instead.
+ * Batch stats carry neither symbol nor decimals, so they are decoded from the
+ * on-chain Reserve accounts (`fetchReserveAccounts`). That read must succeed
+ * as a whole: any failure rejects (KaminoApiError), because the catalogue sync
+ * treats a product missing from the result as delisted. A reserve whose
+ * decoded mint differs from its stats mint (layout change) is skipped with a
+ * warning.
  */
 export async function fetchKaminoProducts(
   opts?: FetchOpts
@@ -73,28 +49,30 @@ export async function fetchKaminoProducts(
     byMarket.set(r.market, list)
   }
 
-  const metricsByMarket = new Map<string, Map<string, KaminoReserveMetric>>()
-  await mapWithConcurrency(
-    [...byMarket.keys()],
-    METRICS_CONCURRENCY,
-    async (market) => {
-      try {
-        const metrics = await fetchReserveMetrics(market)
-        metricsByMarket.set(market, new Map(metrics.map((m) => [m.reserve, m])))
-      } catch (error) {
-        console.warn(
-          `[products:kamino] Skipping market ${market}: symbols unavailable (${error instanceof Error ? error.message : String(error)})`
-        )
-      }
-    }
+  const accounts = await fetchReserveAccounts([...byMarket.keys()])
+  const accountByReserve = new Map<string, KaminoReserveAccount>(
+    accounts.map((a) => [`${a.market}:${a.reserve}`, a])
   )
 
   const now = new Date()
   const products: (SupplyProduct | BorrowProduct)[] = []
 
   for (const [market, marketReserves] of byMarket) {
-    const metrics = metricsByMarket.get(market)
-    if (!metrics) continue
+    const metrics = new Map<string, KaminoReserveAccount>()
+    for (const r of marketReserves) {
+      const a = accountByReserve.get(`${market}:${r.reserve}`)
+      if (!a) {
+        console.warn(
+          `[products:kamino] No account data for reserve ${r.reserve}: skipped`
+        )
+      } else if (a.mint !== r.mint) {
+        console.warn(
+          `[products:kamino] Reserve ${r.reserve}: decoded mint ${a.mint} != stats mint ${r.mint}: skipped`
+        )
+      } else {
+        metrics.set(r.reserve, a)
+      }
+    }
     const marketName = marketNames.get(market) ?? market
 
     // Collateral of a borrow in this market: every listed reserve that can
@@ -107,7 +85,7 @@ export async function fetchKaminoProducts(
         symbol: m.symbol,
         name: m.symbol,
         address: m.mint,
-        decimals: 0,
+        decimals: m.decimals,
         ltv: c.maxLtv,
         lltv: c.liquidationLtv,
         canBeCollateral: true,
@@ -116,7 +94,7 @@ export async function fetchKaminoProducts(
 
     for (const r of marketReserves) {
       const m = metrics.get(r.reserve)
-      if (!m) continue // listed in stats but absent from metrics: no symbol
+      if (!m) continue // listed in stats but no valid account data (warned above)
       const meta: KaminoSupplyMeta & KaminoBorrowMeta = {
         market,
         reserve: r.reserve,
@@ -132,7 +110,7 @@ export async function fetchKaminoProducts(
           symbol: m.symbol,
           name: m.symbol,
           address: r.mint,
-          decimals: 0,
+          decimals: m.decimals,
         },
         protocol: {
           provider: KAMINO_PROVIDER,
