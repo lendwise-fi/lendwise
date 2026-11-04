@@ -110,11 +110,10 @@ export function formatCurrency(
  * Automatically handles BigInt scaling if decimals are provided
  */
 export function formatCompactCurrency(
-  amount: number | string | null | undefined,
+  amount: number | string,
   currencyCode: string,
-  decimals?: number | null
+  decimals?: number
 ): string {
-  if (amount == null || decimals === null) return '—'
   const currency = getCurrencyByCode(currencyCode)
 
   let numAmount: number

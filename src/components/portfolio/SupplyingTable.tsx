@@ -116,11 +116,14 @@ const createColumns = (
     cell: ({ row }) => (
       <div className="flex w-full items-center gap-3 text-xs">
         <span className="font-mono">
-          {formatCompactCurrency(
-            row.original.assetAmount,
-            row.original.assetSymbol,
-            row.original.assetDecimals
-          )}
+          {row.original.assetAmount === null ||
+          row.original.assetDecimals === null
+            ? '—'
+            : formatCompactCurrency(
+                row.original.assetAmount,
+                row.original.assetSymbol,
+                row.original.assetDecimals
+              )}
         </span>
         <Badge variant="secondary" className="font-mono text-xs">
           {row.original.assetAmountUsd == null

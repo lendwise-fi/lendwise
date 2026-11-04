@@ -217,19 +217,21 @@ const createColumns = (
     cell: ({ row }) => (
       <div className="flex w-full items-center gap-3">
         <span className="font-mono">
-          {formatCompactCurrency(
-            row.original.assetAmount,
-            row.original.assetSymbol,
-            row.original.assetDecimals
-          )}
+          {row.original.assetAmount === null
+            ? '—'
+            : formatCompactCurrency(
+                row.original.assetAmount,
+                row.original.assetSymbol,
+                row.original.assetDecimals
+              )}
         </span>
         <Badge variant="outline" className="bg-background font-mono">
-          {formatCompactCurrency(
-            row.original.assetAmountUsd == null
-              ? null
-              : row.original.assetAmountUsd * rate,
-            currency
-          )}
+          {row.original.assetAmountUsd === null
+            ? '—'
+            : formatCompactCurrency(
+                row.original.assetAmountUsd * rate,
+                currency
+              )}
         </Badge>
       </div>
     ),
@@ -244,19 +246,21 @@ const createColumns = (
     cell: ({ row }) => (
       <div className="flex w-full items-center gap-3">
         <span className="font-mono">
-          {formatCompactCurrency(
-            row.original.liquidityAmount,
-            row.original.assetSymbol,
-            row.original.assetDecimals
-          )}
+          {row.original.liquidityAmount === null
+            ? '—'
+            : formatCompactCurrency(
+                row.original.liquidityAmount,
+                row.original.assetSymbol,
+                row.original.assetDecimals
+              )}
         </span>
         <Badge variant="outline" className="bg-background font-mono">
-          {formatCompactCurrency(
-            row.original.liquidityAmountUsd == null
-              ? null
-              : row.original.liquidityAmountUsd * rate,
-            currency
-          )}
+          {row.original.liquidityAmountUsd === null
+            ? '—'
+            : formatCompactCurrency(
+                row.original.liquidityAmountUsd * rate,
+                currency
+              )}
         </Badge>
       </div>
     ),

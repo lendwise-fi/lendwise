@@ -713,7 +713,7 @@ export function ProductDetailDrawer({
     'assetPriceUsd' in item && item.assetPriceUsd ? item.assetPriceUsd : null
   const historyPrice = lastDefined(points, 'priceUsd')
   const assetAmountTokens =
-    item.assetAmount !== null && item.assetDecimals !== null
+    item.assetAmount !== null
       ? Number(item.assetAmount) / 10 ** item.assetDecimals
       : null
   const derivedPrice =
@@ -829,19 +829,27 @@ export function ProductDetailDrawer({
             <StatCard label={assetLabel} value={item.assetSymbol} />
             <StatCard
               label={sizeLabel}
-              value={formatCompactCurrency(
-                item.assetAmount,
-                item.assetSymbol,
-                item.assetDecimals
-              )}
+              value={
+                item.assetAmount === null
+                  ? '—'
+                  : formatCompactCurrency(
+                      item.assetAmount,
+                      item.assetSymbol,
+                      item.assetDecimals
+                    )
+              }
             />
             <StatCard
               label="Liquidity"
-              value={formatCompactCurrency(
-                item.liquidityAmount,
-                item.assetSymbol,
-                item.assetDecimals
-              )}
+              value={
+                item.liquidityAmount === null
+                  ? '—'
+                  : formatCompactCurrency(
+                      item.liquidityAmount,
+                      item.assetSymbol,
+                      item.assetDecimals
+                    )
+              }
             />
             <StatCard
               label="Utilization"

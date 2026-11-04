@@ -21,7 +21,7 @@ export interface Token {
   address: ChainAddress
   symbol: string
   name: string
-  decimals: number | null
+  decimals: number
   logoURI?: string
   type?: AssetType
   /** Max LTV as a fraction (0–1). Borrow-collateral only; null when the
@@ -118,7 +118,7 @@ export interface SupplyProduct {
   assetAddress: ChainAddress
   assetName: string
   assetSymbol: string
-  assetDecimals: number | null
+  assetDecimals: number
   assetAmount: string | null
   assetAmountUsd: number | null
   assetPriceUsd?: number
@@ -165,7 +165,7 @@ export interface BorrowProduct {
   assetAddress: ChainAddress
   assetName: string
   assetSymbol: string
-  assetDecimals: number | null
+  assetDecimals: number
   assetAmount: string | null
   assetAmountUsd: number | null
   liquidityAmount: string | null
@@ -224,8 +224,9 @@ export interface BorrowPosition {
   loanAssetAmountUsd: number | null
   loanLiveAssetAmountUsd: number | null
   loanTimestamp: number
-  collaterals: (Omit<Token, 'address'> & {
+  collaterals: (Omit<Token, 'address' | 'decimals'> & {
     address: ChainAddress
+    decimals: number | null
     amount: number | null
     amountUsd: number | null
   })[]

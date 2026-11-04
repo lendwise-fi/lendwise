@@ -122,10 +122,12 @@ const createColumns = (
     cell: ({ row }) => (
       <div className="flex w-full flex-col items-start text-xs">
         <span className="font-mono font-medium">
-          {formatCompactCurrency(
-            row.original.loanAssetAmount,
-            row.original.loanAssetSymbol
-          )}
+          {row.original.loanAssetAmount === null
+            ? '—'
+            : formatCompactCurrency(
+                row.original.loanAssetAmount,
+                row.original.loanAssetSymbol
+              )}
         </span>
         <span className="text-muted-foreground font-mono text-xs">
           {row.original.loanLiveAssetAmountUsd == null
@@ -216,10 +218,12 @@ const createColumns = (
                     <div className="flex flex-col">
                       <span className="text-xs">{collateral.symbol}</span>
                       <span className="text-muted-foreground font-mono text-xs">
-                        {formatCompactCurrency(
-                          collateral.amount,
-                          collateral.symbol
-                        )}
+                        {collateral.amount === null
+                          ? '—'
+                          : formatCompactCurrency(
+                              collateral.amount,
+                              collateral.symbol
+                            )}
                       </span>
                     </div>
                   </div>
