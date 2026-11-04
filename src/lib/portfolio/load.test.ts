@@ -1,7 +1,7 @@
 import { inspect } from 'node:util'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import type { RiskAccount } from '@/lib/risk/types'
+import type { RiskAccount, RiskAccountResult } from '@/lib/risk/types'
 import type { BorrowPosition, SupplyPosition } from '@/types'
 
 import { type PortfolioDeps, type PositionsSource, loadPortfolio } from './load'
@@ -312,6 +312,114 @@ describe('loadPortfolio', () => {
     expect(computeRisk).toHaveBeenCalledWith([
       account('evm-1'),
       account('xlm-1'),
+    ])
+  })
+
+  it('keeps reported isolated risk and never reprices the same account', async () => {
+    const reported: RiskAccountResult[] = [1, 2].map((id) => ({
+      id: `nft-${id}`,
+      protocol: 'xoxno_v1',
+      poolId: 'spoke',
+      user: G,
+      result: {
+        status: 'ok',
+        healthFactor: id,
+        sourceLabel: 'XOXNO indexed estimate',
+      },
+    }))
+    const computeRisk = vi.fn(async () => [])
+    const result = await loadPortfolio(
+      wallets,
+      deps({
+        stellarAdapters: {
+          xoxno_v1: async () => ({
+            ...source(
+              [supply('xoxno')],
+              [account('nft-1'), account('generic')]
+            ),
+            getRiskAccountResults: async () => reported,
+          }),
+        },
+        computeRisk,
+      })
+    )
+    expect(computeRisk).toHaveBeenCalledWith([account('generic')])
+    expect(result.riskAccounts).toEqual(reported)
+    expect(result.failures).toEqual([])
+  })
+
+  it('keeps positions and computed risk when the reported-risk read throws synchronously', async () => {
+    const result = await loadPortfolio(
+      wallets,
+      deps({
+        stellarAdapters: {
+          xoxno_v1: async () => ({
+            ...source([supply('xoxno')], [account('generic')]),
+            getRiskAccountResults: () => {
+              throw new Error('unavailable')
+            },
+          }),
+        },
+      })
+    )
+    expect(result.positions.supply.xoxno_v1).toEqual([supply('xoxno')])
+    expect(result.riskAccounts).toMatchObject([{ id: 'generic' }])
+    expect(result.failures).toEqual([
+      {
+        chainFamily: 'stellar',
+        source: 'xoxno_v1',
+        message: 'Temporarily unavailable',
+      },
+    ])
+  })
+
+  it('keeps reported risk when generic risk computation fails', async () => {
+    const reported: RiskAccountResult = {
+      id: 'nft-1',
+      protocol: 'xoxno_v1',
+      poolId: 'spoke',
+      user: G,
+      result: { status: 'unknown', reason: 'missing-risk-data', symbols: [] },
+    }
+    const result = await loadPortfolio(
+      wallets,
+      deps({
+        evmAdapters: { aave_v3: async () => source([], [account('generic')]) },
+        stellarAdapters: {
+          xoxno_v1: async () => ({
+            ...source([supply('xoxno')]),
+            getRiskAccountResults: async () => [reported],
+          }),
+        },
+        computeRisk: async () => {
+          throw new Error('prices unavailable')
+        },
+      })
+    )
+    expect(result.riskAccounts).toEqual([reported])
+  })
+
+  it('times out reported risk without dropping good positions', async () => {
+    const result = await loadPortfolio(
+      wallets,
+      deps({
+        sourceTimeoutMs: 20,
+        stellarAdapters: {
+          xoxno_v1: async () => ({
+            ...source([supply('xoxno')]),
+            getRiskAccountResults: () =>
+              new Promise<RiskAccountResult[]>(() => {}),
+          }),
+        },
+      })
+    )
+    expect(result.positions.supply.xoxno_v1).toEqual([supply('xoxno')])
+    expect(result.failures).toEqual([
+      {
+        chainFamily: 'stellar',
+        source: 'xoxno_v1',
+        message: 'Temporarily unavailable',
+      },
     ])
   })
 

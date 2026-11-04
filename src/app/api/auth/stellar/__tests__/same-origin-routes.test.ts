@@ -1,5 +1,6 @@
 import { NextRequest } from 'next/server'
 
+import { Horizon, Keypair, Transaction } from '@stellar/stellar-sdk'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const limiter = vi.hoisted(() => ({
@@ -29,7 +30,70 @@ beforeEach(() => {
   limiter.limit.mockClear()
 })
 afterEach(() => {
+  vi.restoreAllMocks()
   vi.unstubAllEnvs()
+})
+
+describe('SEP-10 request host binding', () => {
+  it.each(['127.0.0.1:3100', 'localhost:3100', 'LENDWISE.FI'])(
+    'signs in against the original request host %s',
+    async (host) => {
+      vi.stubEnv('STELLAR_SEP10_SIGNING_SECRET', Keypair.random().secret())
+      vi.stubEnv('STELLAR_SESSION_SECRET', 'route-test-session-secret')
+      vi.stubEnv('NEXT_PUBLIC_NETWORK', 'mainnet')
+      vi.spyOn(Horizon.Server.prototype, 'loadAccount').mockRejectedValue({
+        response: { status: 404 },
+      })
+      const site = `http://${host}`
+      const wallet = Keypair.random()
+      const post = (path: string, body: Record<string, string>) =>
+        new NextRequest(`${site}/api/auth/stellar/${path}`, {
+          method: 'POST',
+          headers: { host, origin: site, 'content-type': 'application/json' },
+          body: JSON.stringify(body),
+        })
+
+      const response = await challenge.POST(
+        post('challenge', { address: wallet.publicKey() })
+      )
+      expect(response.status).toBe(200)
+      const issued = await response.json()
+      const domain = new URL(site).hostname
+      expect(issued.homeDomain).toBe(domain)
+      expect(issued.webAuthDomain).toBe(domain)
+      const tx = new Transaction(
+        issued.transactionXdr,
+        issued.networkPassphrase
+      )
+      expect(tx.operations[0]).toMatchObject({ name: `${domain} auth` })
+      tx.sign(wallet)
+      const signed = { address: wallet.publicKey(), transactionXdr: tx.toXDR() }
+      const verified = await verify.POST(post('verify', signed))
+      expect(verified.status).toBe(200)
+      expect((await verified.json()).session.address).toBe(wallet.publicKey())
+      expect(verified.headers.get('set-cookie')).toContain('HttpOnly')
+      expect((await verify.POST(post('verify', signed))).status).toBe(401)
+    }
+  )
+
+  it('refuses a forged Host even when Origin is allowed', async () => {
+    vi.stubEnv('STELLAR_SEP10_SIGNING_SECRET', Keypair.random().secret())
+    const response = await challenge.POST(
+      new NextRequest(`${SITE}/api/auth/stellar/challenge`, {
+        method: 'POST',
+        headers: {
+          host: 'evil.example',
+          origin: SITE,
+          'content-type': 'application/json',
+        },
+        body: JSON.stringify({ address: G }),
+      })
+    )
+    expect(response.status).toBe(400)
+    expect(await response.json()).toEqual({
+      error: 'Host is not an allowed sign-in domain',
+    })
+  })
 })
 
 describe('verify route', () => {

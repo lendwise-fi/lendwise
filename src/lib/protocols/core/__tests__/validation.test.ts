@@ -30,6 +30,31 @@ describe('spot payload validation', () => {
     expect(spotPayloadSoftSchema.safeParse(extreme).success).toBe(true)
   })
 
+  it('accepts unknown base and fees while requiring finite net and rewards', () => {
+    const unknown = {
+      ...payload,
+      apy: { ...payload.apy, base: null, fees: null },
+    }
+    expect(spotPayloadSoftSchema.safeParse(unknown).success).toBe(true)
+    expect(spotPayloadStrictSchema([1]).safeParse(unknown).success).toBe(true)
+    for (const field of ['net', 'rewards']) {
+      expect(
+        spotPayloadSoftSchema.safeParse({
+          ...unknown,
+          apy: { ...unknown.apy, [field]: null },
+        }).success
+      ).toBe(false)
+    }
+    for (const field of ['base', 'fees']) {
+      expect(
+        spotPayloadSoftSchema.safeParse({
+          ...unknown,
+          apy: { ...unknown.apy, [field]: Infinity },
+        }).success
+      ).toBe(false)
+    }
+  })
+
   it('soft: rejects non-finite components and empty productId', () => {
     const nan = { ...payload, apy: { ...payload.apy, net: NaN } }
     expect(spotPayloadSoftSchema.safeParse(nan).success).toBe(false)

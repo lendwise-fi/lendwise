@@ -15,16 +15,15 @@
  *
  * The registry that collects the fragments is `@/config/protocols-presentation`.
  */
-import type { Address } from 'viem'
-
 import type { ProductRow } from '@/lib/db/schema'
+import type { SupplyProduct } from '@/types'
 
 import { chainSlugFor } from './toolkit/chain-slugs'
 
 /** `poolId` + `poolAddress` — what identifies the market to the UI. */
 export interface PoolIdentity {
   poolId: string
-  poolAddress: Address
+  poolAddress: string
 }
 
 /** One protocol's overrides. Absent hook = the matching default below. */
@@ -33,6 +32,7 @@ export interface ProtocolPresentation {
   networkSlug?(p: ProductRow): string
   poolIdentity?(p: ProductRow): PoolIdentity
   productLink?(p: ProductRow): string
+  productDetails?(p: ProductRow): Pick<SupplyProduct, 'xoxno' | 'logoURI'>
 }
 
 /**
@@ -66,7 +66,7 @@ export function defaultNetworkSlug(p: ProductRow): string {
 export function defaultPoolIdentity(p: ProductRow): PoolIdentity {
   return {
     poolId: p.protocolAddress,
-    poolAddress: p.protocolAddress as Address,
+    poolAddress: p.protocolAddress,
   }
 }
 

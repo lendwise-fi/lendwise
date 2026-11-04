@@ -25,6 +25,7 @@ export interface PositionsSource<A extends string> {
   getUserSupplyPositions(p: { addresses: A[] }): Promise<SupplyPosition[]>
   getUserBorrowPositions(p: { addresses: A[] }): Promise<BorrowPosition[]>
   getRiskAccounts?(p: { addresses: A[] }): Promise<RiskAccount[]>
+  getRiskAccountResults?(p: { addresses: A[] }): Promise<RiskAccountResult[]>
 }
 
 type Loaders<A extends string> = Record<
@@ -48,6 +49,7 @@ export const SOURCE_TIMEOUT_MS = 12_000
 interface FamilyResult {
   positions: UserPosition
   riskAccounts: RiskAccount[]
+  riskResults: RiskAccountResult[]
   holdings: WalletHolding[]
   failures: PortfolioPartialFailure[]
 }
@@ -55,6 +57,7 @@ interface FamilyResult {
 const emptyFamily = (): FamilyResult => ({
   positions: emptyUserPositions(),
   riskAccounts: [],
+  riskResults: [],
   holdings: [],
   failures: [],
 })
@@ -96,23 +99,20 @@ async function loadAdapters<A extends string>(
   const settled = await Promise.allSettled(
     entries.map(async ([, load]) => {
       const deadline = Date.now() + timeoutMs
-      let riskRead:
-        | Promise<
-            { ok: true; value: RiskAccount[] } | { ok: false; reason: unknown }
-          >
-        | undefined
+      let riskRead: Promise<RiskAccount[]> = Promise.resolve([])
+      let reportedRead: Promise<RiskAccountResult[]> = Promise.resolve([])
       const positions = async () => {
         const adapter = await load()
-        // Concurrent on purpose: adapters dedupe the shared upstream read.
-        // Risk settles apart: its failure must not discard good positions.
-        riskRead = Promise.resolve(
-          adapter.getRiskAccounts
-            ? adapter.getRiskAccounts({ addresses })
-            : ([] as RiskAccount[])
-        ).then(
-          (value) => ({ ok: true as const, value }),
-          (reason: unknown) => ({ ok: false as const, reason })
+        // Catch each read independently; a synchronous risk failure must keep positions.
+        riskRead = Promise.resolve().then(
+          () => adapter.getRiskAccounts?.({ addresses }) ?? []
         )
+        reportedRead = Promise.resolve().then(
+          () => adapter.getRiskAccountResults?.({ addresses }) ?? []
+        )
+        // Attach handlers before waiting for positions to prevent unhandled rejections.
+        void riskRead.catch(() => {})
+        void reportedRead.catch(() => {})
         const [supply, borrow] = await Promise.all([
           adapter.getUserSupplyPositions({ addresses }),
           adapter.getUserBorrowPositions({ addresses }),
@@ -120,11 +120,11 @@ async function loadAdapters<A extends string>(
         return { supply, borrow }
       }
       const { supply, borrow } = await withTimeout(positions(), timeoutMs)
-      const risk = await withTimeout(
-        riskRead as NonNullable<typeof riskRead>,
-        deadline - Date.now()
-      ).catch((reason: unknown) => ({ ok: false as const, reason }))
-      return { supply, borrow, risk }
+      const [risk, reported] = await Promise.allSettled([
+        withTimeout(riskRead, deadline - Date.now()),
+        withTimeout(reportedRead, deadline - Date.now()),
+      ])
+      return { supply, borrow, risk, reported }
     })
   )
 
@@ -133,9 +133,15 @@ async function loadAdapters<A extends string>(
     if (s.status === 'fulfilled') {
       result.positions.supply[source] = s.value.supply
       result.positions.borrow[source] = s.value.borrow
-      if (s.value.risk.ok) result.riskAccounts.push(...s.value.risk.value)
-      else
-        result.failures.push(failure(chainFamily, source, s.value.risk.reason))
+      if (s.value.risk.status === 'fulfilled')
+        result.riskAccounts.push(...s.value.risk.value)
+      if (s.value.reported.status === 'fulfilled')
+        result.riskResults.push(...s.value.reported.value)
+      const failed = [s.value.risk, s.value.reported].find(
+        (r) => r.status === 'rejected'
+      )
+      if (failed?.status === 'rejected')
+        result.failures.push(failure(chainFamily, source, failed.reason))
     } else {
       result.failures.push(failure(chainFamily, source, s.reason))
     }
@@ -237,7 +243,11 @@ export async function loadPortfolio(
     }
   })
 
-  const accounts = loaded.flatMap((f) => f.riskAccounts)
+  const reported = loaded.flatMap((f) => f.riskResults)
+  const reportedIds = new Set(reported.map((r) => r.id))
+  const accounts = loaded
+    .flatMap((f) => f.riskAccounts)
+    .filter((a) => !reportedIds.has(a.id))
   let riskAccounts: RiskAccountResult[] = []
   if (accounts.length > 0) {
     try {
@@ -249,7 +259,7 @@ export async function loadPortfolio(
   return {
     positions: mergeUserPositions(...loaded.map((f) => f.positions)),
     holdings: loaded.flatMap((f) => f.holdings),
-    riskAccounts,
+    riskAccounts: [...riskAccounts, ...reported],
     failures,
   }
 }

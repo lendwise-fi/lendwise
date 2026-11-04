@@ -21,6 +21,7 @@ const REASON: Record<UnknownReason, string> = {
   'missing-price': 'No current price for',
   'invalid-weight': 'No usable risk weight for',
   'invalid-amount': 'Invalid amount for',
+  'missing-risk-data': 'Risk data unavailable for',
 }
 
 function HealthHoverCard({
@@ -63,6 +64,24 @@ function DetailRow({ label, value }: { label: string; value: string }) {
   )
 }
 
+function SourceDetails({ result }: { result: HealthFactorResult }) {
+  const observedAt = result.observedAt ? new Date(result.observedAt) : null
+  return result.sourceLabel ? (
+    <p className="text-muted-foreground px-4 py-1">
+      {result.sourceLabel}
+      {observedAt && Number.isFinite(observedAt.getTime()) && (
+        <>
+          {' '}
+          ·{' '}
+          <time dateTime={result.observedAt}>
+            {observedAt.toLocaleString()}
+          </time>
+        </>
+      )}
+    </p>
+  ) : null
+}
+
 export function HealthFactorValue({ result }: { result: HealthFactorResult }) {
   const { baseCurrency, rate } = useCurrency()
 
@@ -72,6 +91,7 @@ export function HealthFactorValue({ result }: { result: HealthFactorResult }) {
         trigger={<span className="font-mono text-emerald-400">∞</span>}
         value={<span className="text-emerald-400">∞</span>}
       >
+        <SourceDetails result={result} />
         <p className="text-muted-foreground px-4 py-1">
           No debt — this account cannot be liquidated.
         </p>
@@ -88,6 +108,7 @@ export function HealthFactorValue({ result }: { result: HealthFactorResult }) {
         }
         value={<span className="text-rose-300">Unknown</span>}
       >
+        <SourceDetails result={result} />
         <p className="px-4 py-1">
           {result.symbols.length === 0
             ? 'Risk data unavailable'
@@ -109,19 +130,28 @@ export function HealthFactorValue({ result }: { result: HealthFactorResult }) {
       }
       value={<span className={zone(result.healthFactor)}>{value}</span>}
     >
+      <SourceDetails result={result} />
       <DetailRow
         label="Weighted collateral"
-        value={formatCompactCurrency(
-          result.weightedCollateralUsd * rate,
-          baseCurrency
-        )}
+        value={
+          result.weightedCollateralUsd == null
+            ? '—'
+            : formatCompactCurrency(
+                result.weightedCollateralUsd * rate,
+                baseCurrency
+              )
+        }
       />
       <DetailRow
         label="Weighted debt"
-        value={formatCompactCurrency(
-          result.weightedLiabilityUsd * rate,
-          baseCurrency
-        )}
+        value={
+          result.weightedLiabilityUsd == null
+            ? '—'
+            : formatCompactCurrency(
+                result.weightedLiabilityUsd * rate,
+                baseCurrency
+              )
+        }
       />
       <p className="text-muted-foreground px-4 py-1">
         Below 1.00 the position can be liquidated.

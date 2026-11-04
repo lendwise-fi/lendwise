@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest'
 
-import { lastObservation } from '@/lib/db/last-observation'
+import {
+  lastObservation,
+  resolveAvailableLiquidity,
+} from '@/lib/db/last-observation'
 import type { SpotPayload } from '@/lib/db/types'
 
 const apy = { base: 0.05, rewards: 0, fees: 0.01, net: 0.04, rewardItems: [] }
@@ -23,6 +26,8 @@ describe('lastObservation', () => {
     }
 
     expect(lastObservation(p)).toEqual({
+      availableLiquidity: 200,
+      availableLiquidityUsd: 200_000,
       supplyAssets: 1_000,
       supplyAssetsUsd: 1_000_000,
       borrowAssets: null,
@@ -54,6 +59,8 @@ describe('lastObservation', () => {
     }
 
     expect(lastObservation(p)).toEqual({
+      availableLiquidity: 400,
+      availableLiquidityUsd: 400_000,
       supplyAssets: 1_000,
       supplyAssetsUsd: 1_000_000,
       borrowAssets: 600,
@@ -81,6 +88,8 @@ describe('lastObservation', () => {
     }
 
     expect(lastObservation(p)).toEqual({
+      availableLiquidity: null,
+      availableLiquidityUsd: null,
       supplyAssets: null,
       supplyAssetsUsd: null,
       borrowAssets: null,
@@ -89,5 +98,35 @@ describe('lastObservation', () => {
       utilizationRate: null,
       assetPriceUsd: null,
     })
+  })
+})
+
+describe('explicit cash', () => {
+  it('preserves zero and null instead of deriving from IRM utilization', () => {
+    expect(
+      resolveAvailableLiquidity({
+        supplyAssets: 100,
+        supplyAssetsUsd: 200,
+        utilizationRate: 0.8,
+        availableLiquidity: 0,
+        availableLiquidityUsd: null,
+      })
+    ).toEqual({ availableLiquidity: 0, availableLiquidityUsd: null })
+  })
+  it('keeps legacy missing-utilization semantics and clamps only the fallback', () => {
+    expect(
+      resolveAvailableLiquidity({
+        supplyAssets: 100,
+        supplyAssetsUsd: 200,
+        utilizationRate: null,
+      })
+    ).toEqual({ availableLiquidity: 100, availableLiquidityUsd: 200 })
+    expect(
+      resolveAvailableLiquidity({
+        supplyAssets: 100,
+        supplyAssetsUsd: 200,
+        utilizationRate: 2,
+      })
+    ).toEqual({ availableLiquidity: 0, availableLiquidityUsd: 0 })
   })
 })

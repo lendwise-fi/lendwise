@@ -75,11 +75,13 @@ function mapRewardItems(items: RewardItemRow[]) {
 type AnyApyRow = {
   hour?: Date
   date?: Date
-  apyBase: number
+  apyBase: number | null
   apyRewards: number
-  apyFees: number
+  apyFees: number | null
   apyNet: number
   rewardItems: RewardItemRow[]
+  availableLiquidity: number | null
+  availableLiquidityUsd: number | null
   supplyAssets: number | null
   supplyAssetsUsd: number | null
   utilizationRate: number | null
@@ -192,23 +194,18 @@ function mapPgRow(
         }
       : {}
 
-  const market = isBorrow
-    ? {
-        supplyAssets: row.supplyAssets,
-        supplyAssetsUsd: row.supplyAssetsUsd,
-        borrowAssets: row.borrowAssets,
-        borrowAssetsUsd: row.borrowAssetsUsd,
-        utilizationRate: row.utilizationRate,
-        assetPriceUsd: row.assetPriceUsd,
-        collateralAssetsUsd: row.collateralAssetsUsd,
-        priceCollateralInLoanAsset: row.priceCollateralInLoanAsset,
-      }
-    : {
-        supplyAssets: row.supplyAssets,
-        supplyAssetsUsd: row.supplyAssetsUsd,
-        utilizationRate: row.utilizationRate,
-        assetPriceUsd: row.assetPriceUsd,
-      }
+  const market = {
+    availableLiquidity: row.availableLiquidity,
+    availableLiquidityUsd: row.availableLiquidityUsd,
+    supplyAssets: row.supplyAssets,
+    supplyAssetsUsd: row.supplyAssetsUsd,
+    borrowAssets: row.borrowAssets,
+    borrowAssetsUsd: row.borrowAssetsUsd,
+    utilizationRate: row.utilizationRate,
+    assetPriceUsd: row.assetPriceUsd,
+    collateralAssetsUsd: row.collateralAssetsUsd,
+    priceCollateralInLoanAsset: row.priceCollateralInLoanAsset,
+  }
 
   return isBorrow
     ? { ...base, ...quality, collaterals: product.collaterals ?? [], market }

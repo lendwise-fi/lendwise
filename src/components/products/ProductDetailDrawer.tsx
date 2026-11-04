@@ -23,6 +23,7 @@ import {
   XAxis,
   YAxis,
 } from 'recharts'
+import { isAddress } from 'viem'
 
 import {
   loadMarketBorrowHistoryRates,
@@ -284,7 +285,7 @@ function ApyBreakdownChart({
   dead?: DeadStretch[]
 }) {
   const hasRewards = data.some((p) => p.rewards > 0)
-  const hasFees = data.some((p) => p.fees > 0)
+  const hasFees = data.some((p) => p.fees !== null && p.fees > 0)
 
   const components: ApyComponent[] = [
     { key: 'base', label: 'Base', color: 'var(--chart-2)' },
@@ -313,6 +314,8 @@ function ApyBreakdownChart({
     () =>
       withGaps(
         data.map((p) => {
+          if (p.base === null || p.fees === null)
+            return { ...p, base: null, fees: null }
           const feeAbs = p.fees // absolute fee APY (pipeline-stored)
           const rewardsSigned = kind === 'supply' ? p.rewards : -p.rewards
           const feeSigned = kind === 'supply' ? -feeAbs : feeAbs
@@ -616,14 +619,21 @@ export function ProductDetailDrawer({
           }
         }
 
-        // Fallback: live provider rate only (no breakdown / market state).
+        // Stellar charts use the catalogue; the legacy fallback takes EVM addresses.
+        const tokenId = item.assetAddress
+        if (!isAddress(tokenId)) {
+          setPoints([])
+          setPeriods([])
+          setUsedFallback(false)
+          return
+        }
         const rates =
           kind === 'supply'
             ? await loadMarketSupplyHistoryRates({
                 protocolId: item.protocol,
                 chainId: item.poolChainId,
                 poolId: item.poolId,
-                tokenId: item.assetAddress,
+                tokenId,
                 interval: label,
                 fromTimestamp,
               })
@@ -631,7 +641,7 @@ export function ProductDetailDrawer({
                 protocolId: item.protocol,
                 chainId: item.poolChainId,
                 poolId: item.poolId,
-                tokenId: item.assetAddress,
+                tokenId,
                 interval: label,
                 fromTimestamp,
               })
@@ -685,10 +695,15 @@ export function ProductDetailDrawer({
   // same formula as the products tables.
   const historyUtil = lastDefined(points, 'utilization')
   const derivedUtil =
+    item.assetAmountUsd !== null &&
+    item.liquidityAmountUsd !== null &&
     item.assetAmountUsd > 0
       ? (item.assetAmountUsd - item.liquidityAmountUsd) / item.assetAmountUsd
       : null
-  const latestUtil = derivedUtil ?? historyUtil
+  const latestUtil =
+    item.utilizationRate !== undefined
+      ? item.utilizationRate
+      : (derivedUtil ?? historyUtil)
 
   // Asset price. Prefer the product's own USD price from the list query
   // (Morpho's pipeline history has no priceUsd), then pipeline history
@@ -697,12 +712,20 @@ export function ProductDetailDrawer({
   const itemPrice =
     'assetPriceUsd' in item && item.assetPriceUsd ? item.assetPriceUsd : null
   const historyPrice = lastDefined(points, 'priceUsd')
-  const assetAmountTokens = Number(item.assetAmount) / 10 ** item.assetDecimals
+  const assetAmountTokens =
+    item.assetAmount !== null && item.assetDecimals !== null
+      ? Number(item.assetAmount) / 10 ** item.assetDecimals
+      : null
   const derivedPrice =
-    assetAmountTokens > 0 ? item.assetAmountUsd / assetAmountTokens : null
-  const latestPrice =
-    itemPrice ??
-    (historyPrice !== null && historyPrice > 0 ? historyPrice : derivedPrice)
+    assetAmountTokens !== null &&
+    assetAmountTokens > 0 &&
+    item.assetAmountUsd !== null
+      ? item.assetAmountUsd / assetAmountTokens
+      : null
+  const latestPrice = item.xoxno
+    ? itemPrice
+    : (itemPrice ??
+      (historyPrice !== null && historyPrice > 0 ? historyPrice : derivedPrice))
   const latestRewardItems =
     [...points].reverse().find((p) => p.rewardItems.length > 0)?.rewardItems ??
     []
@@ -843,8 +866,12 @@ export function ProductDetailDrawer({
               </div>
               <div className="flex flex-wrap gap-2">
                 {collaterals.map((c) => (
-                  <Badge key={c.symbol} variant="secondary">
-                    <TokenIcon symbol={c.symbol} className="mr-1 h-3 w-3" />
+                  <Badge key={c.address} variant="secondary">
+                    <TokenIcon
+                      symbol={c.symbol}
+                      logoURI={c.logoURI}
+                      className="mr-1 h-3 w-3"
+                    />
                     {c.symbol}
                   </Badge>
                 ))}
@@ -920,9 +947,15 @@ export function ProductDetailDrawer({
           ) : (
             <>
               {/* APY breakdown */}
-              {usedFallback ? (
+              {usedFallback ||
+              points.some((p) => p.base === null || p.fees === null) ? (
                 <div className="flex flex-col gap-2">
                   <Legend series={NET_ONLY_SERIES} />
+                  {!usedFallback && (
+                    <p className="text-muted-foreground text-xs">
+                      Historical gross rate and fees unavailable.
+                    </p>
+                  )}
                   <HistoryChart
                     data={points}
                     series={NET_ONLY_SERIES}

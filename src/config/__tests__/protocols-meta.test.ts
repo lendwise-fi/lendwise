@@ -14,6 +14,7 @@ describe('PROTOCOLS_META', () => {
       'blend_v2.1',
       'compound_v3',
       'morpho_v1',
+      'xoxno_v1',
     ])
     for (const meta of Object.values(PROTOCOLS_META)) {
       expect(meta.displayName).toBeTruthy()
@@ -24,6 +25,7 @@ describe('PROTOCOLS_META', () => {
 
   it('resolves names and providers without parsing ids', () => {
     expect(protocolVersionName('aave_v3')).toBe('Aave v3')
+    expect(protocolVersionName('xoxno_v1')).toBe('XOXNO')
     expect(protocolVersionName('nope')).toBe('n/a')
     expect(protocolDisplayName('morpho_v1')).toBe('Morpho')
     expect(adapterIdsForProvider('compound')).toEqual(['compound_v3'])

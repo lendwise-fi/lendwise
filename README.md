@@ -7,7 +7,7 @@
 
 # Unified view for lending markets. One standard.
 
-Lendwise compares and monitors 900+ lending markets across **Aave**, **Morpho**, **Compound**, **Blend** and more. It standardizes rates to net APY (base ± fees ± rewards) and optimizes your capital allocation.
+Lendwise compares and monitors 900+ lending markets across **Aave**, **Morpho**, **Compound**, **Blend**, **XOXNO** and more. It standardizes rates to net APY (base ± fees ± rewards) and optimizes your capital allocation.
 
 [![CI](https://github.com/lendwise-fi/lendwise/actions/workflows/ci.yml/badge.svg)](https://github.com/lendwise-fi/lendwise/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
@@ -60,6 +60,7 @@ Here is how to allocate your capital — matched to your risk profile and invest
 | **Aave V3**                    |    ✅    |    ✅    |   ✅    |  ✅  |    ✅    |    ✅     |  ✅   | ✅  |    —    |
 | **Morpho** (Blue + MetaMorpho) |    ✅    |    ✅    |   ✅    |  ✅  |    ✅    |     —     |   —   |  —  |    —    |
 | **Compound V3**                |    ✅    |    ✅    |   ✅    |  ✅  |    ✅    |     —     |   —   |  —  |    —    |
+| **XOXNO Lending**              |    —     |    —     |    —    |  —   |    —     |     —     |   —   |  —  |   ✅    |
 | **Blend** (v2.1)               |    —     |    —     |    —    |  —   |    —     |     —     |   —   |  —  |   ✅    |
 
 Want another protocol? **[Request it](https://github.com/lendwise-fi/lendwise/issues/new?template=protocol_request.yml)** — or
@@ -122,6 +123,7 @@ QStash cron.
 | [SCF #45 — Milestone 2](docs/scf-45-milestone-2.md) | Stellar Community Fund Tranche 2: deliverables, success criteria, evidence |
 | [SCF #45 — Milestone 3](docs/scf-45-milestone-3.md) | Stellar Community Fund Tranche 3: deliverables, success criteria, evidence |
 | [Protocol adapters](src/lib/protocols/README.md)    | Architecture, adapter contract, how to add a protocol                      |
+| [XOXNO integration](docs/xoxno-integration.md)      | Sources, spoke selection, RPC qualification, and rollout                   |
 | [Contributing guide](CONTRIBUTING.md)               | Setup, quality bar, PR process                                             |
 
 ## Contributing

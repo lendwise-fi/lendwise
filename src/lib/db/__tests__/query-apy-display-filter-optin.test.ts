@@ -72,10 +72,10 @@ describe('queryApy — display filter is opt-in', () => {
     expect(sql).not.toContain('last_supply_assets_usd')
   })
 
-  it('applies no extra rate bound when the caller passes neither bound — `apy_net` appears once, from the finiteApy NaN guard only', async () => {
+  it('applies no extra rate bound when the caller passes neither bound — `apy_net` appears twice, from the finiteApy bounds only', async () => {
     await queryApy('hourly', { kind: 'supply' }, page)
     const sql = lastWhereSql()
-    expect(sql.match(/"apy_net"/g)?.length ?? 0).toBe(1)
+    expect(sql.match(/"apy_net"/g)?.length ?? 0).toBe(2)
   })
 
   it('applies the TVL floor when minTvlUsd is passed explicitly', async () => {
@@ -84,9 +84,9 @@ describe('queryApy — display filter is opt-in', () => {
     expect(sql).toContain('last_supply_assets_usd')
   })
 
-  it('applies the rate ceiling when maxAbsNetApy is passed explicitly — `apy_net` appears three times: the finiteApy guard plus the lte/gte bounds', async () => {
+  it('applies the rate ceiling when maxAbsNetApy is passed explicitly — `apy_net` appears four times: the finiteApy guard plus the lte/gte bounds', async () => {
     await queryApy('hourly', { kind: 'supply', maxAbsNetApy: 5 }, page)
     const sql = lastWhereSql()
-    expect(sql.match(/"apy_net"/g)?.length ?? 0).toBe(3)
+    expect(sql.match(/"apy_net"/g)?.length ?? 0).toBe(4)
   })
 })

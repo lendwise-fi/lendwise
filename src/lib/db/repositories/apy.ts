@@ -5,7 +5,10 @@ import {
   DEFAULT_MAX_ABS_NET_APY,
   DEFAULT_MIN_TVL_USD,
 } from '@/config/table-filters'
-import { lastObservation } from '@/lib/db/last-observation'
+import {
+  lastObservation,
+  resolveAvailableLiquidity,
+} from '@/lib/db/last-observation'
 import { MAX_PRODUCT_IDS, clampPage } from '@/lib/db/pagination'
 import { db } from '@/lib/db/postgres'
 import { apyDaily, apyHourly, products } from '@/lib/db/schema'
@@ -27,6 +30,8 @@ const MEAN_COLUMNS = [
   'apy_rewards',
   'apy_fees',
   'apy_net',
+  'available_liquidity',
+  'available_liquidity_usd',
   'supply_assets',
   'supply_assets_usd',
   'utilization_rate',
@@ -39,12 +44,23 @@ const MEAN_COLUMNS = [
 
 /**
  * Emits `col = <running mean>` for each averaged column.
- * NULL-safe: if either side is NULL, keep the non-null one (matches old $cond logic).
+ * Unknown base, fees or cash make the whole component aggregate unknown.
+ * Other market means retain the existing known-value fallback.
  *   new_avg = (old*count + new) / (count+1)
  */
 function meanSetClause() {
   const parts = MEAN_COLUMNS.map(
     (c) => sql`${sql.raw(c)} = CASE
+      ${
+        [
+          'apy_base',
+          'apy_fees',
+          'available_liquidity',
+          'available_liquidity_usd',
+        ].includes(c)
+          ? sql`WHEN apy_hourly.${sql.raw(c)} IS NULL OR excluded.${sql.raw(c)} IS NULL THEN NULL`
+          : sql``
+      }
       WHEN apy_hourly.${sql.raw(c)} IS NULL THEN excluded.${sql.raw(c)}
       WHEN excluded.${sql.raw(c)} IS NULL THEN apy_hourly.${sql.raw(c)}
       ELSE (apy_hourly.${sql.raw(c)} * apy_hourly.quality_count + excluded.${sql.raw(c)})
@@ -57,10 +73,12 @@ function meanSetClause() {
 /**
  * Columns carrying the LAST observation of the slot. Written as-is, never
  * averaged: see lib/db/last-observation. The COALESCE keeps the last known
- * value when the current observation doesn't know — "don't know now" doesn't
- * erase "knew ten minutes ago".
+ * value for legacy market columns. Cash replaces even with null: an unknown
+ * current balance cannot be advertised as earlier available cash.
  */
 const LAST_COLUMNS = [
+  'last_available_liquidity',
+  'last_available_liquidity_usd',
   'last_supply_assets',
   'last_supply_assets_usd',
   'last_borrow_assets',
@@ -71,9 +89,10 @@ const LAST_COLUMNS = [
 ] as const
 
 function lastSetClause() {
-  const parts = LAST_COLUMNS.map(
-    (c) =>
-      sql`${sql.raw(c)} = COALESCE(excluded.${sql.raw(c)}, apy_hourly.${sql.raw(c)})`
+  const parts = LAST_COLUMNS.map((c) =>
+    c.startsWith('last_available_liquidity')
+      ? sql`${sql.raw(c)} = excluded.${sql.raw(c)}`
+      : sql`${sql.raw(c)} = COALESCE(excluded.${sql.raw(c)}, apy_hourly.${sql.raw(c)})`
   )
   return sql.join(parts, sql`, `)
 }
@@ -96,12 +115,14 @@ function hourlyValueTuple(p: SpotPayload, hour: Date, slotTime: Date) {
     ${p.productId}, ${hour},
     ${p.apy.base}, ${p.apy.rewards}, ${p.apy.fees}, ${p.apy.net},
     ${JSON.stringify(p.apy.rewardItems)}::jsonb,
+    ${last.availableLiquidity}, ${last.availableLiquidityUsd},
     ${last.supplyAssets}, ${last.supplyAssetsUsd},
     ${last.utilizationRate}, ${last.assetPriceUsd},
     ${last.borrowAssets}, ${last.borrowAssetsUsd},
     ${last.collateralAssetsUsd},
     ${isSupply ? null : (bm.priceCollateralInLoanAsset ?? null)},
     1, 6, ${slotTime}, ${slotTime}, 'building',
+    ${last.availableLiquidity}, ${last.availableLiquidityUsd},
     ${last.supplyAssets}, ${last.supplyAssetsUsd},
     ${last.borrowAssets}, ${last.borrowAssetsUsd},
     ${last.collateralAssetsUsd}, ${last.utilizationRate}, ${last.assetPriceUsd}
@@ -194,9 +215,11 @@ export async function upsertHourlySlots(
       INSERT INTO apy_hourly (
         product_id, hour,
         apy_base, apy_rewards, apy_fees, apy_net, reward_items,
+        available_liquidity, available_liquidity_usd,
         supply_assets, supply_assets_usd, utilization_rate, asset_price_usd,
         borrow_assets, borrow_assets_usd, collateral_assets_usd, price_collateral_in_loan_asset,
         quality_count, quality_expected_count, quality_first_slot, quality_last_slot, quality_status,
+        last_available_liquidity, last_available_liquidity_usd,
         last_supply_assets, last_supply_assets_usd,
         last_borrow_assets, last_borrow_assets_usd,
         last_collateral_assets_usd, last_utilization_rate, last_asset_price_usd
@@ -248,10 +271,12 @@ export async function aggregateDaily(
     WITH agg AS (
       SELECT
         h.product_id,
-        avg(h.apy_base)    AS apy_base,
+        CASE WHEN count(h.apy_base) = count(*) THEN avg(h.apy_base) END AS apy_base,
         avg(h.apy_rewards) AS apy_rewards,
-        avg(h.apy_fees)    AS apy_fees,
+        CASE WHEN count(h.apy_fees) = count(*) THEN avg(h.apy_fees) END AS apy_fees,
         avg(h.apy_net)     AS apy_net,
+        CASE WHEN count(h.available_liquidity) = count(*) THEN avg(h.available_liquidity) END AS available_liquidity,
+        CASE WHEN count(h.available_liquidity_usd) = count(*) THEN avg(h.available_liquidity_usd) END AS available_liquidity_usd,
         avg(h.supply_assets)     AS supply_assets,
         avg(h.supply_assets_usd) AS supply_assets_usd,
         avg(h.utilization_rate)  AS utilization_rate,
@@ -269,6 +294,7 @@ export async function aggregateDaily(
     )
     INSERT INTO apy_daily (
       product_id, date, apy_base, apy_rewards, apy_fees, apy_net, reward_items,
+      available_liquidity, available_liquidity_usd,
       supply_assets, supply_assets_usd, utilization_rate, asset_price_usd,
       borrow_assets, borrow_assets_usd, collateral_assets_usd, price_collateral_in_loan_asset,
       quality_actual_count, quality_expected_count, quality_completeness, quality_status,
@@ -276,6 +302,7 @@ export async function aggregateDaily(
     )
     SELECT
       product_id, ${windowStart}, apy_base, apy_rewards, apy_fees, apy_net, reward_items,
+      available_liquidity, available_liquidity_usd,
       supply_assets, supply_assets_usd, utilization_rate, asset_price_usd,
       borrow_assets, borrow_assets_usd, collateral_assets_usd, price_collateral_in_loan_asset,
       actual_count, 24, least(actual_count::float / 24, 1),
@@ -287,6 +314,7 @@ export async function aggregateDaily(
       apy_base = excluded.apy_base, apy_rewards = excluded.apy_rewards,
       apy_fees = excluded.apy_fees, apy_net = excluded.apy_net,
       reward_items = excluded.reward_items,
+      available_liquidity = excluded.available_liquidity, available_liquidity_usd = excluded.available_liquidity_usd,
       supply_assets = excluded.supply_assets, supply_assets_usd = excluded.supply_assets_usd,
       utilization_rate = excluded.utilization_rate, asset_price_usd = excluded.asset_price_usd,
       borrow_assets = excluded.borrow_assets, borrow_assets_usd = excluded.borrow_assets_usd,
@@ -314,13 +342,15 @@ export interface DailyBackfillInput {
   /** Any instant within the day; floored to midnight UTC on write. */
   date: Date
   apy: {
-    base: number
+    base: number | null
     rewards: number
-    fees: number
+    fees: number | null
     net: number
     rewardItems: unknown[]
   }
   market?: {
+    availableLiquidity?: number | null
+    availableLiquidityUsd?: number | null
     supplyAssets?: number | null
     supplyAssetsUsd?: number | null
     utilizationRate?: number | null
@@ -394,12 +424,14 @@ export async function existingDailyKeys(
 function dailyBackfillTuple(r: DailyBackfillInput, computedAt: Date) {
   const a = r.apy
   const m = r.market ?? {}
+  const cash = resolveAvailableLiquidity(m)
   // quality: one complete daily reading from the provider (expected = actual =
   // 1), so it is never flagged low-quality — distinct from a 24-hourly aggregate.
   return sql`(
     ${r.productId}, ${floorUtcDay(r.date)},
     ${a.base}, ${a.rewards}, ${a.fees}, ${a.net},
     ${JSON.stringify(a.rewardItems ?? [])}::jsonb,
+    ${cash.availableLiquidity}, ${cash.availableLiquidityUsd},
     ${m.supplyAssets ?? null}, ${m.supplyAssetsUsd ?? null}, ${m.utilizationRate ?? null}, ${m.assetPriceUsd ?? null},
     ${m.borrowAssets ?? null}, ${m.borrowAssetsUsd ?? null}, ${m.collateralAssetsUsd ?? null}, ${m.priceCollateralInLoanAsset ?? null},
     1, 1, 1, 'complete', 0, ${computedAt}
@@ -454,6 +486,7 @@ export async function backfillDailyRows(
     const res = await db.execute(sql`
       INSERT INTO apy_daily (
         product_id, date, apy_base, apy_rewards, apy_fees, apy_net, reward_items,
+        available_liquidity, available_liquidity_usd,
         supply_assets, supply_assets_usd, utilization_rate, asset_price_usd,
         borrow_assets, borrow_assets_usd, collateral_assets_usd, price_collateral_in_loan_asset,
         quality_actual_count, quality_expected_count, quality_completeness, quality_status,
@@ -470,6 +503,8 @@ export async function backfillDailyRows(
 
 /** The market columns a history backfill can fill in on an existing daily row. */
 const PATCHABLE_MARKET_COLUMNS = [
+  'available_liquidity',
+  'available_liquidity_usd',
   'supply_assets',
   'supply_assets_usd',
   'utilization_rate',
@@ -485,6 +520,8 @@ const PATCHABLE_MARKET_COLUMNS = [
  * nor a genuine unknown into a fabricated one.
  */
 export interface DailyMarketPatch {
+  availableLiquidity?: number | null
+  availableLiquidityUsd?: number | null
   productId: string
   /** Any instant within the day; floored to midnight UTC to match the PK. */
   date: Date
@@ -497,8 +534,11 @@ export interface DailyMarketPatch {
 }
 
 function marketPatchTuple(p: DailyMarketPatch) {
+  const cash = resolveAvailableLiquidity(p)
   return sql`(
     ${p.productId}::text, ${floorUtcDay(p.date)}::timestamptz,
+    ${cash.availableLiquidity}::double precision,
+    ${cash.availableLiquidityUsd}::double precision,
     ${p.supplyAssets ?? null}::double precision,
     ${p.supplyAssetsUsd ?? null}::double precision,
     ${p.utilizationRate ?? null}::double precision,
@@ -807,10 +847,10 @@ function finiteApy(
   table: OrderableColumns & { apyRewards: AnyPgColumn; apyFees: AnyPgColumn }
 ) {
   return sql`
-    ${table.apyNet} <> 'NaN'::float8 AND
-    ${table.apyBase} <> 'NaN'::float8 AND
-    ${table.apyRewards} <> 'NaN'::float8 AND
-    ${table.apyFees} <> 'NaN'::float8
+    ${table.apyNet} > '-Infinity'::float8 AND ${table.apyNet} < 'Infinity'::float8 AND
+    ${table.apyRewards} > '-Infinity'::float8 AND ${table.apyRewards} < 'Infinity'::float8 AND
+    (${table.apyBase} IS NULL OR (${table.apyBase} > '-Infinity'::float8 AND ${table.apyBase} < 'Infinity'::float8)) AND
+    (${table.apyFees} IS NULL OR (${table.apyFees} > '-Infinity'::float8 AND ${table.apyFees} < 'Infinity'::float8))
   `
 }
 
@@ -1015,36 +1055,8 @@ export async function queryLatestApy(f: ApyFilters, page: Page) {
 // ─── Display read (what /supply and /borrow serve) ──────────────────────────
 
 /**
- * The last observation of every catalogued product of a `kind`, ready for
- * the table.
- *
- * Three properties are worth stating, because they're what make the defects
- * this read replaces inexpressible:
- *
- *   - The predicate comes from `productConds()`, the very one `queryApy` and
- *     `queryLatestApy` apply: one shared write of the catalogue filters, not
- *     two that must agree. The DISPLAY thresholds, though, are NOT applied
- *     here — they're added to both API entry points and evaluated in the
- *     browser for the tables. The table is therefore deliberately LESS
- *     strict than the API: that's what lets a user drag the minimum liquidity
- *     down to zero and see their pool right away, with no round trip to the
- *     server. The price is a row set roughly 40% bigger in the server action.
- *   - The JOIN on `products` is what guarantees a displayed row exists in the
- *     catalogue. It's not a presentation filter, it's the refusal to show
- *     what we know nothing about.
- *   - Amounts come from the `last_*` columns, not the averages. The COALESCE
- *     covers the first hour after the migration, when they're still null, and
- *     the rows the heal repairs, which don't have one.
- *
- * No pagination, deliberately: `queryLatestApy` clamps to MAX_FIRST because
- * it serves an unauthenticated public endpoint. This one serves a server
- * action, behind a 60s cache, and the table wants its full set.
- *
- * The 7d/30d/365d `apy_daily` averages (the same ones `apyEnrichments`
- * computes standalone for the borrow path) are joined in here as a second
- * CTE rather than fetched in a follow-up call keyed by the product ids this
- * query returns. One round trip to Postgres, not two plus a JS hop to build
- * the id list in between.
+ * Active catalogue inventory with optional recent observations and daily averages.
+ * Last cash is read directly; no observation or unknown cash stays null.
  */
 export async function latestForTable(kind: Kind): Promise<CatalogueRow[]> {
   const since = new Date(Date.now() - LATEST_WINDOW_HOURS * 60 * 60 * 1000)
@@ -1078,6 +1090,8 @@ export async function latestForTable(kind: Kind): Promise<CatalogueRow[]> {
         hour: apyHourly.hour,
         apyNet: apyHourly.apyNet,
         apyRewards: apyHourly.apyRewards,
+        availableLiquidity: apyHourly.lastAvailableLiquidity,
+        availableLiquidityUsd: apyHourly.lastAvailableLiquidityUsd,
         supplyAssets: sql<
           number | null
         >`COALESCE(${apyHourly.lastSupplyAssets}, ${apyHourly.supplyAssets})`.as(
@@ -1122,28 +1136,26 @@ export async function latestForTable(kind: Kind): Promise<CatalogueRow[]> {
   const rows = await db
     .with(latest, daily)
     .select()
-    .from(latest)
-    .innerJoin(products, eq(latest.productId, products.id))
+    .from(products)
+    .leftJoin(latest, eq(latest.productId, products.id))
     .leftJoin(daily, eq(daily.productId, products.id))
-    .where(and(...productConds({ kind })))
+    .where(and(...productConds({ kind }), eq(products.active, true)))
     .orderBy(...orderClause(latest.apyNet, 'desc', products.id))
 
-  // `daily` is LEFT-joined: a product with no row in the 365-day window comes
-  // back null, and its horizon fields stay absent — the UI renders a dash.
-  // Every present row goes through the same `toEnrichment()` as the borrow
-  // path, so the two cannot disagree on what a 7D average is.
   return rows.map(({ latest: observation, products: product, daily: d }) => ({
     product,
-    hour: observation.hour,
-    apyNet: observation.apyNet,
-    apyRewards: Number(observation.apyRewards) || 0,
-    supplyAssets: observation.supplyAssets,
-    supplyAssetsUsd: observation.supplyAssetsUsd,
-    borrowAssets: observation.borrowAssets,
-    borrowAssetsUsd: observation.borrowAssetsUsd,
-    collateralAssetsUsd: observation.collateralAssetsUsd,
-    utilizationRate: observation.utilizationRate,
-    assetPriceUsd: observation.assetPriceUsd,
+    hour: observation?.hour ?? null,
+    apyNet: observation?.apyNet ?? null,
+    apyRewards: observation?.apyRewards ?? null,
+    availableLiquidity: observation?.availableLiquidity ?? null,
+    availableLiquidityUsd: observation?.availableLiquidityUsd ?? null,
+    supplyAssets: observation?.supplyAssets ?? null,
+    supplyAssetsUsd: observation?.supplyAssetsUsd ?? null,
+    borrowAssets: observation?.borrowAssets ?? null,
+    borrowAssetsUsd: observation?.borrowAssetsUsd ?? null,
+    collateralAssetsUsd: observation?.collateralAssetsUsd ?? null,
+    utilizationRate: observation?.utilizationRate ?? null,
+    assetPriceUsd: observation?.assetPriceUsd ?? null,
     ...(d ? toEnrichment(d) : {}),
   }))
 }
@@ -1153,11 +1165,13 @@ export async function latestForTable(kind: Kind): Promise<CatalogueRow[]> {
 /** One slot of a product's full APY + market-state history. */
 export interface ProductApyHistoryPoint {
   t: Date
-  base: number
+  base: number | null
   rewards: number
-  fees: number
+  fees: number | null
   net: number
   rewardItems: RewardItem[]
+  availableLiquidity: number | null
+  availableLiquidityUsd: number | null
   supplyAssetsUsd: number | null
   borrowAssetsUsd: number | null
   collateralAssetsUsd: number | null
@@ -1190,6 +1204,8 @@ export async function productApyHistory(
       fees: table.apyFees,
       net: table.apyNet,
       rewardItems: table.rewardItems,
+      availableLiquidity: table.availableLiquidity,
+      availableLiquidityUsd: table.availableLiquidityUsd,
       supplyAssetsUsd: table.supplyAssetsUsd,
       borrowAssetsUsd: table.borrowAssetsUsd,
       collateralAssetsUsd: table.collateralAssetsUsd,
@@ -1209,7 +1225,8 @@ export async function productApyHistory(
     v != null && Number.isFinite(v) ? v : null
 
   return rows.flatMap((r) =>
-    [r.base, r.rewards, r.fees, r.net].every(Number.isFinite)
+    [r.rewards, r.net].every(Number.isFinite) &&
+    [r.base, r.fees].every((v) => v === null || Number.isFinite(v))
       ? [
           {
             t: new Date(r.t),
@@ -1218,6 +1235,8 @@ export async function productApyHistory(
             fees: r.fees,
             net: r.net,
             rewardItems: (r.rewardItems as RewardItem[]) ?? [],
+            availableLiquidity: finite(r.availableLiquidity),
+            availableLiquidityUsd: finite(r.availableLiquidityUsd),
             supplyAssetsUsd: finite(r.supplyAssetsUsd),
             borrowAssetsUsd: finite(r.borrowAssetsUsd),
             collateralAssetsUsd: finite(r.collateralAssetsUsd),

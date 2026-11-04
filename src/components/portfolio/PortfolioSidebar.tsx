@@ -8,8 +8,18 @@ import { HealthSummaryValue } from './HealthFactorValue'
 type BreakdownItem = { name: string; value: number; color: string }
 
 type PortfolioSummary = {
-  totalSupplying: { value: number; currency: string; positions: number }
-  totalBorrowing: { value: number; currency: string; positions: number }
+  totalSupplying: {
+    value: number | null
+    currency: string
+    positions: number
+    unpriced: number
+  }
+  totalBorrowing: {
+    value: number | null
+    currency: string
+    positions: number
+    unpriced: number
+  }
   supplyBreakdown: BreakdownItem[]
   borrowBreakdown: BreakdownItem[]
 }
@@ -30,7 +40,11 @@ export default function PortfolioSidebar({
 }) {
   const { totalSupplying, totalBorrowing, supplyBreakdown, borrowBreakdown } =
     summary
-  const netPosition = totalSupplying.value - totalBorrowing.value
+  const unpriced = totalSupplying.unpriced + totalBorrowing.unpriced
+  const netPosition =
+    totalSupplying.value == null || totalBorrowing.value == null
+      ? null
+      : totalSupplying.value - totalBorrowing.value
 
   return (
     <aside className="border-border bg-card/40 hidden w-72 shrink-0 flex-col overflow-y-auto border-r md:flex">
@@ -47,10 +61,10 @@ export default function PortfolioSidebar({
       {/* Net position */}
       <div className="border-border border-b px-6 py-5">
         <p className="text-muted-foreground mb-2 text-xs font-medium tracking-wider uppercase">
-          Net Position
+          {unpriced > 0 ? 'Priced Net Position' : 'Net Position'}
         </p>
         <p className="text-foreground font-mono text-3xl font-semibold">
-          ${netPosition.toFixed(2)}
+          {netPosition == null ? '—' : `$${netPosition.toFixed(2)}`}
         </p>
         <div className="mt-1 flex items-center gap-1.5">
           <Activity className="h-3.5 w-3.5 text-emerald-400" />
@@ -74,11 +88,18 @@ export default function PortfolioSidebar({
           <div className="flex items-center gap-1 text-emerald-400">
             <TrendingUp className="h-3.5 w-3.5" />
             <span className="font-mono text-lg font-semibold">
-              ${totalSupplying.value.toFixed(2)}
+              {totalSupplying.value == null
+                ? '—'
+                : `$${totalSupplying.value.toFixed(2)}`}
             </span>
           </div>
         </div>
         <DonutWithLegend data={supplyBreakdown} />
+        {totalSupplying.unpriced > 0 && (
+          <p className="text-muted-foreground mt-3 text-xs">
+            {totalSupplying.unpriced} unpriced positions excluded
+          </p>
+        )}
       </div>
 
       {/* Borrow chart */}
@@ -101,11 +122,18 @@ export default function PortfolioSidebar({
           <div className="flex items-center gap-1 text-rose-400">
             <TrendingDown className="h-3.5 w-3.5" />
             <span className="font-mono text-lg font-semibold">
-              ${totalBorrowing.value.toFixed(2)}
+              {totalBorrowing.value == null
+                ? '—'
+                : `$${totalBorrowing.value.toFixed(2)}`}
             </span>
           </div>
         </div>
         <DonutWithLegend data={borrowBreakdown} />
+        {totalBorrowing.unpriced > 0 && (
+          <p className="text-muted-foreground mt-3 text-xs">
+            {totalBorrowing.unpriced} unpriced positions excluded
+          </p>
+        )}
       </div>
 
       {/* Wallet balances — held assets, not part of Net Position */}

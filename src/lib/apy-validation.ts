@@ -24,18 +24,18 @@
  */
 
 interface ApyBlock {
-  base: number
+  base: number | null
   rewards: number
-  fees: number
+  fees: number | null
   net: number
 }
 
 /** True when every APY component is an actual number we can persist. */
 export function isFiniteApyBlock(apy: ApyBlock): boolean {
   return (
-    Number.isFinite(apy.base) &&
+    (apy.base === null || Number.isFinite(apy.base)) &&
     Number.isFinite(apy.rewards) &&
-    Number.isFinite(apy.fees) &&
+    (apy.fees === null || Number.isFinite(apy.fees)) &&
     Number.isFinite(apy.net)
   )
 }

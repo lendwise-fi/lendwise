@@ -15,6 +15,7 @@ import {
   attachRisk,
   networkName,
   orphanRiskRows,
+  positionValueSummary,
   reportedHealthFactors,
   topWalletSlices,
   walletBalanceBreakdown,
@@ -98,26 +99,27 @@ export function Portfolio() {
     const supplyPositions = Object.values(userPositions.supply).flat()
     const borrowPositions = Object.values(userPositions.borrow).flat()
 
-    const totalSupplyingValue = supplyPositions.reduce(
-      (acc, p) => acc + Number(p.assetAmountUsd) * rate,
-      0
+    const totalSupplying = positionValueSummary(
+      supplyPositions.map((p) => p.assetAmountUsd)
     )
-    const totalBorrowingValue = borrowPositions.reduce(
-      (acc, p) => acc + Number(p.loanAssetAmountUsd) * rate,
-      0
+    const totalBorrowing = positionValueSummary(
+      borrowPositions.map((p) => p.loanAssetAmountUsd)
     )
+    const totalSupplyingValue = totalSupplying.value
+    const totalBorrowingValue = totalBorrowing.value
 
     const supplyBreakdown = Object.entries(userPositions.supply)
       .filter(([, positions]) => positions.length > 0)
       .map(([protocol, positions], idx) => {
-        const total = positions.reduce(
-          (acc, p) => acc + Number(p.assetAmountUsd) * rate,
+        const total =
+          positionValueSummary(positions.map((p) => p.assetAmountUsd)).value ??
           0
-        )
         return {
           name: protocolVersionName(protocol),
           value:
-            totalSupplyingValue > 0 ? (total / totalSupplyingValue) * 100 : 0,
+            totalSupplyingValue != null && totalSupplyingValue > 0
+              ? (total / totalSupplyingValue) * 100
+              : 0,
           color: PROTOCOL_COLORS[idx % PROTOCOL_COLORS.length],
         }
       })
@@ -125,31 +127,32 @@ export function Portfolio() {
     const borrowBreakdown = Object.entries(userPositions.borrow)
       .filter(([, positions]) => positions.length > 0)
       .map(([protocol, positions], idx) => {
-        const total = positions.reduce(
-          (acc, p) => acc + Number(p.loanAssetAmountUsd) * rate,
-          0
-        )
+        const total =
+          positionValueSummary(positions.map((p) => p.loanAssetAmountUsd))
+            .value ?? 0
         return {
           name: protocolVersionName(protocol),
           value:
-            totalBorrowingValue > 0 ? (total / totalBorrowingValue) * 100 : 0,
+            totalBorrowingValue != null && totalBorrowingValue > 0
+              ? (total / totalBorrowingValue) * 100
+              : 0,
           color: PROTOCOL_COLORS[idx % PROTOCOL_COLORS.length],
         }
       })
 
     return {
       totalSupplying: {
-        value: totalSupplyingValue,
         currency: 'USD',
-        positions: supplyPositions.length,
+        ...totalSupplying,
+        value: totalSupplyingValue == null ? null : totalSupplyingValue * rate,
       },
       totalBorrowing: {
-        value: totalBorrowingValue,
         currency: 'USD',
-        positions: borrowPositions.length,
+        ...totalBorrowing,
+        value: totalBorrowingValue == null ? null : totalBorrowingValue * rate,
       },
-      supplyBreakdown,
-      borrowBreakdown,
+      supplyBreakdown: supplyBreakdown.filter((p) => p.value > 0),
+      borrowBreakdown: borrowBreakdown.filter((p) => p.value > 0),
     }
   }, [userPositions, rate])
 
@@ -190,9 +193,15 @@ export function Portfolio() {
     })),
   }
 
+  const unpriced =
+    portfolioSummary.totalSupplying.unpriced +
+    portfolioSummary.totalBorrowing.unpriced
   const netPosition =
-    portfolioSummary.totalSupplying.value -
-    portfolioSummary.totalBorrowing.value
+    portfolioSummary.totalSupplying.value == null ||
+    portfolioSummary.totalBorrowing.value == null
+      ? null
+      : portfolioSummary.totalSupplying.value -
+        portfolioSummary.totalBorrowing.value
 
   return (
     <div className="flex h-full overflow-hidden">
@@ -208,10 +217,10 @@ export function Portfolio() {
         <div className="bg-card/40 grid grid-cols-4 gap-2 border-b px-4 py-3 md:hidden">
           <div>
             <p className="text-2xs text-muted-foreground mb-0.5 tracking-wider uppercase">
-              Net
+              {unpriced > 0 ? 'Priced net' : 'Net'}
             </p>
             <p className="truncate font-mono text-sm font-semibold">
-              ${netPosition.toFixed(0)}
+              {netPosition == null ? '—' : `$${netPosition.toFixed(0)}`}
             </p>
           </div>
           <div>
@@ -221,7 +230,9 @@ export function Portfolio() {
             <div className="flex items-center gap-1">
               <TrendingUp className="h-3 w-3 shrink-0 text-emerald-400" />
               <p className="truncate font-mono text-sm font-semibold text-emerald-400">
-                ${portfolioSummary.totalSupplying.value.toFixed(0)}
+                {portfolioSummary.totalSupplying.value == null
+                  ? '—'
+                  : `$${portfolioSummary.totalSupplying.value.toFixed(0)}`}
               </p>
             </div>
           </div>
@@ -232,7 +243,9 @@ export function Portfolio() {
             <div className="flex items-center gap-1">
               <TrendingDown className="h-3 w-3 shrink-0 text-rose-400" />
               <p className="truncate font-mono text-sm font-semibold text-rose-400">
-                ${portfolioSummary.totalBorrowing.value.toFixed(0)}
+                {portfolioSummary.totalBorrowing.value == null
+                  ? '—'
+                  : `$${portfolioSummary.totalBorrowing.value.toFixed(0)}`}
               </p>
             </div>
           </div>
@@ -249,6 +262,12 @@ export function Portfolio() {
           </div>
         </div>
 
+        {unpriced > 0 && (
+          <p className="text-muted-foreground border-b px-4 py-2 text-xs">
+            {unpriced} unpriced {unpriced === 1 ? 'position' : 'positions'}{' '}
+            excluded from totals.
+          </p>
+        )}
         <PartialDataBanner failures={portfolio.failures} />
 
         <Tabs

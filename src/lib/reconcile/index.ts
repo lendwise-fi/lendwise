@@ -54,6 +54,8 @@ function donorMarket(
   d: Record<string, unknown>
 ): Record<string, number | null> {
   return {
+    availableLiquidity: d.available_liquidity as number | null,
+    availableLiquidityUsd: d.available_liquidity_usd as number | null,
     supplyAssets: d.supply_assets as number | null,
     supplyAssetsUsd: d.supply_assets_usd as number | null,
     utilizationRate: d.utilization_rate as number | null,
@@ -388,9 +390,9 @@ async function repair(
       list.push({
         hour: new Date(d.hour as string),
         apy: {
-          base: d.apy_base as number,
+          base: d.apy_base as number | null,
           rewards: d.apy_rewards as number,
-          fees: d.apy_fees as number,
+          fees: d.apy_fees as number | null,
           net: d.apy_net as number,
           rewardItems: (d.reward_items as unknown[]) ?? [],
         },

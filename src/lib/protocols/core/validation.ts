@@ -28,9 +28,9 @@ const rewardItemSchema = z.object({
 })
 
 const apyBlockSchema = z.object({
-  base: finite,
+  base: finite.nullable(),
   rewards: finite,
-  fees: finite,
+  fees: finite.nullable(),
   net: finite,
   rewardItems: z.array(rewardItemSchema),
 })

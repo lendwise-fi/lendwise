@@ -13,8 +13,6 @@
  * `@/config/protocols-presentation`; this file resolves hook-or-default. Adding
  * a protocol never touches it.
  */
-import type { Address } from 'viem'
-
 import type { ProtocolName } from '@/config/protocols-meta'
 import { PROTOCOLS_PRESENTATION } from '@/config/protocols-presentation'
 import type { ApyEnrichment } from '@/lib/db/repositories/apy'
@@ -90,38 +88,12 @@ export function productLink(p: ProductRow): string {
  * `double precision` — invisible at render time, which never shows more than
  * six.
  */
-export function toRawUnits(whole: number | null, decimals: number): string {
-  if (whole == null || !Number.isFinite(whole) || whole <= 0) return '0'
+export function toRawUnits(
+  whole: number | null,
+  decimals: number
+): string | null {
+  if (whole == null || !Number.isFinite(whole) || whole < 0) return null
   return BigInt(Math.round(whole * 10 ** decimals)).toString()
-}
-
-/**
- * Liquidity is what isn't borrowed — one formula covers all three providers,
- * because all three define utilization as the deployed share: Aave
- * `borrowUsd / supplyUsd`, Compound `totalBorrow / totalSupply`, Morpho
- * `(total − withdrawable) / total`.
- *
- * A supply product has no `borrow_assets` column — it's null by construction
- * in `apy_hourly` — so the subtraction the adapter does isn't available here,
- * and the utilization rate replaces it exactly.
- *
- * Unknown utilization = 0: shows the full deposit, which is the conservative
- * read of a market whose borrow side is unknown.
- */
-export function liquidity(
-  supply: number | null,
-  utilization: number | null
-): number {
-  if (supply == null || !Number.isFinite(supply)) return 0
-  const u =
-    utilization == null || !Number.isFinite(utilization)
-      ? 0
-      : Math.min(Math.max(utilization, 0), 1)
-  // `supply - supply * u` rather than `supply * (1 - u)`: mathematically
-  // identical, but avoids the floating-point error of `1 - u` (0.8 becomes
-  // 0.19999999999999996), which drifted 1,000,000 at 80% utilization to
-  // 199999.99999999994.
-  return supply - supply * u
 }
 
 /**
@@ -141,7 +113,7 @@ export function toSupplyProduct(
 ): SupplyProduct {
   const p = row.product
   const { poolId, poolAddress } = poolIdentity(p)
-  const supplyUsd = row.supplyAssetsUsd ?? 0
+  const supplyUsd = row.supplyAssetsUsd
   return {
     protocol: adapterId(p),
     network: networkSlug(p),
@@ -149,20 +121,18 @@ export function toSupplyProduct(
     poolId,
     poolAddress,
     poolChainId: p.chainId,
-    assetAddress: p.assetAddress as Address,
+    assetAddress: p.assetAddress,
     assetName: p.assetName,
     assetSymbol: p.assetSymbol,
     assetDecimals: p.assetDecimals,
     assetAmount: toRawUnits(row.supplyAssets, p.assetDecimals),
     assetAmountUsd: supplyUsd,
     assetPriceUsd: row.assetPriceUsd ?? undefined,
-    liquidityAmount: toRawUnits(
-      liquidity(row.supplyAssets, row.utilizationRate),
-      p.assetDecimals
-    ),
-    liquidityAmountUsd: liquidity(supplyUsd, row.utilizationRate),
-    apy: row.apyNet,
-    apyRewards: row.apyRewards,
+    liquidityAmount: toRawUnits(row.availableLiquidity, p.assetDecimals),
+    liquidityAmountUsd: row.availableLiquidityUsd,
+    utilizationRate: row.utilizationRate,
+    apy: row.apyNet ?? undefined,
+    apyRewards: row.apyRewards ?? undefined,
     apyDaily: e?.apyDaily,
     apyMonthly: e?.apyMonthly,
     apyYearly: e?.apyYearly,
@@ -171,6 +141,7 @@ export function toSupplyProduct(
     apyRewardsYearly: e?.apyRewardsYearly,
     productId: p.id,
     link: productLink(p),
+    ...presentation(p)?.productDetails?.(p),
   }
 }
 
@@ -185,7 +156,7 @@ export function toSupplyProduct(
 function collateralTokens(p: ProductRow): Token[] {
   const collaterals = (p.collaterals as Collateral[] | null) ?? []
   return collaterals.map((c) => ({
-    address: c.address as Address,
+    address: c.address,
     symbol: c.symbol,
     name: c.name,
     decimals: c.decimals,
@@ -216,7 +187,7 @@ export function toBorrowProduct(
 ): BorrowProduct {
   const p = row.product
   const { poolId, poolAddress } = poolIdentity(p)
-  const supplyUsd = row.supplyAssetsUsd ?? 0
+  const supplyUsd = row.supplyAssetsUsd
   return {
     protocol: adapterId(p),
     network: networkSlug(p),
@@ -224,27 +195,26 @@ export function toBorrowProduct(
     poolId,
     poolAddress,
     poolChainId: p.chainId,
-    assetAddress: p.assetAddress as Address,
+    assetAddress: p.assetAddress,
     assetName: p.assetName,
     assetSymbol: p.assetSymbol,
     assetDecimals: p.assetDecimals,
     assetAmount: toRawUnits(row.supplyAssets, p.assetDecimals),
     assetAmountUsd: supplyUsd,
-    liquidityAmount: toRawUnits(
-      liquidity(row.supplyAssets, row.utilizationRate),
-      p.assetDecimals
-    ),
-    liquidityAmountUsd: liquidity(supplyUsd, row.utilizationRate),
+    liquidityAmount: toRawUnits(row.availableLiquidity, p.assetDecimals),
+    liquidityAmountUsd: row.availableLiquidityUsd,
+    utilizationRate: row.utilizationRate,
     collaterals: collateralTokens(p),
-    apy: row.apyNet,
+    apy: row.apyNet ?? undefined,
     apyDaily: e?.apyDaily,
     apyMonthly: e?.apyMonthly,
     apyYearly: e?.apyYearly,
-    apyRewards: row.apyRewards,
+    apyRewards: row.apyRewards ?? undefined,
     apyRewardsDaily: e?.apyRewardsDaily,
     apyRewardsMonthly: e?.apyRewardsMonthly,
     apyRewardsYearly: e?.apyRewardsYearly,
     productId: p.id,
     link: productLink(p),
+    ...presentation(p)?.productDetails?.(p),
   }
 }

@@ -1,6 +1,8 @@
 import { PgDialect } from 'drizzle-orm/pg-core'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { products } from '@/lib/db/schema'
+
 // The SQL is under test, not the database. The Drizzle chain is stubbed up to
 // the point the query resolves; that's the query we inspect.
 //
@@ -45,6 +47,8 @@ const cteColumns = vi.hoisted(() => ({
   hour: {},
   apyNet: {},
   apyRewards: {},
+  availableLiquidity: {},
+  availableLiquidityUsd: {},
   supplyAssets: {},
   supplyAssetsUsd: {},
   borrowAssets: {},
@@ -82,6 +86,7 @@ const dialect = new PgDialect()
 
 describe('latestForTable', () => {
   beforeEach(() => {
+    rows.length = 0
     for (const m of [
       'select',
       'from',
@@ -99,7 +104,8 @@ describe('latestForTable', () => {
 
   it('joins products — a displayed row exists in the catalogue by construction, filtered by the same predicate as queryApy/queryLatestApy, WITHOUT the display thresholds', async () => {
     await latestForTable('supply')
-    expect(chain.innerJoin).toHaveBeenCalled()
+    expect(chain.from).toHaveBeenLastCalledWith(products)
+    expect(chain.leftJoin).toHaveBeenCalledTimes(2)
 
     // `latestForTable`'s file docstring claims its predicate comes from
     // `productConds()`, the same one `queryApy` and `queryLatestApy` apply —
@@ -117,6 +123,7 @@ describe('latestForTable', () => {
     >[0]
     const { sql } = dialect.sqlToQuery(whereArg)
     expect(sql).toContain('"kind"')
+    expect(sql).toContain('"active"')
 
     // The display-flags table is gone from this predicate on purpose: the
     // display thresholds are now applied ONLY at the two API entry points
@@ -125,6 +132,21 @@ describe('latestForTable', () => {
     // catalogue and the time window allow, without a round trip.
     expect(sql).not.toContain('product_display_flags')
     expect(sql).not.toContain('NOT EXISTS')
+  })
+
+  it('keeps catalogue inventory when no recent observation exists', async () => {
+    const product = { id: 'xoxno-pool' }
+    rows.push({ products: product, latest: null, daily: null })
+    expect(await latestForTable('supply')).toEqual([
+      expect.objectContaining({
+        product,
+        hour: null,
+        apyNet: null,
+        apyRewards: null,
+        availableLiquidity: null,
+        availableLiquidityUsd: null,
+      }),
+    ])
   })
 
   it('applies no LIMIT — a table is not an API page', async () => {

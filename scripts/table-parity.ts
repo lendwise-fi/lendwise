@@ -27,15 +27,16 @@ type TableProduct = {
   network: string
   link?: string
   poolId: string
-  assetAmountUsd: number
-  liquidityAmountUsd: number
+  assetAmountUsd: number | null
+  liquidityAmountUsd: number | null
 }
 
 function byProductId<T extends TableProduct>(items: T[]): Map<string, T> {
   return new Map(items.filter((p) => p.productId).map((p) => [p.productId!, p]))
 }
 
-function drifted(a: number, b: number): boolean {
+function drifted(a: number | null, b: number | null): boolean {
+  if (a === null || b === null) return a !== b
   if (a === 0 && b === 0) return false
   return Math.abs(a - b) / Math.max(Math.abs(a), Math.abs(b)) > AMOUNT_TOLERANCE
 }
@@ -94,7 +95,7 @@ async function main() {
       if (drifted(a[field], c[field])) {
         numeric++
         console.log(
-          `  ~ ${field}  ${id}  adapter=${a[field].toFixed(0)}  base=${c[field].toFixed(0)}`
+          `  ~ ${field}  ${id}  adapter=${a[field]?.toFixed(0) ?? 'unknown'}  base=${c[field]?.toFixed(0) ?? 'unknown'}`
         )
       }
     }

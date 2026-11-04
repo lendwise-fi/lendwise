@@ -34,6 +34,7 @@ export interface TableFilter {
 export interface FilterableRow {
   assetAmountUsd?: number | null
   liquidityAmountUsd?: number | null
+  utilizationRate?: number | null
   apy?: number | null
   apyDaily?: number | null
   apyMonthly?: number | null

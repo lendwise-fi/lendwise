@@ -1,5 +1,3 @@
-import { Address } from 'viem'
-
 import type {
   PositionOnlyProtocol,
   ProtocolName,
@@ -20,10 +18,10 @@ export type ChainAddress = string
 export type PositionProtocol = ProtocolName | PositionOnlyProtocol
 
 export interface Token {
-  address: Address
+  address: ChainAddress
   symbol: string
   name: string
-  decimals: number
+  decimals: number | null
   logoURI?: string
   type?: AssetType
   /** Max LTV as a fraction (0–1). Borrow-collateral only; null when the
@@ -53,7 +51,7 @@ export interface Market {
 export interface Position {
   id: string
   protocol: ProtocolName
-  user: Address
+  user: ChainAddress
   market: Market
   type: PositionType
   amount: string
@@ -65,7 +63,7 @@ export interface Position {
 }
 
 export interface UserPositionSummary {
-  address: Address
+  address: ChainAddress
   totalSupplyUSD: number
   totalBorrowUSD: number
   netAPY: number
@@ -82,7 +80,7 @@ export interface UserPositionSummary {
 }
 
 export interface TokenPrice {
-  address: Address
+  address: ChainAddress
   priceUSD: number
   timestamp: number
 }
@@ -99,31 +97,33 @@ export interface SupplyPosition {
   assetAddress: ChainAddress
   assetName: string
   assetSymbol: string
-  assetDecimals: number
-  assetAmount: string
-  assetAmountUsd: number
-  assetLiveAmountUsd: number
-  apy: number
+  assetDecimals: number | null
+  assetAmount: string | null
+  assetAmountUsd: number | null
+  assetLiveAmountUsd: number | null
+  apy: number | null
   link?: string
   riskAccountId?: string
+  productId?: string
+  logoURI?: string
 }
 
 export interface SupplyProduct {
   protocol: ProtocolName
   network: string
   poolName: string
-  poolAddress: Address
+  poolAddress: ChainAddress
   poolId: string
   poolChainId: number
-  assetAddress: Address
+  assetAddress: ChainAddress
   assetName: string
   assetSymbol: string
-  assetDecimals: number
-  assetAmount: string
-  assetAmountUsd: number
+  assetDecimals: number | null
+  assetAmount: string | null
+  assetAmountUsd: number | null
   assetPriceUsd?: number
-  liquidityAmount: string
-  liquidityAmountUsd: number
+  liquidityAmount: string | null
+  liquidityAmountUsd: number | null
   /**
    * The standardized net APY of the latest hourly row, or **undefined when we
    * have not measured one**.
@@ -149,23 +149,27 @@ export interface SupplyProduct {
   apyRewardsYearly?: number
   productId?: string
   link?: string
+  logoURI?: string
+  utilizationRate?: number | null
+  xoxno?: import('@/lib/protocols/xoxno/v1/types').XoxnoMeta
+  xoxnoSelection?: import('@/lib/protocols/xoxno/v1/types').XoxnoSelection
 }
 
 export interface BorrowProduct {
   protocol: ProtocolName
   network: string
   poolName: string
-  poolAddress: Address
+  poolAddress: ChainAddress
   poolId: string
   poolChainId: number
-  assetAddress: Address
+  assetAddress: ChainAddress
   assetName: string
   assetSymbol: string
-  assetDecimals: number
-  assetAmount: string
-  assetAmountUsd: number
-  liquidityAmount: string
-  liquidityAmountUsd: number
+  assetDecimals: number | null
+  assetAmount: string | null
+  assetAmountUsd: number | null
+  liquidityAmount: string | null
+  liquidityAmountUsd: number | null
   collaterals: Token[]
   /**
    * The standardized net APY of the latest hourly row, or **undefined when we
@@ -196,6 +200,10 @@ export interface BorrowProduct {
   apyRewardsYearly?: number
   productId?: string
   link?: string
+  logoURI?: string
+  utilizationRate?: number | null
+  xoxno?: import('@/lib/protocols/xoxno/v1/types').XoxnoMeta
+  xoxnoSelection?: import('@/lib/protocols/xoxno/v1/types').XoxnoSelection
 }
 
 export interface BorrowPosition {
@@ -211,19 +219,22 @@ export interface BorrowPosition {
   loanAssetAddress: ChainAddress
   loanAssetName: string
   loanAssetSymbol: string
-  loanAssetDecimals: number
-  loanAssetAmount: number
-  loanAssetAmountUsd: number
-  loanLiveAssetAmountUsd: number
+  loanAssetDecimals: number | null
+  loanAssetAmount: number | null
+  loanAssetAmountUsd: number | null
+  loanLiveAssetAmountUsd: number | null
   loanTimestamp: number
   collaterals: (Omit<Token, 'address'> & {
     address: ChainAddress
-    amount: number
-    amountUsd: number
+    amount: number | null
+    amountUsd: number | null
   })[]
-  apy: number
+  apy: number | null
   link?: string
   riskAccountId?: string
+  productId?: string
+  logoURI?: string
+  loanAssetAmountRaw?: string | null
 }
 
 export interface UserPosition {

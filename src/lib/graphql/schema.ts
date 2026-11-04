@@ -16,6 +16,7 @@ export const typeDefs = /* GraphQL */ `
     morpho
     compound
     blend
+    xoxno
   }
 
   enum RewardSource {
@@ -46,11 +47,11 @@ export const typeDefs = /* GraphQL */ `
   "APY breakdown for HOURLY timeframe — single value per field."
   type HourlyApyBreakdown {
     "Base APY from the protocol IRM — before fees, without rewards."
-    base: Float!
+    base: Float
     "Sum of all reward APYs (converted from APR)."
     rewards: Float!
     "Protocol fee APY."
-    fees: Float!
+    fees: Float
     "Net APY = base - fees + rewards (supply) / base + fees - rewards (borrow)."
     net: Float!
     "Individual reward items — one per (token, program) pair."
@@ -60,13 +61,13 @@ export const typeDefs = /* GraphQL */ `
   "APY breakdown for DAILY timeframe — daily averaged values."
   type DailyApyBreakdown {
     "Average base APY across all hourly slots of the day."
-    base: Float!
+    base: Float
     "Average net APY — primary field for comparisons."
     net: Float!
     "Average reward APY across the day."
     rewards: Float!
     "Average protocol fee APY across the day."
-    fees: Float!
+    fees: Float
     "Reward items from the last hourly slot of the day."
     rewardItems: [RewardItem!]!
   }
@@ -74,25 +75,33 @@ export const typeDefs = /* GraphQL */ `
   # ─── Market state ─────────────────────────────────────────────────────────────
 
   type SupplyHourlyMarketState {
+    "Available cash in native token units; null when unknown."
+    availableLiquidity: Float
+    "Available cash in USD; null when unknown."
+    availableLiquidityUsd: Float
     "Total amount supplied in native token units."
-    supplyAssets: Float!
+    supplyAssets: Float
     "Total value supplied in USD."
-    supplyAssetsUsd: Float!
-    utilizationRate: Float!
-    assetPriceUsd: Float!
+    supplyAssetsUsd: Float
+    utilizationRate: Float
+    assetPriceUsd: Float
   }
 
   type BorrowHourlyMarketState {
+    "Available cash in native token units; null when unknown."
+    availableLiquidity: Float
+    "Available cash in USD; null when unknown."
+    availableLiquidityUsd: Float
     "Total amount supplied in native token units."
-    supplyAssets: Float!
+    supplyAssets: Float
     "Total value supplied in USD."
-    supplyAssetsUsd: Float!
+    supplyAssetsUsd: Float
     "Total amount borrowed in native token units."
-    borrowAssets: Float!
+    borrowAssets: Float
     "Total value borrowed in USD."
-    borrowAssetsUsd: Float!
-    utilizationRate: Float!
-    assetPriceUsd: Float!
+    borrowAssetsUsd: Float
+    utilizationRate: Float
+    assetPriceUsd: Float
     "null for AAVE/Compound — multi-collateral."
     collateralAssetsUsd: Float
     "Morpho Blue only — null for AAVE/Compound."
@@ -100,31 +109,39 @@ export const typeDefs = /* GraphQL */ `
   }
 
   type SupplyDailyMarketState {
+    "Available cash in native token units; null when unknown."
+    availableLiquidity: Float
+    "Available cash in USD; null when unknown."
+    availableLiquidityUsd: Float
     "Average total amount supplied in native token units across the day."
-    supplyAssets: Float!
+    supplyAssets: Float
     "Average total value supplied in USD across the day."
-    supplyAssetsUsd: Float!
+    supplyAssetsUsd: Float
     "Average utilization rate across the day."
-    utilizationRate: Float!
+    utilizationRate: Float
     "Average asset price in USD across the day."
-    assetPriceUsd: Float!
+    assetPriceUsd: Float
   }
 
   type BorrowDailyMarketState {
+    "Available cash in native token units; null when unknown."
+    availableLiquidity: Float
+    "Available cash in USD; null when unknown."
+    availableLiquidityUsd: Float
     "Average total amount supplied in native token units across the day."
-    supplyAssets: Float!
+    supplyAssets: Float
     "Average total value supplied in USD across the day."
-    supplyAssetsUsd: Float!
+    supplyAssetsUsd: Float
     "Average total amount borrowed in native token units across the day."
-    borrowAssets: Float!
+    borrowAssets: Float
     "Average total value borrowed in USD across the day."
-    borrowAssetsUsd: Float!
+    borrowAssetsUsd: Float
     "Average total collateral in USD across the day — null for AAVE/Compound."
     collateralAssetsUsd: Float
     "Average utilization rate across the day."
-    utilizationRate: Float!
+    utilizationRate: Float
     "Average asset price in USD across the day."
-    assetPriceUsd: Float!
+    assetPriceUsd: Float
     "Average collateral/loan price ratio across the day — null for AAVE/Compound."
     priceCollateralInLoanAsset: Float
   }
@@ -148,7 +165,7 @@ export const typeDefs = /* GraphQL */ `
     decimals: Int!
     "null for Morpho Blue — only lltv is exposed."
     ltv: Float
-    lltv: Float!
+    lltv: Float
     canBeCollateral: Boolean!
   }
 
@@ -167,7 +184,7 @@ export const typeDefs = /* GraphQL */ `
   }
 
   type ProductProtocol {
-    "Normalized provider identifier — aave | morpho | compound | blend."
+    "Normalized provider identifier — aave | morpho | compound | blend | xoxno."
     provider: ProtocolName!
     "Product type — reserve | market | vault."
     type: String!
@@ -345,7 +362,7 @@ export const typeDefs = /* GraphQL */ `
   input HourlyFilters {
     "Filter by a batch of exact productIds — max 50."
     productIds: [String!]
-    "Filter by protocol name — aave | morpho | compound | blend."
+    "Filter by protocol name — aave | morpho | compound | blend | xoxno."
     protocol: ProtocolName
     "Filter by native market name — e.g. AaveV3Ethereum, MorphoBlueEthereum."
     market: String

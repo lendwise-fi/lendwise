@@ -7,7 +7,6 @@
  */
 import { PROTOCOLS_META, type ProtocolName } from '@/config/protocols-meta'
 import { YIELD_ADAPTERS } from '@/config/protocols-server'
-import { distinctProtocolAddresses } from '@/lib/db/repositories/products'
 import type { Product } from '@/lib/db/types'
 import { toHistoryResult } from '@/lib/protocols/core/history-result'
 import type { HistoryTarget, YieldAdapter } from '@/lib/protocols/core/types'
@@ -154,11 +153,11 @@ async function main(): Promise<void> {
   const opts =
     adapter.ownsMarketDiscovery === false
       ? {
-          poolIds: await distinctProtocolAddresses(
-            adapter.provider,
-            adapter.version,
-            { activeOnly: true }
-          ),
+          poolIds: await (
+            await import('@/lib/db/repositories/products')
+          ).distinctProtocolAddresses(adapter.provider, adapter.version, {
+            activeOnly: true,
+          }),
         }
       : undefined
 
