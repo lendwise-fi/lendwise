@@ -8,7 +8,7 @@ import type {
   SupplyMarketState,
   SupplyProduct,
 } from '@/lib/db/types'
-import type { RiskAccount } from '@/lib/risk/types'
+import type { RiskAccount, RiskAccountResult } from '@/lib/risk/types'
 import type {
   BorrowPosition,
   MarketRate,
@@ -224,9 +224,8 @@ export interface RateParams {
  * Wallet positions + UI rates + live UI product lists. Optional per protocol —
  * a yield contributor does not have to provide it.
  *
- * getSupplyProducts/getBorrowProducts are REQUIRED here even though spec §7
- * omitted them: products.actions.ts (the /supply and /borrow pages) consumes
- * them today.
+ * Legacy live-product methods remain for adapter parity checks. The supply
+ * and borrow pages read the persisted catalogue through YieldAdapter instead.
  */
 export interface AppAdapter {
   getUserSupplyPositions(p: { addresses: Address[] }): Promise<SupplyPosition[]>
@@ -251,4 +250,7 @@ export interface StellarPositionsAdapter {
   getUserSupplyPositions(p: { addresses: string[] }): Promise<SupplyPosition[]>
   getUserBorrowPositions(p: { addresses: string[] }): Promise<BorrowPosition[]>
   getRiskAccounts?(p: { addresses: string[] }): Promise<RiskAccount[]>
+  getRiskAccountResults?(p: {
+    addresses: string[]
+  }): Promise<RiskAccountResult[]>
 }

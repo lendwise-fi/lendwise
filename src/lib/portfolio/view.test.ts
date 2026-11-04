@@ -10,6 +10,8 @@ import {
   failureLabel,
   networkName,
   orphanRiskRows,
+  positionValueSummary,
+  productHistoryRates,
   reportedHealthFactors,
   sortableHealth,
   topWalletSlices,
@@ -314,5 +316,53 @@ describe('topWalletSlices', () => {
     expect(topWalletSlices(three)).toEqual(three)
     const six = [1, 2, 3, 4, 5, 6].map(slice)
     expect(topWalletSlices(six)).toEqual(six)
+  })
+})
+
+describe('positionValueSummary', () => {
+  it('sums known values and counts unknown valuations', () => {
+    expect(positionValueSummary([15, null, 0])).toEqual({
+      value: 15,
+      positions: 3,
+      unpriced: 1,
+    })
+    expect(positionValueSummary([null, null])).toEqual({
+      value: null,
+      positions: 2,
+      unpriced: 2,
+    })
+    expect(positionValueSummary([0])).toEqual({
+      value: 0,
+      positions: 1,
+      unpriced: 0,
+    })
+    expect(positionValueSummary([])).toEqual({
+      value: 0,
+      positions: 0,
+      unpriced: 0,
+    })
+  })
+  it('does not price non-finite values', () => {
+    expect(positionValueSummary([Infinity, NaN])).toEqual({
+      value: null,
+      positions: 2,
+      unpriced: 2,
+    })
+  })
+})
+
+describe('productHistoryRates', () => {
+  it('keeps fractional rates and drops missing observations', () => {
+    expect(
+      productHistoryRates([
+        { timestamp: 1, net: 0.04 },
+        { timestamp: 2, net: null },
+        { timestamp: 3, net: 0 },
+        { timestamp: 4, net: NaN },
+      ])
+    ).toEqual([
+      { timestamp: 1, rate: 0.04 },
+      { timestamp: 3, rate: 0 },
+    ])
   })
 })

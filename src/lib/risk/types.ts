@@ -50,17 +50,23 @@ export function riskAccountId(p: {
 export type PriceMap = ReadonlyMap<string, number>
 
 export type UnknownReason =
-  'missing-price' | 'invalid-weight' | 'invalid-amount'
+  'missing-price' | 'invalid-weight' | 'invalid-amount' | 'missing-risk-data'
 
-export type HealthFactorResult =
+export type HealthFactorResult = {
+  /** Origin of a protocol-reported estimate, when not calculated locally. */
+  sourceLabel?: string
+  /** ISO timestamp of the underlying observation, when known. */
+  observedAt?: string
+} & (
   | {
       status: 'ok'
       healthFactor: number
-      weightedCollateralUsd: number
-      weightedLiabilityUsd: number
+      weightedCollateralUsd?: number | null
+      weightedLiabilityUsd?: number | null
     }
   | { status: 'no-liability' }
   | { status: 'unknown'; reason: UnknownReason; symbols: string[] }
+)
 
 export interface RiskAccountResult {
   id: string

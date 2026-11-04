@@ -5,8 +5,11 @@ import { stellarPositionAdapters } from '@/config/protocols-server'
 const G = 'GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN'
 
 describe('stellarPositionAdapters', () => {
-  it('registers Blend v2.1 only by default', () => {
-    expect(Object.keys(stellarPositionAdapters({}))).toEqual(['blend_v2.1'])
+  it('registers XOXNO and Blend v2.1 by default', () => {
+    expect(Object.keys(stellarPositionAdapters({}))).toEqual([
+      'xoxno_v1',
+      'blend_v2.1',
+    ])
   })
 
   it('adds the fixture on a mainnet preview with an address', () => {
@@ -18,7 +21,7 @@ describe('stellarPositionAdapters', () => {
           STELLAR_RISK_FIXTURE_ADDRESS: G,
         })
       )
-    ).toEqual(['blend_v2.1', 'stellar_fixture'])
+    ).toEqual(['xoxno_v1', 'blend_v2.1', 'stellar_fixture'])
   })
 
   it('reads no protocol positions on a preview without the variable', () => {
@@ -39,6 +42,6 @@ describe('stellarPositionAdapters', () => {
           STELLAR_RISK_FIXTURE_ADDRESS: G,
         })
       )
-    ).toEqual(['blend_v2.1'])
+    ).toEqual(['xoxno_v1', 'blend_v2.1'])
   })
 })

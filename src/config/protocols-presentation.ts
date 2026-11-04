@@ -4,6 +4,7 @@ import { BLEND_V2_1_PRESENTATION } from '@/lib/protocols/blend/v2_1/presentation
 import { COMPOUND_V3_PRESENTATION } from '@/lib/protocols/compound/v3/presentation'
 import type { ProtocolPresentation } from '@/lib/protocols/core/presentation'
 import { MORPHO_V1_PRESENTATION } from '@/lib/protocols/morpho/v1/presentation'
+import { XOXNO_V1_PRESENTATION } from '@/lib/protocols/xoxno/v1/presentation'
 
 import type { ProtocolName } from './protocols-meta'
 
@@ -31,4 +32,5 @@ export const PROTOCOLS_PRESENTATION: Partial<
   ...MORPHO_V1_PRESENTATION,
   ...COMPOUND_V3_PRESENTATION,
   ...BLEND_V2_1_PRESENTATION,
+  ...XOXNO_V1_PRESENTATION,
 }

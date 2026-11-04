@@ -50,13 +50,15 @@ export const apyHourly = pgTable(
   {
     productId: text('product_id').notNull(),
     hour: timestamp('hour', { withTimezone: true }).notNull(),
-    apyBase: doublePrecision('apy_base').notNull(),
+    apyBase: doublePrecision('apy_base'),
     apyRewards: doublePrecision('apy_rewards').notNull(),
-    apyFees: doublePrecision('apy_fees').notNull(),
+    apyFees: doublePrecision('apy_fees'),
     apyNet: doublePrecision('apy_net').notNull(),
     rewardItems: jsonb('reward_items')
       .notNull()
       .default(sql`'[]'::jsonb`),
+    availableLiquidity: doublePrecision('available_liquidity'),
+    availableLiquidityUsd: doublePrecision('available_liquidity_usd'),
     supplyAssets: doublePrecision('supply_assets'),
     supplyAssetsUsd: doublePrecision('supply_assets_usd'),
     utilizationRate: doublePrecision('utilization_rate'),
@@ -75,6 +77,8 @@ export const apyHourly = pgTable(
     // repairs past hours and so has no "last" observation to offer. Not on
     // the ones it repairs by UPDATE (an "incomplete" gap, HEAL_UPDATE_SET in
     // gaps.ts): that path leaves `last_*` as-is.
+    lastAvailableLiquidity: doublePrecision('last_available_liquidity'),
+    lastAvailableLiquidityUsd: doublePrecision('last_available_liquidity_usd'),
     lastSupplyAssets: doublePrecision('last_supply_assets'),
     lastSupplyAssetsUsd: doublePrecision('last_supply_assets_usd'),
     lastBorrowAssets: doublePrecision('last_borrow_assets'),
@@ -109,13 +113,15 @@ export const apyDaily = pgTable(
   {
     productId: text('product_id').notNull(),
     date: timestamp('date', { withTimezone: true }).notNull(), // midnight UTC
-    apyBase: doublePrecision('apy_base').notNull(),
+    apyBase: doublePrecision('apy_base'),
     apyRewards: doublePrecision('apy_rewards').notNull(),
-    apyFees: doublePrecision('apy_fees').notNull(),
+    apyFees: doublePrecision('apy_fees'),
     apyNet: doublePrecision('apy_net').notNull(),
     rewardItems: jsonb('reward_items')
       .notNull()
       .default(sql`'[]'::jsonb`),
+    availableLiquidity: doublePrecision('available_liquidity'),
+    availableLiquidityUsd: doublePrecision('available_liquidity_usd'),
     supplyAssets: doublePrecision('supply_assets'),
     supplyAssetsUsd: doublePrecision('supply_assets_usd'),
     utilizationRate: doublePrecision('utilization_rate'),

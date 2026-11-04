@@ -14,9 +14,9 @@ import { TIMEFRAME_OPTIONS, type TimeframeLabel } from '@/types'
  */
 export interface ProductHistoryPoint {
   timestamp: number
-  base: number
+  base: number | null
   rewards: number
-  fees: number
+  fees: number | null
   net: number
   supplyAssetsUsd: number | null
   borrowAssetsUsd: number | null

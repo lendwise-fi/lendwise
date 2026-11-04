@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
 import { DEFAULT_SUPPLY_FILTERS } from '@/config/table-filters'
+import { lastObservation } from '@/lib/db/last-observation'
 import { productToRow } from '@/lib/db/product-row'
 import type { CatalogueRow } from '@/lib/db/types'
 import { bridgeHref } from '@/lib/execution/cctp/deep-link'
@@ -57,6 +58,8 @@ function evmRow(
     borrowAssetsUsd: null,
     collateralAssetsUsd: null,
     utilizationRate: 0.7,
+    availableLiquidity: supplyUsd - supplyUsd * 0.7,
+    availableLiquidityUsd: supplyUsd - supplyUsd * 0.7,
     assetPriceUsd: 1,
   }
 }
@@ -88,6 +91,8 @@ async function fixtureRow(
     collateralAssetsUsd: null,
     utilizationRate: market.utilizationRate,
     assetPriceUsd: market.assetPriceUsd,
+    availableLiquidity: lastObservation(spot).availableLiquidity,
+    availableLiquidityUsd: lastObservation(spot).availableLiquidityUsd,
     ...over,
   }
 }

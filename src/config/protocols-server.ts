@@ -19,6 +19,7 @@ export const YIELD_ADAPTERS: Record<ProtocolName, () => Promise<YieldAdapter>> =
       import('@/lib/protocols/compound/v3').then((m) => m.adapter),
     'blend_v2.1': () =>
       import('@/lib/protocols/blend/v2_1').then((m) => m.adapter),
+    xoxno_v1: () => import('@/lib/protocols/xoxno/v1').then((m) => m.adapter),
   }
 
 /**
@@ -64,6 +65,10 @@ export function stellarPositionAdapters(
   // only the wallet's own holdings.
   if (stellarNetworkId(env) === 'testnet') return {}
   const adapters: Record<string, () => Promise<StellarPositionsAdapter>> = {
+    xoxno_v1: () =>
+      import('@/lib/protocols/xoxno/v1/positions').then(
+        (m) => m.positionsAdapter
+      ),
     'blend_v2.1': () =>
       import('@/lib/protocols/blend/v2_1/positions').then(
         (m) => m.positionsAdapter

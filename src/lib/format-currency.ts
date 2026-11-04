@@ -125,14 +125,14 @@ export function formatCompactCurrency(
       )
       numAmount = Number(amount) // Fallback, likely incorrect scaling
     } else {
-      numAmount = Number(
-        formatUnits(BigInt(Math.round(Number(amount))), decimals)
-      )
+      numAmount = Number(formatUnits(BigInt(amount), decimals))
     }
   } else {
     // If decimals provided for a number, assume it's in raw token units and scale it
     numAmount = decimals !== undefined ? amount / 10 ** decimals : amount
   }
+
+  if (!Number.isFinite(numAmount)) return '—'
 
   const absAmount = Math.abs(numAmount)
 

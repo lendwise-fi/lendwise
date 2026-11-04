@@ -17,6 +17,7 @@ import { Area, AreaChart, CartesianGrid, XAxis, YAxis } from 'recharts'
 import { isAddress } from 'viem'
 
 import { loadMarketBorrowHistoryRates } from '@/app/actions/market-rates.actions'
+import { loadProductApyHistory } from '@/app/actions/product-apy-history.actions'
 import { NetworkIcon, ProtocolIcon, TokenIcon } from '@/components/icon'
 import {
   DataTable,
@@ -61,7 +62,12 @@ import { isProtocolName, protocolVersionName } from '@/config/protocols-meta'
 import { useCurrency } from '@/contexts'
 import { useIsMobile } from '@/hooks/useMobile'
 import { formatCompactCurrency } from '@/lib/format-currency'
-import { type BorrowRow, sortableHealth } from '@/lib/portfolio/view'
+import {
+  type BorrowRow,
+  positionValueSummary,
+  productHistoryRates,
+  sortableHealth,
+} from '@/lib/portfolio/view'
 import { formatAddress } from '@/lib/utils'
 import { TIMEFRAME_OPTIONS, TimeframeLabel } from '@/types'
 import { MarketRate } from '@/types'
@@ -69,13 +75,12 @@ import { MarketRate } from '@/types'
 import { AddressBadge } from '../badge/AddressBadge'
 import { NetworkBadge } from '../badge/NetworkBadge'
 import { ProtocolBadge } from '../badge/ProtocolBadge'
-import { LiquidationRiskBar } from '../borrowing/LiquidationRiskBar'
 import { HealthFactorValue } from './HealthFactorValue'
 import { addressColumn } from './columns.shared'
 
 const createColumns = (
   currency: string,
-  _rate: number,
+  rate: number,
   _isMobile: boolean
 ): ColumnDef<BorrowRow>[] => [
   {
@@ -100,7 +105,10 @@ const createColumns = (
     header: 'Vault / Pool',
     cell: ({ row }) => (
       <div className="flex w-full items-center gap-2">
-        <TokenIcon symbol={row.original.loanAssetSymbol} />
+        <TokenIcon
+          symbol={row.original.loanAssetSymbol}
+          logoURI={row.original.logoURI}
+        />
         <TableCellViewer item={row.original} />
       </div>
     ),
@@ -114,13 +122,20 @@ const createColumns = (
     cell: ({ row }) => (
       <div className="flex w-full flex-col items-start text-xs">
         <span className="font-mono font-medium">
-          {formatCompactCurrency(
-            Number(row.original.loanAssetAmount),
-            row.original.loanAssetSymbol
-          )}
+          {row.original.loanAssetAmount === null
+            ? '—'
+            : formatCompactCurrency(
+                row.original.loanAssetAmount,
+                row.original.loanAssetSymbol
+              )}
         </span>
         <span className="text-muted-foreground font-mono text-xs">
-          {formatCompactCurrency(row.original.loanLiveAssetAmountUsd, currency)}
+          {row.original.loanLiveAssetAmountUsd == null
+            ? '—'
+            : formatCompactCurrency(
+                row.original.loanLiveAssetAmountUsd * rate,
+                currency
+              )}
         </span>
       </div>
     ),
@@ -137,10 +152,10 @@ const createColumns = (
 
       if (!collaterals.length) return '-'
 
-      const totalCollateralUsd = collaterals.reduce(
-        (acc, collateral) => acc + collateral.amountUsd,
-        0
+      const collateralSummary = positionValueSummary(
+        collaterals.map((collateral) => collateral.amountUsd)
       )
+      const totalCollateralUsd = collateralSummary.value
 
       const visibleCollaterals = collaterals.slice(0, 3)
       const remaining = collaterals.length - visibleCollaterals.length
@@ -154,6 +169,7 @@ const createColumns = (
                   <TokenIcon
                     key={`${row.id}-${collateral.symbol}`}
                     symbol={collateral.symbol}
+                    logoURI={collateral.logoURI}
                     className="rounded-full"
                   />
                 ))}
@@ -164,7 +180,11 @@ const createColumns = (
                 )}
               </div>
               <span className="text-muted-foreground font-mono text-xs">
-                {formatCompactCurrency(totalCollateralUsd, currency)}
+                {totalCollateralUsd == null
+                  ? '—'
+                  : formatCompactCurrency(totalCollateralUsd * rate, currency)}
+                {collateralSummary.unpriced > 0 &&
+                  ` · ${collateralSummary.unpriced} unpriced`}
               </span>
             </div>
           </HoverCardTrigger>
@@ -175,7 +195,11 @@ const createColumns = (
             <div className="flex items-center justify-between px-4 py-3">
               <p className="text-muted-foreground text-xs">Collateral value</p>
               <p className="font-mono text-sm">
-                {formatCompactCurrency(totalCollateralUsd, currency)}
+                {totalCollateralUsd == null
+                  ? '—'
+                  : formatCompactCurrency(totalCollateralUsd * rate, currency)}
+                {collateralSummary.unpriced > 0 &&
+                  ` · ${collateralSummary.unpriced} unpriced`}
               </p>
             </div>
             <Separator className="bg-border/60" />
@@ -186,9 +210,21 @@ const createColumns = (
                   className="flex items-center justify-between px-4 py-1"
                 >
                   <div className="flex items-center gap-2">
-                    <TokenIcon symbol={collateral.symbol} className="h-5 w-5" />
+                    <TokenIcon
+                      symbol={collateral.symbol}
+                      logoURI={collateral.logoURI}
+                      className="h-5 w-5"
+                    />
                     <div className="flex flex-col">
                       <span className="text-xs">{collateral.symbol}</span>
+                      <span className="text-muted-foreground font-mono text-xs">
+                        {collateral.amount === null
+                          ? '—'
+                          : formatCompactCurrency(
+                              collateral.amount,
+                              collateral.symbol
+                            )}
+                      </span>
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
@@ -201,7 +237,12 @@ const createColumns = (
                       </Badge>
                     )}
                     <span className="font-mono text-xs">
-                      {formatCompactCurrency(collateral.amountUsd, currency)}
+                      {collateral.amountUsd == null
+                        ? '—'
+                        : formatCompactCurrency(
+                            collateral.amountUsd * rate,
+                            currency
+                          )}
                     </span>
                   </div>
                 </div>
@@ -218,7 +259,11 @@ const createColumns = (
     header: ({ column }) => (
       <SortableHeader column={column}>Rate</SortableHeader>
     ),
-    cell: ({ row }) => <span className="font-mono">{row.original.apy}%</span>,
+    cell: ({ row }) => (
+      <span className="font-mono">
+        {row.original.apy == null ? '—' : `${row.original.apy.toFixed(2)}%`}
+      </span>
+    ),
     size: 60,
     enableHiding: false,
     enableSorting: true,
@@ -276,17 +321,6 @@ function TableCellViewer({ item }: { item: BorrowRow }) {
     const option = TIMEFRAME_OPTIONS.find((o) => o.label === timeframeLabel)
     if (!option) return
 
-    // History rates are served by the EVM app adapters only.
-    if (
-      !isAddress(item.loanAssetAddress, { strict: false }) ||
-      !isProtocolName(item.protocol)
-    ) {
-      setRates([])
-      return
-    }
-    const tokenId = item.loanAssetAddress
-    const protocolId = item.protocol
-
     startTransition(async () => {
       setSelectedTimeframe(timeframeLabel)
 
@@ -297,16 +331,36 @@ function TableCellViewer({ item }: { item: BorrowRow }) {
       }
 
       try {
+        if (item.productId) {
+          const points = await loadProductApyHistory({
+            productId: item.productId,
+            interval: option.label,
+            fromTimestamp,
+          })
+          const storedRates = productHistoryRates(points)
+          if (storedRates.length > 0) {
+            setRates(storedRates)
+            return
+          }
+        }
+        if (
+          !isAddress(item.loanAssetAddress, { strict: false }) ||
+          !isProtocolName(item.protocol)
+        ) {
+          setRates([])
+          return
+        }
         const rates = await loadMarketBorrowHistoryRates({
-          protocolId,
+          protocolId: item.protocol,
           chainId: item.poolChainId,
           poolId: item.poolId,
-          tokenId,
+          tokenId: item.loanAssetAddress,
           interval: option.label,
           fromTimestamp,
         })
         setRates(rates)
       } catch (error) {
+        setRates([])
         console.error('Failed to load market rates:', error)
       }
     })
@@ -344,10 +398,13 @@ function TableCellViewer({ item }: { item: BorrowRow }) {
               Health factor <HeartPulse className="size-4" />
             </div>
             <div className="my-4 w-full">
-              <LiquidationRiskBar
-                borrowCapacity={2.75}
-                borrowing={item.loanAssetAmountUsd}
-              />
+              {item.risk ? (
+                <HealthFactorValue result={item.risk} />
+              ) : (
+                <span className="font-mono">
+                  {item.healthFactor.toFixed(2)}
+                </span>
+              )}
             </div>
           </div>
           <Separator />

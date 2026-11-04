@@ -60,12 +60,12 @@ describe('upsertHourlySlots — last-observation columns', () => {
     // formula is the only place that uses it. Anchored at the start
     // (lookbehind) to avoid matching the "last_slot" suffix inside
     // "quality_last_slot = excluded.quality_last_slot" — that false positive
-    // kept this test green even without lastSetClause(). The exact count (7)
+    // kept this test green even without lastSetClause(). The exact count (9)
     // also closes the gap a `toBeGreaterThan(0)` would leave open: removing
-    // six of the seven columns from LAST_COLUMNS stayed green.
+    // eight of the nine columns from LAST_COLUMNS stayed green.
     const lastClauses =
       issuedSql(execute).match(/(?<![a-z_])last_[a-z_]+ = [^,]+/g) ?? []
-    expect(lastClauses.length).toBe(7)
+    expect(lastClauses.length).toBe(9)
     for (const clause of lastClauses) {
       expect(clause).not.toContain('quality_count')
     }

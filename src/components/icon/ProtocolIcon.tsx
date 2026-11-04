@@ -27,7 +27,8 @@ export const ProtocolIcon = ({
 
   // Normalize protocol name to lowercase for file matching
   const normalizedProtocol = protocol.split('_')[0]
-  const iconPath = `/icons/protocol/${normalizedProtocol}.svg`
+  const isXoxno = normalizedProtocol === 'xoxno'
+  const iconPath = `/icons/protocol/${normalizedProtocol}.${isXoxno ? 'webp' : 'svg'}`
 
   const handleError = () => {
     setError(true)
@@ -62,8 +63,9 @@ export const ProtocolIcon = ({
         src={iconPath}
         alt={`${protocol} logo`}
         fill
+        sizes={`${size}px`}
         onError={handleError}
-        className="object-cover"
+        className={isXoxno ? 'object-contain p-0.5' : 'object-cover'}
       />
     </div>
   )

@@ -16,6 +16,7 @@ import { Area, AreaChart, CartesianGrid, XAxis, YAxis } from 'recharts'
 import { isAddress } from 'viem'
 
 import { loadMarketSupplyHistoryRates } from '@/app/actions'
+import { loadProductApyHistory } from '@/app/actions/product-apy-history.actions'
 import { NetworkBadge } from '@/components/badge/NetworkBadge'
 import { ProtocolBadge } from '@/components/badge/ProtocolBadge'
 import { NetworkIcon, ProtocolIcon, TokenIcon } from '@/components/icon'
@@ -57,6 +58,7 @@ import { isProtocolName, protocolVersionName } from '@/config/protocols-meta'
 import { useCurrency } from '@/contexts'
 import { useIsMobile } from '@/hooks/useMobile'
 import { formatCompactCurrency } from '@/lib/format-currency'
+import { productHistoryRates } from '@/lib/portfolio/view'
 import { formatAddress } from '@/lib/utils'
 import {
   MarketRate,
@@ -97,7 +99,10 @@ const createColumns = (
     header: 'Vault / Pool',
     cell: ({ row }) => (
       <div className="flex w-full items-center gap-2">
-        <TokenIcon symbol={row.original.assetSymbol} />
+        <TokenIcon
+          symbol={row.original.assetSymbol}
+          logoURI={row.original.logoURI}
+        />
         <TableCellViewer item={row.original} />
       </div>
     ),
@@ -111,14 +116,22 @@ const createColumns = (
     cell: ({ row }) => (
       <div className="flex w-full items-center gap-3 text-xs">
         <span className="font-mono">
-          {formatCompactCurrency(
-            row.original.assetAmount,
-            row.original.assetSymbol,
-            row.original.assetDecimals
-          )}
+          {row.original.assetAmount === null ||
+          row.original.assetDecimals === null
+            ? '—'
+            : formatCompactCurrency(
+                row.original.assetAmount,
+                row.original.assetSymbol,
+                row.original.assetDecimals
+              )}
         </span>
         <Badge variant="secondary" className="font-mono text-xs">
-          {formatCompactCurrency(row.original.assetAmountUsd * rate, currency)}
+          {row.original.assetAmountUsd == null
+            ? '—'
+            : formatCompactCurrency(
+                row.original.assetAmountUsd * rate,
+                currency
+              )}
         </Badge>
       </div>
     ),
@@ -131,7 +144,9 @@ const createColumns = (
     ),
     size: 60,
     cell: ({ row }) => (
-      <span className="font-mono">{Number(row.original.apy).toFixed(2)}%</span>
+      <span className="font-mono">
+        {row.original.apy == null ? '—' : `${row.original.apy.toFixed(2)}%`}
+      </span>
     ),
     enableHiding: false,
     enableSorting: true,
@@ -171,17 +186,6 @@ function TableCellViewer({ item }: { item: SupplyPosition }) {
     const option = TIMEFRAME_OPTIONS.find((o) => o.label === timeframeLabel)
     if (!option) return
 
-    // History rates are served by the EVM app adapters only.
-    if (
-      !isAddress(item.assetAddress, { strict: false }) ||
-      !isProtocolName(item.protocol)
-    ) {
-      setRates([])
-      return
-    }
-    const tokenId = item.assetAddress
-    const protocolId = item.protocol
-
     startTransition(async () => {
       setSelectedTimeframe(timeframeLabel)
 
@@ -192,16 +196,36 @@ function TableCellViewer({ item }: { item: SupplyPosition }) {
       }
 
       try {
+        if (item.productId) {
+          const points = await loadProductApyHistory({
+            productId: item.productId,
+            interval: option.label,
+            fromTimestamp,
+          })
+          const storedRates = productHistoryRates(points)
+          if (storedRates.length > 0) {
+            setRates(storedRates)
+            return
+          }
+        }
+        if (
+          !isAddress(item.assetAddress, { strict: false }) ||
+          !isProtocolName(item.protocol)
+        ) {
+          setRates([])
+          return
+        }
         const rates = await loadMarketSupplyHistoryRates({
-          protocolId,
+          protocolId: item.protocol,
           chainId: item.poolChainId,
           poolId: item.poolId,
-          tokenId,
+          tokenId: item.assetAddress,
           interval: option.label,
           fromTimestamp,
         })
         setRates(rates)
       } catch (error) {
+        setRates([])
         console.error('Failed to load market rates:', error)
       }
     })

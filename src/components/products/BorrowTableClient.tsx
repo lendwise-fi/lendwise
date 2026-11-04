@@ -25,6 +25,7 @@ import { ProductRowActions } from '@/components/products/ProductRowActions'
 import { RewardApyCell } from '@/components/products/RewardApyCell'
 import { StellarBridgeBanner } from '@/components/products/StellarBridgeBanner'
 import { TableSkeleton } from '@/components/products/TableSkeleton'
+import { XoxnoMarketSelection } from '@/components/products/XoxnoMarketSelection'
 import { StatsBar } from '@/components/stats/StatsBar'
 import {
   FilterBar,
@@ -80,6 +81,11 @@ import {
 import { isStellarNetworkFiltered } from '@/lib/products/bridge-entry'
 import { rankProducts } from '@/lib/products/ranking'
 import {
+  hasXoxnoSelection,
+  selectXoxnoProduct,
+} from '@/lib/products/xoxno-selection'
+import type { XoxnoSelection } from '@/lib/protocols/xoxno/v1/types'
+import {
   BORROW_FILTERS_KEY,
   fieldValue,
   matchesFilters,
@@ -91,9 +97,12 @@ export type Horizon = HorizonKey
 // Derived from the filter registry, so the Utilization column and the
 // Utilization filter cannot mean two different things.
 const getUtilizationPct = (row: BorrowProduct) =>
-  (fieldValue(row, 'utilization', 'intraday') ?? 0) * 100
+  fieldValue(row, 'utilization', 'intraday') == null
+    ? null
+    : fieldValue(row, 'utilization', 'intraday')! * 100
 
-const isOverutilized = (row: BorrowProduct) => getUtilizationPct(row) > 99
+const isOverutilized = (row: BorrowProduct) =>
+  (getUtilizationPct(row) ?? 0) > 99
 
 const createColumns = (
   currency: string,
@@ -222,7 +231,10 @@ const createColumns = (
     ),
     cell: ({ row }) => (
       <div className="flex w-full items-center gap-2">
-        <TokenIcon symbol={row.original.assetSymbol} />
+        <TokenIcon
+          symbol={row.original.assetSymbol}
+          logoURI={row.original.logoURI}
+        />
         <ProductDetailDrawer item={row.original} kind="borrow" />
       </div>
     ),
@@ -312,14 +324,21 @@ const createColumns = (
     cell: ({ row }) => (
       <div className="flex w-full items-center gap-3">
         <span className="font-mono">
-          {formatCompactCurrency(
-            row.original.assetAmount,
-            row.original.assetSymbol,
-            row.original.assetDecimals
-          )}
+          {row.original.assetAmount === null
+            ? '—'
+            : formatCompactCurrency(
+                row.original.assetAmount,
+                row.original.assetSymbol,
+                row.original.assetDecimals
+              )}
         </span>
         <Badge variant="outline" className="bg-background font-mono">
-          {formatCompactCurrency(row.original.assetAmountUsd * rate, currency)}
+          {row.original.assetAmountUsd === null
+            ? '—'
+            : formatCompactCurrency(
+                row.original.assetAmountUsd * rate,
+                currency
+              )}
         </Badge>
       </div>
     ),
@@ -334,17 +353,21 @@ const createColumns = (
       return (
         <div className="flex w-full items-center gap-3">
           <span className="font-mono">
-            {formatCompactCurrency(
-              row.original.liquidityAmount,
-              row.original.assetSymbol,
-              row.original.assetDecimals
-            )}
+            {row.original.liquidityAmount === null
+              ? '—'
+              : formatCompactCurrency(
+                  row.original.liquidityAmount,
+                  row.original.assetSymbol,
+                  row.original.assetDecimals
+                )}
           </span>
           <Badge variant="outline" className="bg-background font-mono">
-            {formatCompactCurrency(
-              row.original.liquidityAmountUsd * rate,
-              currency
-            )}
+            {row.original.liquidityAmountUsd === null
+              ? '—'
+              : formatCompactCurrency(
+                  row.original.liquidityAmountUsd * rate,
+                  currency
+                )}
           </Badge>
         </div>
       )
@@ -359,12 +382,16 @@ const createColumns = (
     ),
     cell: ({ row }) => (
       <div className="flex items-center">
-        <PieChartMini
-          percentage={Math.min(
-            100,
-            Math.max(0, getUtilizationPct(row.original))
-          )}
-        />
+        {getUtilizationPct(row.original) == null ? (
+          <span>—</span>
+        ) : (
+          <PieChartMini
+            percentage={Math.min(
+              100,
+              Math.max(0, getUtilizationPct(row.original) ?? 0)
+            )}
+          />
+        )}
         <span className="inline-flex w-3.5 shrink-0 items-center">
           {isOverutilized(row.original) && (
             <Tooltip>
@@ -431,6 +458,9 @@ export function BorrowTableClient() {
     { id: 'collaterals', value: 'WBTC' },
   ])
   const [searchValue, setSearchValue] = useState('')
+  const [xoxnoSelections, setXoxnoSelections] = useState<
+    Record<string, XoxnoSelection>
+  >({})
 
   const {
     filters: tableFilters,
@@ -460,6 +490,14 @@ export function BorrowTableClient() {
     refetchOnWindowFocus: false,
     gcTime: 5 * 60 * 1000,
   })
+
+  const onXoxnoChange = (row: BorrowProduct, selection: XoxnoSelection) => {
+    hasUserInteracted.current = true
+    setXoxnoSelections((current) => ({
+      ...current,
+      [getRowId(row)]: selection,
+    }))
+  }
 
   useEffect(() => {
     if (!data || data.length === 0) return
@@ -618,9 +656,9 @@ export function BorrowTableClient() {
     idKey: 'productId',
   })
 
-  const selectedData = visibleMarkets.filter(
-    (row) => rowSelection[getRowId(row)]
-  )
+  const selectedData = visibleMarkets
+    .filter((row) => rowSelection[getRowId(row)])
+    .map((row) => selectXoxnoProduct(row, xoxnoSelections[getRowId(row)]))
 
   const isFiltered =
     columnFilters.length > 0 || searchValue !== '' || tableFilters.length > 0
@@ -820,9 +858,11 @@ export function BorrowTableClient() {
               baseCurrency
             ),
             sub:
-              stats.utilizationPct !== null
-                ? `${stats.utilizationPct.toFixed(1)}% of ${formatCompactCurrency(stats.totalDepositsUsd * rate, baseCurrency)} deposits borrowed`
-                : undefined,
+              stats.unpricedDeposits > 0 || stats.unpricedLiquidity > 0
+                ? `${stats.unpricedDeposits} unpriced deposits · ${stats.unpricedLiquidity} unknown liquidity readings`
+                : stats.utilizationPct !== null
+                  ? `${stats.utilizationPct.toFixed(1)}% of ${formatCompactCurrency(stats.totalDepositsUsd * rate, baseCurrency)} deposits borrowed`
+                  : undefined,
             note: isFiltered
               ? `your filter: ${formatCompactCurrency(filteredStats.totalLiquidityUsd * rate, baseCurrency)}`
               : undefined,
@@ -860,7 +900,7 @@ export function BorrowTableClient() {
               </DialogTrigger>
               <DialogContent
                 showCloseButton={false}
-                className="gap-0 overflow-hidden p-0 sm:max-h-[90vh] sm:max-w-4xl"
+                className="max-h-[90dvh] gap-0 overflow-x-hidden overflow-y-auto p-0 sm:max-w-4xl"
               >
                 <DialogTitle className="sr-only">Borrow Optimizer</DialogTitle>
                 <DialogDescription className="sr-only">
@@ -905,7 +945,7 @@ export function BorrowTableClient() {
                       { step: 4, label: 'Configure' },
                     ]
                     return (
-                      <div className="mr-6 flex items-center gap-1">
+                      <div className="mr-6 hidden items-center gap-1 sm:flex">
                         {steps.map((s, i) => (
                           <div key={s.step} className="flex items-center gap-1">
                             {i > 0 && (
@@ -939,7 +979,10 @@ export function BorrowTableClient() {
                     )
                   })()}
 
-                  <DialogClose className="hover:bg-secondary/60 rounded-lg p-1.5 transition-colors">
+                  <DialogClose
+                    aria-label="Close optimizer"
+                    className="hover:bg-secondary/60 rounded-lg p-1.5 transition-colors"
+                  >
                     <X className="text-muted-foreground h-4 w-4" />
                   </DialogClose>
                 </div>
@@ -949,7 +992,7 @@ export function BorrowTableClient() {
                   <div className="flex flex-col">
                     {/* Sticky column headers — inner row mirrors the data
                         card's box model (border + p-3.5) so columns line up. */}
-                    <div className="border-border/40 border-b px-7">
+                    <div className="border-border/40 hidden border-b px-7 md:block">
                       <div className="flex items-center gap-4 border border-transparent px-3.5 pt-4 pb-2.5">
                         <div className="w-1 shrink-0" />
                         <span className="text-muted-foreground/70 w-32 shrink-0 text-[11px] font-semibold tracking-wider uppercase">
@@ -986,48 +1029,65 @@ export function BorrowTableClient() {
                         return (
                           <div
                             key={`${pool.protocol}-${pool.poolChainId}-${pool.poolId}-${pool.assetAddress}`}
-                            className="border-border/50 hover:border-border bg-secondary/30 flex items-center gap-4 rounded-xl border p-3.5 transition-colors"
                           >
-                            <div className="from-primary to-primary/30 h-10 w-1 shrink-0 rounded-full bg-linear-to-b" />
-                            <div className="w-32 shrink-0">
-                              <ProtocolBadge protocol={pool.protocol} />
-                            </div>
-                            <div className="w-24 shrink-0">
-                              <NetworkBadge networkSlug={pool.network} />
-                            </div>
-                            <span className="text-foreground flex-1 truncate text-sm font-medium">
-                              {pool.poolName}
-                            </span>
-                            <span className="text-muted-foreground w-24 text-right font-mono text-xs">
-                              {formatCompactCurrency(
-                                pool.liquidityAmountUsd * rate,
-                                baseCurrency
-                              )}
-                            </span>
-                            {apyCols.map(({ key, value }) => (
-                              <span
-                                key={key}
-                                className={`w-16 text-right font-mono text-xs font-semibold ${
-                                  value === undefined || Number.isNaN(value)
-                                    ? 'text-muted-foreground/40'
-                                    : value > 0.5
-                                      ? 'text-orange-400'
-                                      : value > 0.1
-                                        ? 'text-emerald-400'
-                                        : 'text-muted-foreground'
-                                }`}
-                              >
-                                {value === undefined || Number.isNaN(value)
-                                  ? '—'
-                                  : formatApy(value)}
+                            <div className="border-border/50 hover:border-border bg-secondary/30 flex flex-wrap items-center gap-4 rounded-xl border p-3.5 transition-colors md:flex-nowrap">
+                              <div className="from-primary to-primary/30 h-10 w-1 shrink-0 rounded-full bg-linear-to-b" />
+                              <div className="w-32 shrink-0">
+                                <ProtocolBadge protocol={pool.protocol} />
+                              </div>
+                              <div className="w-24 shrink-0">
+                                <NetworkBadge networkSlug={pool.network} />
+                              </div>
+                              <span className="text-foreground basis-full truncate text-sm font-medium md:flex-1 md:basis-auto">
+                                {pool.poolName}
                               </span>
-                            ))}
+                              <span className="text-muted-foreground w-24 text-right font-mono text-xs">
+                                {pool.liquidityAmountUsd === null
+                                  ? '—'
+                                  : formatCompactCurrency(
+                                      pool.liquidityAmountUsd * rate,
+                                      baseCurrency
+                                    )}
+                              </span>
+                              {apyCols.map(({ key, value }) => (
+                                <span
+                                  key={key}
+                                  className={`w-12 text-right font-mono text-xs font-semibold md:w-16 ${
+                                    value === undefined || Number.isNaN(value)
+                                      ? 'text-muted-foreground/40'
+                                      : value > 0.5
+                                        ? 'text-orange-400'
+                                        : value > 0.1
+                                          ? 'text-emerald-400'
+                                          : 'text-muted-foreground'
+                                  }`}
+                                >
+                                  {value === undefined || Number.isNaN(value)
+                                    ? '—'
+                                    : formatApy(value)}
+                                </span>
+                              ))}
+                            </div>
+                            <XoxnoMarketSelection
+                              item={pool}
+                              kind="borrow"
+                              onChange={(selection) =>
+                                onXoxnoChange(pool, selection)
+                              }
+                            />
                           </div>
                         )
                       })}
                     </div>
-                    <div className="border-border/40 flex justify-end border-t px-7 py-4">
+                    <div className="border-border/40 flex flex-col items-end justify-end gap-4 border-t px-7 py-4 sm:flex-row sm:items-center">
+                      {!selectedData.every(hasXoxnoSelection) && (
+                        <p className="text-muted-foreground text-xs">
+                          Choose account rules and collateral for each XOXNO
+                          market to continue.
+                        </p>
+                      )}
                       <Button
+                        disabled={!selectedData.every(hasXoxnoSelection)}
                         onClick={() => {
                           // A market with no measured rate is not a 0% rate.
                           // Unfiltered, it would read as the cheapest credit

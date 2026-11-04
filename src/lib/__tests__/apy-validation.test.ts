@@ -23,6 +23,12 @@ describe('isFiniteApyBlock', () => {
     )
   })
 
+  it('keeps a quoted net with an unknown decomposition', () => {
+    expect(
+      isFiniteApyBlock({ base: null, fees: null, rewards: 0, net: 0.05 })
+    ).toBe(true)
+  })
+
   it('rejects a non-finite component, whichever one it is', () => {
     expect(isFiniteApyBlock({ base: NaN, rewards: 0, fees: 0, net: 0 })).toBe(
       false

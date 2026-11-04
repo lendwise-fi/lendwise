@@ -112,6 +112,8 @@ function toDailyInput(p: HistoryDataPoint): DailyBackfillInput {
       rewardItems: p.apy.rewardItems ?? [],
     },
     market: {
+      availableLiquidity: m.availableLiquidity,
+      availableLiquidityUsd: m.availableLiquidityUsd,
       supplyAssets: m.supplyAssets ?? null,
       supplyAssetsUsd: m.supplyAssetsUsd ?? null,
       utilizationRate: m.utilizationRate ?? null,
@@ -128,6 +130,8 @@ function toDailyInput(p: HistoryDataPoint): DailyBackfillInput {
 function toMarketPatch(p: HistoryDataPoint): DailyMarketPatch | null {
   const m = p.market as AnyMarket
   const known = [
+    m.availableLiquidity,
+    m.availableLiquidityUsd,
     m.supplyAssets,
     m.supplyAssetsUsd,
     m.utilizationRate,
@@ -140,6 +144,8 @@ function toMarketPatch(p: HistoryDataPoint): DailyMarketPatch | null {
   return {
     productId: p.productId,
     date: p.timestamp,
+    availableLiquidity: m.availableLiquidity,
+    availableLiquidityUsd: m.availableLiquidityUsd,
     supplyAssets: m.supplyAssets ?? null,
     supplyAssetsUsd: m.supplyAssetsUsd ?? null,
     utilizationRate: m.utilizationRate ?? null,

@@ -1,7 +1,7 @@
 import { protocolVersionName } from '@/config/protocols-meta'
 import { CHAIN_BY_SLUG } from '@/lib/protocols/core/toolkit'
 import type { HealthFactorResult, RiskAccountResult } from '@/lib/risk/types'
-import type { BorrowPosition } from '@/types'
+import type { BorrowPosition, MarketRate } from '@/types'
 
 import {
   EVM_WALLET_SOURCE,
@@ -160,4 +160,34 @@ export function walletBalanceBreakdown(rows: WalletBalanceRow[]): {
     }))
     .sort((a, b) => b.valueUsd - a.valueUsd)
   return { totalUsd, priced, unpriced: rows.length - priced, slices }
+}
+
+/** Priced portion only; all-unknown is distinct from an empty or known-zero balance. */
+export function positionValueSummary(values: (number | null)[]): {
+  value: number | null
+  positions: number
+  unpriced: number
+} {
+  const priced = values.filter(
+    (value): value is number => value !== null && Number.isFinite(value)
+  )
+  return {
+    value:
+      priced.length > 0 || values.length === 0
+        ? priced.reduce((sum, value) => sum + value, 0)
+        : null,
+    positions: values.length,
+    unpriced: values.length - priced.length,
+  }
+}
+
+/** Stored APYs and chart rates both use fractions; do not convert to percent twice. */
+export function productHistoryRates(
+  points: { timestamp: number; net: number | null }[]
+): MarketRate[] {
+  return points.flatMap((point) =>
+    point.net != null && Number.isFinite(point.net)
+      ? [{ timestamp: point.timestamp, rate: point.net }]
+      : []
+  )
 }

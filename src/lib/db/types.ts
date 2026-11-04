@@ -39,11 +39,11 @@ export interface Collateral {
   decimals: number
   /**
    * Maximum LTV allowed to open a borrow position.
-   * null for Morpho Blue — the protocol only exposes lltv.
+   * null when only lltv is exposed or risk is scoped to individual spokes.
    */
   ltv: number | null
-  /** Liquidation threshold — position becomes liquidatable above this LTV. */
-  lltv: number
+  /** Liquidation threshold; null when risk is scoped to individual spokes. */
+  lltv: number | null
   /**
    * Whether this asset can be used as collateral on this specific market.
    * Sourced from AAVE's supplyInfo.canBeCollateral.
@@ -137,12 +137,12 @@ export interface RewardItem {
 }
 
 export interface ApyBreakdown {
-  /** Average base APY from the protocol IRM — before fees, without rewards. */
-  base: number
+  /** Average base APY before fees/rewards; null if not reported separately. */
+  base: number | null
   /** Average sum of all reward APYs. */
   rewards: number
-  /** Average protocol fee APY. */
-  fees: number
+  /** Average protocol fee APY; null if not reported separately. */
+  fees: number | null
   /**
    * Average net APY — effective rate for the user.
    * Supply:   base - fees + rewards
@@ -159,6 +159,9 @@ export interface ApyBreakdown {
 // ─── Market state — split by kind ─────────────────────────────────────────────
 
 export interface SupplyMarketState {
+  /** Undefined derives legacy liquidity; null explicitly means unknown. */
+  availableLiquidity?: number | null
+  availableLiquidityUsd?: number | null
   /**
    * Average total amount supplied in native token units. `null` when unknown,
    * e.g. backfilled Aave reserve history, whose offchain API carries APY
@@ -194,6 +197,9 @@ export interface SupplyMarketState {
  * A type that cannot say "unknown" forces every writer to lie.
  */
 export interface BorrowMarketState {
+  /** Undefined derives legacy liquidity; null explicitly means unknown. */
+  availableLiquidity?: number | null
+  availableLiquidityUsd?: number | null
   /** Average total amount supplied in native token units. */
   supplyAssets: number | null
   /** Average total value supplied in USD. */
@@ -235,9 +241,9 @@ export type SpotPayload = {
   /** Loan asset symbol — "USDC", "WETH". */
   asset: string
   apy: {
-    base: number
+    base: number | null
     rewards: number
-    fees: number
+    fees: number | null
     net: number
     rewardItems: RewardItem[]
   }
@@ -252,9 +258,11 @@ export type SpotPayload = {
  */
 export interface CatalogueRow {
   product: ProductRow
-  hour: Date
-  apyNet: number
-  apyRewards: number
+  hour: Date | null
+  apyNet: number | null
+  apyRewards: number | null
+  availableLiquidity: number | null
+  availableLiquidityUsd: number | null
   supplyAssets: number | null
   supplyAssetsUsd: number | null
   borrowAssets: number | null

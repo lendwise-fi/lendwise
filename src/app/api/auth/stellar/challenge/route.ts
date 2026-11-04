@@ -32,10 +32,13 @@ async function challengeResponse(request: NextRequest, address: unknown) {
     return NextResponse.json({ error: 'account is required' }, { status: 400 })
   }
   try {
+    // NextURL normalizes loopback hosts; SEP-10 must match the browser's host.
     return NextResponse.json(
       await issueStellarChallenge({
         address,
-        domain: request.nextUrl.hostname,
+        domain: (
+          request.headers.get('host')?.split(':')[0] ?? ''
+        ).toLowerCase(),
       })
     )
   } catch (error) {

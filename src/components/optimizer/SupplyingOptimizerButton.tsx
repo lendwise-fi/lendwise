@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 
 import Link from 'next/link'
 
@@ -19,6 +19,7 @@ import posthog from 'posthog-js'
 import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from 'recharts'
 
 import { loadLatestPrice } from '@/app/actions/price-return-history.actions'
+import { optimizeWithXoxno } from '@/app/actions/xoxno-optimizer.actions'
 import { TokenIcon } from '@/components/icon'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -30,6 +31,7 @@ import {
 } from '@/lib/api/optimizer'
 import { formatCompactCurrency } from '@/lib/format-currency'
 import { allocationBridgeHref } from '@/lib/products/bridge-entry'
+import type { Qualification } from '@/lib/protocols/xoxno/v1/verification'
 import type { SupplyProduct } from '@/types'
 
 // ============================================================================
@@ -129,6 +131,45 @@ export function SupplyingOptimizerView({
   const [isOptimizing, setIsOptimizing] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [ran, setRan] = useState(false)
+  const [rpcQualification, setRpcQualification] =
+    useState<Qualification | null>(null)
+  const [rejections, setRejections] = useState<string[]>([])
+  const runGeneration = useRef(0)
+  const requestConfig = JSON.stringify({
+    markets: markets.map((m) => [m.productId, m.xoxnoSelection]),
+    amount,
+    horizon,
+    strategy,
+  })
+  const previousConfig = useRef(requestConfig)
+  if (previousConfig.current !== requestConfig) {
+    runGeneration.current += 1
+    previousConfig.current = requestConfig
+  }
+
+  useEffect(() => {
+    setResults(null)
+    setRan(false)
+    setIsOptimizing(false)
+    setRpcQualification(null)
+    setRejections([])
+  }, [markets, amount, horizon, strategy])
+
+  useEffect(() => {
+    if (!rpcQualification) return
+    const generation = runGeneration.current
+    const timer = setTimeout(
+      () => {
+        if (generation !== runGeneration.current) return
+        setResults(null)
+        setRan(false)
+        setRpcQualification(null)
+        setError('RPC verification expired; run again')
+      },
+      Math.max(0, Date.parse(rpcQualification.expiresAt) - Date.now())
+    )
+    return () => clearTimeout(timer)
+  }, [rpcQualification])
 
   // Supplied asset — shared across all vaults in the set. The capital input is
   // denominated in this token; its USD value uses the token's spot price.
@@ -143,6 +184,9 @@ export function SupplyingOptimizerView({
   }, [markets])
 
   const handleRun = async () => {
+    const generation = ++runGeneration.current
+    setRpcQualification(null)
+    setRejections([])
     setError(null)
     setResults(null)
     setIsOptimizing(true)
@@ -163,11 +207,30 @@ export function SupplyingOptimizerView({
       const diversification =
         selectedStrategy?.diversification ?? DIVERSIFICATION_LEVELS.MODERATE
 
-      const response: VaultAllocationResponse = await optimizeVaults({
-        apy: apys,
-        diversification,
-      })
+      let response: VaultAllocationResponse
+      if (markets.some((m) => m.protocol === 'xoxno_v1' || m.xoxno)) {
+        const checked = await optimizeWithXoxno({
+          kind: 'supply',
+          amount,
+          horizon,
+          diversification,
+          markets: markets.map((m) => {
+            if (!m.productId) throw new Error('Market identity is unavailable')
+            return { productId: m.productId, selection: m.xoxnoSelection }
+          }),
+        })
+        if (generation !== runGeneration.current) return
+        if (!checked.success) throw new Error(checked.error)
+        if (checked.kind !== 'supply')
+          throw new Error('Invalid optimizer response')
+        response = checked.response
+        setRpcQualification(checked.qualification)
+        setRejections(checked.exclusions)
+      } else {
+        response = await optimizeVaults({ apy: apys, diversification })
+      }
 
+      if (generation !== runGeneration.current) return
       if (!response.success) throw new Error('Optimization failed')
 
       const optimizationResults: OptimizationResult[] = response.allocations
@@ -190,14 +253,18 @@ export function SupplyingOptimizerView({
         result_count: optimizationResults.length,
       })
     } catch (err) {
+      if (generation !== runGeneration.current) return
       setError(err instanceof Error ? err.message : 'Optimization failed')
       posthog.captureException(err)
     } finally {
-      setIsOptimizing(false)
+      if (generation === runGeneration.current) setIsOptimizing(false)
     }
   }
 
   const handleReset = () => {
+    runGeneration.current += 1
+    setRpcQualification(null)
+    setRejections([])
     setAmount('100')
     setHorizon('medium')
     setStrategy('balanced')
@@ -229,6 +296,19 @@ export function SupplyingOptimizerView({
 
   return (
     <div className="flex flex-col">
+      {rpcQualification && (
+        <p className="text-muted-foreground mb-3 text-xs">
+          RPC observed{' '}
+          {new Date(rpcQualification.observedAt).toLocaleTimeString()} · ledgers{' '}
+          {rpcQualification.minLedger}–{rpcQualification.maxLedger}.{' '}
+          {rpcQualification.note}
+        </p>
+      )}
+      {rejections.map((reason, i) => (
+        <p key={i} className="mb-2 text-xs text-amber-500">
+          {reason}
+        </p>
+      ))}
       {/* Main content */}
       <div className="divide-border flex divide-x">
         {/* Left — parameters */}

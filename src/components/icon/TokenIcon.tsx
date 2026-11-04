@@ -11,18 +11,25 @@ type TokenIconProps = {
   symbol?: string
   size?: number
   className?: string
+  logoURI?: string | null
 }
 
 export const TokenIcon = ({
   symbol = '',
   size = 20,
   className = '',
+  logoURI,
 }: TokenIconProps) => {
   const iconUrl = useTokenIcon(symbol)
   const [src, setSrc] = useState<string | null>(null)
   const [error, setError] = useState(false)
 
   useEffect(() => {
+    if (logoURI && /^(https:\/\/|\/)/.test(logoURI)) {
+      setSrc(logoURI)
+      setError(false)
+      return
+    }
     const lower = symbol.toLowerCase()
 
     // Priority 1: Static table (native + grouped icons, instant load)
@@ -47,7 +54,7 @@ export const TokenIcon = ({
       setSrc(iconUrl)
       setError(false)
     }
-  }, [symbol, iconUrl])
+  }, [symbol, iconUrl, logoURI])
 
   const handleError = () => {
     setError(true)

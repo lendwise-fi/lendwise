@@ -2,7 +2,6 @@ import { describe, expect, it } from 'vitest'
 
 import type { CatalogueRow } from '@/lib/db/types'
 import {
-  liquidity,
   networkSlug,
   poolIdentity,
   poolName,
@@ -56,6 +55,8 @@ function row(
     borrowAssetsUsd: null,
     collateralAssetsUsd: null,
     utilizationRate: 0.8,
+    availableLiquidity: 200_000,
+    availableLiquidityUsd: 200_000,
     assetPriceUsd: 1,
     ...observation,
   }
@@ -278,22 +279,54 @@ describe('toRawUnits', () => {
     expect(toRawUnits(1_000, 6)).toBe('1000000000')
   })
 
-  it('returns "0" for an unknown amount', () => {
-    expect(toRawUnits(null, 18)).toBe('0')
+  it('preserves an unknown amount', () => {
+    expect(toRawUnits(null, 18)).toBeNull()
   })
 })
 
-describe('liquidity', () => {
-  it('is the unborrowed share — one formula for all three providers', () => {
-    expect(liquidity(1_000, 0.25)).toBe(750)
+describe('unobserved catalogue products', () => {
+  it('keeps missing rates, balances and explicit cash unknown', () => {
+    const product = toSupplyProduct(
+      row(
+        {},
+        {
+          hour: null,
+          apyNet: null,
+          apyRewards: null,
+          supplyAssets: null,
+          supplyAssetsUsd: null,
+          availableLiquidity: null,
+          availableLiquidityUsd: null,
+        }
+      )
+    )
+    expect(product.apy).toBeUndefined()
+    expect(product.assetAmount).toBeNull()
+    expect(product.assetAmountUsd).toBeNull()
+    expect(product.liquidityAmount).toBeNull()
+    expect(product.liquidityAmountUsd).toBeNull()
   })
 
-  it('equals the full deposit when utilization is unknown', () => {
-    expect(liquidity(1_000, null)).toBe(1_000)
-  })
-
-  it('is 0 when the deposit is unknown', () => {
-    expect(liquidity(null, 0.5)).toBe(0)
+  it('uses reported cash independently from utilization and distinguishes zero', () => {
+    const product = toSupplyProduct(
+      row(
+        {},
+        {
+          supplyAssets: 1_000,
+          supplyAssetsUsd: 1_000,
+          utilizationRate: 0.9,
+          availableLiquidity: 750,
+          availableLiquidityUsd: 750,
+        }
+      )
+    )
+    expect(product.liquidityAmountUsd).toBe(750)
+    expect(product.utilizationRate).toBe(0.9)
+    expect(
+      toSupplyProduct(
+        row({}, { availableLiquidity: 0, availableLiquidityUsd: 0 })
+      ).liquidityAmount
+    ).toBe('0')
   })
 })
 

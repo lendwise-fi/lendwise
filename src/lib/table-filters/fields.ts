@@ -40,12 +40,11 @@ export const FILTER_FIELDS = {
       num(row[HORIZON_CONFIG[horizon].apyKey] as number | undefined),
   },
   utilization: {
-    // Derived from the two columns beside it, NOT from apy_hourly's stored
-    // `utilization_rate` — that one is the protocol's own figure and does not
-    // always agree. `to-sql.ts` computes the same ratio.
+    // Cash can include reserves/donations; it cannot define debt utilization.
     label: 'Utilization',
     unit: 'fraction',
     get: (row) => {
+      if (row.utilizationRate !== undefined) return num(row.utilizationRate)
       const deposits = num(row.assetAmountUsd)
       const liquidity = num(row.liquidityAmountUsd)
       if (deposits === undefined || liquidity === undefined) return undefined

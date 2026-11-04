@@ -16,6 +16,8 @@ export interface RateStats<T> {
   median: number | null
   totalDepositsUsd: number
   totalLiquidityUsd: number
+  unpricedDeposits: number
+  unpricedLiquidity: number
   /** Aggregate borrowed / deposited across the set, in percent. */
   utilizationPct: number | null
 }
@@ -47,14 +49,32 @@ export const computeRateStats = <T extends Product>(
   let lowest: { value: number; item: T } | null = null
   let totalDepositsUsd = 0
   let totalLiquidityUsd = 0
+  let unpricedDeposits = 0
+  let unpricedLiquidity = 0
+  let usedUsd = 0
+  let utilizationKnown = true
   const rates: number[] = []
 
   for (const item of items) {
     protocols.add(item.protocol)
     networks.add(item.network)
     assets.add(item.assetSymbol)
-    totalDepositsUsd += item.assetAmountUsd
-    totalLiquidityUsd += item.liquidityAmountUsd
+    if (item.assetAmountUsd === null) unpricedDeposits++
+    else totalDepositsUsd += item.assetAmountUsd
+    if (item.liquidityAmountUsd === null) unpricedLiquidity++
+    else totalLiquidityUsd += item.liquidityAmountUsd
+    const utilization =
+      item.utilizationRate !== undefined
+        ? item.utilizationRate
+        : item.assetAmountUsd !== null &&
+            item.assetAmountUsd > 0 &&
+            item.liquidityAmountUsd !== null
+          ? (item.assetAmountUsd - item.liquidityAmountUsd) /
+            item.assetAmountUsd
+          : null
+    if (item.assetAmountUsd === null || utilization === null)
+      utilizationKnown = false
+    else usedUsd += item.assetAmountUsd * utilization
 
     const value = item[apyKey] as number | undefined
     if (value === undefined || !Number.isFinite(value)) continue
@@ -83,15 +103,11 @@ export const computeRateStats = <T extends Product>(
     median,
     totalDepositsUsd,
     totalLiquidityUsd,
+    unpricedDeposits,
+    unpricedLiquidity,
     utilizationPct:
-      totalDepositsUsd > 0
-        ? Math.min(
-            100,
-            Math.max(
-              0,
-              ((totalDepositsUsd - totalLiquidityUsd) / totalDepositsUsd) * 100
-            )
-          )
+      utilizationKnown && totalDepositsUsd > 0
+        ? Math.min(100, Math.max(0, (usedUsd / totalDepositsUsd) * 100))
         : null,
   }
 }

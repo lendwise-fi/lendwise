@@ -13,6 +13,8 @@
 import type { BorrowMarketState, SpotPayload, SupplyMarketState } from './types'
 
 export interface LastObservation {
+  availableLiquidity: number | null
+  availableLiquidityUsd: number | null
   supplyAssets: number | null
   supplyAssetsUsd: number | null
   borrowAssets: number | null
@@ -20,6 +22,28 @@ export interface LastObservation {
   collateralAssetsUsd: number | null
   utilizationRate: number | null
   assetPriceUsd: number | null
+}
+
+/** Resolve compatibility only at ingestion; explicit unknown cash stays unknown. */
+export function resolveAvailableLiquidity(m: Partial<SupplyMarketState>): {
+  availableLiquidity: number | null
+  availableLiquidityUsd: number | null
+} {
+  const derive = (supply: number | null | undefined): number | null => {
+    if (supply == null || !Number.isFinite(supply)) return null
+    const u = Math.min(Math.max(m.utilizationRate ?? 0, 0), 1)
+    return Number.isFinite(u) ? supply - supply * u : null
+  }
+  return {
+    availableLiquidity:
+      m.availableLiquidity === undefined
+        ? derive(m.supplyAssets)
+        : m.availableLiquidity,
+    availableLiquidityUsd:
+      m.availableLiquidityUsd === undefined
+        ? derive(m.supplyAssetsUsd)
+        : m.availableLiquidityUsd,
+  }
 }
 
 /**
@@ -32,6 +56,7 @@ export function lastObservation(p: SpotPayload): LastObservation {
   const sm = p.market as SupplyMarketState
   const bm = p.market as BorrowMarketState
   return {
+    ...resolveAvailableLiquidity(p.market),
     supplyAssets: (isSupply ? sm.supplyAssets : bm.supplyAssets) ?? null,
     supplyAssetsUsd:
       (isSupply ? sm.supplyAssetsUsd : bm.supplyAssetsUsd) ?? null,

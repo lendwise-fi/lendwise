@@ -32,6 +32,7 @@ import {
   loadLatestPrice,
   loadPriceReturnHistory,
 } from '@/app/actions/price-return-history.actions'
+import { optimizeWithXoxno } from '@/app/actions/xoxno-optimizer.actions'
 import { NetworkBadge } from '@/components/badge/NetworkBadge'
 import { ProtocolBadge } from '@/components/badge/ProtocolBadge'
 import { TokenIcon } from '@/components/icon'
@@ -48,7 +49,10 @@ import {
   optimizeCollateral,
 } from '@/lib/api/optimizer'
 import { formatCompactCurrency } from '@/lib/format-currency'
+import type { Qualification } from '@/lib/protocols/xoxno/v1/verification'
 import type { BorrowProduct } from '@/types'
+
+import { optimizerCollateralSymbol } from './collateral'
 
 // ============================================================================
 // Constants & types
@@ -217,12 +221,41 @@ export function BorrowingOptimizerView({
   // Omega stops for the objective slider, computed by the backend.
   const [objectiveOmegas, setObjectiveOmegas] =
     useState<number[]>(DEFAULT_OMEGAS)
+  const activeOmegaRef = useRef(0)
+  activeOmegaRef.current = objectiveOmegas[objectiveIndex] ?? 0
   const [amount, setAmount] = useState('100')
   const [horizon, setHorizon] = useState<HorizonKey>('medium')
   const [result, setResult] = useState<OptimizationResponse | null>(null)
   const [isOptimizing, setIsOptimizing] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [ran, setRan] = useState(false)
+  const [rpcQualification, setRpcQualification] =
+    useState<Qualification | null>(null)
+  const [rejections, setRejections] = useState<string[]>([])
+  const hasXoxno = markets.some((m) => m.protocol === 'xoxno_v1' || m.xoxno)
+
+  useEffect(() => {
+    setResult(null)
+    setRan(false)
+    setRpcQualification(null)
+    setRejections([])
+  }, [markets])
+
+  useEffect(() => {
+    if (!rpcQualification) return
+    const generation = runGeneration.current
+    const timer = setTimeout(
+      () => {
+        if (generation !== runGeneration.current) return
+        setResult(null)
+        setRan(false)
+        setRpcQualification(null)
+        setError('RPC verification expired; run again')
+      },
+      Math.max(0, Date.parse(rpcQualification.expiresAt) - Date.now())
+    )
+    return () => clearTimeout(timer)
+  }, [rpcQualification])
   const [viewStep, setViewStep] = useState<ViewStep>('buffer')
 
   // --- Objective slider drag ---
@@ -235,8 +268,10 @@ export function BorrowingOptimizerView({
 
   // Resolved collateral token for the Fixed Collateral mode — the amount input
   // is denominated in this token, converted to USD before hitting the optimizer.
-  const collateralSymbol =
-    selectedCollateralSymbol ?? markets[0]?.collaterals[0]?.symbol ?? '?'
+  const collateralSymbol = optimizerCollateralSymbol(
+    markets,
+    selectedCollateralSymbol
+  )
 
   // Latest USD spot price of the collateral token (null while loading / if
   // unavailable). Read via a ref inside async handlers.
@@ -245,11 +280,17 @@ export function BorrowingOptimizerView({
   collateralPriceRef.current = collateralPrice
 
   useEffect(() => {
-    const sym = selectedCollateralSymbol ?? markets[0]?.collaterals[0]?.symbol
-    if (!sym) return
+    const sym = collateralSymbol
+    if (!sym || sym === '?') return
+    let cancelled = false
     setCollateralPrice(null)
-    loadLatestPrice(sym).then(setCollateralPrice)
-  }, [markets, selectedCollateralSymbol])
+    loadLatestPrice(sym).then((price) => {
+      if (!cancelled) setCollateralPrice(price)
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [markets, collateralSymbol])
 
   // Loan token (the borrowed asset) — shared across all borrow markets. In
   // Fixed Loan mode the amount input is denominated in this token, converted to
@@ -262,8 +303,14 @@ export function BorrowingOptimizerView({
   useEffect(() => {
     const sym = markets[0]?.assetSymbol
     if (!sym) return
+    let cancelled = false
     setLoanPrice(null)
-    loadLatestPrice(sym).then(setLoanPrice)
+    loadLatestPrice(sym).then((price) => {
+      if (!cancelled) setLoanPrice(price)
+    })
+    return () => {
+      cancelled = true
+    }
   }, [markets])
 
   const { domainMin, domainMax, recommendedBuffer } = useMemo(() => {
@@ -312,19 +359,57 @@ export function BorrowingOptimizerView({
   const ltvInfo = useMemo(
     () =>
       markets.map((m) => {
+        if (m.xoxno) {
+          const selection = m.xoxnoSelection
+          const spoke = m.xoxno.spokes.find(
+            (s) => s.spokeId === selection?.spokeId
+          )
+          const collateral = spoke?.collaterals.find(
+            (c) =>
+              c.hubId === selection?.collateralHubId &&
+              c.asset === selection?.collateralAsset
+          )
+          return {
+            maxLtv: collateral
+              ? Math.min(collateral.ltv, collateral.lltv)
+              : null,
+            lltv: collateral?.lltv ?? null,
+            collateralSymbol: collateral?.symbol ?? '?',
+          }
+        }
         const colls = m.collaterals
         const coll =
-          colls.find((c) => c.symbol === selectedCollateralSymbol) ?? colls[0]
+          colls.find((c) => c.symbol === collateralSymbol) ?? colls[0]
         return {
           maxLtv: coll?.ltv ?? null,
           lltv: coll?.lltv ?? null,
           collateralSymbol: coll?.symbol ?? '?',
         }
       }),
-    [markets, selectedCollateralSymbol]
+    [markets, collateralSymbol]
   )
 
   const [recommendedLtvs, setRecommendedLtvs] = useState<number[]>([])
+  const runGeneration = useRef(0)
+  const requestConfig = JSON.stringify({
+    markets: markets.map((m) => [m.productId, m.xoxnoSelection]),
+    amount,
+    horizon,
+    mode,
+    recommendedLtvs,
+    collateralSymbol,
+  })
+  const previousConfig = useRef(requestConfig)
+  if (previousConfig.current !== requestConfig) {
+    runGeneration.current += 1
+    previousConfig.current = requestConfig
+  }
+  useEffect(() => {
+    setResult(null)
+    setRan(false)
+    setIsOptimizing(false)
+    setRpcQualification(null)
+  }, [requestConfig])
 
   useEffect(() => {
     // Recommended LTV = LLTV * (1 - buffer), where buffer is the liquidation
@@ -332,30 +417,42 @@ export function BorrowingOptimizerView({
     // magnitude as a fraction). Falls back to max LTV when LLTV is absent.
     const bufferFraction = Math.min(1, Math.max(0, Math.abs(buffer) / 100))
     setRecommendedLtvs(
-      ltvInfo.map((info) => {
+      ltvInfo.map((info, i) => {
         const base =
           info.lltv != null && info.lltv > 0
             ? info.lltv
             : info.maxLtv != null && info.maxLtv > 0
               ? info.maxLtv
-              : DEFAULT_MAX_LTV
-        return Math.max(0, base * (1 - bufferFraction))
+              : markets[i]?.xoxno
+                ? 0
+                : DEFAULT_MAX_LTV
+        return Math.max(
+          0,
+          markets[i]?.xoxno
+            ? Math.min(info.maxLtv ?? base, base * (1 - bufferFraction))
+            : base * (1 - bufferFraction)
+        )
       })
     )
-  }, [ltvInfo, buffer])
+  }, [ltvInfo, buffer, markets])
 
   useEffect(() => {
-    const collateralSymbol =
-      selectedCollateralSymbol ?? markets[0]?.collaterals[0]?.symbol
     const loanSymbol = markets[0]?.assetSymbol
-    if (!collateralSymbol || !loanSymbol) return
+    if (!collateralSymbol || collateralSymbol === '?' || !loanSymbol) return
+    let cancelled = false
+    setPriceData([])
     setIsPriceLoading(true)
     loadPriceReturnHistory(collateralSymbol, loanSymbol)
       .then((data) => {
-        setPriceData(data)
+        if (!cancelled) setPriceData(data)
       })
-      .finally(() => setIsPriceLoading(false))
-  }, [markets, selectedCollateralSymbol])
+      .finally(() => {
+        if (!cancelled) setIsPriceLoading(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [markets, collateralSymbol])
 
   // Reset buffer to recommended whenever new data arrives.
   useEffect(() => {
@@ -454,9 +551,12 @@ export function BorrowingOptimizerView({
   // reset omega to 0 (index 0) and clear the result so the next "Run Optimizer"
   // re-fetches breakpoints from scratch.
   const resetResult = useCallback(() => {
+    runGeneration.current += 1
     setResult(null)
     setRan(false)
     setError(null)
+    setRpcQualification(null)
+    setRejections([])
     setObjectiveIndex(0)
     setObjectiveOmegas(DEFAULT_OMEGAS)
   }, [])
@@ -492,6 +592,35 @@ export function BorrowingOptimizerView({
     [mode]
   )
 
+  const runXoxno = async (omega: number, generation: number) => {
+    const checked = await optimizeWithXoxno({
+      kind: 'borrow',
+      amount,
+      horizon,
+      mode,
+      omega,
+      collateralSymbol,
+      markets: markets.map((m, i) => {
+        if (!m.productId) throw new Error('Market identity is unavailable')
+        return {
+          productId: m.productId,
+          selection: m.xoxnoSelection,
+          recommendedLtv: recommendedLtvs[i],
+        }
+      }),
+    })
+    if (
+      generation !== runGeneration.current ||
+      activeOmegaRef.current !== omega
+    )
+      return null
+    if (!checked.success) throw new Error(checked.error)
+    if (checked.kind !== 'borrow') throw new Error('Invalid optimizer response')
+    setRpcQualification(checked.qualification)
+    setRejections(checked.exclusions)
+    return checked.response
+  }
+
   const handleModeChange = (m: BorrowMode) => {
     setMode(m)
     resetResult()
@@ -501,6 +630,9 @@ export function BorrowingOptimizerView({
   // config, surface the Objective slider, then optimize at omega = 0 (the first
   // stop). Falls back to DEFAULT_OMEGAS if the breakpoints endpoint is down.
   const handleRun = async () => {
+    const generation = ++runGeneration.current
+    setRpcQualification(null)
+    setRejections([])
     setError(null)
     setResult(null)
     setIsOptimizing(true)
@@ -510,6 +642,16 @@ export function BorrowingOptimizerView({
       if (markets.length === 0) throw new Error('No markets selected')
       const amountNum = parseFloat(amount)
       if (!amountNum || amountNum <= 0) throw new Error('Enter a valid amount')
+      if (hasXoxno) {
+        suppressObjectiveRun.current = objectiveIndex !== 0
+        setObjectiveOmegas(DEFAULT_OMEGAS)
+        setObjectiveIndex(0)
+        const response = await runXoxno(0, generation)
+        if (!response) return
+        setResult(response)
+        setRan(true)
+        return
+      }
       const usdAmount = toUsd(amountNum)
       if (!usdAmount || usdAmount <= 0)
         throw new Error('Token price unavailable — try again')
@@ -542,6 +684,7 @@ export function BorrowingOptimizerView({
 
       // 2. Optimize at the first stop (omega = 0).
       const response = await runOptimize(omegas[0] ?? 0, usdAmount, marketData)
+      if (generation !== runGeneration.current) return
       setResult(response)
       setRan(true)
       posthog.capture('borrow_optimizer_run', {
@@ -554,10 +697,11 @@ export function BorrowingOptimizerView({
         amount_usd: usdAmount,
       })
     } catch (err) {
+      if (generation !== runGeneration.current) return
       setError(err instanceof Error ? err.message : 'Optimization failed')
       posthog.captureException(err)
     } finally {
-      setIsOptimizing(false)
+      if (generation === runGeneration.current) setIsOptimizing(false)
     }
   }
 
@@ -569,22 +713,37 @@ export function BorrowingOptimizerView({
   // re-subscribes on objectiveIndex.
   const runOptimizeOnly = async () => {
     if (!ranRef.current) return
+    const generation = ++runGeneration.current
+    setResult(null)
+    setRpcQualification(null)
+    setRejections([])
     setError(null)
     setIsOptimizing(true)
     try {
       const amountNum = parseFloat(amount)
       if (!amountNum || amountNum <= 0) throw new Error('Enter a valid amount')
+      if (hasXoxno) {
+        const response = await runXoxno(
+          objectiveOmegas[objectiveIndex] ?? 0,
+          generation
+        )
+        if (!response) return
+        setResult(response)
+        return
+      }
       const usdAmount = toUsd(amountNum)
       if (!usdAmount || usdAmount <= 0)
         throw new Error('Token price unavailable — try again')
       const marketData = buildMarketData()
       const omega = objectiveOmegas[objectiveIndex] ?? 0
       const response = await runOptimize(omega, usdAmount, marketData)
+      if (generation !== runGeneration.current) return
       setResult(response)
     } catch (err) {
+      if (generation !== runGeneration.current) return
       setError(err instanceof Error ? err.message : 'Optimization failed')
     } finally {
-      setIsOptimizing(false)
+      if (generation === runGeneration.current) setIsOptimizing(false)
     }
   }
   const runOptimizeOnlyRef = useRef(runOptimizeOnly)
@@ -603,6 +762,9 @@ export function BorrowingOptimizerView({
   }, [objectiveIndex])
 
   const handleReset = () => {
+    runGeneration.current += 1
+    setRpcQualification(null)
+    setRejections([])
     setMode('collateral_target')
     setObjectiveIndex(0)
     setObjectiveOmegas(DEFAULT_OMEGAS)
@@ -623,12 +785,15 @@ export function BorrowingOptimizerView({
     amountNum * ((isCollateralMode ? collateralPrice : loanPrice) ?? 0)
 
   const totalLiquidityUsd = useMemo(
-    () => markets.reduce((sum, m) => sum + m.liquidityAmountUsd, 0),
+    () => markets.reduce((sum, m) => sum + (m.liquidityAmountUsd ?? 0), 0),
     [markets]
   )
 
   const loanExceedsLiquidity =
-    mode === 'loan_target' && amountUsd > 0 && amountUsd > totalLiquidityUsd
+    !hasXoxno &&
+    mode === 'loan_target' &&
+    amountUsd > 0 &&
+    amountUsd > totalLiquidityUsd
 
   // Buffer visuals: red when user chose a riskier buffer than recommended
   // (line above Recommended on chart), green when equal or safer (line below).
@@ -799,6 +964,19 @@ export function BorrowingOptimizerView({
 
   return (
     <div className="flex flex-col">
+      {rpcQualification && (
+        <p className="text-muted-foreground mb-3 text-xs">
+          RPC observed{' '}
+          {new Date(rpcQualification.observedAt).toLocaleTimeString()} · ledgers{' '}
+          {rpcQualification.minLedger}–{rpcQualification.maxLedger}.{' '}
+          {rpcQualification.note}
+        </p>
+      )}
+      {rejections.map((reason, i) => (
+        <p key={i} className="mb-2 text-xs text-amber-500">
+          {reason}
+        </p>
+      ))}
       <AnimatePresence mode="wait" initial={false}>
         {/* ================================================================
             STEP 1 — Configure
@@ -1218,10 +1396,7 @@ export function BorrowingOptimizerView({
                   Liquidation buffer
                 </div>
                 <span className="text-foreground font-mono text-xs font-semibold">
-                  {selectedCollateralSymbol ??
-                    markets[0]?.collaterals[0]?.symbol ??
-                    '?'}
-                  /{markets[0]?.assetSymbol ?? '?'}
+                  {collateralSymbol}/{markets[0]?.assetSymbol ?? '?'}
                 </span>
               </div>
               <p className="text-muted-foreground mt-1 text-xs">
@@ -1448,7 +1623,7 @@ export function BorrowingOptimizerView({
                     }}
                     content={
                       <ReturnTooltip
-                        pairLabel={`${selectedCollateralSymbol ?? markets[0]?.collaterals[0]?.symbol ?? ''}/${markets[0]?.assetSymbol ?? ''}`}
+                        pairLabel={`${collateralSymbol}/${markets[0]?.assetSymbol ?? ''}`}
                       />
                     }
                     isAnimationActive={false}
@@ -1538,8 +1713,9 @@ export function BorrowingOptimizerView({
               {markets.map((m, i) => {
                 const info = ltvInfo[i]
                 const recPct = (recommendedLtvs[i] ?? 0) * 100
-                const cap =
-                  info?.lltv != null && info.lltv > 0
+                const cap = m.xoxno
+                  ? Math.min(info?.maxLtv ?? 0, info?.lltv ?? 0) * 100
+                  : info?.lltv != null && info.lltv > 0
                     ? info.lltv * 100
                     : info?.maxLtv != null && info.maxLtv > 0
                       ? info.maxLtv * 100
@@ -1608,7 +1784,7 @@ export function BorrowingOptimizerView({
                       </div>
                       {overCap && (
                         <p className="mt-1 text-right text-[10px] text-red-500">
-                          Above LLTV cap ({cap.toFixed(2)}%)
+                          Above opening cap ({cap.toFixed(2)}%)
                         </p>
                       )}
                     </div>
@@ -1657,13 +1833,14 @@ export function BorrowingOptimizerView({
               onClick={() => setViewStep('configure')}
               disabled={recommendedLtvs.some((v, i) => {
                 const info = ltvInfo[i]
-                const cap =
-                  info?.lltv != null && info.lltv > 0
+                const cap = markets[i]?.xoxno
+                  ? Math.min(info?.maxLtv ?? 0, info?.lltv ?? 0)
+                  : info?.lltv != null && info.lltv > 0
                     ? info.lltv
                     : info?.maxLtv != null && info.maxLtv > 0
                       ? info.maxLtv
                       : 1
-                return v > cap + 1e-9
+                return v > cap + 1e-9 || (markets[i]?.xoxno != null && v <= 0)
               })}
             >
               Continue →
@@ -1679,9 +1856,10 @@ export function BorrowingOptimizerView({
                   parseFloat(amount) <= 0 ||
                   loanExceedsLiquidity ||
                   isOptimizing ||
-                  (isCollateralMode
-                    ? collateralPrice == null || collateralPrice <= 0
-                    : loanPrice == null || loanPrice <= 0)
+                  (!hasXoxno &&
+                    (isCollateralMode
+                      ? collateralPrice == null || collateralPrice <= 0
+                      : loanPrice == null || loanPrice <= 0))
                 }
               >
                 {isOptimizing ? (
