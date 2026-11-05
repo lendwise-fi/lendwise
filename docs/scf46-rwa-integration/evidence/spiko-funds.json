@@ -1,0 +1,46 @@
+{
+  "url": "https://public-api.spiko.io/v0/funds/",
+  "collectedAt": "2026-11-05T22:38:48.355019+00:00",
+  "method": "GET",
+  "authenticated": false,
+  "httpStatus": 200,
+  "responseSha256": "2c29c2759b13d029e06df6a171651641c875a47d13bdf59800130cd9a498dbe6",
+  "data": [
+    {
+      "id": "b23b0f37-e22a-406b-b0c5-ea4d2f00aa29",
+      "slug": "EUTBL",
+      "timezone": "Europe/Paris",
+      "executionMethod": "knownNAVs",
+      "launchDay": "2024-04-30T00:00:00.000Z"
+    },
+    {
+      "id": "d34c5f8a-9b2e-4c1f-a5d6-78e9f0a1b2c3",
+      "slug": "UKTBL",
+      "timezone": "Europe/Paris",
+      "executionMethod": "unknownNAVs",
+      "launchDay": "2025-10-23T00:00:00.000Z"
+    },
+    {
+      "id": "59c2c924-ebf8-492d-a4b0-72d72ebf61e6",
+      "slug": "SAFO",
+      "timezone": "Europe/Paris",
+      "executionMethod": "unknownNAVs",
+      "launchDay": "2026-03-01T00:00:00.000Z"
+    },
+    {
+      "id": "cc6b314e-647d-4bf2-bc07-9c50046ec85c",
+      "slug": "SPKCC",
+      "timezone": "Europe/Paris",
+      "executionMethod": "unknownNAVs",
+      "launchDay": "2025-07-24T00:00:00.000Z"
+    },
+    {
+      "id": "3133596a-3e13-4a7f-ba6e-34d3744a9a7f",
+      "slug": "USTBL",
+      "timezone": "Europe/Paris",
+      "executionMethod": "unknownNAVs",
+      "launchDay": "2024-05-14T00:00:00.000Z"
+    }
+  ],
+  "selectionNote": "Selected public catalogue fields; responseSha256 covers the full original response, including calendars."
+}

@@ -1,0 +1,298 @@
+{
+  "url": "https://api.etherfuse.com/lookup/tokens/cost",
+  "collectedAt": "2026-11-05T22:38:48.348797+00:00",
+  "method": "GET",
+  "authenticated": false,
+  "httpStatus": 200,
+  "responseSha256": "4540f5fc80d2015fe4c94bc7eacb228148d8606b573ba3934e64eb66e00441af",
+  "data": {
+    "MEX": {
+      "token_symbol": "MEX",
+      "token_kind": "bond",
+      "currency": "MXN",
+      "token_cost_in_fiat": "1",
+      "token_cost_in_usd": "0.053374",
+      "current_basis_points": 0,
+      "current_time": "2026-11-05T22:38:47.055638449+00:00",
+      "sources": {
+        "8e1e2967-0283-42dd-bb06-e49193c368d2": {
+          "exchange_rate": "18.73499",
+          "token_cost_in_usd": "0.053376",
+          "updated_at": 1793918280
+        },
+        "7bd29441-2c78-42a2-b1f0-3413447a38cb": {
+          "exchange_rate": "18.7361011505126953125",
+          "token_cost_in_usd": "0.053373",
+          "updated_at": 1793918300
+        },
+        "7a5e931b-d5f1-4ca7-9dfa-4c0d8ea8f047": {
+          "exchange_rate": "18.7362",
+          "token_cost_in_usd": "0.053373",
+          "updated_at": 1793918301
+        },
+        "d2ce2919-082f-4d60-8fbb-a15b3b570e57": {
+          "exchange_rate": "18.732499",
+          "token_cost_in_usd": "0.053383",
+          "updated_at": 1793918320
+        },
+        "aba2c7ff-0812-4e1a-81ab-8b25c1acfe24": {
+          "exchange_rate": "18.7355862717",
+          "token_cost_in_usd": "0.053374",
+          "updated_at": 1793918301
+        }
+      }
+    },
+    "EUROB": {
+      "token_symbol": "EUROB",
+      "token_kind": "bond",
+      "currency": "EUR",
+      "token_cost_in_fiat": "1.032353",
+      "token_cost_in_usd": "1.157865",
+      "current_basis_points": 210,
+      "current_time": "2026-11-05T22:38:47.055596401+00:00",
+      "sources": {
+        "d2ce2919-082f-4d60-8fbb-a15b3b570e57": {
+          "exchange_rate": "0.89162",
+          "token_cost_in_usd": "1.157840",
+          "updated_at": 1793918320
+        },
+        "aba2c7ff-0812-4e1a-81ab-8b25c1acfe24": {
+          "exchange_rate": "0.8916218632",
+          "token_cost_in_usd": "1.157837",
+          "updated_at": 1793918301
+        },
+        "8e1e2967-0283-42dd-bb06-e49193c368d2": {
+          "exchange_rate": "0.89163",
+          "token_cost_in_usd": "1.157827",
+          "updated_at": 1793918280
+        },
+        "7bd29441-2c78-42a2-b1f0-3413447a38cb": {
+          "exchange_rate": "0.89160311222076416015625",
+          "token_cost_in_usd": "1.157862",
+          "updated_at": 1793918300
+        },
+        "7a5e931b-d5f1-4ca7-9dfa-4c0d8ea8f047": {
+          "exchange_rate": "0.891595",
+          "token_cost_in_usd": "1.157872",
+          "updated_at": 1793918301
+        }
+      }
+    },
+    "TESOURO": {
+      "token_symbol": "TESOURO",
+      "token_kind": "bond",
+      "currency": "BRL",
+      "token_cost_in_fiat": "1.275476",
+      "token_cost_in_usd": "0.231709",
+      "current_basis_points": 1193,
+      "current_time": "2026-11-05T22:38:47.055671655+00:00",
+      "sources": {
+        "8e1e2967-0283-42dd-bb06-e49193c368d2": {
+          "exchange_rate": "5.50376",
+          "token_cost_in_usd": "0.231746",
+          "updated_at": 1793918280
+        },
+        "7bd29441-2c78-42a2-b1f0-3413447a38cb": {
+          "exchange_rate": "5.504641056060791015625",
+          "token_cost_in_usd": "0.231709",
+          "updated_at": 1793918300
+        },
+        "aba2c7ff-0812-4e1a-81ab-8b25c1acfe24": {
+          "exchange_rate": "5.5050013185",
+          "token_cost_in_usd": "0.231694",
+          "updated_at": 1793918301
+        },
+        "7a5e931b-d5f1-4ca7-9dfa-4c0d8ea8f047": {
+          "exchange_rate": "5.50464",
+          "token_cost_in_usd": "0.231709",
+          "updated_at": 1793918301
+        },
+        "d2ce2919-082f-4d60-8fbb-a15b3b570e57": {
+          "exchange_rate": "5.504198",
+          "token_cost_in_usd": "0.231728",
+          "updated_at": 1793918320
+        }
+      }
+    },
+    "KTB": {
+      "token_symbol": "KTB",
+      "token_kind": "bond",
+      "currency": "KRW",
+      "token_cost_in_fiat": "1.018341",
+      "token_cost_in_usd": "0.000750",
+      "current_basis_points": 275,
+      "current_time": "2026-11-05T22:38:47.055571501+00:00",
+      "sources": {
+        "7a5e931b-d5f1-4ca7-9dfa-4c0d8ea8f047": {
+          "exchange_rate": "1357.67",
+          "token_cost_in_usd": "0.000750",
+          "updated_at": 1793918301
+        },
+        "aba2c7ff-0812-4e1a-81ab-8b25c1acfe24": {
+          "exchange_rate": "1357.8631041987",
+          "token_cost_in_usd": "0.000750",
+          "updated_at": 1793918301
+        },
+        "8e1e2967-0283-42dd-bb06-e49193c368d2": {
+          "exchange_rate": "1359.2511",
+          "token_cost_in_usd": "0.000749",
+          "updated_at": 1793918280
+        },
+        "7bd29441-2c78-42a2-b1f0-3413447a38cb": {
+          "exchange_rate": "1357.1002197265625",
+          "token_cost_in_usd": "0.000750",
+          "updated_at": 1793918300
+        },
+        "d2ce2919-082f-4d60-8fbb-a15b3b570e57": {
+          "exchange_rate": "1359.029657",
+          "token_cost_in_usd": "0.000749",
+          "updated_at": 1793918320
+        }
+      }
+    },
+    "GILTS": {
+      "token_symbol": "GILTS",
+      "token_kind": "bond",
+      "currency": "GBP",
+      "token_cost_in_fiat": "1.073392",
+      "token_cost_in_usd": "1.443430",
+      "current_basis_points": 352,
+      "current_time": "2026-11-05T22:38:47.055317650+00:00",
+      "sources": {
+        "8e1e2967-0283-42dd-bb06-e49193c368d2": {
+          "exchange_rate": "0.74362",
+          "token_cost_in_usd": "1.443468",
+          "updated_at": 1793918280
+        },
+        "aba2c7ff-0812-4e1a-81ab-8b25c1acfe24": {
+          "exchange_rate": "0.7436127688",
+          "token_cost_in_usd": "1.443482",
+          "updated_at": 1793918301
+        },
+        "7a5e931b-d5f1-4ca7-9dfa-4c0d8ea8f047": {
+          "exchange_rate": "0.743702",
+          "token_cost_in_usd": "1.443309",
+          "updated_at": 1793918301
+        },
+        "7bd29441-2c78-42a2-b1f0-3413447a38cb": {
+          "exchange_rate": "0.7436411380767822265625",
+          "token_cost_in_usd": "1.443427",
+          "updated_at": 1793918300
+        },
+        "d2ce2919-082f-4d60-8fbb-a15b3b570e57": {
+          "exchange_rate": "0.74372",
+          "token_cost_in_usd": "1.443274",
+          "updated_at": 1793918320
+        }
+      }
+    },
+    "MEXE": {
+      "token_symbol": "MEXe",
+      "token_kind": "principal_token",
+      "currency": "MXN",
+      "token_cost_in_fiat": "1.000000",
+      "token_cost_in_usd": "0.053374",
+      "current_basis_points": 0,
+      "current_time": "2026-11-05T22:38:47.055688498+00:00",
+      "sources": {
+        "7a5e931b-d5f1-4ca7-9dfa-4c0d8ea8f047": {
+          "exchange_rate": "18.7362",
+          "token_cost_in_usd": "0.053373",
+          "updated_at": 1793918301
+        },
+        "d2ce2919-082f-4d60-8fbb-a15b3b570e57": {
+          "exchange_rate": "18.732499",
+          "token_cost_in_usd": "0.053383",
+          "updated_at": 1793918320
+        },
+        "8e1e2967-0283-42dd-bb06-e49193c368d2": {
+          "exchange_rate": "18.73499",
+          "token_cost_in_usd": "0.053376",
+          "updated_at": 1793918280
+        },
+        "7bd29441-2c78-42a2-b1f0-3413447a38cb": {
+          "exchange_rate": "18.7361011505126953125",
+          "token_cost_in_usd": "0.053373",
+          "updated_at": 1793918300
+        },
+        "aba2c7ff-0812-4e1a-81ab-8b25c1acfe24": {
+          "exchange_rate": "18.7355862717",
+          "token_cost_in_usd": "0.053374",
+          "updated_at": 1793918301
+        }
+      }
+    },
+    "CETES": {
+      "token_symbol": "CETES",
+      "token_kind": "bond",
+      "currency": "MXN",
+      "token_cost_in_fiat": "1.189927",
+      "token_cost_in_usd": "0.063512",
+      "current_basis_points": 555,
+      "current_time": "2026-11-05T22:38:47.055618584+00:00",
+      "sources": {
+        "7a5e931b-d5f1-4ca7-9dfa-4c0d8ea8f047": {
+          "exchange_rate": "18.7362",
+          "token_cost_in_usd": "0.063510",
+          "updated_at": 1793918301
+        },
+        "7bd29441-2c78-42a2-b1f0-3413447a38cb": {
+          "exchange_rate": "18.7361011505126953125",
+          "token_cost_in_usd": "0.063510",
+          "updated_at": 1793918300
+        },
+        "8e1e2967-0283-42dd-bb06-e49193c368d2": {
+          "exchange_rate": "18.73499",
+          "token_cost_in_usd": "0.063514",
+          "updated_at": 1793918280
+        },
+        "d2ce2919-082f-4d60-8fbb-a15b3b570e57": {
+          "exchange_rate": "18.732499",
+          "token_cost_in_usd": "0.063522",
+          "updated_at": 1793918320
+        },
+        "aba2c7ff-0812-4e1a-81ab-8b25c1acfe24": {
+          "exchange_rate": "18.7355862717",
+          "token_cost_in_usd": "0.063512",
+          "updated_at": 1793918301
+        }
+      }
+    },
+    "USTRY": {
+      "token_symbol": "USTRY",
+      "token_kind": "bond",
+      "currency": "USD",
+      "token_cost_in_fiat": "1.079389",
+      "token_cost_in_usd": "1.079389",
+      "current_basis_points": 369,
+      "current_time": "2026-11-05T22:38:47.055657473+00:00",
+      "sources": {
+        "7a5e931b-d5f1-4ca7-9dfa-4c0d8ea8f047": {
+          "exchange_rate": "1",
+          "token_cost_in_usd": "1.079389",
+          "updated_at": 1793918301
+        },
+        "7bd29441-2c78-42a2-b1f0-3413447a38cb": {
+          "exchange_rate": "1",
+          "token_cost_in_usd": "1.079389",
+          "updated_at": 1793918300
+        },
+        "aba2c7ff-0812-4e1a-81ab-8b25c1acfe24": {
+          "exchange_rate": "1",
+          "token_cost_in_usd": "1.079389",
+          "updated_at": 1793918301
+        },
+        "d2ce2919-082f-4d60-8fbb-a15b3b570e57": {
+          "exchange_rate": "1",
+          "token_cost_in_usd": "1.079389",
+          "updated_at": 1793918320
+        },
+        "8e1e2967-0283-42dd-bb06-e49193c368d2": {
+          "exchange_rate": "1",
+          "token_cost_in_usd": "1.079389",
+          "updated_at": 1793918280
+        }
+      }
+    }
+  }
+}

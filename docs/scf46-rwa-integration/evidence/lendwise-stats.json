@@ -1,0 +1,15 @@
+{
+  "url": "https://lendwise.fi/api/stats",
+  "collectedAt": "2026-11-05T22:38:48.350336+00:00",
+  "method": "GET",
+  "authenticated": false,
+  "httpStatus": 200,
+  "responseSha256": "e38c00a97993a855eaead09acc94d849476778b7f9fee7c33740a3744f2e02a1",
+  "data": {
+    "standardizedChains": 27,
+    "executionChains": 16,
+    "lendingMarkets": 962,
+    "assets": 169,
+    "generatedAt": "2026-11-05T22:36:30.941Z"
+  }
+}

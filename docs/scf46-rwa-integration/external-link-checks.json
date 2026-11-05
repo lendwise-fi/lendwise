@@ -1,0 +1,270 @@
+{
+  "checkedAt": "2026-11-05T23:01:49.158056+00:00",
+  "method": "GET",
+  "note": "HTTP status only; blocked/rate-limited sources may remain valid. Official content was also inspected with web research tools.",
+  "results": [
+    {
+      "url": "https://api.docs.mercuryo.io/",
+      "status": 200,
+      "finalUrl": "https://api.docs.mercuryo.io/"
+    },
+    {
+      "url": "https://centrifuge.io/blog/derwa-on-stellar-with-20m-allocation",
+      "status": 200,
+      "finalUrl": "https://centrifuge.io/blog/derwa-on-stellar-with-20m-allocation"
+    },
+    {
+      "url": "https://communityfund.stellar.org/awards",
+      "status": 200,
+      "finalUrl": "https://communityfund.stellar.org/awards"
+    },
+    {
+      "url": "https://defillama.com/rwa/chain/stellar",
+      "status": 200,
+      "finalUrl": "https://defillama.com/rwa/chain/stellar"
+    },
+    {
+      "url": "https://developers.stellar.org/docs/learn/fundamentals/lumens",
+      "status": 200,
+      "finalUrl": "https://developers.stellar.org/docs/learn/fundamentals/lumens"
+    },
+    {
+      "url": "https://developers.stellar.org/docs/tokens/stellar-asset-contract",
+      "status": 200,
+      "finalUrl": "https://developers.stellar.org/docs/tokens/stellar-asset-contract"
+    },
+    {
+      "url": "https://devnet.etherfuse.com/legal/stablebonds-overview",
+      "status": 200,
+      "finalUrl": "https://devnet.etherfuse.com/legal/stablebonds-overview"
+    },
+    {
+      "url": "https://digitalassets.franklintempleton.com/benji/",
+      "status": 200,
+      "finalUrl": "https://digitalassets.franklintempleton.com/benji/"
+    },
+    {
+      "url": "https://digitalassets.franklintempleton.com/benji/benji-contracts/",
+      "status": 200,
+      "finalUrl": "https://digitalassets.franklintempleton.com/benji/benji-contracts/"
+    },
+    {
+      "url": "https://docs.blend.capital/",
+      "status": 200,
+      "finalUrl": "https://docs.blend.capital/"
+    },
+    {
+      "url": "https://docs.etherfuse.com/api-reference/assets/list-assets",
+      "status": 200,
+      "finalUrl": "https://docs.etherfuse.com/api-reference/assets/list-assets"
+    },
+    {
+      "url": "https://docs.etherfuse.com/api-reference/lookup/list-stablebonds",
+      "status": 200,
+      "finalUrl": "https://docs.etherfuse.com/api-reference/lookup/list-stablebonds"
+    },
+    {
+      "url": "https://docs.etherfuse.com/api-reference/lookup/list-token-costs",
+      "status": 200,
+      "finalUrl": "https://docs.etherfuse.com/api-reference/lookup/list-token-costs"
+    },
+    {
+      "url": "https://docs.etherfuse.com/guides/chains/stellar",
+      "status": 200,
+      "finalUrl": "https://docs.etherfuse.com/guides/chains/stellar"
+    },
+    {
+      "url": "https://docs.etherfuse.com/guides/onboarding",
+      "status": 200,
+      "finalUrl": "https://docs.etherfuse.com/guides/onboarding"
+    },
+    {
+      "url": "https://docs.etherfuse.com/llms.txt",
+      "status": 200,
+      "finalUrl": "https://docs.etherfuse.com/llms.txt"
+    },
+    {
+      "url": "https://docs.etherfuse.com/price-feeds",
+      "status": 200,
+      "finalUrl": "https://docs.etherfuse.com/price-feeds"
+    },
+    {
+      "url": "https://docs.etherfuse.com/sdks",
+      "status": 200,
+      "finalUrl": "https://docs.etherfuse.com/sdks"
+    },
+    {
+      "url": "https://docs.etherfuse.com/v2",
+      "status": 200,
+      "finalUrl": "https://docs.etherfuse.com/v2"
+    },
+    {
+      "url": "https://docs.privy.io/authentication/user-authentication/access-tokens",
+      "status": 200,
+      "finalUrl": "https://docs.privy.io/authentication/user-authentication/access-tokens"
+    },
+    {
+      "url": "https://docs.privy.io/recipes/tier-2-wallet-integration",
+      "status": 200,
+      "finalUrl": "https://docs.privy.io/recipes/tier-2-wallet-integration"
+    },
+    {
+      "url": "https://docs.privy.io/security/wallet-infrastructure/policy-and-controls",
+      "status": 200,
+      "finalUrl": "https://docs.privy.io/security/wallet-infrastructure/policy-and-controls"
+    },
+    {
+      "url": "https://docs.privy.io/wallets/overview/chains",
+      "status": 200,
+      "finalUrl": "https://docs.privy.io/wallets/overview/chains"
+    },
+    {
+      "url": "https://docs.privy.io/wallets/using-wallets/other-chains",
+      "status": 200,
+      "finalUrl": "https://docs.privy.io/wallets/using-wallets/other-chains"
+    },
+    {
+      "url": "https://docs.privy.io/wallets/wallets/create/create-a-wallet",
+      "status": 200,
+      "finalUrl": "https://docs.privy.io/wallets/wallets/create/create-a-wallet"
+    },
+    {
+      "url": "https://docs.rwa.xyz/home",
+      "status": 200,
+      "finalUrl": "https://docs.rwa.xyz/home"
+    },
+    {
+      "url": "https://docs.spiko.io/developers/distributor_api/getting_started/",
+      "status": 200,
+      "finalUrl": "https://docs.spiko.io/developers/distributor_api/getting_started/"
+    },
+    {
+      "url": "https://docs.spiko.io/developers/investor_api/getting_started/",
+      "status": 200,
+      "finalUrl": "https://docs.spiko.io/developers/investor_api/getting_started/"
+    },
+    {
+      "url": "https://docs.spiko.io/developers/public_api/getting_started/",
+      "status": 200,
+      "finalUrl": "https://docs.spiko.io/developers/public_api/getting_started/"
+    },
+    {
+      "url": "https://docs.spiko.io/documentation/tokenization/addresses/",
+      "status": 200,
+      "finalUrl": "https://docs.spiko.io/documentation/tokenization/addresses/"
+    },
+    {
+      "url": "https://docs.spiko.io/documentation/tokenization/transfers/",
+      "status": 200,
+      "finalUrl": "https://docs.spiko.io/documentation/tokenization/transfers/"
+    },
+    {
+      "url": "https://github.com/DefiLlama/yield-server",
+      "status": 200,
+      "finalUrl": "https://github.com/DefiLlama/yield-server"
+    },
+    {
+      "url": "https://github.com/circlefin/stellar-cctp",
+      "status": 200,
+      "finalUrl": "https://github.com/circlefin/stellar-cctp"
+    },
+    {
+      "url": "https://github.com/lendwise-fi/lendwise",
+      "status": 200,
+      "finalUrl": "https://github.com/lendwise-fi/lendwise"
+    },
+    {
+      "url": "https://mercuryo.io/explore/announcements/buy-usdc-xlm-mercuryo-tangem-zero-fees",
+      "status": 200,
+      "finalUrl": "https://mercuryo.io/explore/announcements/buy-usdc-xlm-mercuryo-tangem-zero-fees"
+    },
+    {
+      "url": "https://mercuryo.io/press/mercuryo-tangem-zero-fees-usdc-stellar",
+      "status": 200,
+      "finalUrl": "https://mercuryo.io/press/mercuryo-tangem-zero-fees-usdc-stellar"
+    },
+    {
+      "url": "https://ondo.finance/blog/usdy-is-now-live-on-stellar",
+      "status": 200,
+      "finalUrl": "https://ondo.finance/blog/usdy-is-now-live-on-stellar"
+    },
+    {
+      "url": "https://ondo.finance/usdy",
+      "status": 200,
+      "finalUrl": "https://ondo.finance/usdy"
+    },
+    {
+      "url": "https://stellar.expert/explorer/public",
+      "status": 200,
+      "finalUrl": "https://stellar.expert/explorer/public"
+    },
+    {
+      "url": "https://stellar.gitbook.io/scf-handbook/scf-awards/build-award/budget-and-deliverable-guidelines",
+      "status": 200,
+      "finalUrl": "https://stellar.gitbook.io/scf-handbook/scf-awards/build-award/budget-and-deliverable-guidelines"
+    },
+    {
+      "url": "https://stellar.gitbook.io/scf-handbook/scf-awards/build-award/integration-track",
+      "status": 200,
+      "finalUrl": "https://stellar.gitbook.io/scf-handbook/scf-awards/build-award/integration-track"
+    },
+    {
+      "url": "https://stellar.gitbook.io/scf-handbook/scf-awards/build-award/integration-track/integration-list",
+      "status": 200,
+      "finalUrl": "https://stellar.gitbook.io/scf-handbook/scf-awards/build-award/integration-track/integration-list"
+    },
+    {
+      "url": "https://turbolong.com/",
+      "status": 200,
+      "finalUrl": "https://turbolong.com/"
+    },
+    {
+      "url": "https://venalabs.com/",
+      "status": 200,
+      "finalUrl": "https://venalabs.com/en"
+    },
+    {
+      "url": "https://venalabs.com/en/landing",
+      "status": 200,
+      "finalUrl": "https://venalabs.com/en/landing"
+    },
+    {
+      "url": "https://widget.docs.mercuryo.io/api/widget-partner/tag/general/get/lib/currencies",
+      "status": 200,
+      "finalUrl": "https://widget.docs.mercuryo.io/api/widget-partner/tag/general/get/lib/currencies"
+    },
+    {
+      "url": "https://widget.docs.mercuryo.io/guide/more/faq",
+      "status": 200,
+      "finalUrl": "https://widget.docs.mercuryo.io/guide/more/faq"
+    },
+    {
+      "url": "https://www.franklintempleton.com/.well-known/stellar.toml",
+      "status": 200,
+      "finalUrl": "https://www.franklintempleton.com/.well-known/stellar.toml"
+    },
+    {
+      "url": "https://www.franklintempleton.com/forms-literature/download-preview/9001-P",
+      "status": 200,
+      "finalUrl": "https://www.franklintempleton.com/forms-literature/download-preview/9001-P"
+    },
+    {
+      "url": "https://www.wisdomtreeconnect.com/",
+      "status": 200,
+      "finalUrl": "https://www.wisdomtreeconnect.com/"
+    },
+    {
+      "url": "https://www.wisdomtreeprime.com/about/",
+      "status": 200,
+      "finalUrl": "https://www.wisdomtreeprime.com/about/"
+    },
+    {
+      "url": "https://docs.etherfuse.com/overview",
+      "replaces": "https://docs.etherfuse.com/api-reference/orders/create-a-new-order",
+      "contentVerifiedWith": "web research tool; official quote/order overview read successfully",
+      "status": 200,
+      "finalUrl": "https://docs.etherfuse.com/overview"
+    }
+  ],
+  "finalReplacementCheckedAt": "2026-11-05T23:03:22.146436+00:00"
+}

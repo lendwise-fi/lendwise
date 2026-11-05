@@ -1,0 +1,211 @@
+scalar Decimal
+scalar DateTime
+
+enum FinancialMetric {
+  LENDING_SUPPLY_APY
+  LENDING_BORROW_APY
+  BOND_YTM
+  CURRENT_YIELD
+  DISTRIBUTION_YIELD
+  MMF_YIELD
+  NAV_TOTAL_RETURN
+  ISSUER_INDICATIVE_RATE
+}
+
+type FinancialObservation {
+  id: ID!
+  shareClassId: ID
+  lendingProductId: ID
+  metric: FinancialMetric!
+  originalValue: Decimal
+  originalUnit: String!
+  normalizedDecimal: Decimal
+  effectiveAnnualRate: Decimal
+  currency: String!
+  direction: String!
+  feeBasis: String!
+  rateType: String!
+  incomeTreatment: String!
+  dayCount: String!
+  compounding: String!
+  calculationMethod: String!
+  assumptions: [String!]!
+  periodStart: DateTime
+  periodEnd: DateTime
+  observedAt: DateTime!
+  publishedAt: DateTime
+  collectedAt: DateTime!
+  availableAt: DateTime!
+  origin: String!
+  quality: String!
+  qualityReason: String
+  nextExpectedAt: DateTime
+  staleAfter: DateTime!
+  sourceId: ID!
+  sourceUrl: String!
+  rawHash: String!
+  adapterVersion: String!
+  methodVersion: String!
+  ledger: Int
+}
+
+type RwaAsset {
+  family: String!
+  network: String
+  chainId: Int
+  kind: String!
+  code: String
+  issuer: String
+  contract: String
+  sac: String
+}
+
+type RwaFee {
+  id: ID!
+  kind: String!
+  value: Decimal
+  unit: String!
+  currency: String
+  includedInNav: String!
+  effectiveFrom: DateTime!
+}
+
+type RwaProduct {
+  id: ID!
+  issuerId: ID!
+  name: String!
+  legalProductId: String
+  exposure: [RwaExposure!]!
+  liquidity: RwaLiquidity!
+  creditRisk: RwaCreditRisk!
+  source: RwaProvenance!
+  shareClassId: ID!
+  currency: String!
+  assets: [RwaAsset!]!
+  maturity: DateTime
+  maturityKind: String!
+  minimum: Decimal
+  redemptionDelayDays: Int
+  dealingCalendar: String
+  investorRestrictions: [String!]!
+  eligibility: String!
+  fees: [RwaFee!]!
+  termsUrl: String
+}
+
+type RwaExposure {
+  assetClass: String!
+  country: String
+  currency: String!
+  weight: Decimal
+}
+
+type RwaLiquidity {
+  secondaryMarket: String!
+  issuerRedemption: String!
+  termsUrl: String
+}
+
+type RwaCreditRisk {
+  rating: String
+  issuerConcentrationGroup: String!
+}
+
+type RwaProvenance {
+  sourceId: ID!
+  sourceUrl: String!
+  rawHash: String!
+  adapterVersion: String!
+  methodVersion: String!
+  observedAt: DateTime!
+  publishedAt: DateTime
+  collectedAt: DateTime!
+  availableAt: DateTime!
+  ledger: Int
+}
+
+type NavObservation {
+  id: ID!
+  shareClassId: ID!
+  value: Decimal
+  currency: String!
+  priceType: String!
+  observedAt: DateTime!
+  publishedAt: DateTime
+  collectedAt: DateTime!
+  availableAt: DateTime!
+  sourceId: ID!
+  sourceUrl: String!
+  rawHash: String!
+  adapterVersion: String!
+  methodVersion: String!
+  ledger: Int
+  quality: String!
+  qualityReason: String
+  nextExpectedAt: DateTime
+  origin: String!
+  staleAfter: DateTime!
+  revision: Int!
+  supersedesId: ID
+}
+
+type ObservationError {
+  code: String!
+  productId: ID
+  retryable: Boolean!
+  message: String!
+}
+
+type ObservationBatch {
+  nav: [NavObservation!]!
+  yields: [FinancialObservation!]!
+  failures: [ObservationError!]!
+}
+
+type RwaPageInfo {
+  nextCursor: String
+}
+type RwaProductPage {
+  items: [RwaProduct!]!
+  pageInfo: RwaPageInfo!
+}
+type RwaHistoryPage {
+  items: [FinancialObservation!]!
+  nav: [NavObservation!]!
+  pageInfo: RwaPageInfo!
+}
+
+type BlendRateSnapshot {
+  poolId: ID!
+  asset: RwaAsset!
+  observation: FinancialObservation!
+  availableLiquidity: Decimal
+  poolStatus: String!
+}
+
+input RwaAssetInput {
+  family: String!
+  network: String
+  chainId: Int
+  kind: String!
+  code: String
+  issuer: String
+  contract: String
+}
+
+extend type Query {
+  rwaProducts(issuer: ID, after: String, first: Int = 50): RwaProductPage!
+  rwaObservations(shareClassIds: [ID!]!): ObservationBatch!
+  rwaHistory(
+    shareClassId: ID!
+    from: DateTime!
+    to: DateTime!
+    after: String
+    first: Int = 50
+  ): RwaHistoryPage!
+  blendRateSnapshot(
+    poolId: ID!
+    asset: RwaAssetInput!
+    maxAgeSeconds: Int = 30
+  ): [BlendRateSnapshot!]!
+}

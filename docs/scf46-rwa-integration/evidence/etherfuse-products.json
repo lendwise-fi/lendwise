@@ -1,0 +1,111 @@
+{
+  "url": "https://api.etherfuse.com/lookup/stablebonds",
+  "collectedAt": "2026-11-05T22:38:48.344843+00:00",
+  "method": "GET",
+  "authenticated": false,
+  "httpStatus": 200,
+  "responseSha256": "c23402523379e36e92ba28c33b5bf957fb07528793d00a95ee6676647e1bf683",
+  "data": {
+    "calculatedAt": "2026-11-05T22:37:21.174811139+00:00",
+    "products": [
+      {
+        "name": "Etherfuse GILTS",
+        "symbol": "GILTS",
+        "bondCurrency": "GBP",
+        "tokenPriceDecimal": "1.073392",
+        "stellar": [
+          {
+            "blockchain": "stellar",
+            "tokenIdentifier": "GILTS-GCRYUGD5NVARGXT56XEZI5CIFCQETYHAPQQTHO2O3IQZTHDH4LATMYWC",
+            "totalSupply": "1.034906",
+            "decimals": 7
+          }
+        ]
+      },
+      {
+        "name": "Etherfuse KTB",
+        "symbol": "KTB",
+        "bondCurrency": "KRW",
+        "tokenPriceDecimal": "1.018341",
+        "stellar": [
+          {
+            "blockchain": "stellar",
+            "tokenIdentifier": "KTB-GCRYUGD5NVARGXT56XEZI5CIFCQETYHAPQQTHO2O3IQZTHDH4LATMYWC",
+            "totalSupply": "101.0",
+            "decimals": 7
+          }
+        ]
+      },
+      {
+        "name": "Etherfuse EUROB",
+        "symbol": "EUROB",
+        "bondCurrency": "EUR",
+        "tokenPriceDecimal": "1.032353",
+        "stellar": [
+          {
+            "blockchain": "stellar",
+            "tokenIdentifier": "EUROB-GCRYUGD5NVARGXT56XEZI5CIFCQETYHAPQQTHO2O3IQZTHDH4LATMYWC",
+            "totalSupply": "1.5",
+            "decimals": 7
+          }
+        ]
+      },
+      {
+        "name": "Etherfuse CETES",
+        "symbol": "CETES",
+        "bondCurrency": "MXN",
+        "tokenPriceDecimal": "1.189927",
+        "stellar": [
+          {
+            "blockchain": "stellar",
+            "tokenIdentifier": "CETES-GCRYUGD5NVARGXT56XEZI5CIFCQETYHAPQQTHO2O3IQZTHDH4LATMYWC",
+            "totalSupply": "54738886.0377417",
+            "decimals": 7
+          }
+        ]
+      },
+      {
+        "name": "Etherfuse MEX",
+        "symbol": "MEX",
+        "bondCurrency": "MXN",
+        "tokenPriceDecimal": "1",
+        "stellar": [
+          {
+            "blockchain": "stellar",
+            "tokenIdentifier": "MEX-GCRYUGD5NVARGXT56XEZI5CIFCQETYHAPQQTHO2O3IQZTHDH4LATMYWC",
+            "totalSupply": "777.1332846",
+            "decimals": 7
+          }
+        ]
+      },
+      {
+        "name": "Etherfuse USTRY",
+        "symbol": "USTRY",
+        "bondCurrency": "USD",
+        "tokenPriceDecimal": "1.079388",
+        "stellar": [
+          {
+            "blockchain": "stellar",
+            "tokenIdentifier": "USTRY-GCRYUGD5NVARGXT56XEZI5CIFCQETYHAPQQTHO2O3IQZTHDH4LATMYWC",
+            "totalSupply": "11514078.0563055",
+            "decimals": 7
+          }
+        ]
+      },
+      {
+        "name": "Etherfuse TESOURO",
+        "symbol": "TESOURO",
+        "bondCurrency": "BRL",
+        "tokenPriceDecimal": "1.275476",
+        "stellar": [
+          {
+            "blockchain": "stellar",
+            "tokenIdentifier": "TESOURO-GCRYUGD5NVARGXT56XEZI5CIFCQETYHAPQQTHO2O3IQZTHDH4LATMYWC",
+            "totalSupply": "834292.8706507",
+            "decimals": 7
+          }
+        ]
+      }
+    ]
+  }
+}

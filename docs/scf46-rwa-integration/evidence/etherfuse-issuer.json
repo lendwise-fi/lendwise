@@ -1,0 +1,20 @@
+{
+  "url": "https://horizon.stellar.org/accounts/GCRYUGD5NVARGXT56XEZI5CIFCQETYHAPQQTHO2O3IQZTHDH4LATMYWC",
+  "collectedAt": "2026-11-05T22:38:48.351409+00:00",
+  "method": "GET",
+  "authenticated": false,
+  "httpStatus": 200,
+  "responseSha256": "bb6f39dc34d7d5d770386e1d40c1deda1842942ec2b869558f20c17b49741f47",
+  "data": {
+    "account_id": "GCRYUGD5NVARGXT56XEZI5CIFCQETYHAPQQTHO2O3IQZTHDH4LATMYWC",
+    "home_domain": "etherfuse.com",
+    "flags": {
+      "auth_required": false,
+      "auth_revocable": true,
+      "auth_immutable": false,
+      "auth_clawback_enabled": true
+    },
+    "last_modified_ledger": 65122044,
+    "last_modified_time": "2026-10-25T02:40:03Z"
+  }
+}

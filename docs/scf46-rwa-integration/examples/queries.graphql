@@ -1,0 +1,69 @@
+query RwaComparison($ids: [ID!]!) {
+  rwaObservations(shareClassIds: $ids) {
+    yields {
+      shareClassId
+      lendingProductId
+      metric
+      originalValue
+      originalUnit
+      normalizedDecimal
+      effectiveAnnualRate
+      currency
+      feeBasis
+      compounding
+      observedAt
+      publishedAt
+      collectedAt
+      quality
+      qualityReason
+      staleAfter
+      sourceId
+      methodVersion
+    }
+    failures {
+      code
+      productId
+      retryable
+      message
+    }
+  }
+}
+
+query RwaProducts($after: String) {
+  rwaProducts(issuer: "etherfuse", after: $after, first: 50) {
+    items {
+      id
+      name
+      shareClassId
+      currency
+      maturityKind
+      redemptionDelayDays
+      fees {
+        kind
+        value
+        includedInNav
+      }
+    }
+    pageInfo {
+      nextCursor
+    }
+  }
+}
+
+query BlendBorrowInput($pool: ID!, $asset: RwaAssetInput!) {
+  blendRateSnapshot(poolId: $pool, asset: $asset, maxAgeSeconds: 30) {
+    poolId
+    poolStatus
+    availableLiquidity
+    observation {
+      lendingProductId
+      metric
+      originalValue
+      originalUnit
+      normalizedDecimal
+      observedAt
+      staleAfter
+      quality
+    }
+  }
+}
