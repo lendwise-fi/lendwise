@@ -1,6 +1,6 @@
 # Wallet and fiat onboarding
 
-Core MVP uses existing Stellar Wallets Kit and SEP-10, plus existing funded wallets/CCTP. Privy and Mercuryo are feasible optional providers; neither is a committed dependency. Their official Stellar support must not be understated, and neither generic support nor SCF-list inclusion proves a tested LendWise flow. References P1–P3, M1–M3 and L1–L2 are in [sources](SOURCES.md).
+Core MVP uses existing Stellar Wallets Kit and SEP-10, plus existing funded wallets/CCTP. Privy and Mercuryo are feasible optional providers; neither is a committed dependency. Their official Stellar support must not be understated, and generic provider support does not prove a tested LendWise flow. References P1–P3, M1–M3 and L1–L2 are in [sources](SOURCES.md).
 
 ## Privy feasibility and custody boundary
 

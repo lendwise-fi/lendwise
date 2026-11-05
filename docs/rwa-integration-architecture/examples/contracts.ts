@@ -52,6 +52,8 @@ export interface Quality {
 
 export interface YieldObservation {
   id: string
+  revision: number
+  supersedesId: string | null
   subject: { kind: 'rwa_share_class' | 'lending_product'; id: string }
   metric: Metric
   originalValue: DecimalString | null
@@ -291,8 +293,37 @@ export async function loadStrategyInputs(
     sdk.observations.latest([shareClassId]),
     sdk.lending.blendRates({ poolId, asset, maxAgeSeconds: 30 }),
   ])
-  const fresh = (o: YieldObservation) =>
-    o.quality.status === 'valid' && Date.parse(o.quality.staleAfter) > nowMs
+  const fresh = (o: YieldObservation) => {
+    const observed = Date.parse(o.provenance.observedAt)
+    return (
+      o.quality.status === 'valid' &&
+      o.normalizedDecimal !== null &&
+      Number.isFinite(observed) &&
+      observed <= nowMs &&
+      Date.parse(o.quality.staleAfter) > nowMs
+    )
+  }
+  const sameAsset = (left: AssetId, right: AssetId): boolean => {
+    if (left.family === 'evm' && right.family === 'evm') {
+      return (
+        left.chainId === right.chainId &&
+        left.contract.toLowerCase() === right.contract.toLowerCase()
+      )
+    }
+    if (
+      left.family !== 'stellar' ||
+      right.family !== 'stellar' ||
+      left.network !== right.network
+    )
+      return false
+    if (left.kind === 'classic' && right.kind === 'classic')
+      return left.code === right.code && left.issuer === right.issuer
+    return (
+      left.kind === 'contract' &&
+      right.kind === 'contract' &&
+      left.contract === right.contract
+    )
+  }
   const borrow = rates.filter(
     (r) => r.observation.metric === 'LENDING_BORROW_APY'
   )
@@ -300,10 +331,19 @@ export async function loadStrategyInputs(
     rwa.failures.length > 0 ||
     rwa.yields.length === 0 ||
     borrow.length === 0 ||
-    rwa.yields.some((o) => !fresh(o)) ||
+    rwa.yields.some(
+      (o) =>
+        !fresh(o) ||
+        o.subject.kind !== 'rwa_share_class' ||
+        o.subject.id !== shareClassId
+    ) ||
     borrow.some(
       (r) =>
         !fresh(r.observation) ||
+        r.poolId !== poolId ||
+        !sameAsset(r.asset, asset) ||
+        r.observation.subject.kind !== 'lending_product' ||
+        !r.observation.subject.id ||
         nowMs - Date.parse(r.observation.provenance.observedAt) > 30000
     )
   ) {

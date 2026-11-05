@@ -14,6 +14,8 @@ enum FinancialMetric {
 
 type FinancialObservation {
   id: ID!
+  revision: Int!
+  supersedesId: ID
   shareClassId: ID
   lendingProductId: ID
   metric: FinancialMetric!

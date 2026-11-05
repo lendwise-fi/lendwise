@@ -60,7 +60,7 @@ Transport retries apply only to safe reads: at most three attempts, jitter and R
 
 ## Authentication, caching and rate limits
 
-Public market reads require no authentication under current API policy. Private issuer account holdings, order states and signing are excluded from public SDL and require a separate owner-scoped session/consent service. If partner API keys are later offered for higher read quotas, keep them server-side; browser clients use public quotas. A market API key must not grant order execution.
+Public market reads require no authentication under current API policy. Private issuer account holdings, order states and signing are excluded from public SDL and require a separate owner-scoped session/consent service. If partner API keys are later offered for higher read quotas, keep them server-side; browser clients use public quotas. A market API key must not authorize order execution.
 
 Reuse existing GraphQL Armor limits and IP limiter, with a revised tested cost model for new fields. Existing policy is 60 requests/minute/IP and fails open on Redis loss; add edge/body/concurrency protections and alerts before exposing expensive live reads. Avoid assuming `first` alone bounds `shareClassIds` or nested fields. No arbitrary source URLs or SQL fragments in filters. Test introspection remains usable because current codegen depends on it.
 

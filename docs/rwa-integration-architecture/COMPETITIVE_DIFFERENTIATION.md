@@ -12,7 +12,7 @@
 
 ## Defensible claims and proof required
 
-| Proposed differentiator                          | Existing evidence                                                                                                             | SCF #46 demonstration needed                                                                                                               |
+| Proposed differentiator                          | Existing evidence                                                                                                             | Implementation evidence needed                                                                                                             |
 | ------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
 | Reuse of an existing multichain lending platform | [Runtime inventory](evidence/lendwise-stats.json), [code assessment](EXISTING_SYSTEM_ASSESSMENT.md), CCTP settlement evidence | Show new RWA feature operating in same product with no lending regressions; avoid asserting every module independently production-verified |
 | Financially explicit comparison                  | Existing lending normalization helpers, but no RWA conventions model                                                          | Same-currency/horizon examples, non-comparable states, net fees, currency/settlement scenarios; independent fixture review                 |
@@ -25,7 +25,7 @@
 
 ## Claims to remove or qualify
 
-Remove “first,” “risk-free,” “guaranteed leveraged profit,” “all RWAs directly investable,” “instant redemption” without exact product evidence, and “automatic eligibility via wallet sign-in.” Do not say market coverage means wallet/execution coverage or use issuer network-wide AUM as LendWise activity. Do not claim a completed smart-contract audit, formal SCF #45 validation or commercial partnerships without their evidence.
+Remove “first,” “risk-free,” “guaranteed leveraged profit,” “all RWAs directly investable,” “instant redemption” without exact product evidence, and “automatic eligibility via wallet sign-in.” Do not say market coverage means wallet/execution coverage or use issuer network-wide AUM as LendWise activity. Do not claim a completed smart-contract audit, commercial partnerships without their evidence.
 
 Proposed positioning: **LendWise will extend its lending data and wallet infrastructure with Etherfuse on Stellar, preserving financial conventions and investor conditions so users and applications can understand which opportunities are actually comparable.** This is a planned behavior, not a demonstrated production capability or exclusive competitive feature.
 

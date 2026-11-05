@@ -19,7 +19,7 @@ const required = [
   'ONBOARDING_ARCHITECTURE',
   'SECURITY_AND_RISK_ASSESSMENT',
   'IMPLEMENTATION_ROADMAP',
-  'SCF_INTEGRATION_TRACK_ALIGNMENT',
+  'DELIVERY_READINESS',
   'COMPETITIVE_DIFFERENTIATION',
   'OPEN_QUESTIONS',
 ]
@@ -179,3 +179,4 @@ if (process.env.MERMAID_VALIDATION_ROOT) {
   )
 }
 await import('./examples/financial-checks.mjs')
+await import('./examples/consumer-checks.mjs')

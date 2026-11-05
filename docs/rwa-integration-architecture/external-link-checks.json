@@ -14,11 +14,6 @@
       "finalUrl": "https://centrifuge.io/blog/derwa-on-stellar-with-20m-allocation"
     },
     {
-      "url": "https://communityfund.stellar.org/awards",
-      "status": 200,
-      "finalUrl": "https://communityfund.stellar.org/awards"
-    },
-    {
       "url": "https://defillama.com/rwa/chain/stellar",
       "status": 200,
       "finalUrl": "https://defillama.com/rwa/chain/stellar"
@@ -197,21 +192,6 @@
       "url": "https://stellar.expert/explorer/public",
       "status": 200,
       "finalUrl": "https://stellar.expert/explorer/public"
-    },
-    {
-      "url": "https://stellar.gitbook.io/scf-handbook/scf-awards/build-award/budget-and-deliverable-guidelines",
-      "status": 200,
-      "finalUrl": "https://stellar.gitbook.io/scf-handbook/scf-awards/build-award/budget-and-deliverable-guidelines"
-    },
-    {
-      "url": "https://stellar.gitbook.io/scf-handbook/scf-awards/build-award/integration-track",
-      "status": 200,
-      "finalUrl": "https://stellar.gitbook.io/scf-handbook/scf-awards/build-award/integration-track"
-    },
-    {
-      "url": "https://stellar.gitbook.io/scf-handbook/scf-awards/build-award/integration-track/integration-list",
-      "status": 200,
-      "finalUrl": "https://stellar.gitbook.io/scf-handbook/scf-awards/build-award/integration-track/integration-list"
     },
     {
       "url": "https://turbolong.com/",

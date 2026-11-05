@@ -20,10 +20,10 @@ flowchart TB
   SDK -.-> Turbo[Conditional Turbolong consumer]
   SWK[Existing Wallets Kit and SEP-10] --> UI
   Bridge[Existing CCTP funding flow] --> UI
-  UI --> Handoff[Conditional approved issuer handoff]
-  Handoff --> Issuer[External eligible investor flow]
-  Issuer --> Ledger[External Stellar settlement]
-  Ledger --> Observe[New attributed settlement observer]
+  UI -.-> Handoff[Conditional approved issuer handoff]
+  Handoff -.-> Issuer[External eligible investor flow]
+  Issuer -.-> Ledger[External Stellar settlement]
+  Ledger -.-> Observe[Conditional attributed settlement observer]
 ```
 
 Solid arrows describe planned core responsibilities, not completed delivery; dashed arrows are conditional scope. The existing-system diagram lives in [assessment](EXISTING_SYSTEM_ASSESSMENT.md).
@@ -142,15 +142,15 @@ These are recommended, implementation-binding design choices once reviewed by ma
 
 ### ADR-07 — Privy feasibility and fallback
 
-**Alternatives:** assume no Stellar support; commit full embedded-wallet flow now; accept documented native support but gate optional delivery on exact-flow tests. **Decision:** documented Stellar creation/hash signing is feasible; post-grant integration with a test gate. **Tradeoff:** less onboarding scope, fewer signing dependencies. **Consequences:** existing Wallets Kit/SEP-10 remains usable; no promise of Soroban auth-entry, fee sponsorship or recovery semantics before testing.
+**Alternatives:** assume no Stellar support; commit full embedded-wallet flow now; accept documented native support but gate optional delivery on exact-flow tests. **Decision:** documented Stellar creation/hash signing is feasible; integration in a later phase with a test gate. **Tradeoff:** less onboarding scope, fewer signing dependencies. **Consequences:** existing Wallets Kit/SEP-10 remains usable; no promise of Soroban auth-entry, fee sponsorship or recovery semantics before testing.
 
 ### ADR-08 — Mercuryo feasibility and fallback
 
 **Alternatives:** infer support from generic USDC listing; commit one-step two-asset funding; require network-specific merchant enablement and staged funding. **Decision:** native Stellar products exist, new merchant journey remains optional. **Tradeoff:** separate XLM/trustline/USDC steps. **Consequences:** CCTP or already-funded wallet suffices for core; merchant limits, signature fixtures, country checks and refunds block release of fiat onboarding.
 
-### ADR-09 — Etherfuse-first grant scope
+### ADR-09 — Etherfuse-first delivery scope
 
-**Alternatives:** twelve funded workstreams; analytics-only integration; Etherfuse data/comparison plus approved issuer journey and measurable settlement. **Decision:** narrow third option, contingent on attribution accepted before submission. **Tradeoff:** defer additional issuers/onboarding/full optimization to protect deliverability. **Consequences:** no duplicated SCF #45 bridge funding, no invented activity threshold, SDK and Turbolong conditional, no claim of grant readiness while the economic activity gate is unresolved.
+**Alternatives:** deliver all twelve workstreams together; build an analytics-only integration; stage an Etherfuse data/comparison release and a separately approved issuer journey. **Decision:** stage delivery, keeping public data and comparison independent from optional execution and onboarding providers. **Tradeoff:** additional issuers, broad optimization and embedded onboarding arrive later. **Consequences:** reuse existing CCTP and wallets; require product-specific entitlement and settlement evidence before enabling the issuer journey; publish usage claims only when attributable.
 
 ## Critical dependencies
 
@@ -162,8 +162,8 @@ flowchart LR
   Read --> Compare[Comparable observations and UI]
   Compare --> Pilot[Approved eligible-user issuer journey]
   Entitlement[Partner entitlement and attribution evidence] --> Pilot
-  Metric[SCF ratified metric footprint and window] --> Grant[Grant submission and tranche outcomes]
-  Pilot --> Grant
+  Metric[Verified attribution and measurement window] --> Outcome[Reproducible product usage reporting]
+  Pilot --> Outcome
   Read -.-> SDK[Conditional SDK]
   Contract[Turbolong accepted consumer contract] -.-> SDK
   Privy[Optional tested Privy signing] -.-> UX[Future embedded onboarding]

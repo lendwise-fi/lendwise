@@ -1,6 +1,8 @@
 query RwaComparison($ids: [ID!]!) {
   rwaObservations(shareClassIds: $ids) {
     yields {
+      revision
+      supersedesId
       shareClassId
       lendingProductId
       metric
