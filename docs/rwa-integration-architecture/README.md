@@ -6,23 +6,23 @@ Review date: **2026-11-06 (Asia/Dubai)**. Architecture and implementation planni
 
 ## Documents
 
-| Document                                                        | Responsibility                                               |
-| --------------------------------------------------------------- | ------------------------------------------------------------ |
-| [Existing system assessment](EXISTING_SYSTEM_ASSESSMENT.md)     | Code, interfaces, deployment evidence and discrepancies      |
-| [Technical feasibility matrix](TECHNICAL_FEASIBILITY_MATRIX.md) | Provider evidence, dependencies and inclusion decisions      |
-| [Technical architecture](TECHNICAL_ARCHITECTURE.md)             | Boundaries, reuse, optimization and nine decision records    |
-| [RWA data model](RWA_DATA_MODEL.md)                             | Entities, precision, migrations, positions and compatibility |
-| [Yield normalization](YIELD_NORMALIZATION_METHODOLOGY.md)       | Financial definitions, equations, assumptions and leverage   |
-| [Integration specifications](INTEGRATION_SPECIFICATIONS.md)     | Adapters, ingestion, history, portfolio and CCTP             |
-| [SDK and API](SDK_AND_API_DESIGN.md)                            | Additive GraphQL, generic SDK and Turbolong consumption      |
-| [Onboarding](ONBOARDING_ARCHITECTURE.md)                        | Privy, Mercuryo and existing-wallet fallbacks                |
-| [Security and risk](SECURITY_AND_RISK_ASSESSMENT.md)            | Threats, controls, tests and residual risks                  |
-| [Implementation roadmap](IMPLEMENTATION_ROADMAP.md)             | Delivery phases, dependencies and acceptance criteria        |
-| [Delivery readiness](DELIVERY_READINESS.md)                     | Release boundaries, evidence and settlement attribution      |
-| [Competitive differentiation](COMPETITIVE_DIFFERENTIATION.md)   | Evidence-based positioning and claims to avoid               |
-| [Open questions](OPEN_QUESTIONS.md)                             | Owners, required evidence, fallbacks and blockers            |
-| [Sources](SOURCES.md)                                           | Official references, dated checks and evidence limitations   |
-| [Review findings](INDEPENDENT_REVIEW.md)                        | Architecture, financial, security and documentation audit    |
+| Document                                                        | Responsibility                                                                                                |
+| --------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------- |
+| [Existing system assessment](EXISTING_SYSTEM_ASSESSMENT.md)     | Code, interfaces, deployment evidence and discrepancies                                                       |
+| [Technical feasibility matrix](TECHNICAL_FEASIBILITY_MATRIX.md) | Provider evidence, dependencies and inclusion decisions                                                       |
+| [Technical architecture](TECHNICAL_ARCHITECTURE.md)             | End-to-end implementation design: modules, ingestion, transactions, calculations, API, signing and operations |
+| [RWA data model](RWA_DATA_MODEL.md)                             | Entities, precision, migrations, positions and compatibility                                                  |
+| [Yield normalization](YIELD_NORMALIZATION_METHODOLOGY.md)       | Financial definitions, equations, assumptions and leverage                                                    |
+| [Integration specifications](INTEGRATION_SPECIFICATIONS.md)     | Adapters, ingestion, history, portfolio and CCTP                                                              |
+| [SDK and API](SDK_AND_API_DESIGN.md)                            | Additive GraphQL, generic SDK and Turbolong consumption                                                       |
+| [Onboarding](ONBOARDING_ARCHITECTURE.md)                        | Privy, Mercuryo and existing-wallet fallbacks                                                                 |
+| [Security and risk](SECURITY_AND_RISK_ASSESSMENT.md)            | Threats, controls, tests and residual risks                                                                   |
+| [Implementation roadmap](IMPLEMENTATION_ROADMAP.md)             | Delivery phases, dependencies and acceptance criteria                                                         |
+| [Delivery readiness](DELIVERY_READINESS.md)                     | Release boundaries, evidence and settlement attribution                                                       |
+| [Competitive differentiation](COMPETITIVE_DIFFERENTIATION.md)   | Evidence-based positioning and claims to avoid                                                                |
+| [Open questions](OPEN_QUESTIONS.md)                             | Owners, required evidence, fallbacks and blockers                                                             |
+| [Sources](SOURCES.md)                                           | Official references, dated checks and evidence limitations                                                    |
+| [Review findings](INDEPENDENT_REVIEW.md)                        | Architecture, financial, security and documentation audit                                                     |
 
 [Design contracts](examples/contracts.ts), [GraphQL schema](examples/rwa-extension.graphql) and [query examples](examples/queries.graphql) specify proposed interfaces. They are not an implemented adapter or published SDK. Public API excerpts are in [evidence](evidence/); [external reference checks](external-link-checks.json) record the earlier source-link verification.
 

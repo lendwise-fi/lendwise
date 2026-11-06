@@ -27,6 +27,8 @@ for (const name of required)
   assert.ok(existsSync(resolve(root, name + '.md')), name)
 const docs = readdirSync(root).filter((f) => f.endsWith('.md'))
 const diagrams = []
+const embeddedQueries = []
+let checkedJsonExamples = 0
 let checkedLinks = 0
 const failures = []
 const slug = (s) =>
@@ -39,6 +41,12 @@ for (const name of docs) {
   const text = readFileSync(resolve(root, name), 'utf8')
   for (const m of text.matchAll(/```mermaid\r?\n([\s\S]*?)```/g))
     diagrams.push({ name, source: m[1] })
+  for (const m of text.matchAll(/```json\r?\n([\s\S]*?)```/g)) {
+    assert.doesNotThrow(() => JSON.parse(m[1]), `${name}: invalid JSON example`)
+    checkedJsonExamples++
+  }
+  for (const m of text.matchAll(/```graphql\r?\n([\s\S]*?)```/g))
+    embeddedQueries.push({ name, source: m[1] })
   // Balanced parentheses preserve repository paths such as (dashboard).
   let offset = 0
   while ((offset = text.indexOf('](', offset)) >= 0) {
@@ -108,14 +116,28 @@ for (const field of Object.keys(baseSchema.getQueryType().getFields()))
     schema.getQueryType().getFields()[field],
     `Existing query preserved: ${field}`
   )
-const queryErrors = validate(
-  schema,
-  parse(readFileSync(resolve(root, 'examples/queries.graphql'), 'utf8'))
+const queryDocument = parse(
+  readFileSync(resolve(root, 'examples/queries.graphql'), 'utf8')
 )
+const queryErrors = validate(schema, queryDocument)
 assert.deepEqual(
   queryErrors.map((e) => e.message),
   []
 )
+let checkedOperations = queryDocument.definitions.filter(
+  (d) => d.kind === 'OperationDefinition'
+).length
+for (const example of embeddedQueries) {
+  const document = parse(example.source)
+  assert.deepEqual(
+    validate(schema, document).map((e) => e.message),
+    [],
+    `${example.name}: invalid GraphQL example`
+  )
+  checkedOperations += document.definitions.filter(
+    (d) => d.kind === 'OperationDefinition'
+  ).length
+}
 const expectedMetrics = [
   'LENDING_SUPPLY_APY',
   'LENDING_BORROW_APY',
@@ -146,7 +168,7 @@ for (const name of readdirSync(resolve(root, 'evidence')).filter((f) =>
   assert.match(evidence.responseSha256, /^[a-f0-9]{64}$/)
 }
 console.log(
-  `${docs.length} documents, ${checkedLinks} local links, GraphQL schema/3 operations, metric enum and 6 evidence records validated.`
+  `${docs.length} documents, ${checkedLinks} local links, GraphQL schema/${checkedOperations} operations, ${checkedJsonExamples} JSON examples, metric enum and 6 evidence records validated.`
 )
 if (process.env.MERMAID_VALIDATION_ROOT) {
   const dependencies = resolve(

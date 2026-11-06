@@ -18,6 +18,8 @@ The observed Etherfuse issuer had revocation and clawback flags enabled. This es
 
 Public analytics, issuer-approved transactions and attributable settlement reporting are separate releases. Off-chain queries are not ledger activity, and a USDC bridge transfer is not an RWA investment. Conditional partner journeys cannot block a permitted public-data release.
 
+The expanded [technical architecture](TECHNICAL_ARCHITECTURE.md) specifies module dependencies, source-field mappings, lease/checkpoint ownership, transaction and revision boundaries, exact portfolio joins, bounded API behavior, financial comparison steps, signing flows and deployment recovery. Its diagrams distinguish existing code, proposed components and conditional integrations. The existing CCTP completion status can coexist with missing amount evidence or a mismatch warning; new financial projections require explicit amount/recipient reconciliation rather than trusting that status alone.
+
 ## Financial and interface audit corrections
 
 Observations preserve original metric, value, currency, fee/income basis, convention and provenance. Lending APY, YTM, current/distribution/MMF yield and NAV total return remain distinct. Examples cover fees, FX, maturity, reinvestment, leverage and liquidation. Historical mean lending APY is not a realized investor return.
@@ -28,7 +30,7 @@ GraphQL composes with the existing SDL, retains existing queries and distinguish
 
 ## Validation record
 
-The [validator](validate.mjs) checks document presence, local references, GraphQL compatibility/queries, metric definitions, public evidence, financial examples and consumer-input scenarios. Diagram parsing uses an isolated Mermaid/jsdom installation. Strict TypeScript and scoped Prettier checks run separately.
+The [validator](validate.mjs) checks document presence, local references, GraphQL compatibility/queries, inline GraphQL and JSON examples, metric definitions, public evidence, financial examples and consumer-input scenarios. Diagram parsing uses an isolated Mermaid/jsdom installation. Strict TypeScript and scoped Prettier checks run separately.
 
 The package contains 16 Markdown documents plus examples and public evidence. Local checks were rerun for this revision. Retained [external link checks](external-link-checks.json) record the earlier HTTP verification of technical sources; those requests are not represented as a new provider assessment. Mermaid syntax is checked; visual layout is not independently rendered or audited.
 
