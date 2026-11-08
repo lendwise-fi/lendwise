@@ -51,7 +51,7 @@ The JSON files contain selected public fields, request URL, collection time, aut
 | [Etherfuse products](evidence/etherfuse-products.json) | Actual Stellar code/issuer/decimals and six nonzero-rate candidate sovereign products plus MEX; does not prove subscription availability            |
 | [Etherfuse prices](evidence/etherfuse-prices.json)     | Actual basis-point and price fields, timestamps and FX-source times; no maturity or historical series                                               |
 | [Etherfuse issuer](evidence/etherfuse-issuer.json)     | Current issuer-level flags; does not establish every trustline's clawback setting                                                                   |
-| [LendWise stats](evidence/lendwise-stats.json)         | Endpoint returned 960 markets and 27 standardized chains, with `generatedAt` November 1; supports a dated claim, not a fresh inventory audit        |
+| [LendWise stats](evidence/lendwise-stats.json)         | Endpoint returned 962 markets and 27 standardized chains, with `generatedAt` November 1; supports a dated claim, not a fresh inventory audit        |
 | [CCTP mint](evidence/cctp-mainnet-mint.json)           | Recheck of one previously published transaction's ledger success, not proof of all routes or the UI that submitted it                               |
 | [Spiko funds](evidence/spiko-funds.json)               | Public API accessibility/shape; initial request returned 403, subsequent identified-user-agent request succeeded; access reliability must be tested |
 

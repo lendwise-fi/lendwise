@@ -15,6 +15,7 @@ The extension adds an Etherfuse financial-data pipeline to the existing Next.js 
 - [Historical data and revisions](#historical-data-and-revisions)
 - [Financial computation and comparison](#financial-computation-and-comparison)
 - [Portfolio reads and valuation](#portfolio-reads-and-valuation)
+- [Additional RWA issuers](#additional-rwa-issuers)
 - [GraphQL and SDK distribution](#graphql-and-sdk-distribution)
 - [Optimization and strategy consumers](#optimization-and-strategy-consumers)
 - [Wallet authentication and signing](#wallet-authentication-and-signing)
@@ -403,6 +404,67 @@ For quantity `q`, compatible price `P` in local currency and FX `X` in investor-
 
 Preserve `UserPortfolioResult.positions`, `holdings`, `riskAccounts` and `failures` for existing callers. Expose new RWA positions through an additive/versioned result or a separate action merged by the UI. Public watch-only balance inspection and private servicing records have different authorization requirements; watching an address is not proof of ownership.
 
+## Additional RWA issuers
+
+Etherfuse is the reference implementation of `RwaAdapter`; the other candidate issuers are evaluated against the same capability contract rather than against a separate design. Discovery and observations are the only mandatory capabilities; history, positions and eligibility stay optional per issuer. None of the five below is scheduled ahead of the Etherfuse MVP, and none changes the module boundaries, persistence model or financial-computation rules already specified above — each subsection states only what differs for that issuer and what remains unresolved. The supporting evidence for every claim below is in [sources](SOURCES.md) and the [feasibility matrix](TECHNICAL_FEASIBILITY_MATRIX.md); nothing here repeats as a new fact.
+
+```mermaid
+flowchart LR
+  Contract["RwaAdapter contract\ndiscovery + observations mandatory\nhistory / positions / eligibility optional"]
+  Contract --> Spiko["Spiko\nSoroban contract-token balances\n+ documented NAV/yield history"]
+  Contract --> Ondo["Ondo\ndiscovery only\nno confirmed price/history feed"]
+  Contract --> Franklin["Franklin Templeton\ndiscovery only\nno confirmed machine-readable history"]
+  Contract --> Wisdom["WisdomTree\nno specific Stellar product identified"]
+  Contract --> Centrifuge["Centrifuge\nannouncement only\nno verified contract deployment"]
+  Spiko --> SpikoFallback["Fallback C: public data only;\neligibility unknown pending OAuth/distributor access"]
+  Ondo --> OndoFallback["Fallback C: metadata-only entry;\nexcluded from yield ranking"]
+  Franklin --> FranklinFallback["Fallback C: public metadata and verified\nbalance only; no private servicing data"]
+  Wisdom --> WisdomFallback["Fallback C: excluded from catalogue"]
+  Centrifuge --> CentrifugeFallback["Fallback C: excluded from catalogue"]
+```
+
+| Issuer             | Stellar status (evidence)                                                          | Confirmed `RwaAdapter` capability scope                      | Primary unresolved item                                                                    | Fallback until resolved                                    |
+| ------------------ | ---------------------------------------------------------------------------------- | ------------------------------------------------------------ | ------------------------------------------------------------------------------------------ | ---------------------------------------------------------- |
+| Spiko              | Soroban contract-token products live; public NAV/yield history documented (S1, S2) | `discovery`, `observations`, `history`                       | Exact share-class/address mapping, history pagination/revision behavior, initial 403 (Q19) | Public data only; eligibility unknown                      |
+| Ondo               | USDY officially live on Stellar (O1), bearer note not a fund share                 | `discovery` only                                             | No confirmed machine-readable price/history feed (Q20)                                     | Metadata-only catalogue entry; excluded from yield ranking |
+| Franklin Templeton | Benji issuer published on Stellar (F1, F2)                                         | `discovery` only, pending a licensed/reusable history source | Licensed or public NAV/history source; which specific Benji share product (Q20)            | Public metadata plus verified on-chain balance only        |
+| WisdomTree         | Prime markets Stellar; Connect's published chain list is EVM-only (W1)             | None — no specific product or API identified                 | Which Prime fund, if any, has a Stellar representation and accessible API (Q21)            | Excluded from catalogue                                    |
+| Centrifuge         | deJTRSY/deJAAA announced for Stellar (C1)                                          | None — no verified deployment evidence                       | Deployed Stellar contract IDs, audit status, NAV/accounting interface (Q22)                | Excluded from catalogue                                    |
+
+### Spiko
+
+Spiko publishes official Stellar contract-token addresses for multiple share products and a public financial API that documents NAV history and yields (S1, S2). Among the five, Spiko is the strongest additional-history candidate specifically because it has a documented historical endpoint, unlike Etherfuse's currently unresolved archive. Private investor or distributor access is separately gated behind OAuth or manual distributor approval (S3); the captured catalogue fetch itself returned an HTTP 403 before a differently configured request succeeded (`evidence/spiko-funds.json`), so public-read reliability is not established from one successful retry.
+
+Spiko's Stellar representation is a Soroban contract token rather than a Classic trustline, so its adapter reuses the contract-balance validation path from [portfolio reads](#portfolio-reads-and-valuation) rather than the Classic/SAC deduplication path, and its history ingestion would be issuer-API-native rather than reconstructed from on-chain state. Required adapter work is limited to the contract-token balance interface, share-class mapping and the issuer's own NAV calendar; it reuses the same bounded HTTP transport and orchestrator described in [module contracts](#module-contracts-and-dependency-direction). Unresolved per Q19: exact share-class/address mapping, history pagination and revision behavior, redistribution limits, and the cause of the initial 403. Fallback: public data only, with contract holdings marked eligibility-unknown until investor or distributor access is confirmed.
+
+### Ondo
+
+Ondo's USDY is officially live on Stellar (O1), restricted to eligible non-US investors, and explicitly described by Ondo itself as a bearer note rather than a stablecoin or a fund share — it does not carry a lending-style APY or a fund NAV in the sense the [yield methodology](YIELD_NORMALIZATION_METHODOLOGY.md) defines for other subjects. The announcement confirms the asset's existence on Stellar; it does not confirm a machine-readable price or history feed, and this review found none.
+
+This is a materially thinner adapter than Etherfuse's: discovery can pin the official Stellar issuer identity, but observations have no confirmed source until a real price or NAV feed is identified, so `history` and `observations.fetch` stay unimplemented rather than guessed. No address is invented to fill that gap. Unresolved per Q20: the full official Stellar identifiers, a token-price/history API if one exists, and primary redemption entitlement. Fallback: a metadata-only catalogue entry, excluded from yield ranking until a real price feed is confirmed.
+
+### Franklin Templeton
+
+Franklin Templeton publishes a Stellar issuer for its Benji family (F1), covering several distinct share products rather than one fund. Public disclosures include fund-level yield conventions such as a seven-day current yield (F2) — a money-market-fund convention that is not an APY and is not directly comparable to a lending rate without the same horizon and compounding treatment every other subject already requires in [financial computation](#financial-computation-and-comparison).
+
+The practical difference from Etherfuse is the ingestion shape: Franklin's yield figures come from regulated fund disclosures, not a public REST endpoint with machine-readable rate fields, so an adapter would most likely parse published disclosure documents rather than poll a JSON API. Required work is an exact asset-code/issuer mapping per Benji share product, a licensed or publicly reusable NAV/history source, and corporate-action handling for distributions. Unresolved per Q20 (shared row): whether a licensed financial-history or private servicing API exists for third-party consumption, and which specific Benji product would be in scope. Fallback: public metadata plus a verified on-chain balance only, with no private servicing data and no assumed redemption right.
+
+### WisdomTree
+
+WisdomTree Prime advertises Stellar support, but WisdomTree Connect's own published chain list is EVM-only — Arbitrum, Avalanche, Base, Ethereum and Optimism (W1). This review could not resolve that contradiction between the platform's marketing surface and its documented chain support, and found no specific yield-bearing fund named as having a Stellar representation.
+
+WisdomTree is the least-resolved issuer in this set, less resolved even than Centrifuge: Centrifuge's announcement at least names specific vault identifiers, while no public WisdomTree document this review found names a specific Stellar-side product. No adapter work can be scoped until WisdomTree identifies a specific fund, its Stellar representation and a third-party-reachable interface. Unresolved per Q21: which Prime yield-bearing fund, if any, has a Stellar representation and an accessible API. Fallback: excluded entirely from the catalogue; Prime's general Stellar marketing claim is not treated as evidence of a specific yield-fund integration.
+
+### Centrifuge
+
+Centrifuge announced deJTRSY and deJAAA on Stellar with a stated allocation (C1). An announcement is marketing material, not deployment evidence: this review did not obtain official contract IDs, an audit reference, or a documented NAV/accounting interface for either vault on Stellar.
+
+Centrifuge's instruments are tokenized credit and debt vaults — JAAA, for example, tracks a CLO-type structure — a different risk class from Etherfuse's sovereign-bond-backed Stablebonds. A shared `RwaAdapter` contract must not imply comparable risk between issuers merely because both are labeled RWA; the [data model](RWA_DATA_MODEL.md)'s separation of legal issuer, product and share class exists partly for this reason. No adapter work can be scoped until deployed Stellar contract identifiers are published and independently verified. Unresolved per Q22: whether deJTRSY/deJAAA are actually deployed on Stellar yet, and if so their contract IDs, audit status and NAV/accounting interface. Fallback: excluded from the catalogue; announcement-only status is not treated as deployed and supported.
+
+### Sequencing
+
+Per [ADR-09](#adr-09--etherfuse-first-delivery-scope) and the [implementation roadmap](IMPLEMENTATION_ROADMAP.md), Spiko is the designated first candidate for a second adapter, specifically because it is the only one of the five with a documented public historical API. The other four remain later-phase work pending the partner confirmations tracked in [open questions](OPEN_QUESTIONS.md) (Q19–Q22). None of the five blocks the Etherfuse-only MVP described in [implementation sequence](#implementation-sequence-and-release-gates).
+
 ## GraphQL and SDK distribution
 
 Extend the existing Yoga endpoint instead of creating another public data service. Add RWA types and resolvers alongside existing lending queries. The public schema exposes market observations and published product terms, not customer KYC, private eligibility approvals, issuer account tokens or order-signing authority.
@@ -712,6 +774,18 @@ Restore procedures must cover both database observations and their raw evidence 
 ## Architecture decision records
 
 These are recommended, implementation-binding design choices once reviewed by maintainers. External entitlement gates remain open as listed in [questions](OPEN_QUESTIONS.md).
+
+| ADR                                              | Decision                                                                         | Key tradeoff accepted                                                  |
+| ------------------------------------------------ | -------------------------------------------------------------------------------- | ---------------------------------------------------------------------- |
+| [01](#adr-01--separate-rwa-and-lending-models)   | Separate RWA tables, not a shared/overloaded lending schema                      | Additional tables and resolvers, for exact semantics and compatibility |
+| [02](#adr-02--typed-financial-normalization)     | Preserve original convention; derive effective rate only when justified          | Richer UI labels required; some products cannot be ranked together     |
+| [03](#adr-03--capability-based-issuer-adapters)  | Separate `RwaAdapter` with optional capabilities, not a `YieldAdapter` extension | Second registry, but no false transaction promises                     |
+| [04](#adr-04--source-native-immutable-history)   | Append source observations and revisions, not resampled/synthesized history      | Irregular chart series; backfill may begin only at collection          |
+| [05](#adr-05--distinct-rwa-position-projection)  | New RWA claim projection, not reuse of lending `SupplyPosition`                  | Mapping/deduplication work required                                    |
+| [06](#adr-06--thin-generic-read-sdk)             | Thin independent `@lendwise/sdk`, no strategy execution                          | Consumers own their own strategy models                                |
+| [07](#adr-07--privy-feasibility-and-fallback)    | Feasible but gated on exact-flow tests before enabling embedded wallets          | Less onboarding scope and fewer signing dependencies for now           |
+| [08](#adr-08--mercuryo-feasibility-and-fallback) | Native support exists; merchant journey stays optional pending gates             | Separate XLM/trustline/USDC steps instead of one-step funding          |
+| [09](#adr-09--etherfuse-first-delivery-scope)    | Stage delivery: Etherfuse data/comparison first, issuer journey separate         | Additional issuers and embedded onboarding arrive in later phases      |
 
 ### ADR-01 — Separate RWA and lending models
 
