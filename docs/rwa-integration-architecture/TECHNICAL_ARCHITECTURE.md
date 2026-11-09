@@ -1,4 +1,4 @@
-# Technical architecture and implementation design
+# Technical Architecture
 
 **Status: proposed extension, conditionally implementation-ready.** Repository baseline: `main` at `65072b13db1792eecf3ae5330cf4dbc8ec1cb4bd`. Public provider observations were collected on 2026-11-06, Asia/Dubai. This document specifies implementation work; it does not claim the new modules, tables, routes or integrations are deployed.
 

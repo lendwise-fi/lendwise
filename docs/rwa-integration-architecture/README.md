@@ -1,4 +1,6 @@
-# Etherfuse-first RWA integration architecture
+# Technical Architecture
+
+Read the [Technical Architecture](TECHNICAL_ARCHITECTURE.md) for the complete system design. The supporting documents below cover its data model, integrations, security and implementation plan.
 
 Review date: **2026-11-06 (Asia/Dubai)**. Architecture and implementation planning only; no application, contract, migration or deployment changes are delivered here.
 
@@ -10,7 +12,7 @@ Review date: **2026-11-06 (Asia/Dubai)**. Architecture and implementation planni
 | --------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------- |
 | [Existing system assessment](EXISTING_SYSTEM_ASSESSMENT.md)     | Code, interfaces, deployment evidence and discrepancies                                                       |
 | [Technical feasibility matrix](TECHNICAL_FEASIBILITY_MATRIX.md) | Provider evidence, dependencies and inclusion decisions                                                       |
-| [Technical architecture](TECHNICAL_ARCHITECTURE.md)             | End-to-end implementation design: modules, ingestion, transactions, calculations, API, signing and operations |
+| [Technical Architecture](TECHNICAL_ARCHITECTURE.md)             | End-to-end implementation design: modules, ingestion, transactions, calculations, API, signing and operations |
 | [RWA data model](RWA_DATA_MODEL.md)                             | Entities, precision, migrations, positions and compatibility                                                  |
 | [Yield normalization](YIELD_NORMALIZATION_METHODOLOGY.md)       | Financial definitions, equations, assumptions and leverage                                                    |
 | [Integration specifications](INTEGRATION_SPECIFICATIONS.md)     | Adapters, ingestion, history, portfolio and CCTP                                                              |
