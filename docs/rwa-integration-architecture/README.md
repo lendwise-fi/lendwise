@@ -2,9 +2,9 @@
 
 Read the [Technical Architecture](TECHNICAL_ARCHITECTURE.md) for the complete system design. The supporting documents below cover its data model, integrations, security and implementation plan.
 
-Review date: **2026-11-06 (Asia/Dubai)**. Architecture and implementation planning only; no application, contract, migration or deployment changes are delivered here.
+The architecture is organized by subsystem and integration flow, covering Etherfuse data and investment, Privy, reserve/fee sponsorship, Mercuryo, Spiko and Ondo data, portfolio comparison, public GraphQL, the SDK and operational reporting. **Existing** and **new** labels distinguish repository capabilities from work still to implement. This documentation update does not deploy those integrations.
 
-**Verdict: Conditionally implementation-ready.** Public Etherfuse data interfaces and Stellar asset representations have been checked. Issuer rate semantics, data-use permission and production transaction entitlements still require confirmation. Optional wallet and fiat onboarding must not block the public-data integration. See the [review findings](INDEPENDENT_REVIEW.md) for release gates and limitations.
+The main architecture is the source of truth for submitted-scope commitments. Supporting documents provide focused background, interface examples and earlier assessments; their candidate lists or conditional classifications do not override the complete scope defined in the main document.
 
 ## Documents
 
@@ -17,7 +17,7 @@ Review date: **2026-11-06 (Asia/Dubai)**. Architecture and implementation planni
 | [Yield normalization](YIELD_NORMALIZATION_METHODOLOGY.md)       | Financial definitions, equations, assumptions and leverage                                                    |
 | [Integration specifications](INTEGRATION_SPECIFICATIONS.md)     | Adapters, ingestion, history, portfolio and CCTP                                                              |
 | [SDK and API](SDK_AND_API_DESIGN.md)                            | Additive GraphQL, generic SDK and Turbolong consumption                                                       |
-| [Onboarding](ONBOARDING_ARCHITECTURE.md)                        | Privy, Mercuryo and existing-wallet fallbacks                                                                 |
+| [Onboarding](ONBOARDING_ARCHITECTURE.md)                        | Wallet and funding integration background                                                                     |
 | [Security and risk](SECURITY_AND_RISK_ASSESSMENT.md)            | Threats, controls, tests and residual risks                                                                   |
 | [Implementation roadmap](IMPLEMENTATION_ROADMAP.md)             | Delivery phases, dependencies and acceptance criteria                                                         |
 | [Delivery readiness](DELIVERY_READINESS.md)                     | Release boundaries, evidence and settlement attribution                                                       |
@@ -26,26 +26,23 @@ Review date: **2026-11-06 (Asia/Dubai)**. Architecture and implementation planni
 | [Sources](SOURCES.md)                                           | Official references, dated checks and evidence limitations                                                    |
 | [Review findings](INDEPENDENT_REVIEW.md)                        | Architecture, financial, security and documentation audit                                                     |
 
-[Design contracts](examples/contracts.ts), [GraphQL schema](examples/rwa-extension.graphql) and [query examples](examples/queries.graphql) specify proposed interfaces. They are not an implemented adapter or published SDK. Public API excerpts are in [evidence](evidence/); [external reference checks](external-link-checks.json) record the earlier source-link verification.
+[Design contracts](examples/contracts.ts), [GraphQL schema](examples/rwa-extension.graphql) and [query examples](examples/queries.graphql) specify proposed interfaces. They are not an implemented adapter or published SDK. Public API excerpts are in [evidence](evidence/); [external reference checks](external-link-checks.json) retain source-link verification records.
 
-## Recommended scope
+## Architecture coverage
 
-| Workstream                                | Classification        | Commitment                                                                                                                    |
-| ----------------------------------------- | --------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
-| Etherfuse Stablebonds                     | Core MVP              | USTRY and CETES first: verified Stellar identifiers, indicative rates, issuer price marks, prospective history and comparison |
-| Standardized financial/history data       | Core MVP              | Separate RWA model, provenance, metric semantics and source-native cadence                                                    |
-| Unified comparison                        | Core MVP              | Common discovery shell with explicit financial categories and horizon assumptions                                             |
-| Essential GraphQL                         | Core MVP              | Additive public read queries; preserve all lending fields                                                                     |
-| Existing CCTP                             | Core reuse            | Existing wallet transfer and funding handoff; an on-chain mint is distinct from investment                                    |
-| RWA portfolio                             | Conditional extension | Public balances and valuation marks, subject to verified mapping and rights/control disclosures                               |
-| Issuer investment journey                 | Conditional extension | Requires approved customer access, exact transaction interfaces, user consent and settlement reconciliation                   |
-| SDK and Turbolong                         | Conditional extension | Generic read client and consumer pilot after an accepted interface and partner commitment                                     |
-| Additional issuers                        | Later roadmap         | Spiko first candidate; other issuers require separate technical validation                                                    |
-| RWA optimization                          | Later roadmap         | Informational screening first; allocation and execution require additional constraints and evidence                           |
-| Privy and Mercuryo                        | Later roadmap         | Exact signing, recovery, merchant, network and lifecycle tests required                                                       |
-| Autonomous regulated investment execution | Out of scope          | No issuer approval bypass, custody service or automatic leveraged rebalancing                                                 |
+| Workstream              | Required implementation                                                                                                 |
+| ----------------------- | ----------------------------------------------------------------------------------------------------------------------- |
+| Etherfuse foundation    | Exact Stellar identities, public prices/rates/supply, source-backed history, revision-safe collection and typed returns |
+| Wallet and sponsorship  | Privy email sign-in, SEP-10, sponsored account/trustlines, controlled fee bumps and recovery                            |
+| Funding                 | Mercuryo qualification and Mainnet receipts; orchestration around the existing CCTP route                               |
+| Additional data         | Spiko and Ondo USDY adapters, exact mappings, financial terms and explicit unavailable fields                           |
+| Product experience      | RWA/lending comparison, exact holdings, valuation and condition-aware optimizer screening                               |
+| API and SDK             | Additive public GraphQL, independent typed SDK, npm release, consumer example and versioned documentation               |
+| Etherfuse investment    | Approved quote/swap route, validated user signing, receiving-leg verification and portfolio refresh                     |
+| Security and operations | STRIDE model, corresponding monitoring plan, production alerts, recovery and collection report                          |
+| Onchain outcomes        | Eligible-account evidence, 30-day average net assets and 60-day gross qualifying USDC receipts                          |
 
-The public-data release does not depend on optional transaction journeys. Data queries and dashboard visits are off-chain activity. Any product-usage claim involving investment must be backed by correctly attributed ledger settlement.
+Provider access and security checks are activation gates for committed integrations. Data polling, API usage and wallet creation do not prove settlement. The intended Turbolong pilot is not a mandatory external deployment. Additional issuer trading, fiat off-ramp, MCP and generalized leveraged execution remain outside the submitted scope.
 
 ## Baseline and verification
 

@@ -1,89 +1,86 @@
 # Technical Architecture
 
-**Status: proposed extension, conditionally implementation-ready.** Repository baseline: `main` at `65072b13db1792eecf3ae5330cf4dbc8ec1cb4bd`. Public provider observations were collected on 2026-11-06, Asia/Dubai. This document specifies implementation work; it does not claim the new modules, tables, routes or integrations are deployed.
+This document describes the complete RWA integration architecture for Lendwise: the financial-data model, Stellar wallet and transaction stack, funding connectors, Etherfuse investment flow, portfolio and optimizer integration, public API, SDK, security and operations. It covers the technical work in the submitted scope through system responsibilities and end-to-end flows.
 
-The extension adds an Etherfuse financial-data pipeline to the existing Next.js application and Neon PostgreSQL database. It preserves the existing lending pipeline and adds a separate RWA domain, new read models, additive GraphQL fields and optional wallet-position valuation. Issuer transactions remain a separate, permissioned extension. No new custody service, execution contract or Soroban deployment is required for the public-data MVP.
+**Existing** identifies code already present in the repository; **new** identifies required implementation. Provider qualification and security checks control activation. A target-design component is not a claim that its integration is already deployed.
+
+Etherfuse is the primary RWA data and investment integration. Spiko and Ondo USDY extend the data catalogue. Privy supplies embedded-wallet signing; Lendwise supplies account/reserve/fee sponsorship; Mercuryo and the existing CCTP route supply alternative funding paths. A Stablebond purchase requires its own investor checks, consent, transaction validation and receiving-leg verification.
 
 ## Navigation
 
 - [System overview](#system-overview)
-- [Existing runtime and reuse boundaries](#existing-runtime-and-reuse-boundaries)
-- [Module contracts and dependency direction](#module-contracts-and-dependency-direction)
-- [Asset identity and Etherfuse source mapping](#asset-identity-and-etherfuse-source-mapping)
-- [Ingestion execution and scheduling](#ingestion-execution-and-scheduling)
-- [Persistence and transaction boundaries](#persistence-and-transaction-boundaries)
-- [Historical data and revisions](#historical-data-and-revisions)
-- [Financial computation and comparison](#financial-computation-and-comparison)
-- [Portfolio reads and valuation](#portfolio-reads-and-valuation)
-- [Additional RWA issuers](#additional-rwa-issuers)
-- [GraphQL and SDK distribution](#graphql-and-sdk-distribution)
-- [Optimization and strategy consumers](#optimization-and-strategy-consumers)
-- [Wallet authentication and signing](#wallet-authentication-and-signing)
-- [CCTP and optional issuer execution](#cctp-and-optional-issuer-execution)
-- [Deployment and operational controls](#deployment-and-operational-controls)
-- [Architecture decision records](#architecture-decision-records)
-- [Implementation sequence and release gates](#implementation-sequence-and-release-gates)
-
-**Diagram notation:** `E:` means verified existing code, `N:` means new proposed implementation, `C:` means conditional implementation, and `X:` means an external system. Solid arrows describe data flow or runtime calls. Dashed arrows indicate a conditional feature or an explicitly asynchronous connection. Arrows do not establish production deployment or partner entitlement.
+- [Existing runtime and implementation boundaries](#existing-runtime-and-implementation-boundaries)
+- [Stellar stack and identity foundations](#stellar-stack-and-identity-foundations)
+- [RWA domain and adapter architecture](#rwa-domain-and-adapter-architecture)
+- [Issuer data integrations](#issuer-data-integrations)
+- [Collection, persistence and historical data](#collection-persistence-and-historical-data)
+- [Financial computation and return methodologies](#financial-computation-and-return-methodologies)
+- [Portfolio, comparison and optimizer](#portfolio-comparison-and-optimizer)
+- [Wallet identity and authentication](#wallet-identity-and-authentication)
+- [Reserve and fee sponsorship](#reserve-and-fee-sponsorship)
+- [Funding connectors](#funding-connectors)
+- [Onboarding orchestration](#onboarding-orchestration)
+- [Etherfuse investment execution](#etherfuse-investment-execution)
+- [Public GraphQL API](#public-graphql-api)
+- [SDK and developer integration](#sdk-and-developer-integration)
+- [Security model and monitoring design](#security-model-and-monitoring-design)
+- [Deployment, recovery and operational documentation](#deployment-recovery-and-operational-documentation)
+- [Onchain attribution and outcome accounting](#onchain-attribution-and-outcome-accounting)
+- [Verification and integration testing](#verification-and-integration-testing)
+- [Architecture decisions and scope boundaries](#architecture-decisions-and-scope-boundaries)
 
 ## System overview
 
-The system has three independent paths. The **market-data path** collects issuer observations and serves public comparison queries. The **position path** reads wallet balances and joins them to issuer prices under a controlled identity mapping. The **transaction path** authenticates an owner, prepares a specific intent and requests a wallet signature. The public-data service does not obtain signing authority merely because all three paths share a web application.
+The user journey is **discover → compare → authenticate → prepare wallet → fund → authorize an Etherfuse purchase → verify receipt → refresh portfolio**. Monitoring and reporting consume the resulting evidence; they do not create evidence of investment from a page view or API request.
 
 ```mermaid
 flowchart TB
-  EF["X: Etherfuse public lookup"] --> Adapter["N: Etherfuse read adapter"]
-  Adapter --> Jobs["N: RWA ingestion orchestrator"]
-  Q["X: QStash signed delivery"] --> Jobs
-  Jobs --> Validate["N: identity schema and economic validation"]
-  Validate --> Records[("N: immutable source records")]
-  Validate --> RWA[("N: RWA product and observation tables")]
-  RWA --> Repo["N: RWA read repositories"]
-  Lending[("E: lending products and APY tables")] --> GQL["E plus N: GraphQL service"]
-  Repo --> GQL
-  GQL --> UI["E plus N: discovery and comparison UI"]
-  Horizon["X: Horizon and Soroban RPC"] --> Position["C: RWA position reader"]
-  RWA --> Position
-  Position --> Portfolio["E plus C: portfolio projection"]
-  GQL -.-> SDK["C: read-only SDK"]
-  SDK -.-> Turbo["C: Turbolong consumer"]
-  UI -.-> Journey["C: approved issuer journey"]
-  Journey -.-> Issuer["X: issuer customer and transaction service"]
+  EF["External: Etherfuse lookup and product terms"] --> Adapters["New: RWA adapters and financial validation"]
+  SPIKO["External: Spiko public financial API"] --> Adapters
+  ONDO["External: Ondo reference-price oracle on Ethereum"] --> Adapters
+  Jobs["Existing scheduler plus new RWA jobs"] --> Adapters
+  Adapters --> Store[("Existing PostgreSQL plus new RWA tables")]
+  Store --> Read["New: shared RWA read and comparison services"]
+  Read --> UI["Existing dashboard plus RWA comparison and portfolio"]
+  Read --> GQL["Existing GraphQL plus additive RWA queries"]
+  GQL --> SDK["New: published read-only TypeScript SDK"]
+  SDK -.-> Pilot["External: intended Turbolong consumer"]
+  UI --> Auth["Existing SEP-10 plus new Privy signer"]
+  Auth --> Sponsor["New: controlled reserve and fee sponsorship"]
+  Sponsor --> Setup["Stellar account and supported trustlines"]
+  Setup --> Fund["New: onboarding and funding orchestration"]
+  Fund --> Mercuryo["New connector: Mercuryo card on-ramp"]
+  Fund --> CCTP["Existing: CCTP funding service"]
+  Mercuryo --> Ledger["External: Stellar ledger, Horizon and Soroban RPC"]
+  CCTP --> Ledger
+  Fund --> Purchase["New: Etherfuse quote, swap and signing gateway"]
+  Purchase --> Issuer["External: approved Etherfuse customer and swap services"]
+  Issuer --> Ledger
+  Ledger --> Positions["New: exact holdings and receipt reconciliation"]
+  Positions --> UI
+  Positions --> Reports["New: attributable net-asset and gross-inflow reports"]
+  Store --> Reports
+  Ledger --> Monitor["New: production rules and incident response"]
+  Purchase --> Monitor
 ```
 
-The initial products are USTRY, denominated in USD, and CETES, denominated in MXN. This provides one same-currency comparison case and one explicit FX case. Additional products require identity, financial convention and rights verification; being listed in a provider response is insufficient for an investable UI.
+Solid arrows indicate required integration paths. The dashed external-consumer connection identifies a pilot that is not required for SDK acceptance. The diagram describes the target architecture, not a claim that every new box is already deployed. In compact diagram labels, **E** means existing, **N** means new implementation, and **X** means an external system.
 
-| Path               | Input                                                                   | Output                                                                       | Storage and access boundary                                               |
-| ------------------ | ----------------------------------------------------------------------- | ---------------------------------------------------------------------------- | ------------------------------------------------------------------------- |
-| Market data        | Public catalogue, price/rate responses and approved product terms       | Typed observations, history, quality and comparison inputs                   | Public financial records; no customer credentials in GraphQL              |
-| Position reads     | Network-specific owner address, exact asset mapping and observed ledger | Exact quantity, control flags and time-stamped valuation                     | Public chain reads or separately authorized private servicing records     |
-| Transaction intent | Authenticated owner, approved asset/route, explicit amount and quote    | Validated unsigned transaction or hosted handoff, then reconciled settlement | Separate privileged service; user/provider controls signing and execution |
+| System boundary                | Technical responsibilities                                                                                       |
+| ------------------------------ | ---------------------------------------------------------------------------------------------------------------- |
+| Financial data                 | Source adapters, product/asset identities, collection, immutable revisions and source-backed return calculations |
+| User and transaction authority | Privy, existing wallets, SEP-10 sessions, reserve sponsorship and controlled fee bumps                           |
+| Funding and investment         | Mercuryo and CCTP destination reconciliation; a separate consent-bound Etherfuse purchase gateway                |
+| Portfolio and comparison       | Exact economic claims, source-linked valuations and condition-aware optimizer screening                          |
+| Developer access               | Shared read services, additive public GraphQL, independent SDK and versioned consumer examples                   |
+| Security and operations        | Threat model, linked monitors, deployment/recovery controls, private runbooks and public documentation           |
+| Outcome accounting             | Versioned eligible accounts, daily net-asset snapshots and deduplicated gross-USDC receipt reports               |
 
-The public-data release can operate while the conditional position, SDK or transaction paths are disabled. This separation prevents uncertain provider permissions from blocking permitted read-only integration.
+Public-data, position-reading and transaction services remain separate so that a source outage or paused purchase route does not disable unrelated functions. The application shares identities and evidence across these boundaries while keeping signing authority out of public data services.
 
-## Existing runtime and reuse boundaries
+## Existing runtime and implementation boundaries
 
-The repository is a Next.js application with server routes/actions, a React dashboard and a Neon HTTP/Drizzle persistence layer. The existing code is the starting point; module names below do not imply separate deployed microservices.
-
-```mermaid
-flowchart LR
-  Q["X: signed scheduler deliveries"] --> Spot["E: 10-minute lending spot collector"]
-  Q --> Catalog["E: hourly lending catalogue sync"]
-  Spot --> Registry["E: protocol adapter registry"]
-  Catalog --> Registry
-  Registry --> Sources["X: subgraphs and Stellar RPC"]
-  Spot --> Hourly[("E: apy_hourly")]
-  Catalog --> Products[("E: products")]
-  Reconcile["E: detect repair aggregate prune"] --> Hourly
-  Reconcile --> Daily[("E: apy_daily")]
-  Hubble["X: Hubble BigQuery"] --> Reconcile
-  Hourly --> GQL["E: GraphQL Yoga"]
-  Daily --> GQL
-  Products --> GQL
-  Portfolio["E: family-routed portfolio loader"] --> Registry
-  Portfolio --> Horizon["X: Horizon wallet reads"]
-  GQL --> Browser["E: dashboard"]
-```
+Lendwise is a Next.js/React application with server routes/actions, GraphQL Yoga and Neon PostgreSQL through Drizzle. Existing adapters cover Aave, Morpho, Compound and Blend. Existing Stellar authentication, wallet connectivity, portfolio routing and CCTP form the reuse boundary. New source adapters and orchestration are application modules, not a requirement to deploy a microservice for each conceptual box.
 
 | Existing component         | Verified repository anchor                                                                                                              | Reuse decision                                                                                                          |
 | -------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
@@ -94,13 +91,67 @@ flowchart LR
 | Public GraphQL             | [route](../../src/app/api/graphql/route.ts), [schema](../../src/lib/graphql/schema.ts), [resolvers](../../src/lib/graphql/resolvers.ts) | Add RWA queries and decimal serialization without changing existing lending fields                                      |
 | Portfolio aggregation      | [load.ts](../../src/lib/portfolio/load.ts), [types.ts](../../src/lib/portfolio/types.ts)                                                | Reuse network routing, timeouts and partial failure; add a distinct RWA projection                                      |
 | Stellar balance reader     | [wallet-holdings.ts](../../src/lib/stellar/wallet-holdings.ts)                                                                          | Reuse Horizon transport knowledge; new RWA reads retain decimal text and control flags omitted by the legacy projection |
-| Wallet authentication      | [StellarWalletContext](../../src/contexts/StellarWalletContext.tsx), [session guard](../../src/lib/auth/session-guard.ts)               | Preserve current wallet/SEP-10 flow; optional embedded signer must meet the same owner/network boundary                 |
+| Wallet authentication      | [StellarWalletContext](../../src/contexts/StellarWalletContext.tsx), [session guard](../../src/lib/auth/session-guard.ts)               | Preserve current wallet/SEP-10 flow; new Privy signer must meet the same owner/network boundary                         |
 | Blend v2.1                 | [adapter](../../src/lib/protocols/blend/v2_1/index.ts), [deployment definitions](../../src/lib/protocols/blend/common/deployments.ts)   | Reuse v2 SDK classes behind the distinct v2.1 deployment; no invented incompatible contract generation                  |
 | CCTP orchestration         | [service](../../src/lib/execution/cctp/service.ts), [message checks](../../src/lib/execution/cctp/message.ts)                           | Reuse exact-message validation, owner state and recovery; keep investment separate from USDC transfer                   |
 
-The current lending collector runs nominally every ten minutes and forms hourly aggregates. The nightly reconciler uses a seven-day default window and can repair lending observations from adjacent donor observations. That behavior is explicitly unsuitable for an issuer that publishes one financial value per business day. Shared infrastructure does not imply shared time-series semantics.
+### New module ownership
 
-## Module contracts and dependency direction
+The following are proposed implementation locations. Their presence in this table does not claim that the corresponding files already exist.
+
+| Proposed location                           | Responsibility                                                       | Dependency rule                                                        |
+| ------------------------------------------- | -------------------------------------------------------------------- | ---------------------------------------------------------------------- |
+| `src/lib/rwa/core/`                         | Identity, runtime schemas, decimal types, return/quality definitions | Pure domain code; no HTTP, wallet or database imports                  |
+| `src/lib/rwa/etherfuse/`, `spiko/`, `ondo/` | Public source clients, decoding and issuer-specific mapping          | Provider payloads stop at the adapter interface                        |
+| `src/config/rwa-server.ts`                  | Explicit enabled-source registry and capability configuration        | Server-only allowlist; no arbitrary browser-supplied source URLs       |
+| `src/lib/rwa/ingestion/`                    | Scheduling, leases, bounded retries, revisions and checkpoints       | Owns I/O orchestration; calculations remain independently testable     |
+| `src/lib/db/repositories/rwa/`              | Product/observation, terms, balance and valuation persistence        | Decimal-safe, bounded queries and idempotent writes                    |
+| `src/lib/rwa/portfolio/`, `comparison/`     | Exact economic claims, source-backed valuation and comparability     | Cannot sign orders or infer investor approval                          |
+| `src/lib/wallet/privy/`                     | Privy identity binding and Stellar signer adapter                    | No sponsor key or issuer API credentials in browser code               |
+| `src/lib/stellar/sponsorship/`              | Policy, reserve/fee budgets, transaction intents and reconciliation  | Signs only validated sponsor-authorized operations                     |
+| `src/lib/funding/mercuryo/`                 | Merchant configuration, widget signing and provider events           | Provider-specific signing and status rules                             |
+| `src/lib/onboarding/`                       | Resume-capable coordination of authentication, setup and funding     | References independent persisted component states                      |
+| `src/lib/rwa/execution/etherfuse/`          | Customer links, quote/swap intent, XDR checks and settlement         | Explicit owner consent; separate from read adapters and CCTP validator |
+| `src/lib/metrics/stellar/`                  | Account eligibility, exact snapshots, receipts and report manifests  | Reproducible read projections; no transaction authority                |
+| `packages/sdk/`                             | Public typed client, runtime validation and released examples        | No Next.js/React, private credentials or server code                   |
+
+Signed job routes, owner-scoped browser actions and provider callbacks have different authentication. Public GraphQL performs bounded reads. A scheduler delivery requires scheduler verification; an owner action requires an active owner/network session; a provider callback requires that provider's signature and tenant/reference checks. A valid callback is not authorization to spend user or sponsor funds.
+
+## Stellar stack and identity foundations
+
+| Layer                    | Integration responsibility                                                   | Important distinction                                                             |
+| ------------------------ | ---------------------------------------------------------------------------- | --------------------------------------------------------------------------------- |
+| Stellar Classic accounts | `G...` identities, sequence numbers, signers, native XLM and credit balances | A generated keypair is not yet a funded ledger account                            |
+| Classic assets           | `(network, asset code, issuer account)` for USDC and supported Stablebonds   | A ticker alone cannot identify an asset or network                                |
+| Stellar Asset Contract   | Contract interface to an underlying Classic asset                            | The same account's Classic balance and SAC view are one economic holding          |
+| Native Soroban tokens    | `(network, contract ID)`, issuer-defined decimals and balance interface      | They are not automatically Classic trustlines or SAC representations              |
+| Horizon                  | Account/trustline state, Classic transactions and operations                 | Current account endpoints do not provide arbitrary historical snapshots           |
+| Soroban RPC              | Contract state/events, simulation, submission and transaction results        | Retention, storage archival and read context must be handled explicitly           |
+| SEP-10                   | Domain/network-bound challenge signing and application sessions              | Wallet ownership is separate from email login, issuer KYC and trading eligibility |
+| CAP-33                   | Sponsorship of ledger reserves for approved accounts/trustlines              | Reserve obligations are not transaction fees or permission to control user assets |
+| CAP-15                   | Fee-bump outer envelope pays an inner transaction's fee                      | The inner source still supplies its sequence and required authorizations          |
+| Hubble                   | Historical ledger data when the required records/decoder exist               | It cannot manufacture off-chain NAV, FX history or income records                 |
+| Existing CCTP            | Verified source USDC burn, attestation and Stellar mint/forward              | USDC arrival funds a wallet; it is not a Stablebond purchase                      |
+
+Asset representations are network-specific. Testnet and Mainnet addresses, contract mappings, provider environments and signing passphrases are stored together and checked at every write/signing boundary. Never infer the network from a `G...` or `C...` string alone. Discover provider-specific identifiers from the configured catalogue rather than treating example issuer addresses as permanent constants.
+
+Source observation time, retrieval time, ledger close time, quote expiry and measurement cutoff are necessary financial/protocol data. They remain explicit throughout the model.
+
+```mermaid
+flowchart LR
+  Class["Legal product and share class"] --> Classic["Classic network plus code plus issuer"]
+  Class --> Native["Native Soroban network plus contract"]
+  Classic --> SAC["SAC view of the same Classic asset"]
+  Classic --> Claim["Canonical economic claim"]
+  SAC --> Claim
+  Native --> Other["Independently mapped contract-token claim"]
+  Claim --> Value["Exact quantity plus price and FX evidence"]
+  Other --> Value
+```
+
+## RWA domain and adapter architecture
+
+### Adapter contract and dependency direction
 
 The proposed RWA implementation remains inside this repository. Core financial types and calculations are pure modules. Adapters perform source-specific I/O. Orchestration owns scheduling and persistence; adapters never acquire a database handle or a user signing credential.
 
@@ -109,7 +160,7 @@ flowchart TB
   Route["N: signed job route"] --> Orchestrator["N: ingestion orchestration"]
   Orchestrator --> Registry["N: server-only issuer registry"]
   Registry --> Etherfuse["N: Etherfuse adapter"]
-  Registry -.-> Others["C: additional issuer adapters"]
+  Registry --> Others["N: Spiko and Ondo adapters"]
   Etherfuse --> HTTP["N: bounded issuer HTTP transport"]
   Orchestrator --> Core["N: validation identity and pure financial methods"]
   Orchestrator --> Writer["N: RWA persistence repository"]
@@ -122,25 +173,11 @@ flowchart TB
 
 The graph describes imports/calls, not an instruction for public types to perform I/O. The pure domain layer must not import Next.js, a database connection, provider credentials or browser wallet code. The SDK consumes public contracts and operations; it does not import server adapters.
 
-| Proposed location              | Responsibility                                                               | Explicit boundary                                                               |
-| ------------------------------ | ---------------------------------------------------------------------------- | ------------------------------------------------------------------------------- |
-| `src/lib/rwa/core/`            | Domain types, runtime schemas, financial methods, quality/error definitions  | Pure computations; no HTTP/database/signing                                     |
-| `src/lib/rwa/etherfuse/`       | Endpoint decoding, public catalogue and observation mapping                  | Provider-specific payloads stop at adapter output                               |
-| `src/config/rwa-server.ts`     | Explicit dynamic loaders and enabled capabilities                            | Server only; no filesystem plugin discovery or arbitrary user-provided adapters |
-| `src/lib/rwa/ingestion/`       | Due-product planning, leases, retries, checkpoints and revision coordination | Owns orchestration, not provider economics                                      |
-| `src/lib/db/repositories/rwa/` | Idempotent observation writes and bounded read queries                       | All SQL access through typed repository methods                                 |
-| `src/lib/rwa/comparison/`      | Horizon outcomes and comparability/eligibility constraints                   | Cannot authorize investment execution                                           |
-| `src/lib/rwa/portfolio/`       | Ledger-to-share mapping, claim deduplication and marks                       | Cannot infer private beneficial ownership from contract totals                  |
-| `src/app/api/yield/rwa/`       | Proposed signed job endpoint family                                          | No unauthenticated public write route                                           |
-| Existing GraphQL/UI modules    | Additive public readers and explicit quality/metric rendering                | Keep private servicing and transaction authority outside public schema          |
-| `packages/sdk/`                | Conditional independent read client and runtime validation                   | No Next.js/React dependency, issuer secrets or strategy-specific business logic |
-| `src/lib/rwa/execution/`       | Conditional issuer quote/order gateway                                       | Separate owner-checked access, provider permission and signing controls         |
-
-The canonical [TypeScript design contracts](examples/contracts.ts) define `RwaAdapter.discovery.list` and `RwaAdapter.observations.fetch`. `history`, `positions`, `eligibility` and `handoff` are optional capabilities. A provider without historical or redemption APIs is still a valid read adapter. Missing adapter capability produces an explicit error; it does not prove that the provider universally lacks that feature.
+The canonical [TypeScript design contracts](examples/contracts.ts) define `RwaAdapter.discovery.list` and `RwaAdapter.observations.fetch`. `history`, `positions`, `eligibility` and `handoff` are capability-specific methods. A missing provider method is recorded explicitly; it does not remove required application behavior. A provider without historical or redemption APIs is still a valid read adapter. Missing adapter capability produces an explicit error; it does not prove that the provider universally lacks that feature.
 
 Do not force `RwaAdapter` into `YieldAdapter.getApySpot`. Lending spot payloads require lending APY fields and enter lending-specific repair/aggregation. An RWA adapter returns observations with original metric, units, convention, source times and quality. Shared HTTP/retry/pagination helpers can be extracted where the code actually overlaps.
 
-## Asset identity and Etherfuse source mapping
+### Product and asset identity
 
 An RWA has four different identities: the legal issuer, legal product, share class and blockchain representation. The database must not collapse them into a ticker. The same share class can have multiple blockchain representations; two products can also use the same symbol without representing the same claim.
 
@@ -157,22 +194,66 @@ flowchart LR
 
 For Stellar Classic assets, identity is `(network, asset code, issuer account)`. For contract tokens, identity is `(network, contract ID)`. For EVM tokens, it is `(chain ID, contract address)`. An opaque LendWise product/share-class ID points to these typed columns; code must not parse an ID to recover economic meaning.
 
+## Issuer data integrations
+
+Etherfuse is the primary data and investment integration. Spiko and Ondo USDY extend the financial-data catalogue through the same adapter contract, storage and quality services. The Spiko and Ondo integrations are read-only; no subscription or redemption gateway is added for either issuer.
+
+### Etherfuse Stablebond source mapping
+
+CETES and USTRY are the initial Etherfuse products. TESOURO, EUROB, GILTS and KTB are enabled only when the live catalogue establishes a yield-bearing Stellar representation and usable source data. A principal token with a zero rate must not become a yield product merely because its ticker resembles a Stablebond.
+
 The captured [Etherfuse catalogue](evidence/etherfuse-products.json) includes Stellar representations for USTRY, CETES and additional sovereign products. The approved production map must be established from official provider information and checked against the intended ledger network. The captured issuer address is evidence at collection time, not an automatically trusted permanent constant.
 
-| Source surface                   | Source fields / representation                                         | Adapter output and validation                                                                                                                       |
-| -------------------------------- | ---------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Public `GET /lookup/stablebonds` | `stablebonds`, `symbol`, `bondCurrency`, `blockchains`, `calculatedAt` | Discover Stellar representations, preserve calculation time and bind each product to an approved identity                                           |
-| Per-chain catalogue entry        | `blockchain`, `tokenIdentifier`, `decimals`                            | Decode endpoint-specific `CODE-ISSUER`; validate checksum, network, seven-decimal expectation for the observed Classic assets and registry match    |
-| Public `GET /lookup/tokens/cost` | `token_cost_in_fiat`, `token_cost_in_usd`, `currency`, `current_time`  | Decimal-string issuer price observations; do not rename them official NAV without confirmed methodology                                             |
-| Indicative rate                  | `current_basis_points`                                                 | Preserve original basis-point value; divide by 10,000 for decimal units; retain `ISSUER_INDICATIVE_RATE` until compounding/day count/fees are known |
-| FX evidence                      | `fiat_exchange_rate_with_usd`, `sources[].updated_at`                  | Track currency direction and each source's timestamp; USD-to-local rates require inversion for USD-per-local calculations                           |
-| Authenticated ramp discovery     | `GET /ramp/assets?blockchain=stellar`, `identifier`                    | Conditional transaction path only; quote identifiers use `CODE:ISSUER` and require approved partner/customer access                                 |
+| Source surface                   | Source fields / representation                                              | Adapter output and validation                                                                                                                       |
+| -------------------------------- | --------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Public `GET /lookup/stablebonds` | `stablebonds`, `symbol`, `bondCurrency`, `blockchains`, `calculatedAt`      | Discover Stellar representations, preserve calculation time and bind each product to an approved identity                                           |
+| Per-chain catalogue entry        | `blockchain`, `tokenIdentifier`, `decimals`                                 | Decode endpoint-specific `CODE-ISSUER`; validate checksum, network, seven-decimal expectation for the observed Classic assets and registry match    |
+| Public `GET /lookup/tokens/cost` | `token_cost_in_fiat`, `token_cost_in_usd`, `currency`, supplied source time | Decimal-string issuer price observations; do not rename them official NAV without confirmed methodology                                             |
+| Indicative rate                  | `current_basis_points`                                                      | Preserve original basis-point value; divide by 10,000 for decimal units; retain `ISSUER_INDICATIVE_RATE` until compounding/day count/fees are known |
+| FX evidence                      | `fiat_exchange_rate_with_usd`, `sources[].updated_at`                       | Track currency direction and each source's timestamp; USD-to-local rates require inversion for USD-per-local calculations                           |
+| Authenticated ramp discovery     | `GET /ramp/assets?blockchain=stellar`, `identifier`                         | Separate investment-execution path; quote identifiers use `CODE:ISSUER` and require approved partner/customer access                                |
 
 The two public responses need not describe the exact same instant. Join them using the approved identity mapping and record each source time separately. If symbol, currency, identity or timestamp relationships fail validation, quarantine the product update; do not silently select the closest-looking response. A provider timestamp advancing does not prove an official accounting NAV was newly published.
 
 An issuer-address change is a configuration event. Collection can preserve the unexpected raw response for review, but the new identity does not automatically become eligible for comparison, portfolio matching or transaction construction. Keep old mappings effective-dated so a new issuer cannot rewrite historical holdings or returns.
 
-## Ingestion execution and scheduling
+The source decoder also preserves issuer-reported per-chain supply when provided: raw quantity, documented decimals, exact token representation, source time and basis (`issuer_reported_stellar_supply`). Global token supply, circulating supply, treasury inventory and tokens held by users are different measures. A missing per-chain figure remains unavailable; it is not inferred from a Solana mint, a global total or the portfolio of observed users. A separate ledger-derived supply measure is permitted only with a verified asset-specific method and a different basis label. Supply is not evidence of a user's investment or ownership.
+
+Source schemas and API versions are pinned in the adapter, including whether a timestamp describes the calculation, price, publication or HTTP response. If an economic timestamp required by the observation contract is unavailable, return that observation as unavailable with a reason rather than assigning retrieval time as `observedAt`. Product metadata and other valid observations can still be returned. The adapter exposes source permissions, supported fields and collection limits through its capability/configuration record.
+
+### Spiko fund and Stellar share-class mapping
+
+Use the [Spiko public financial API](https://docs.spiko.io/developers/public_api/getting_started/) for fund/share-class metadata, current NAV and available NAV history. Join the chosen legal fund and share class to the corresponding token in Spiko's [published Stellar deployment list](https://support.spiko.io/hc/nl/articles/45293663366673-Adressen-van-de-Spiko-tokens). Preserve share-class currency and identifier; a token symbol alone cannot select the right class, hedging exposure or NAV series.
+
+The adapter performs discovery, schema/decimal decoding, approved contract mapping, current observations and bounded historical pagination. Store financial as-of time separately from collection time, and apply the source's publication calendar to freshness. Backfill passes through the same immutable observation/revision repository as ongoing collection. Missing sessions or pages produce a recorded gap, not a repeated adjacent NAV.
+
+Spiko tokens use the verified Stellar contract representation and its declared decimal scale. Balance reads belong to the portfolio reader through Soroban RPC, not to a private investor API or an assumption that every token is a Classic trustline. Legal transfer/redemption conditions remain product metadata. Public NAV access is not investor permission to transact.
+
+### Ondo USDY reference price and Stellar representation
+
+Resolve the Classic Stellar USDY code/issuer from [Ondo's official address registry](https://docs.ondo.finance/addresses). Separately resolve the canonical Ethereum `USDYOracleWrapper` used as the adapter's issuer-reference-price source. An Ethereum RPC read is an off-chain Lendwise data input associated with the verified Stellar product; it neither deploys an oracle on Stellar nor produces an executable market quote.
+
+The implementation reads the documented current-price interface, decodes its specified units using exact integers/decimals and records Ethereum chain ID, wrapper address, block number/time, source method and retrieval time. Pin the ABI and verify contract identity/code at the configured network. The [USDY oracle](https://docs.ondo.finance/general-access-products/usdy/usdy-price-oracle) computes an accrued current price; a stored rate checkpoint and the time of that computation are different fields. A longstanding rate checkpoint is not by itself proof that a newly computed reference price is stale. Independently check RPC/block freshness and source validity.
+
+The current wrapper/oracle interface does not establish a historical-price query. Collect future observations, and import older records only when a compatible source and actual coverage are verified. Never extrapolate a complete 1Y series from the current price/rate. Existing Stellar price-feed support can be qualified as an additional source, but does not silently replace the reference-price method defined here.
+
+### Shared contract and failures
+
+| Concern            | Required adapter behavior                                                                                            |
+| ------------------ | -------------------------------------------------------------------------------------------------------------------- |
+| Identity           | Resolve the exact legal product/class and Stellar representation before publishing an observation                    |
+| Price meaning      | Spiko NAV and Ondo issuer reference price keep their distinct price-type labels                                      |
+| Precision          | Decode source scales without JavaScript floating-point conversion                                                    |
+| History            | Report the real available interval and incomplete pages; unsupported fields remain unavailable                       |
+| Product conditions | Preserve published currency, method, restrictions, maturity/dealing and redemption conditions with source provenance |
+| Isolation          | A failed issuer, changed payload or wrong contract quarantines that source while Etherfuse/lending continue          |
+| Validation         | Reuse common identity, decimal, revision, source-age and missing-data checks rather than implement another pipeline  |
+
+No adapter gains database or signing credentials merely because it can fetch a source. Capability-based methods describe what a source can supply; the portfolio and execution services remain separately authorized responsibilities.
+
+## Collection, persistence and historical data
+
+### Ingestion execution and scheduling
 
 Create a source-aware RWA scheduler alongside the lending pipeline. It may wake every ten minutes for Etherfuse current observations, while a daily fund adapter only expects publications according to its calendar. Polling frequency, financial publication frequency and chart resolution remain different concepts.
 
@@ -225,7 +306,7 @@ The ingestion algorithm is:
 
 These values are implementation targets to validate against provider behavior and hosting limits, not measured service guarantees. Read retries and order retries are different policies: never reuse the GET retry loop for an irreversible issuer request.
 
-## Persistence and transaction boundaries
+### Persistence and transaction boundaries
 
 Keep the existing `products`, `apy_hourly` and `apy_daily` lending tables intact. Add a separate product/share-class model and immutable RWA observations. PostgreSQL is the query and correctness boundary; raw evidence storage must not become an implicit second authority for which observation is current.
 
@@ -266,7 +347,7 @@ If large raw responses later move to object storage, there is no automatic atomi
 
 The complete column/constraint inventory is in [RWA data model](RWA_DATA_MODEL.md). The schema must be additive, indexed for current observations and bounded history reads, and reversible through disabled readers/jobs without deleting financial history.
 
-## Historical data and revisions
+### Historical data and revisions
 
 There are two different time dimensions. `observedAt` describes the economic/source time, while `availableAt` describes when the platform could know that version. `publishedAt` remains null when the provider does not supply a true publication timestamp. `collectedAt` records retrieval and must not make old financial information appear new.
 
@@ -299,7 +380,11 @@ Historical backfill is a separate bounded job using the same validators and revi
 
 Carry-forward is a valuation/read-view operation: it references the original price and labels age/origin. It must never append another source-reported price or turn missing days into a zero return series. Missing, stale, quarantined and legitimately zero values remain distinct states.
 
-## Financial computation and comparison
+The `1D`, `7D`, `1M` and `1Y` presets resolve to explicit calendar-aware `from`/`to` bounds and an availability cutoff. Responses include actual first/last observations, gaps and coverage status. A young product cannot expose a full-year return without the required records. Historical USD returns additionally need contemporaneous FX; a current FX mark can value a current holding but cannot reconstruct a past USD return.
+
+RedStone's Stellar feeds may be evaluated as an additional historical source, not assumed to provide a complete history. Before a backfill, verify the exact feed, product identity, deployment start, signed/ledger records, publication timestamps, decoder and permitted access. Hubble is usable only for those genuine recorded on-chain values. Neither infrastructure can recreate an issuer price that was never recorded. Otherwise the source-backed series starts with scheduled collection.
+
+## Financial computation and return methodologies
 
 The financial layer has two outputs: **typed source observations** and **derived investor scenarios**. Unit conversion is allowed before every economic convention is known; converting an issuer indication into effective APY is not. All derived results must identify their method version, input observations, horizon, currency and fee assumptions.
 
@@ -360,14 +445,22 @@ A checked numerical example: capital 10,000, entry fee 0.2%, exit fee 0.1%, unch
 
 The full [yield methodology](YIELD_NORMALIZATION_METHODOLOGY.md) defines cash-flow pricing, fee treatment, reinvestment, variable debt and edge cases. The architecture must preserve these semantics through SQL, GraphQL and UI rather than reducing every observation to a sortable float.
 
-## Portfolio reads and valuation
+### Value growth, paid income and coverage
+
+For an accumulating class with compatible unit prices `P0` and `P1`, observed native-currency price growth is `P1 / P0 - 1`. For a fixed number of unchanged units in a distributing class, a simple period total return is `(P1 - P0 + sum(D_i)) / P0`, where each `D_i` is an authoritative paid-income amount per unit for that same period and class. This formula is not a reinvested return; a reinvestment method must instead apply the actual reinvestment convention and prices. Validate positive denominator, dates, currency, split/rebase adjustments and income completeness before either calculation.
+
+Record cash payments, token distributions and rebasing separately when the issuer confirms the model. Token income requires the entitled unit basis, event/servicing evidence and valuation convention; a rebase requires the verified unit/index transformation so unit growth and price growth are not counted twice. Deposits, subscriptions, withdrawals, ordinary minting and transfers are capital flows, not yield. If an investor changes units during the window, use an explicitly supported cash-flow-aware method or return unavailable; do not apply the constant-unit formula to that account.
+
+Unit tests cover accumulating growth, separately paid income, reinvestment, no-income transfers, rebasing where supported, fees, FX, missing inputs and zero/negative invalid denominators. Source integration tests compare decoded decimal values and timestamps with recorded provider responses. A display can show an issuer's annualized indication alongside observed history, but cannot relabel that indication as an observed return.
+
+## Portfolio, comparison and optimizer
 
 An RWA portfolio position is a claim on a verified asset/share class with a measured quantity, control state and valuation evidence. It is distinct from the existing lending `SupplyPosition`, and from a generic unpriced wallet holding.
 
 ```mermaid
 sequenceDiagram
   participant User as User or watch-only portfolio
-  participant Loader as E plus C: portfolio loader
+  participant Loader as E plus N: portfolio loader
   participant Ledger as X: Horizon and Soroban RPC
   participant Map as N: approved asset mapping
   participant Prices as N: price and FX repository
@@ -404,68 +497,357 @@ For quantity `q`, compatible price `P` in local currency and FX `X` in investor-
 
 Preserve `UserPortfolioResult.positions`, `holdings`, `riskAccounts` and `failures` for existing callers. Expose new RWA positions through an additive/versioned result or a separate action merged by the UI. Public watch-only balance inspection and private servicing records have different authorization requirements; watching an address is not proof of ownership.
 
-## Additional RWA issuers
+### Dashboard composition and optimizer screening
 
-Etherfuse is the reference implementation of `RwaAdapter`; the other candidate issuers are evaluated against the same capability contract rather than against a separate design. Discovery and observations are the only mandatory capabilities; history, positions and eligibility stay optional per issuer. None of the five below is scheduled ahead of the Etherfuse MVP, and none changes the module boundaries, persistence model or financial-computation rules already specified above — each subsection states only what differs for that issuer and what remains unresolved. The supporting evidence for every claim below is in [sources](SOURCES.md) and the [feasibility matrix](TECHNICAL_FEASIBILITY_MATRIX.md); nothing here repeats as a new fact.
+The dashboard consumes the shared RWA read/comparison services; public GraphQL exposes the same stored observations and meanings. A product row displays the issuer, legal share class, exact network/asset, currency, rate/return type, available observation window, source age, price type, investment period or maturity where applicable, liquidity/redemption conditions and investor restrictions. Product discovery is distinct from a permission to buy.
+
+Compare Etherfuse data with existing lending markets through explicit financial categories. A source percentage is not enough to place a product into the existing finite-APY sorter. Resolve compatible currency, period, metric, compounding/fee conventions and freshness first. Historical price return, indicative issuer rate and current variable lending APY remain labeled even when shown side by side. Missing FX/history or unknown eligibility produces an explanation, not an apparently precise rank.
 
 ```mermaid
 flowchart LR
-  Contract["RwaAdapter contract\ndiscovery + observations mandatory\nhistory / positions / eligibility optional"]
-  Contract --> Spiko["Spiko\nSoroban contract-token balances\n+ documented NAV/yield history"]
-  Contract --> Ondo["Ondo\ndiscovery only\nno confirmed price/history feed"]
-  Contract --> Franklin["Franklin Templeton\ndiscovery only\nno confirmed machine-readable history"]
-  Contract --> Wisdom["WisdomTree\nno specific Stellar product identified"]
-  Contract --> Centrifuge["Centrifuge\nannouncement only\nno verified contract deployment"]
-  Spiko --> SpikoFallback["Fallback C: public data only;\neligibility unknown pending OAuth/distributor access"]
-  Ondo --> OndoFallback["Fallback C: metadata-only entry;\nexcluded from yield ranking"]
-  Franklin --> FranklinFallback["Fallback C: public metadata and verified\nbalance only; no private servicing data"]
-  Wisdom --> WisdomFallback["Fallback C: excluded from catalogue"]
-  Centrifuge --> CentrifugeFallback["Fallback C: excluded from catalogue"]
+  Inputs["RWA observations and existing lending data"] --> Identity["Verify subject, currency, source and freshness"]
+  Identity --> Financial["Check return method and horizon compatibility"]
+  Financial --> Access["Apply eligibility, liquidity and investment-period constraints"]
+  Access --> Decision{Comparable with available evidence?}
+  Decision -->|yes| Candidates["Informational ranked candidates with assumptions"]
+  Decision -->|no| Explain["Explicit exclusion or not-comparable reasons"]
+  Candidates --> UI["Existing optimizer UI plus RWA screening results"]
+  Explain --> UI
 ```
 
-| Issuer             | Stellar status (evidence)                                                          | Confirmed `RwaAdapter` capability scope                      | Primary unresolved item                                                                    | Fallback until resolved                                    |
-| ------------------ | ---------------------------------------------------------------------------------- | ------------------------------------------------------------ | ------------------------------------------------------------------------------------------ | ---------------------------------------------------------- |
-| Spiko              | Soroban contract-token products live; public NAV/yield history documented (S1, S2) | `discovery`, `observations`, `history`                       | Exact share-class/address mapping, history pagination/revision behavior, initial 403 (Q19) | Public data only; eligibility unknown                      |
-| Ondo               | USDY officially live on Stellar (O1), bearer note not a fund share                 | `discovery` only                                             | No confirmed machine-readable price/history feed (Q20)                                     | Metadata-only catalogue entry; excluded from yield ranking |
-| Franklin Templeton | Benji issuer published on Stellar (F1, F2)                                         | `discovery` only, pending a licensed/reusable history source | Licensed or public NAV/history source; which specific Benji share product (Q20)            | Public metadata plus verified on-chain balance only        |
-| WisdomTree         | Prime markets Stellar; Connect's published chain list is EVM-only (W1)             | None — no specific product or API identified                 | Which Prime fund, if any, has a Stellar representation and accessible API (Q21)            | Excluded from catalogue                                    |
-| Centrifuge         | deJTRSY/deJAAA announced for Stellar (C1)                                          | None — no verified deployment evidence                       | Deployed Stellar contract IDs, audit status, NAV/accounting interface (Q22)                | Excluded from catalogue                                    |
+Implement this as a new local comparison/screening layer around the existing optimizer inputs and UI. The current [optimizer client](../../src/lib/api/optimizer.ts) and [proxy](../../src/app/api/optimizer/route.ts) call an external solver whose RWA constraint support is not established here. Do not send new financial types into that API by pretending they are ordinary lending APYs. The screening layer applies currency, eligibility, investment-period and liquidity constraints locally and return accepted/excluded candidates with reasons. A new automated allocator or trade executor is not required.
 
-### Spiko
+The screening request contains base currency, intended investment period, relevant liquidity deadline, supported product set and any authorized eligibility evidence. Unknown eligibility cannot become `eligible=true`. Unknown maturity, redemption timing, price quality or FX must be explicit, and any affected comparison is restricted accordingly. Published product restrictions are public metadata; user-specific approval remains private and is rechecked by the investment gateway.
 
-Spiko publishes official Stellar contract-token addresses for multiple share products and a public financial API that documents NAV history and yields (S1, S2). Among the five, Spiko is the strongest additional-history candidate specifically because it has a documented historical endpoint, unlike Etherfuse's currently unresolved archive. Private investor or distributor access is separately gated behind OAuth or manual distributor approval (S3); the captured catalogue fetch itself returned an HTTP 403 before a differently configured request succeeded (`evidence/spiko-funds.json`), so public-read reliability is not established from one successful retry.
+Existing multichain holdings and lending positions remain available if an issuer source fails. RWA projections are merged additively rather than changing all existing consumers of `UserPortfolioResult`. Watch-only address inspection is useful for display but does not grant signing or metric enrollment. The exact, reproducible Stellar outcome projection is separate from the current UI's floating-point totals.
 
-Spiko's Stellar representation is a Soroban contract token rather than a Classic trustline, so its adapter reuses the contract-balance validation path from [portfolio reads](#portfolio-reads-and-valuation) rather than the Classic/SAC deduplication path, and its history ingestion would be issuer-API-native rather than reconstructed from on-chain state. Required adapter work is limited to the contract-token balance interface, share-class mapping and the issuer's own NAV calendar; it reuses the same bounded HTTP transport and orchestrator described in [module contracts](#module-contracts-and-dependency-direction). Unresolved per Q19: exact share-class/address mapping, history pagination and revision behavior, redistribution limits, and the cause of the initial 403. Fallback: public data only, with contract holdings marked eligibility-unknown until investor or distributor access is confirmed.
+## Wallet identity and authentication
 
-### Ondo
+This integration has three cooperating parts: Privy identifies an application user and supplies a Stellar wallet signer; existing SEP-10 establishes control of that wallet for a Lendwise session; the new sponsor service authorizes bounded reserve/fee expenditure. None of those steps replaces issuer eligibility checks.
 
-Ondo's USDY is officially live on Stellar (O1), restricted to eligible non-US investors, and explicitly described by Ondo itself as a bearer note rather than a stablecoin or a fund share — it does not carry a lending-style APY or a fund NAV in the sense the [yield methodology](YIELD_NORMALIZATION_METHODOLOGY.md) defines for other subjects. The announcement confirms the asset's existence on Stellar; it does not confirm a machine-readable price or history feed, and this review found none.
+### Privy identity and Stellar signer
 
-This is a materially thinner adapter than Etherfuse's: discovery can pin the official Stellar issuer identity, but observations have no confirmed source until a real price or NAV feed is identified, so `history` and `observations.fetch` stay unimplemented rather than guessed. No address is invented to fill that gap. Unresolved per Q20: the full official Stellar identifiers, a token-price/history API if one exists, and primary redemption entitlement. Fallback: a metadata-only catalogue entry, excluded from yield ranking until a real price feed is confirmed.
+The browser integration enables the configured Privy email-login method and creates or retrieves the user's native Stellar wallet. The server validates the Privy token's signature, issuer/application audience, expiry and user identity before associating a provider user/wallet ID with a Lendwise owner record. A browser-supplied wallet ID is not sufficient evidence that the user owns it. The stored association includes provider application, user ID, wallet ID, public address and network context, with no private key.
 
-### Franklin Templeton
+The Privy adapter implements Lendwise's Stellar signer boundary: obtain the verified address, sign the validated SEP-10 challenge, and sign the supported transaction envelope while preserving existing signatures. Exact provider method names and supported serialization are pinned to the installed SDK. [Privy documents Stellar transaction signing](https://docs.privy.io/wallets/overview/chains) and the [Tier 2 construction/sign/broadcast pattern](https://docs.privy.io/recipes/tier-2-wallet-integration); Lendwise still constructs or validates transactions, broadcasts them and reconciles results. Do not reuse EVM wallet abstractions as though they encode Stellar network or signing rules.
 
-Franklin Templeton publishes a Stellar issuer for its Benji family (F1), covering several distinct share products rather than one fund. Public disclosures include fund-level yield conventions such as a seven-day current yield (F2) — a money-market-fund convention that is not an APY and is not directly comparable to a lending rate without the same horizon and compounding treatment every other subject already requires in [financial computation](#financial-computation-and-comparison).
+Signing a Classic transaction, a sequence-zero SEP-10 challenge and a Soroban transaction are distinct cases. Required flows are qualified with the actual tenant/SDK: challenge signing, multi-source sponsored setup, fee-bump inner envelopes, supported CCTP mint transactions and the selected Etherfuse payload. Soroban address-authorization entries require separate qualification only when a supported flow actually uses them. Public Spiko balance reads do not require the user to sign a contract authorization.
 
-The practical difference from Etherfuse is the ingestion shape: Franklin's yield figures come from regulated fund disclosures, not a public REST endpoint with machine-readable rate fields, so an adapter would most likely parse published disclosure documents rather than poll a JSON API. Required work is an exact asset-code/issuer mapping per Benji share product, a licensed or publicly reusable NAV/history source, and corporate-action handling for distributions. Unresolved per Q20 (shared row): whether a licensed financial-history or private servicing API exists for third-party consumption, and which specific Benji product would be in scope. Fallback: public metadata plus a verified on-chain balance only, with no private servicing data and no assumed redemption right.
+### SEP-10 bootstrap, sessions and recovery
 
-### WisdomTree
+Reuse the existing [challenge route](../../src/app/api/auth/stellar/challenge/route.ts), [verify route](../../src/app/api/auth/stellar/verify/route.ts), [SEP-10 implementation](../../src/lib/auth/stellar-sep10.ts) and [session guard](../../src/lib/auth/session-guard.ts). The flow is:
 
-WisdomTree Prime advertises Stellar support, but WisdomTree Connect's own published chain list is EVM-only — Arbitrum, Avalanche, Base, Ethereum and Optimism (W1). This review could not resolve that contradiction between the platform's marketing surface and its documented chain support, and found no specific yield-bearing fund named as having a Stellar representation.
+1. Create/retrieve the Privy wallet and bind its verified public address to the authenticated provider user.
+2. Request a server-signed, short-lived SEP-10 challenge for the exact address, application domain and network.
+3. Validate the challenge purpose, server signature, expected operations and time bounds before the wallet signs it. Its sequence-zero envelope is for authentication and is never broadcast as a payment.
+4. Verify the signed challenge against the wallet's actual signers. The existing verifier supports a not-yet-funded account by requiring server and wallet signatures; an existing account uses its signer weights and threshold.
+5. Atomically consume the stored challenge using the existing one-time challenge store and create a revocable Lendwise session.
+6. Recheck session expiry, revocation, owner address and network on each sponsorship, funding and investment action.
 
-WisdomTree is the least-resolved issuer in this set, less resolved even than Centrifuge: Centrifuge's announcement at least names specific vault identifiers, while no public WisdomTree document this review found names a specific Stellar-side product. No adapter work can be scoped until WisdomTree identifies a specific fund, its Stellar representation and a third-party-reachable interface. Unresolved per Q21: which Prime yield-bearing fund, if any, has a Stellar representation and an accessible API. Fallback: excluded entirely from the catalogue; Prime's general Stellar marketing claim is not treated as evidence of a specific yield-fund integration.
+Email login alone cannot authorize a Stellar action. Re-login must resolve the same linked wallet instead of accidentally provisioning another account. Sign-out invalidates the Lendwise session; it does not claim to destroy the user's wallet or revoke signatures already submitted. Account recovery follows the configured provider ownership model and is followed by fresh wallet-control authentication. Existing Wallets Kit users continue through the same owner/session guards.
 
-### Centrifuge
+```mermaid
+sequenceDiagram
+  actor User
+  participant Web as Lendwise client
+  participant Privy as Privy identity and wallet
+  participant Auth as Existing SEP-10 and sessions
+  participant Sponsor as New sponsor service
+  participant Ledger as Stellar ledger
+  User->>Web: Sign in by email
+  Web->>Privy: Authenticate and create or retrieve Stellar wallet
+  Privy-->>Web: Verified user and wallet address
+  Web->>Auth: Request domain and network bound challenge
+  Auth-->>Web: Server-signed SEP-10 envelope
+  Web->>Privy: User approves challenge signing
+  Privy-->>Web: Signed challenge
+  Web->>Auth: Verify and consume nonce
+  Auth-->>Web: Owner-bound application session
+  Web->>Sponsor: Request supported account and trustline setup
+  Sponsor->>Sponsor: Check owner, policy, budgets and sequence lease
+  Sponsor-->>Web: Bounded inner transaction for review
+  Web->>Privy: User approves required operations
+  Privy-->>Sponsor: User-signed unchanged inner envelope
+  Sponsor->>Sponsor: Verify, add required sponsor signature and fee bump
+  Sponsor->>Ledger: Submit stored signed envelope
+  Ledger-->>Sponsor: Confirm transaction and sponsorship entries
+  Sponsor-->>Web: Account ready with ledger evidence
+```
 
-Centrifuge announced deJTRSY and deJAAA on Stellar with a stated allocation (C1). An announcement is marketing material, not deployment evidence: this review did not obtain official contract IDs, an audit reference, or a documented NAV/accounting interface for either vault on Stellar.
+## Reserve and fee sponsorship
 
-Centrifuge's instruments are tokenized credit and debt vaults — JAAA, for example, tracks a CLO-type structure — a different risk class from Etherfuse's sovereign-bond-backed Stablebonds. A shared `RwaAdapter` contract must not imply comparable risk between issuers merely because both are labeled RWA; the [data model](RWA_DATA_MODEL.md)'s separation of legal issuer, product and share class exists partly for this reason. No adapter work can be scoped until deployed Stellar contract identifiers are published and independently verified. Unresolved per Q22: whether deJTRSY/deJAAA are actually deployed on Stellar yet, and if so their contract IDs, audit status and NAV/accounting interface. Fallback: excluded from the catalogue; announcement-only status is not treated as deployed and supported.
+### Reserve sponsorship and operation sources
 
-### Sequencing
+The sponsor is a funded account controlled by Lendwise's restricted signing service. A newly generated account cannot be the transaction source before it exists. Use an existing sponsor or authorized channel account as the inner transaction source, and serialize that source's sequence allocation. The sponsored setup is one atomic transaction:
 
-Per [ADR-09](#adr-09--etherfuse-first-delivery-scope) and the [implementation roadmap](IMPLEMENTATION_ROADMAP.md), Spiko is the designated first candidate for a second adapter, specifically because it is the only one of the five with a documented public historical API. The other four remain later-phase work pending the partner confirmations tracked in [open questions](OPEN_QUESTIONS.md) (Q19–Q22). None of the five blocks the Etherfuse-only MVP described in [implementation sequence](#implementation-sequence-and-release-gates).
+```text
+inner transaction source = existing sponsor/channel account
+  BeginSponsoringFutureReserves(source = sponsor, sponsoredId = new wallet)
+  CreateAccount(source = funded account, destination = new wallet,
+                startingBalance = 0 when fully sponsored and permitted)
+  ChangeTrust(source = new wallet, asset = approved code/issuer, limit = approved limit)
+  EndSponsoringFutureReserves(source = new wallet)
+required signatures = inner source + sponsor/funding sources + new wallet
+```
 
-## GraphQL and SDK distribution
+This is an operation plan, not a complete SDK example. Apply [CAP-33](https://github.com/stellar/stellar-protocol/blob/master/core/cap-0033.md) authorization and ledger rules to the actual envelope. Already-funded accounts use an appropriate supported trustline-sponsorship flow rather than a duplicate CreateAccount. Native XLM has no trustline. Adding a trustline does not authorize a regulated asset when its issuer requires approval.
+
+Keep current network reserve parameters separate from product configuration. For ordinary Classic reserve accounting, use `(2 + subentry_count + num_sponsoring - num_sponsored) × baseReserve`, together with the account's actual balance, liabilities and required fee headroom. Read network/account state instead of hardcoding a reserve price as a permanent rule. Contract storage/resource requirements are assessed separately for Soroban transactions.
+
+### Fee bumps, policy and concurrency
+
+A [fee bump](https://developers.stellar.org/docs/build/guides/transactions/fee-bump-transactions) wraps the already signed inner transaction with a fee-paying account's signature. It pays inclusion fees; it does not sponsor ledger reserves, add operation authority or require a separate sequence for the outer fee source. Validate the inner operation list and maximum fee before signing either layer. Store both inner and outer hashes because providers and ledger lookups may refer to different envelopes.
+
+| New sponsor record | Persisted correctness requirement                                                                          |
+| ------------------ | ---------------------------------------------------------------------------------------------------------- |
+| Policy             | Allowed networks/assets/operations, reserve and fee ceilings, per-owner limits and pause state             |
+| Intent             | Owner, request/idempotency key, exact operations/body hash, approved exposure and expiry                   |
+| Budget reservation | Pending reserve exposure and maximum fee commitment, acquired atomically before signing                    |
+| Sequence lease     | Inner source, allocated sequence, owner token and expiry; prevents concurrent envelopes reusing a sequence |
+| Submission         | Signed inner/outer hashes, submission state and ledger result; sensitive bytes access-controlled           |
+| Reserve obligation | Sponsored account/entry, actual reserve units and sponsor, updated from confirmed ledger state             |
+
+User-supplied XDR is not an unrestricted signing request. The service rejects extra transfers, unexpected signers, unauthorized SetOptions/AccountMerge operations, wrong network/asset and excessive fees. The user's private key stays with the configured wallet provider, and sponsor signing authority never becomes authority over user holdings.
+
+On a submission timeout, retain the pending budget reservation and query the stored hashes and resulting account state. Do not assume failure and issue a fresh signed setup: the first transaction may already have landed. Reconcile actual fees, including fees on failed transactions, separately from reserve obligations. Release reservations only after a resolved outcome. A pause prevents new sponsorship; it does not cancel confirmed obligations. Removal requires the resulting reserve payer to meet its minimum balance and the necessary authorization, and must not strand an under-reserved user account.
+
+Lease expiry alone never releases a sequence already assigned to a signed or in-flight transaction. A worker rechecks its fencing token before signing or submitting; a replacement worker resolves stored hashes, envelope expiry and confirmed source-account sequence before any reuse. An expired worker cannot submit newly signed work under an old lease. Persist the sequence reservation separately from the worker lease so a stalled worker cannot race its replacement into issuing conflicting transactions.
+
+Sponsorship capital and fees must be funded independently of engineering estimates. The user-facing promise is bounded to approved, funded actions. Privy integration alone neither provides XLM nor guarantees that Etherfuse accepts a fee-bumped transaction.
+
+## Funding connectors
+
+### Mercuryo card on-ramp
+
+Mercuryo converts a permitted card/fiat payment into the merchant-enabled Stellar asset sent to the connected wallet. Lendwise integrates the widget and tracks the funding intent; Mercuryo controls checkout, payment checks and its own customer verification. Lendwise verifies the resulting Stellar receipt before marking funds available. This connector does not implement fiat withdrawals or Stablebond purchases.
+
+#### Merchant configuration and server interfaces
+
+Keep production and sandbox widget IDs, API origins, approved domains, credentials and callback keys in separate server configuration. Public widget parameters may reach the browser; widget secrets and callback Sign Keys may not. A proposed `src/lib/funding/mercuryo/` service owns these responsibilities:
+
+| Service operation         | Input                                                               | Required result                                                                     |
+| ------------------------- | ------------------------------------------------------------------- | ----------------------------------------------------------------------------------- |
+| Resolve available route   | Server-recognized country, asset and network                        | Merchant-enabled Stellar route and current limits, or a specific unavailable reason |
+| Check receiving readiness | Session-bound Stellar address, selected asset                       | Existing account, exact USDC trustline/authorization/capacity where applicable      |
+| Create funding intent     | Owner, route, requested amount and request key                      | Stored local intent and unique merchant transaction reference                       |
+| Generate widget URL       | Stored intent, server-derived address and trusted client-IP context | Versioned provider-signed URL bound to the intended destination                     |
+| Accept callback           | Provider header and untouched body bytes                            | Authenticated durable event, scoped to configured merchant and known intent         |
+| Reconcile status/receipt  | Merchant/provider references and Stellar evidence                   | Independent provider status and confirmed destination-receipt status                |
+
+Use Mercuryo's [on-ramp availability interfaces](https://widget.docs.mercuryo.io/guide/flows/on-ramp) to inspect currency/network options, country restrictions and transaction limits. A generic `USDC` option is insufficient: select its Stellar network representation. The configured endpoint must return the enabled asset/network combination; checkout restrictions remain provider decisions. XLM requires an existing receiving account but no credit trustline. USDC requires the network-specific Circle issuer, sufficient receiving capacity and required authorization. A missing account/trustline triggers the qualified setup flow or a clear correction step before payment starts.
+
+Persist the local intent before opening checkout so that fast callbacks can be correlated. Bind owner/address/asset/environment to that record, not to editable query parameters returned by the browser. An example widget request uses `widget_id`, `type=buy`, `address`, `merchant_transaction_id`, the merchant's exact currency/network selection and the configured signature. Lock supported selections where the provider allows it, and revalidate the actual returned asset/network regardless of UI locks.
+
+#### Widget URL signing and notification verification
+
+The [provider signature guide](https://widget.docs.mercuryo.io/guide/integration/security) distinguishes URL protection from callback verification. In its v2 URL scheme, Lendwise signs the configured address, widget secret, trusted client IP and merchant transaction ID in the required order, using SHA-512 with the `v2:` prefix. Generate this on the backend; take client IP only from trusted hosting/proxy metadata. An IP change requires the provider-supported recovery or configured signature version, not disabling validation. Pin the selected signature version and use its official fixtures; do not copy an older address-only formula into a newer configuration.
+
+For callbacks, verify `X-Signature` using HMAC-SHA256 over the **complete raw body bytes** with the widget Sign Key, then compare in constant time. Do not parse and reserialize the body before authentication. Bound request size and reject malformed/signature-invalid requests. After verification, validate the payload schema, merchant context and local reference; store a safe event hash and provider status before acknowledging durable receipt. Callback processing has no user session and cannot bypass the owner binding established by the intent.
+
+Repeated callback deliveries are expected. Deduplicate by a documented provider event identifier, or a scoped deterministic event fingerprint when no event ID exists, while retaining delivery attempts separately. Apply state transitions transactionally; delayed `pending` events cannot undo a confirmed receipt. A browser redirect or checkout completion message is a navigation signal, not settlement evidence.
+
+#### Provider status and ledger status
+
+```mermaid
+sequenceDiagram
+  actor User
+  participant App as Lendwise application
+  participant DB as Funding intent and event store
+  participant Widget as Mercuryo checkout
+  participant Callback as Provider-specific callback handler
+  participant Chain as Stellar receipt reader
+  User->>App: Select supported card funding route
+  App->>App: Verify owner, account and exact asset readiness
+  App->>DB: Persist intent and merchant reference
+  App-->>User: Signed widget URL
+  User->>Widget: Complete provider payment and verification
+  Widget->>Callback: Signed status notification
+  Callback->>Callback: Verify raw bytes and merchant context
+  Callback->>DB: Deduplicate and persist provider event
+  Callback->>Chain: Resolve destination transaction and receiving operations
+  Chain-->>Callback: Network, success, asset, recipient and credited amount
+  Callback->>DB: Persist reconciled receipt or unresolved state
+  App->>DB: Resume authenticated funding status
+  App-->>User: Pending, action required, failed or verified funded state
+```
+
+Store `providerStatus` separately from a local `receiptStatus` such as `not_seen`, `pending`, `verified` or `mismatch`. Those local labels are application design, not invented Mercuryo status values. A provider-success event with no verifiable destination receipt remains reconciliation-pending. Use the [documented merchant transaction query](https://widget.docs.mercuryo.io/guide/flows/on-ramp) to recover missed status updates where supported; poll with bounded backoff. Provider payment/refund status does not establish an automatic Lendwise refund policy.
+
+#### Qualification and production boundary
+
+The published [widget sandbox](https://widget.docs.mercuryo.io/guide/getting-started/sandbox) documents BTC Testnet and Ethereum Sepolia. Qualification proves the provider-supported sandbox checkout/status flow and independently tests Stellar account, asset and trustline handling with labeled staging fixtures. It does not claim a Stellar token was delivered by that sandbox.
+
+Qualification records the actual merchant-enabled Stellar assets/countries and production setup. Production onboarding demonstrates the permitted live Stellar receipt. Sandbox state, keys and test tokens never enter production balances or outcome reports. The fiat off-ramp remains outside the submitted scope; neither a successful on-ramp nor a generic sell widget proves support for the selected Stellar asset and jurisdiction.
+
+### CCTP funding and receipt verification
+
+CCTP moves native USDC from a configured EVM source to Stellar through the existing burn/attestation/mint flow. Reuse [service.ts](../../src/lib/execution/cctp/service.ts), [message checks](../../src/lib/execution/cctp/message.ts), [mint validation](../../src/lib/execution/cctp/mint.ts), [trustline helpers](../../src/lib/execution/cctp/trustline.ts) and [transfer persistence](../../src/lib/db/repositories/bridge-transfers.ts). Source-chain configuration remains in [config.ts](../../src/lib/execution/cctp/config.ts); configured routes are not evidence that every route has been exercised.
+
+```mermaid
+sequenceDiagram
+  actor User
+  participant Bridge as Existing CCTP service
+  participant EVM as Source native USDC and TokenMessenger
+  participant Iris as Circle attestation
+  participant Stellar as Stellar forwarder and ledger
+  participant Receipt as New exact funding projection
+  User->>Bridge: Owner-bound route and Stellar recipient
+  Bridge->>Bridge: Check account, USDC trustline and route
+  User->>EVM: Approve and burn supported source USDC
+  Bridge->>EVM: Validate burn receipt, depositor, amount and hook
+  Bridge->>Iris: Obtain attestation for verified source message
+  Iris-->>Bridge: Message, attestation, nonce and executed fee
+  Bridge->>Bridge: Validate destination domain and exact recipient context
+  Bridge-->>User: Validated and simulated Stellar mint payload
+  User->>Stellar: Authorize mint and forwarding transaction
+  Stellar-->>Bridge: Transaction result and destination events
+  Bridge->>Receipt: Provide transfer and ledger evidence
+  Receipt->>Receipt: Reconcile asset, recipient and credited amount
+  Receipt-->>User: Confirmed funding with investment still separate
+```
+
+Keep the existing verified-message and `mint_and_forward` restrictions. The CCTP mint validator accepts the expected forwarder invocation and exact message/attestation; it is not a validator for arbitrary issuer transactions. On the inspected path, source USDC units have six decimals and Stellar units have seven, so the expected destination atomic amount is `(source_atomic_amount - executed_source_fee) × 10`. Verify the actual route's units and received amount, and report EVM gas, Circle fee and Stellar fees separately.
+
+The existing completion status is not sufficient for new financial projections. `settleMint` can record completion with no extracted amount and can retain a mismatch warning; already-consumed-message recovery can also lack a receipt amount. The new receipt projection requires independently resolved destination success, exact Circle-USDC identity, owner/recipient and net credited amount. An unresolved amount remains pending reconciliation for funding attribution and metric inclusion.
+
+Recovery queries known transaction hashes and message nonce state before resubmitting. Reusing identical signed bytes and constructing a new transaction are different actions. A consumed nonce prevents another protocol mint but does not by itself supply quantity evidence. Stale sequences/resource data require the supported rebuild and new authorization; expired-message handling follows the bridge's supported recovery/escalation path rather than an invented automatic refund.
+
+## Onboarding orchestration
+
+The onboarding coordinator composes the existing authentication/CCTP code with the new Privy signer, sponsor service and Mercuryo connector described above. It calls those components rather than duplicating their implementation. The coordinator owns user guidance, resumable progress and cross-component reconciliation. Privy sign-in, sponsorship, provider payment, USDC funding and Stablebond investment each have separate evidence and status.
+
+### Journey state and production readiness
+
+Persist a private journey keyed by owner and network with linked wallet, setup intent, sponsorship submission, funding intent/bridge reference and reconciled receipts. Its derived stages are `wallet_authenticated`, `setup_pending`, `account_ready`, `funding_pending`, `funded` or `action_required`. These are application states, not provider status names. Recompute progress from authoritative component records after a page reload; never trust a browser's last displayed step.
+
+```mermaid
+flowchart LR
+  Auth["Authenticated Privy or existing wallet"] --> Setup["Reserve and required trustline setup"]
+  Setup --> Ready["Confirmed account readiness"]
+  Ready --> Method{Funding route}
+  Method --> Mercuryo["Merchant-enabled card purchase"]
+  Method --> Bridge["Existing CCTP source burn and Stellar mint"]
+  Mercuryo --> Verify["Verify exact destination receipt"]
+  Bridge --> Verify
+  Verify --> Balance["Refresh confirmed and spendable wallet balance"]
+  Balance --> Purchase["Separate Etherfuse purchase intent"]
+```
+
+Enable production credentials only in the intended deployment. Confirm the Stellar asset/network, merchant countries and account/trustline authorization, and fund the controlled sponsor's reserve/fee budget. Both production funding routes must demonstrate their own permitted Mainnet receipt; an existing bridge result or sandbox widget alone cannot satisfy the complete onboarding integration.
+
+The displayed balance reconciles with the wallet's confirmed Stellar state, not merely the sum of receipts: users may already hold assets or transact elsewhere. Pending or failed payments cannot create credited funds. A receipt already consumed by one projection cannot be credited again after a callback retry or page refresh. Before investment, re-read spendable USDC, trustline capacity, account authorization and required XLM/fee readiness instead of relying on an earlier funding screen.
+
+### Account enrollment and user-visible failures
+
+Confirmed onboarding creates an eligibility-candidate record with the authenticated owner link, account/network, setup/sponsorship transaction references and effective ledger/time. It does not automatically enroll every connected or sponsor-associated account in an outcome metric. The outcome service applies the agreed cohort policy and preserves its evidence.
+
+Payment rejection, geographic restriction, lost session, delayed funding and missing receipt are distinguishable UI states. The coordinator can resume after re-authentication and references stored provider/bridge intents, without repeating an irreversible payment. Losing a funding session does not delete an already-confirmed balance or authorize another purchase.
+
+## Etherfuse investment execution
+
+This is the committed application-side gateway for one approved Stellar USDC-to-Stablebond route. It is separate from the Etherfuse read adapter, Mercuryo card funding and CCTP minting. The investor must be permitted by Etherfuse for the specific product, wallet and jurisdiction; the displayed issuer price or a valid SEP-10 session does not establish that permission. Additional issuer trading and redemptions are outside this purchase route.
+
+### Customer, wallet and quote context
+
+Maintain a private mapping from authenticated Lendwise owner/network/wallet to the appropriate Etherfuse customer and registered wallet references. Follow the approved customer verification and wallet-registration flow; retain provider approvals and terms state with a refresh policy. Do not claim a user's wallet is organization-owned merely to inherit the integrator's KYB approval. Expired/revoked approval or changed route terms block a new purchase and require the provider's permitted action.
+
+Pin the provider API contract and environment. The following describes the documented [Stellar swap flow](https://docs.etherfuse.com/guides/testing-swaps); its `/ramp/...` interfaces must not be mixed with another API generation's customer, authorization or status contract.
+
+| Provider interface                         | Lendwise responsibility                                                                                                                               |
+| ------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `GET /ramp/assets?blockchain=stellar`      | Resolve the exact permitted source/target identifiers for this environment; enforce approved mappings                                                 |
+| `POST /ramp/quote`                         | Bind a generated quote ID, permitted customer, `blockchain=stellar`, swap type, exact source/target assets, source amount and wallet context          |
+| `POST /ramp/swap`                          | Submit the persisted swap ID as `orderId`, accepted quote ID, intended wallet `publicKey` and blockchain; do not interpret empty HTTP 200 as delivery |
+| Authenticated `swap_updated` event         | Receive the signing payload and provider state under the known swap/customer context                                                                  |
+| `POST /ramp/swap/{order_id}/regenerate_tx` | Request a fresh provider transaction after supported expiry recovery; receive it through a new event                                                  |
+
+Use decimal/atomic bounds to validate source amount, net target amount, exchange rate, fees, maximum slippage or other actual quote bounds, customer/wallet, asset pair and expiry. Preserve the exact provider quote and schema version used for consent. If the provider contract does not supply a needed execution bound, resolve that gap during route qualification rather than invent a value from the public issuer mark.
+
+Before quoting/submitting, check confirmed spendable USDC, exact receiving trustline, receiving capacity, account/asset authorization and required XLM/fee headroom. A Privy wallet is a third-party wallet to Etherfuse, not an Etherfuse-managed embedded wallet. CAP-33 sponsorship does not imply that the provider's wallet-readiness logic accepts a zero-XLM account or that its payload can be fee-bumped. Qualify those cases; where necessary prepare the required XLM and supported trustlines through the approved setup/funding route before purchase.
+
+### Persisted swap intent and asynchronous lifecycle
+
+Store the local purchase intent **before** any side-effecting provider request. It includes owner, network, wallet, product/share class, USDC-out/Stablebond-in identity, amount limits, fees, customer reference, quote ID/expiry, swap ID, provider version, consent and request/body hashes. Stable identifiers correlate an early callback even if it arrives before the HTTP response.
+
+The [swap endpoint](https://docs.etherfuse.com/api-reference/swaps/swap-assets) acknowledges asynchronously. Its signing payload arrives in `swap_updated`; after the send leg it supplies transaction references such as `sendTransactionHash` and `receiveTransactionHash`. The provider statuses and Lendwise's financial reconciliation are stored separately.
+
+```mermaid
+sequenceDiagram
+  actor User
+  participant App as Lendwise purchase service
+  participant DB as Private swap intent and event store
+  participant Provider as Etherfuse swap API
+  participant Wallet as Privy or existing wallet signer
+  participant Ledger as Stellar transaction and receipt reader
+  User->>App: Select permitted product and USDC amount
+  App->>App: Verify owner, eligibility, assets and wallet readiness
+  App->>Provider: Obtain exact expiring swap quote
+  Provider-->>App: Quote, fees, bounds and identifiers
+  App-->>User: Show quote and require explicit consent
+  App->>DB: Persist consent, quote and swap intent before submission
+  App->>Provider: Submit known swap ID and quote
+  Provider-->>App: Empty accepted response
+  Provider->>App: Authenticated swap_updated with sendTransaction
+  App->>DB: Persist verified event and original signing payload
+  App->>App: Validate provider-signed body against stored intent
+  App-->>Wallet: Present unchanged payload for user authorization
+  Wallet-->>App: Add user signature while retaining provider signatures
+  App->>DB: Store authorized transaction hashes and submission intent
+  App->>Ledger: Submit through supported transport
+  Provider->>App: Authenticated progress and receiving reference
+  App->>Ledger: Independently verify successful receiving asset and amount
+  Ledger-->>App: Network, recipient, exact asset, net amount and operation/event
+  App->>DB: Mark reconciled purchase or unresolved mismatch
+  App-->>User: Refresh actual portfolio holding and order state
+```
+
+### Transaction validation and signatures
+
+The documented route returns an Etherfuse-partially-signed `sendTransaction`. **Use the provider-built envelope; do not construct a local replacement or edit its transaction body.** Changing operations, source, fee or time bounds would invalidate existing signatures. Validate the body against the stored intent, preserve all required provider signatures, and add only the user's required authorization through the qualified wallet interface.
+
+Checks include network passphrase, source accounts, sequence/preconditions, asset pair, amount bounds, fee/expiry, memo, allowed operation types and destinations. The outgoing payment/burn destination may be an approved provider account, while the receiving Stablebond destination is the user; validate each leg against its own stored expectation. Reject unexpected SetOptions, AccountMerge, new signers, unrelated transfers or unapproved contract calls. For an actual Soroban payload, also validate contract/function/arguments, simulation/resource data and required authorizations. The CCTP forwarder validator cannot perform this issuer-specific job.
+
+If fee-bump support is qualified for this provider route, wrap the unchanged signed inner envelope under the sponsor policy; retain inner and outer hashes and map provider references to the correct envelope. Do not promise sponsorship by modifying a provider-signed inner fee. A changed/expired payload requires a fresh provider envelope and renewed user approval where its terms change.
+
+### Etherfuse callback authentication
+
+Use the [Etherfuse-specific verification contract](https://docs.etherfuse.com/guides/verifying-webhooks): parse a bounded valid JSON payload, canonicalize it using RFC 8785 JCS, decode the subscription's base64 secret, compute HMAC-SHA256 and compare the expected `sha256={hex}` header in constant time. Reject malformed or ambiguously parsed payloads and wrong environment/subscription contexts. This is deliberately different from Mercuryo's raw-body callback HMAC; a shared crypto primitive does not make the signing inputs interchangeable.
+
+Deduplicate authenticated events and preserve delivery history, provider state and event/body hash. Bind every event to the stored customer/swap/wallet context. Store a durable accepted event before acknowledging it, then process projection updates idempotently. A delayed notification cannot move a reconciled state backward; contradictory evidence becomes an explicit reconciliation incident rather than a silently rewritten order.
+
+```mermaid
+stateDiagram-v2
+  [*] --> intent_created
+  intent_created --> readiness_required
+  readiness_required --> quoted: Eligibility and wallet checks pass
+  quoted --> consented: User accepts current quote
+  consented --> awaiting_signature: Verified provider payload arrives
+  awaiting_signature --> submitted: Validated unchanged envelope authorized
+  submitted --> settlement_pending: Source leg observed
+  settlement_pending --> reconciled: Exact receiving leg matches intent
+  quoted --> expired: Quote no longer valid
+  awaiting_signature --> expired: Signing envelope expires
+  submitted --> recovery_required: Submission or provider evidence uncertain
+  settlement_pending --> recovery_required: Missing or mismatched receipt
+  intent_created --> failed: Confirmed provider rejection
+  settlement_pending --> failed: Confirmed failed swap
+  recovery_required --> settlement_pending: Supported recovery resolves context
+  reconciled --> [*]
+```
+
+These are local states. The adapter maps the selected provider's `pending`, `funds_received`, `completed` and `failed` evidence into them; it does not submit those local names to the provider.
+
+### Receiving-leg reconciliation and recovery
+
+A completed investment requires a successful receiving transaction/event on the intended network with the exact Stablebond identity, recipient and net amount matched to the accepted quote/order. An outgoing USDC payment or provider-completed label is insufficient. A claimable delivery is tracked separately until claimed under the agreed holding policy. The portfolio reader continues showing actual ledger holdings independently; unresolved order attribution cannot invent an additional holding.
+
+The documented swap service has no general status-polling endpoint, and `/ramp/order/{swapId}` is not a valid swap lookup. Recover using durable `swap_updated` events, known ledger hashes, provider-supported webhook recovery and operational escalation. Do not build a polling loop around a nonexistent order endpoint. For an expired unsigned envelope, use the [swap regeneration interface](https://docs.etherfuse.com/api-reference/swaps/regenerate-swap-tx) and wait for the new authenticated payload; do not submit the stale one or create a second economic purchase.
+
+Every changed transaction body, including a regenerated payload with unchanged quote economics, requires fresh validation and a fresh wallet signature. Old signatures cannot be copied onto the replacement body. If price, fees, amount bounds, expiry of economic consent or other agreed terms change, obtain renewed purchase consent as well; retaining the swap reference is not authorization for different terms.
+
+After an uncertain POST/submission, preserve the intent and reconcile existing identifiers/evidence before another irreversible request. Replay the identical logical request only when the selected provider contract explicitly guarantees the relevant idempotency behavior. A replacement quote creates a new consent context. Failed/refund states reflect what the provider actually confirms; automatic refunds or reversible burns are not promised.
+
+## Public GraphQL API
 
 Extend the existing Yoga endpoint instead of creating another public data service. Add RWA types and resolvers alongside existing lending queries. The public schema exposes market observations and published product terms, not customer KYC, private eligibility approvals, issuer account tokens or order-signing authority.
 
@@ -479,8 +861,8 @@ flowchart LR
   Existing --> Yoga
   Live --> Yoga
   Yoga --> Web["E plus N: comparison UI"]
-  Yoga -.-> SDK["C: generated operations and validated SDK mapper"]
-  SDK -.-> Apps["C: third-party consumers"]
+  Yoga --> SDK["N: generated operations and validated SDK mapper"]
+  SDK --> Apps["N: independent consumer example"]
 ```
 
 | Proposed query      | Repository/read behavior                                                   | Bounds and result semantics                                                                  |
@@ -523,8 +905,6 @@ New `Decimal` values serialize as canonical strings. Existing `DateTime` is reus
 
 History cursors bind class, filters, interval, ordering and availability/revision snapshot. Since history contains separate NAV and yield streams, the cursor tracks each stream's continuation key. Validate every decoded field; opaque encoding alone does not make a cursor trustworthy. Bound rows even if aliases or nested selections multiply the request. Use the same stable snapshot for subsequent pages so a correction arriving between requests does not skip or duplicate observations.
 
-The SDK contract exposes `products.list`, `observations.latest`, `history.list` and `lending.blendRates`. Generated public operations feed a runtime mapper that reconstructs domain provenance, quality, asset and subject types. The conditional package stays independent from Next.js/React, issuer adapters and signing services. Consumer-supplied transport can support Node/browser runtimes; public API keys must not become execution credentials.
-
 ### Caching and request isolation
 
 Cache metadata, source observations and fresh Blend snapshots independently. Metadata can live longer than market observations. A cache hit retains the original source time and quality; it never sets `observedAt` to now. Cache keys include environment, issuer/API version, product/class or pool/asset, method version and relevant filters. Private owner data additionally requires owner-scoped isolation and must never enter a shared public cache.
@@ -533,330 +913,288 @@ An initial live Blend cache target of at most fifteen seconds can support a thir
 
 The current public limiter is 60 requests/minute/IP and deliberately fails open on Redis outage. Preserve that documented availability choice for ordinary public reads only with independent edge/body/cost/concurrency controls and alerting. Privileged order/signing routes require fail-closed protection. Read retries use bounded backoff; GraphQL HTTP 200 with an `errors` array still requires partial-data handling by the SDK.
 
-See [SDK/API design](SDK_AND_API_DESIGN.md) for the complete contract, packaging/versioning and consumer release process.
+The SDK section defines the packaging and consumer release boundary. The [SDK/API design](SDK_AND_API_DESIGN.md) supplies supporting interface examples; the integration contracts in this document govern the implementation.
 
-## Optimization and strategy consumers
+## SDK and developer integration
 
-The repository contains a rate sorter and a proxy/client for an external optimizer. The solver source and evidence of RWA eligibility/maturity constraints are unavailable. Do not send heterogeneous issuer indications into the existing APY sorter and describe the result as investment optimization.
+`@lendwise/sdk` is the public read client for the GraphQL API. It must preserve the data's financial meaning and precision, not merely generate HTTP calls. It is independently installable and contains no browser wallet, private customer data, issuer credentials, signing service or strategy executor. Turbolong is the intended external pilot; a working independent consumer is the acceptance path without requiring another team's deployment.
+
+### Package and dependency boundary
+
+Create the proposed `packages/sdk/` package and add it to the workspace configuration during implementation. Export public client creation, validated data/error types and supported operations. The application can consume shared public contracts, but the published package cannot import `src/app`, Next.js/React, server adapters, database code or environment secrets. Explicit package exports and a packaged-file allowlist prevent implementation files or credentials from leaking into the npm tarball.
+
+The package declares supported runtimes/module formats and verifies the built artifact in those runtimes; do not imply universal runtime support from TypeScript compilation. Allow a caller-supplied fetch/transport and API URL without making arbitrary URLs a server-side request-forgery surface in Lendwise's own endpoints. Bound requests, accept cancellation and implement controlled retries only for idempotent reads. Respect HTTP 429/Retry-After and distinguish transport errors from GraphQL partial errors.
+
+### Public query surface and runtime validation
+
+| SDK operation         | API integration                                         | Data preserved                                                                                 |
+| --------------------- | ------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
+| `products.list`       | `rwaProducts`                                           | Legal class/product, exact asset mappings, currency, terms and pagination                      |
+| `observations.latest` | `rwaObservations`                                       | Price/rate type, original units, source times, quality, failures and revision identity         |
+| `history.list`        | `rwaHistory`                                            | Real interval coverage, separate price/yield records and stable continuation cursor            |
+| `lending.blendRates`  | `blendRateSnapshot` and the existing lending interfaces | Exact pool/asset subject, supply/borrow direction, method, source time and available liquidity |
+
+Generated GraphQL operations/types are inputs to the client, not substitutes for runtime validation. Decode responses into the [public design contracts](examples/contracts.ts), validate exact asset/network shape, decimal strings, timestamps, quality/status and subject identity. `FinancialObservation` has a fund-share-class subject or a lending-product subject, never an ambiguous mixture. The GraphQL representation's nullable subject fields are validated as an exclusive union when mapping to public SDK types.
+
+Keep monetary amounts and rates as canonical decimal strings or the documented exact representation. Do not pass them through `Number()` to simplify consumer code. Display rounding is a consumer concern and cannot change stored API values. Preserve the same API response's observations and timestamps; comparing against a later live oracle read is not a valid precision test.
+
+### Errors and unavailable results
+
+The client distinguishes transport/timeout/cancellation, HTTP rate limiting, malformed/schema-incompatible data, GraphQL operation errors and per-product unavailability. Missing history, unsupported fields and a legitimate zero remain different states. A useful partial batch preserves successful products and their source-specific failures; it does not quietly drop a failed product or replace it with a zero-valued observation.
+
+The SDK never relabels an issuer indication, money-market yield, realized price return and Blend borrowing APY as the same metric. It exposes their methods, periods and comparability information so a consumer can decide whether a calculation is meaningful. No helper infers investor approval, executable liquidity or guaranteed strategy profit.
 
 ```mermaid
 flowchart LR
-  Discover["Discover products"] --> Compare["Compare compatible financial scenarios"]
-  Compare --> Constraints["Apply horizon currency access and liquidity constraints"]
-  Constraints --> Recommend["Informational candidate ranking"]
-  Recommend --> Feasible{Execution route independently verified?}
-  Feasible -->|no| Explain["Show reasons and informational result"]
-  Feasible -->|yes| Intent["C: separately approved investment intent"]
-  Intent --> Sign["C: wallet consent and exact transaction simulation"]
+  App["Independent TypeScript consumer"] --> Client["Published SDK client"]
+  Client --> Transport["Bounded public GraphQL reads"]
+  Transport --> Validate["Runtime schema, identity and precision validation"]
+  Validate --> Good["Typed observations and explicit partial results"]
+  Validate --> Bad["Documented errors or unavailable fields"]
+  Good --> Consumer["Consumer-owned comparison or strategy logic"]
 ```
 
-A proposed comparison request contains investor horizon, base currency, capital, minimum/maximum exposure constraints, liquidity deadline and eligibility evidence where authorized. The filter rejects unverified identities, stale/quarantined inputs and inaccessible products before ranking. For a 30-day cash need, a product requiring a 90-day hold cannot be accepted purely because its headline yield is higher. Redemption delay and business calendars count toward the actual cash-availability date.
+### Consumer example, tests and publication
 
-Concentration limits aggregate a product/issuer across chains. Minimum investments require `allocation=0` or `capital×allocation≥minimum`; this is a discrete/non-convex condition, not an ordinary unconstrained rate-weighting problem. A later scenario-based allocator may optimize net horizon return minus an explicit risk term such as CVaR, subject to currency, concentration, access and cash-timing constraints. It needs a defensible scenario distribution; arbitrary risk scores cannot be relabeled as probabilities.
+The standalone example installs the released package into a separate TypeScript project, retrieves Etherfuse observations and Blend lending data, and checks subject/currency/method/freshness before using the values. It demonstrates real API consumption without importing Lendwise frontend code or pretending incompatible returns share a common basis. Any Turbolong-specific leverage, liquidation, swap or execution logic remains outside the package.
 
-Turbolong's initial use is a data-consumption flow. It supplies exact share-class, pool and debt-asset IDs and consumes typed observations, current borrow state and quality/error information. Its own strategy layer must supply collateral/liability factors, leverage path, swap costs, redemption/unwind routes and liquidation mechanics.
+Release verification includes pure response/precision/error fixtures, query-contract tests, a consumer run against the packaged artifact, package-content inspection and supported-runtime checks. Test malformed responses, HTTP/GraphQL failures, unavailable history, stale inputs and cancellation without requiring private provider credentials for the core suite. Keep optional live API smoke checks distinct from deterministic CI.
 
-```mermaid
-sequenceDiagram
-  participant Turbo as C: strategy consumer
-  participant SDK as C: generic read SDK
-  participant API as E plus N: GraphQL
-  participant State as X: direct Stellar state
-  participant Wallet as User wallet
-  Turbo->>SDK: Request mapped issuer observations and Blend rates
-  SDK->>API: Bounded queries with required freshness
-  API-->>SDK: Metrics source times pool state and partial errors
-  SDK-->>Turbo: Validated inputs or informational-only state
-  Turbo->>Turbo: Own cash-flow leverage and stress model
-  alt Stale incomparable or unavailable input
-    Turbo-->>Wallet: Explain limitation without execution promise
-  else Independent execution considered
-    Turbo->>State: Refresh collateral debt oracle and swap state
-    Turbo->>State: Simulate exact strategy transaction
-    Turbo->>Wallet: Request explicit informed transaction approval
-  end
-```
+Publish a versioned npm artifact with reproducible build metadata and restricted publication rights. Semantic versioning and a changelog describe contract changes; generated types alone do not guarantee backward compatibility. The SDK usage guide covers installation, configuration, supported queries, pagination, decimal/method semantics, partial errors, unavailable data and upgrades. API resolvers own server behavior; the SDK owns transport, validation and package/consumer documentation. The operational documentation connects those contracts to source configuration and recovery procedures.
 
-In a simplified same-currency leveraged hold, with initial equity `E`, asset exposure `L×E`, debt `(L-1)×E`, asset/debt growth factors `G_A/G_D` and equity-proportional costs `k`, equity return is `L×G_A - (L-1)×G_D - 1 - k`. It is not the difference between two headline percentages. At leverage three, one-year asset return 5%, debt cost 4% and costs 0.5% of equity, the simplified return is 6.5%; rate changes, price/FX losses and liquidation can make it negative.
+## Security model and monitoring design
 
-The generic SDK does not compute guaranteed strategy profit, sign a transaction, infer private eligibility or act as a liquidation oracle. Its example consumer rejects absent values, stale/future timestamps and mismatched subjects/pools/assets. Passing that check means inputs exist, not that a position can be safely opened. Public delayed financial data remains useful for analysis but does not replace direct pre-execution chain state and executable quotes.
-
-## Wallet authentication and signing
-
-Existing Stellar Wallets Kit connection remains the core signer path. A connected address is not automatically an authenticated application session, and a session is not investor approval. The existing SEP-10 routes establish owner control for supported accounts; every privileged server action must recheck the active session, address, network and revocation status.
-
-```mermaid
-sequenceDiagram
-  participant User as User and wallet
-  participant Web as E: wallet context
-  participant Auth as E: SEP-10 routes
-  participant Store as E: challenge and session stores
-  participant Action as E or C: owner-scoped action
-  User->>Web: Connect Stellar wallet
-  Web->>Auth: Request challenge for exact address and host
-  Auth->>Store: Remember nonce-bound challenge with expiration
-  Auth-->>Web: Server-signed network and domain-bound challenge
-  Web->>Web: Validate source sequence operations domain and server signature
-  Web->>User: Request challenge signature
-  User-->>Web: Signed challenge envelope
-  Web->>Auth: Verify signed challenge
-  Auth->>Store: Atomically consume challenge and establish session
-  Auth-->>Web: Expiring revocable session
-  Web->>Action: Request specific owner operation
-  Action->>Store: Check session expiry revocation and owner
-  Action-->>Web: Authorized result or explicit rejection
-```
-
-SEP-10 challenges have a special sequence-zero authentication purpose and are not submitted as normal payment transactions. Reuse existing domain/network binding, challenge expiration, expected operation structure, atomic nonce consumption and session revocation. Do not replace them with an email login or a UI-stored address.
-
-A transaction service accepts a structured intent, not an arbitrary browser-provided destination or raw signing hash. It resolves the approved product/asset and route server-side, validates owner/session, checks current account and token permissions, obtains provider terms where required and returns only a bounded, intent-specific payload for user review.
-
-For a Classic transaction, bind source, network passphrase, sequence, allowed operations, destination/memo, exact asset, amount, fee and timeout. For a Soroban transaction, also bind contract/function/arguments, simulated resource data, required authorizations and relevant expiration bounds. Re-simulate/rebuild after state restoration or a stale sequence. Signing a network-specific transaction hash and signing contract address-authorization payloads are separate operations; testing one does not prove the other is supported by an optional signer.
-
-The conditional Privy adapter must create a native Stellar wallet and prove the required Classic, sequence-zero and Soroban flows under the configured user ownership/recovery model. It must not expose a public raw-sign-any-hash endpoint or substitute a login token for address ownership. Optional Mercuryo onboarding must separately prove Stellar XLM/USDC merchant enablement, account activation, trustline requirements and payment-status/refund behavior. Detailed conditional flows and their existing-wallet fallbacks are in [onboarding](ONBOARDING_ARCHITECTURE.md).
-
-### Reserve and authorization preflight
-
-For a simple Classic account, minimum balance follows the network base reserve and ledger entry accounting: `(2 + subentry_count + num_sponsoring - num_sponsored) × baseReserve`. Spendable XLM also subtracts native selling liabilities and retains transaction-fee capacity. Additional trustlines/signers/offers alter reserve requirements. Read current parameters/account state rather than making a permanent assumption that one historical reserve value will always apply.
-
-For a credit trustline, verify the exact code/issuer, authorization state and available receiving capacity; buying liabilities can consume trustline capacity. An account existing with USDC does not necessarily have the RWA trustline or issuer eligibility. Contract-held balances use contract storage and do not automatically require a Classic trustline in the same form. Soroban inclusion/resource/rent requirements are additional to Classic reserve calculations.
-
-The [captured issuer flags](evidence/etherfuse-issuer.json) show revocation and clawback capability for the observed Etherfuse issuer. This is neither proof of a particular holder's flag state nor proof of misuse. The UI must distinguish ledger transfer permission, legal investor eligibility and provider redemption entitlement.
-
-## CCTP and optional issuer execution
-
-CCTP moves native USDC to Stellar. Buying or redeeming an RWA is a subsequent issuer operation with separate terms, permissions, signatures and settlement. The existing bridge must not mark the investor as holding a Stablebond merely because a USDC mint succeeded.
-
-```mermaid
-sequenceDiagram
-  participant Wallet as User wallets
-  participant Bridge as E: CCTP service
-  participant EVM as X: source USDC and TokenMessenger
-  participant Iris as X: Circle attestation
-  participant Stellar as X: Stellar forwarder and ledger
-  participant Issuer as C: approved issuer service
-  Wallet->>Bridge: Owner session and intended Stellar recipient
-  Bridge->>Bridge: Account trustline reserve and route preflight
-  Wallet->>EVM: Approve and burn exact native USDC with hook
-  Bridge->>EVM: Verify receipt depositor amount route and hook
-  Bridge->>Iris: Poll attestation for verified burn
-  Iris-->>Bridge: Raw message attestation nonce and executed fee
-  Bridge->>Bridge: Validate message fields and destination domain 27
-  Bridge-->>Wallet: Simulated owner-specific mint XDR
-  Wallet->>Stellar: Sign and submit mint_and_forward
-  Stellar-->>Bridge: Successful receipt and available USDC transfer events
-  Bridge-->>Wallet: Transfer complete and portfolio refresh
-  opt Approved separate investment journey
-    Wallet->>Issuer: Accept product terms and obtain investor approval
-    Issuer-->>Wallet: Specific quote or hosted transaction flow
-    Wallet->>Stellar: Separate approved investment transaction
-    Stellar-->>Issuer: Observable settlement evidence
-  end
-```
-
-Verified code configuration includes Ethereum, Base, Arbitrum and Optimism mainnet sources; testnet config contains Ethereum/Base/Arbitrum Sepolia sources. Those are configured routes, not proof that every route was exercised end to end. The public evidence includes one independently rechecked [mainnet mint](evidence/cctp-mainnet-mint.json).
-
-The bridge already persists transitions and uses state-aware recovery:
-
-```mermaid
-stateDiagram-v2
-  [*] --> planned
-  planned --> burn_submitted: Record burn intent hash
-  burn_submitted --> burn_confirmed: Verify source receipt and expected transfer
-  burn_confirmed --> attested: Verify attested raw message
-  attested --> mint_submitted: Validate signed XDR and claim submission state
-  mint_submitted --> completed: Successful receipt with available amount evidence
-  burn_submitted --> failed: Terminal source mismatch or failure
-  burn_confirmed --> failed: Message mismatch or unusable expiry
-  mint_submitted --> failed: Confirmed mint failure
-  failed --> attested: Verified burn without stored attestation
-  failed --> mint_submitted: Valid stored message and safe signed retry
-  attested --> completed: Consumed nonce confirms already received
-  completed --> [*]
-```
-
-This is a summary of [service behavior](../../src/lib/execution/cctp/service.ts), not permission to reset an arbitrary failure. A source burn failure, message mismatch, expired attestation and temporarily missing mint have different recovery rules. Only stored verified state and current chain/provider evidence determine which transition is allowed.
-
-The [message validator](../../src/lib/execution/cctp/message.ts) checks source/destination context, token, amount, fee bound, depositor and recipient hook before Stellar signing. The [mint validator](../../src/lib/execution/cctp/mint.ts) requires the expected forwarder `mint_and_forward` invocation and exact message/attestation bytes. Reuse these checks for this bridge; they are not a generic validator for arbitrary issuer XDR.
-
-The atomic amount invariant is `minted_stellar = (burn_evm - executed_fee_evm) × 10` because the source USDC uses six decimals and Stellar uses seven. Record EVM approval/burn gas, Circle fee and Stellar inclusion/resource fees separately. The MessageTransmitter's consumed nonce is the protocol replay authority; database uniqueness and owner binding protect the application audit/resume state.
-
-There is an important existing-code limit: `settleMint` can mark a successful transaction `completed` when no recipient amount was extracted, and records a warning rather than rejecting completion when an extracted amount differs from the invariant. `prepareBridgeMint` can also complete an already-consumed message without obtaining its receipt amount. Therefore, the status alone is not proof of a fully reconciled quantity. Any new valuation or attributable-settlement projection must inspect the warning/amount evidence and reconcile the expected recipient and exact amount before accepting an economic outcome. This is a proposed acceptance requirement; no bridge behavior is changed by this document.
-
-After an uncertain RPC submission, query the known transaction hash and message nonce before constructing a fresh intent. Fallback providers resend the same signed bytes when appropriate. An expired envelope may need a new sequence/simulation/signature; an expired CCTP message needs supported re-attestation or operational escalation. The existing code does not provide automatic recovery/refunds for every expired-message case.
-
-### Conditional issuer order state
-
-An issuer order gateway is a separate proposed service. It checks customer eligibility and provider entitlement, creates an expiring quote, binds an idempotency key to the owner/product/amount, and validates any returned transaction or redirect against the stored intent. A provider webhook is authenticated and deduplicated before it updates an order projection; ledger/provider reconciliation remains necessary.
-
-Proposed local servicing states must map to the selected provider API version rather than being sent as invented provider status values. Distinguish awaiting customer approval, quoted, awaiting user signature/payment, submitted, settled, rejected/cancelled, and recovery-required. A token burn during redemption can precede payout; track the remaining receivable only with authoritative evidence. Do not claim a payout occurred from a burn event alone.
-
-Provider quote creation and order execution may have different idempotency rules. Store the provider reference before responding to the client; on an uncertain response, reconcile by that reference/key instead of creating another order. Never blindly retry an irreversible request using a new key because the first HTTP response was lost.
-
-## Deployment and operational controls
-
-Keep the application runtime on the existing deployment pattern. New RWA jobs execute in bounded server requests; new tables live beside lending data in Neon; issuer services, Circle, Horizon/RPC and any optional onboarding provider remain external trust boundaries. The exact new raw-evidence/cache backing is selected during implementation, with correctness rules defined above.
+The threat model describes the actual integration trust boundaries, not a claim that using a wallet or payment provider makes the application secure. Use Stellar's [STRIDE template](https://developers.stellar.org/docs/build/security-docs/threat-modeling/STRIDE-template) and [builder monitoring template](https://developers.stellar.org/docs/build/security-docs/monitoring/monitoring-template-builders). The completed model and linked operational plan are controlled documents, with a safe public summary. This section specifies their implementation responsibilities without exposing live response secrets.
 
 ```mermaid
 flowchart TB
-  subgraph Client[Untrusted client boundary]
-    UI["E plus N: browser dashboard"]
-    Consumer["C: third-party SDK application"]
+  subgraph Browser[Untrusted browser boundary]
+    UI["Dashboard and widget host"]
+    Wallet["User-authorized wallet signer"]
   end
-  subgraph Server[Existing application hosting boundary]
-    Public["E plus N: bounded public GraphQL"]
-    Owner["E plus C: owner-scoped actions"]
-    Jobs["N: signed RWA job endpoints"]
-    Domain["N: validation calculation and repositories"]
+  subgraph Application[Lendwise server boundary]
+    Public["Bounded public GraphQL"]
+    Owner["Session-checked owner actions"]
+    Callbacks["Separate provider signature verifiers"]
+    Jobs["Signed scheduler handlers"]
+    Policy["Sponsor and issuer intent policy"]
   end
-  subgraph Data[Restricted persistence boundary]
-    SQL[("E plus N: Neon tables")]
-    Session[("E: session nonce and limiter store")]
-    Raw[("N: immutable source evidence")]
+  subgraph Restricted[Restricted signing and persistence]
+    Sponsor["Sponsor signer with operation limits"]
+    DB[("Public observations and private intent tables")]
+    Session[("Challenge and revocable session store")]
   end
-  subgraph External[External provider boundary]
-    Source["X: issuer public API"]
-    Chain["X: Horizon Soroban RPC and Circle"]
-    Issuer["C: approved private issuer service"]
-    Optional["C: wallet and fiat providers"]
+  subgraph Providers[Independent provider boundary]
+    Privy["Privy identity and wallet"]
+    Mercuryo["Mercuryo checkout and callbacks"]
+    Etherfuse["Etherfuse lookup and approved swap API"]
+    Ledger["Horizon and Soroban RPC"]
   end
   UI --> Public
-  Consumer --> Public
   UI --> Owner
-  Scheduler["X: signed QStash delivery"] --> Jobs
-  Jobs --> Domain
-  Public --> Domain
-  Domain --> SQL
-  Domain --> Raw
-  Jobs --> Source
   Owner --> Session
-  Owner --> Chain
-  Owner -.-> Issuer
-  UI -.-> Optional
+  Owner --> Policy
+  Policy --> Sponsor
+  Policy --> DB
+  Jobs --> DB
+  Public --> DB
+  Wallet --> Privy
+  UI --> Mercuryo
+  Mercuryo --> Callbacks
+  Etherfuse --> Callbacks
+  Callbacks --> DB
+  Policy --> Etherfuse
+  Sponsor --> Ledger
 ```
 
-Browser code and SDK callers are untrusted even after login. Server-side issuer credentials, raw customer records and signing authorization never belong in public resolver output, client bundles, package exports or shared observation caches. A service handling public data should use read-only provider access where applicable. A preview environment must not inherit production issuer or signing credentials merely because it has the same route names.
+### Threat-to-control mapping
 
-Future application promotion follows the repository's `testnet → mainnet → main` convention. The documentation baseline itself is the selected `main` commit. Deploy additive schema changes before new writers/readers and separate the activation of collection, public reading and conditional transaction paths.
+Assign stable threat IDs to concrete flows, then reference those IDs from controls, monitors and tracked findings. The table describes the required threat categories; the completed model expands each against the actual data-flow diagram and component inventory.
+
+| STRIDE concern         | Integration threat                                                            | Prevention/detection boundary                                                                    | Response authority                                                                     |
+| ---------------------- | ----------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------- |
+| Spoofing               | Email identity or a forged callback substituted for wallet/provider authority | Validated Privy token plus SEP-10; provider-specific signatures and tenant/intent matching       | Reject request, revoke affected application sessions, pause affected connector         |
+| Tampering              | Wrong issuer/asset, altered XDR or changed source values                      | Approved mapping, immutable source evidence, exact intent/XDR checks and preserved signatures    | Quarantine observations or signing payload; retain evidence                            |
+| Repudiation            | Claimed payment/consent cannot be tied to an action                           | Owner-bound intent, consent record, body hash and ledger/provider references                     | Investigate immutable event/transaction chain without publishing private customer data |
+| Information disclosure | KYC, tokens or signing credentials reach public API, SDK or logs              | Server-only secrets, private-table authorization, scoped logging and export review               | Restrict access, rotate affected secrets and follow incident process                   |
+| Denial of service      | Provider outages, replay floods or unbounded queries exhaust services         | Deadlines, quotas, pagination/cost limits, leases, deduplication and source isolation            | Pause expensive paths; preserve unaffected reads and lending                           |
+| Elevation of privilege | Signer or sponsor service executes unauthorized operations                    | Fail-closed owner/policy checks, operation allowlist, budget reservations and restricted signing | Stop new signing/sponsorship; reconcile outstanding signed intents                     |
+
+The monitoring plan inventories Mainnet/Testnet accounts, contracts, asset representations and the services responsible for their interpretation. A missing future production address is explicitly `planned`, not `active`; activation checks populate and verify the final address before live use.
+
+### Monitoring rule contract
+
+Each rule contains `monitorId`, referenced `threatIds`, network/component/address, observed signal, baseline, trigger condition, severity, operator, notification channel, response, implementation status and verification evidence. Examples of required rule families are reserve/fee exposure, unexpected account/signing changes, callback-authentication failures, source schema/identity changes, stale or missing observations, missing receipt reconciliation and stalled funding/swap states.
+
+Onchain effects are monitored from the actual ledger/account/contract footprint. Source outages, compromised browser behavior, email/session abuse and upstream NAV integrity also need off-chain controls. Record any detection gap and compensating action; do not pretend all threats emit a useful onchain event. A failed monitor or stale telemetry is itself an observable health condition.
+
+Security design specifies and reviews these rules through a documented incident walkthrough for unauthorized sponsor expenditure and missing Etherfuse delivery. Operational implementation activates rule execution, alert routing and recovery exercises. Findings have an owner and resolution deadline; release-blocking findings are resolved before activation. Containment is limited to Lendwise-controlled actions and services: the team cannot assume it can freeze a third-party issuer, reverse settled transfers or automatically refund a swap.
+
+## Deployment, recovery and operational documentation
+
+### Production migrations and compatible rollout
+
+The database change is additive: RWA/reference, sponsorship, provider-event, purchase and reporting records do not replace lending tables. Apply indexes/constraints and compatible readers before activating new writers. The Neon HTTP driver uses its supported batch/transaction or atomic-statement facilities; do not hold a fictional interactive transaction open across external HTTP calls. Deploy network/environment configuration separately from source code and never give preview/test deployments production signing credentials.
 
 ```mermaid
 flowchart LR
-  Schema["Additive schema and index migration"] --> Dark["Dark collection with approved product map"]
-  Dark --> Shadow["Shadow reads source reconciliation and fault tests"]
-  Shadow --> Read["Enable public RWA read API and UI"]
-  Read --> Observe["Monitor freshness errors and financial quality"]
-  Observe -.-> Journey["C: enable approved investor journey"]
-  Observe --> Pause["Disable affected reader or source on incident"]
-  Journey --> Pause
+  Schema["Additive schema and indexes"] --> Internal["Validate collection and internal read projections"]
+  Internal --> Staging["Staging UI, provider flows and security review"]
+  Staging --> Public["Activate compatible production GraphQL and UI"]
+  Public --> Operations["Verify monitoring and recovery controls"]
+  Operations --> Funding["Activate qualified production onboarding routes"]
+  Funding --> Purchase["Activate approved Etherfuse purchase route"]
+  Purchase --> Reports["Collect confirmed receipts and metric snapshots"]
 ```
 
-Proposed feature controls are independent: collection enabled, public RWA readers enabled, each issuer enabled, position projection enabled and issuer transaction journey enabled. These describe required controls, not existing environment-variable names. Disabling transactions must not hide already-observed holdings; disabling one issuer should not stop lending collection. Keep an operator-accessible pause for unexpected identity/code/authorization changes.
+Promote the validated comparison, portfolio and screening implementation to production through the public resolvers and compatible deployment; avoid maintaining a separate financial implementation for the production UI. Keep independent controls for source collection, per-issuer public reads, position projections, new sponsorship, each funding connector and new purchase intents. Feature controls provide incident isolation; disabled committed features are not accepted as completed integrations.
 
-### Error classification and recovery
+Rehearse migrations and recovery in staging with existing lending rows and transaction/order records. If a production release must be backed out, restore a compatible application and disable affected new paths while preserving financial records; roll-forward a corrected schema where reversal would lose data. Never erase a submitted intent or receipt by restoring an older database snapshot as a routine code rollback. Verify the actual public query/UI response for the same stored observation, not independent live reads that may have changed between requests.
 
-| Failure class                           | Detection                                           | User/API behavior                                               | Operator recovery                                                 |
-| --------------------------------------- | --------------------------------------------------- | --------------------------------------------------------------- | ----------------------------------------------------------------- |
-| Source timeout/429                      | HTTP deadline or provider response                  | Partial failure; preserve old as-of time; no zero rate          | Bounded retry, quota review and circuit-breaker recovery          |
-| Source schema/identity mismatch         | Runtime schema and approved mapping                 | Quarantine update and suppress new investable claims            | Review provider change, update versioned map/schema with evidence |
-| Stale publication                       | Source time exceeds calendar-aware policy           | Explicit stale/unknown status; block freshness-dependent output | Reconcile source schedule and recover missing observations        |
-| Database write conflict                 | Unique/transaction conflict                         | No duplicate observation or false checkpoint                    | Retry idempotently under lock/lease rules                         |
-| Formula/precision issue                 | Independent fixtures and invariant checks           | Reject/quarantine derived result                                | Correct method version, recompute traceable derivatives           |
-| Owner/session failure                   | Missing/expired/revoked session or address mismatch | Reject privileged action; public reads remain available         | User re-authentication; investigate anomalies                     |
-| Ledger/provider transaction uncertainty | Submission response lost or pending hash            | Pending/recovery-required; no completed state from a redirect   | Query stored hash/nonce/order before any new signature            |
-| Token rights changed                    | Issuer/trustline flag or terms change               | Continue showing observed balance with restrictions             | Pause affected route and confirm product-specific permissions     |
+The existing repository promotion/deployment convention remains the starting point. Each environment records the deployed code/schema and provider configurations. Passing a repository check or naming a branch `mainnet` does not prove the corresponding deployment or provider route is active.
 
-Use structured run/report fields: source, environment, adapter/method version, run ID, scheduled slot, product count, request count, accepted/duplicate/quarantined/missing/failed counts, source age, publication completeness, checkpoint, duration and safe error codes. Correlate job/API/position derivations through IDs without logging authorization headers, session tokens, raw KYC or signing payload secrets.
+### Operational implementation and documentation
 
-The proposed operational acceptance target is at least 99% scheduled collection completion over a fourteen-day observation period, subject to the selected source grace policy. Report **collection completion** separately from **source-publication completeness**; a successful poll can still receive stale data. Require provenance and exact identity for every accepted observation. These are release targets, not evidence of an existing production SLA.
+Deploy production rules against the actual accounts, contracts, source versions and provider configurations. Track per-source collection completion separately from source-publication completeness. Start the fourteen-day collection-reliability record when scheduled RWA collection begins and retain every scheduled run outcome, failure, retry, gap and correction. The report describes actual completeness and recovery results rather than omitting failed runs.
 
-Restore procedures must cover both database observations and their raw evidence links. Rebuild derived projections/caches from immutable inputs and method versions. Rollback ordinarily disables new jobs/readers and retains new history; dropping tables or overwriting corrected observations is not routine rollback. Any incident correction keeps an audit trail and does not repaint history without a revision.
+Monitor source age/schema/identity failures, RPC/block age, collection leases/checkpoints, sponsor reserves/fees/pending exposure, authenticated callback failures, stalled funding/swap states and missing destination reconciliation. Test alert routing to assigned operators and monitor the monitoring process itself. A pause must stop new affected actions without hiding confirmed holdings, deleting evidence or disabling unrelated lending. Update the final production inventory before activating a rule marked `active`.
 
-## Architecture decision records
+Publish the RWA adapter/source-authoring guide, supported source methods and history limits, server GraphQL reference, operationally safe integration examples, and metric calculation/export instructions. The SDK guide covers installation, queries and upgrades. Keep full threat models, signing procedures, secret inventories and sensitive incident response details in controlled storage. The public documentation site is a separately deployed/proxied project; repository Markdown alone does not prove a public URL has been published. Release validation checks the actual public documentation and example outputs.
 
-These are recommended, implementation-binding design choices once reviewed by maintainers. External entitlement gates remain open as listed in [questions](OPEN_QUESTIONS.md).
+Recovery restores a compatible application and data projection from immutable evidence and additive schema state. Preserve lending rows, submitted order/transaction records and accepted observation revisions. Rebuild caches/derived values; do not restore an old database over newer financial transactions as routine rollback. A source correction or incident revaluation receives a new version and report lineage rather than silently repainting an issued report.
 
-| ADR                                              | Decision                                                                         | Key tradeoff accepted                                                  |
-| ------------------------------------------------ | -------------------------------------------------------------------------------- | ---------------------------------------------------------------------- |
-| [01](#adr-01--separate-rwa-and-lending-models)   | Separate RWA tables, not a shared/overloaded lending schema                      | Additional tables and resolvers, for exact semantics and compatibility |
-| [02](#adr-02--typed-financial-normalization)     | Preserve original convention; derive effective rate only when justified          | Richer UI labels required; some products cannot be ranked together     |
-| [03](#adr-03--capability-based-issuer-adapters)  | Separate `RwaAdapter` with optional capabilities, not a `YieldAdapter` extension | Second registry, but no false transaction promises                     |
-| [04](#adr-04--source-native-immutable-history)   | Append source observations and revisions, not resampled/synthesized history      | Irregular chart series; backfill may begin only at collection          |
-| [05](#adr-05--distinct-rwa-position-projection)  | New RWA claim projection, not reuse of lending `SupplyPosition`                  | Mapping/deduplication work required                                    |
-| [06](#adr-06--thin-generic-read-sdk)             | Thin independent `@lendwise/sdk`, no strategy execution                          | Consumers own their own strategy models                                |
-| [07](#adr-07--privy-feasibility-and-fallback)    | Feasible but gated on exact-flow tests before enabling embedded wallets          | Less onboarding scope and fewer signing dependencies for now           |
-| [08](#adr-08--mercuryo-feasibility-and-fallback) | Native support exists; merchant journey stays optional pending gates             | Separate XLM/trustline/USDC steps instead of one-step funding          |
-| [09](#adr-09--etherfuse-first-delivery-scope)    | Stage delivery: Etherfuse data/comparison first, issuer journey separate         | Additional issuers and embedded onboarding arrive in later phases      |
+## Onchain attribution and outcome accounting
 
-### ADR-01 — Separate RWA and lending models
+The reporting service derives auditable outcomes from the eligible account registry, exact financial snapshots and confirmed funding receipts. Its inputs and calculations remain separate from application display totals.
 
-**Alternatives:** overload `products`/`apy_hourly`; replace all lending schemas with a universal instrument; add separate RWA tables with a shared read projection. **Decision:** separate RWA tables. **Tradeoff:** additional tables/resolvers versus exact semantics and compatibility. **Consequences:** no existing field changes; shared asset/provenance types only; new migration and explicit comparability layer required.
+### Account eligibility and attribution
 
-### ADR-02 — Typed financial normalization
+The outcome scope is **Stellar accounts onboarded through Lendwise**, established from application onboarding records plus verified onchain setup/sponsorship evidence. An arbitrary connected address, current sponsor filter or shared issuer account does not establish membership. Keep an effective-dated, versioned account register containing network/address, authenticated owner/consent link, local onboarding reference, setup/sponsorship transaction and operation references, eligibility reason and policy version.
 
-**Alternatives:** map every percentage into APY; retain only issuer labels; preserve original convention plus justified derived values. **Decision:** third option, with null effective annual rate when unjustified. **Tradeoff:** UI needs richer labels and some products cannot be ranked together. **Consequences:** versioned equations, fee/income assumptions, input references and horizon currency scenarios become required release controls.
+Horizon sponsorship data supports that register; it is not the whole cohort definition. Sponsorship can later change or be removed. Historical eligibility and past daily totals must not change merely because the current sponsor field changes. Record additions/revocations and the agreed effective times; do not quietly remove emptied accounts from previous denominators. Existing-wallet inclusion or unusual onboarding cases require the accepted enrollment policy instead of being inferred from a page visit.
 
-### ADR-03 — Capability-based issuer adapters
+Keep private identity/KYC/provider records separate from public addresses and ledger evidence. Register the accepted attribution footprint and account-set rules before measurement. Both proposed targets remain subject to the review panel's confirmation or adjustment; the ratified rule version, periods and thresholds are inputs to the report manifest.
 
-**Alternatives:** extend lending `YieldAdapter`; require every issuer to implement trading; separate read adapters with optional capabilities. **Decision:** separate `RwaAdapter`, following existing functional loader/isolation style. **Tradeoff:** second registry, but no false transaction promises. **Consequences:** history/positions/eligibility can be absent; signed orders are a different privileged service; external authors implement the same conformance suite.
+### Target 1: average net assets held on Stellar
 
-### ADR-04 — Source-native immutable history
+The submitted target is **at least $100,000 average USD-denominated net assets over 30 consecutive days** across eligible Stellar accounts. It includes native Circle USDC, supported Etherfuse/other approved RWA holdings and attributable supported Stellar lending positions, with actual outstanding borrowing liabilities deducted and duplicate exposures excluded. This is broader than RWA-only holdings and different from a token's per-unit NAV. EVM portfolio positions are not part of this Stellar metric.
 
-**Alternatives:** hourly resampling in APY tables; synthesize historic yields from current rate; append source observations and revisions. **Decision:** preserve source-native observations. **Tradeoff:** irregular chart series, backfill may begin only at collection. **Consequences:** no donor-copy RWA repair, source calendars/freshness distinct, point-in-time availability retained for backtests.
+For each agreed daily cutoff `d`, derive a versioned set of eligible accounts `E(d)` and their approved asset/position claims from compatible confirmed ledger contexts. For account `a`:
 
-### ADR-05 — Distinct RWA position projection
+```text
+wallet_assets(a,d) = sum(exact wallet quantities × approved USD price/FX)
+lending_assets(a,d) = sum(exact underlying supply/collateral claims × USD price/FX)
+borrowing_debt(a,d) = sum(exact outstanding borrowing liabilities including accrued interest × USD price/FX)
 
-**Alternatives:** reuse lending `SupplyPosition`; treat all tokens as liquid wallet holdings; add an RWA claim projection over verified ledger/account inputs. **Decision:** third option. **Tradeoff:** mapping/deduplication required. **Consequences:** control flags, legal eligibility, custody and redemption receivables remain explicit; Classic/SAC duplicates cannot inflate total assets.
+net_assets(a,d) = wallet_assets(a,d) + lending_assets(a,d) - borrowing_debt(a,d)
+daily_total(d) = sum(net_assets(a,d) for a in E(d))
+average_net_assets = sum(daily_total(d) for all 30 agreed cutoffs) / 30
+```
 
-### ADR-06 — Thin generic read SDK
+The calculation requires the following accounting rules:
 
-**Alternatives:** publish application internals; build a Turbolong-specific strategy SDK; publish generated operations with validated domain types. **Decision:** thin independent `@lendwise/sdk` with optional safe scenario helpers, no strategy execution. **Tradeoff:** consumers own strategy models. **Consequences:** scoped exports, semantic versioning, no React/Next/server secrets, fixture-based consumer tests and npm ownership gate.
+| Input                                   | Required interpretation                                                                                                           |
+| --------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| Native Stellar USDC                     | Verify the exact Circle issuer/network; value with the agreed USD valuation policy, not ticker equality                           |
+| RWA wallet quantities                   | Use exact Classic/native-contract quantities, one economic claim per balance, approved dated price and contemporaneous FX         |
+| Stellar lending positions               | Resolve each user's underlying supply and collateral claim using the actual protocol share/exchange-rate accounting at the cutoff |
+| Borrowing liabilities                   | Deduct nominal economic debt including accrued interest once; do not substitute collateral/risk weights or a health-factor score  |
+| Trustline buying/selling liabilities    | Use for spendability/capacity checks; outstanding offer encumbrances are not automatically protocol borrowing debt                |
+| Classic/SAC or receipt/underlying views | Count the beneficial economic claim once; do not add both a receipt/share token and its attributed underlying claim               |
+| Sponsor obligations/capital             | Sponsor-owned XLM reserve/fee capital is not user USDC/RWA/lending value and cannot inflate the metric                            |
+| Missing asset or debt read              | Mark the snapshot incomplete; never assume a missing debt is zero or silently remove an account/day                               |
 
-### ADR-07 — Privy feasibility and fallback
+Existing UI projections are not an exact metric store. The [wallet projection](../../src/lib/stellar/wallet-holdings.ts) uses JavaScript numbers, and the [Blend position adapter](../../src/lib/protocols/blend/v2_1/positions.ts) uses floating-point SDK projections. Build a distinct exact accounting projection from the protocol's integer balances/indexes and documented decimal scales. For each Blend `(network, pool, user, reserve)` count the underlying supplied-plus-collateral claim once and its nominal debt once. The current presentation can repeat a collateral list on multiple borrow positions; summing those UI rows would overcount.
 
-**Alternatives:** assume no Stellar support; commit full embedded-wallet flow now; accept documented native support but gate optional delivery on exact-flow tests. **Decision:** documented Stellar creation/hash signing is feasible; integration in a later phase with a test gate. **Tradeoff:** less onboarding scope, fewer signing dependencies. **Consequences:** existing Wallets Kit/SEP-10 remains usable; no promise of Soroban auth-entry, fee sponsorship or recovery semantics before testing.
-
-### ADR-08 — Mercuryo feasibility and fallback
-
-**Alternatives:** infer support from generic USDC listing; commit one-step two-asset funding; require network-specific merchant enablement and staged funding. **Decision:** native Stellar products exist, new merchant journey remains optional. **Tradeoff:** separate XLM/trustline/USDC steps. **Consequences:** CCTP or already-funded wallet suffices for core; merchant limits, signature fixtures, country checks and refunds block release of fiat onboarding.
-
-### ADR-09 — Etherfuse-first delivery scope
-
-**Alternatives:** deliver all twelve workstreams together; build an analytics-only integration; stage an Etherfuse data/comparison release and a separately approved issuer journey. **Decision:** stage delivery, keeping public data and comparison independent from optional execution and onboarding providers. **Tradeoff:** additional issuers, broad optimization and embedded onboarding arrive later. **Consequences:** reuse existing CCTP and wallets; require product-specific entitlement and settlement evidence before enabling the issuer journey; publish usage claims only when attributable.
-
-## Implementation sequence and release gates
-
-Implement the extension in dependency order, with a demonstrable output at each step. These stages are engineering scope boundaries; conditional provider features require their own acceptance evidence.
-
-| Stage                         | Concrete implementation                                                                    | Verification and exit gate                                                                                       |
-| ----------------------------- | ------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------- |
-| 1. Domain and schema          | Runtime financial/identity contracts, additive RWA tables, keys and revision repository    | Exact decimals, null/unknown semantics, concurrent idempotent writes, migration/disable-read rollback            |
-| 2. Etherfuse read adapter     | Approved USTRY/CETES mapping, source decoders, price/rate/provenance output                | Pinned source fixtures, wrong-issuer/network tests, original metric retention, no unjustified APY                |
-| 3. Collection and history     | Signed jobs, due schedule, lease, bounded retries, checkpoints and source-native revisions | Duplicate delivery, source outage, partial page, revised history, stale calendar and checkpoint recovery tests   |
-| 4. API and comparison         | Additive GraphQL, bounded queries, typed metric UI and horizon comparison                  | Existing lending queries preserved; source timestamps/fees/FX and non-comparable cases visible                   |
-| 5. Operational release        | Shadow collection, reports, alerts, feature controls and rollback owner                    | Source reconciliation, fault isolation, fourteen-day quality observation and independent numerical fixtures      |
-| 6. Conditional portfolio/SDK  | Exact claim projection, public balance marks and accepted consumer interface               | SAC duplicate prevention, restricted/unknown holdings, stale inputs, tarball/runtime validation where applicable |
-| 7. Conditional issuer journey | Approved access, exact owner intent, quote/order reconciliation and settlement evidence    | Provider entitlement, correct asset/destination, signature/expiry/replay and interrupted transaction tests       |
-
-The architecture has a clear critical path and optional branches:
+Read prices, FX, ledger balances, share conversion rates and accrued debt under an agreed cutoff and freshness policy. Live current endpoints are not arbitrary historical APIs. Collect snapshots prospectively and use verified history/indexer records where needed; preserve each read's ledger/block/time and disclose any allowed as-of tolerance. Do not silently floor a negative account net value to zero. The full 30-cutoff denominator remains fixed; missing data requires repair or an explicitly agreed valuation treatment before success is claimed.
 
 ```mermaid
-flowchart LR
-  Rights["Data-use and economic semantics confirmation"] --> Core["Domain identity and revision model"]
-  Core --> Adapter["Etherfuse public read adapter"]
-  Adapter --> Pipeline["Signed collection and quality reports"]
-  Pipeline --> API["Additive API and comparison release"]
-  API --> Operations["Monitoring and rollback acceptance"]
-  API -.-> Portfolio["C: position projection"]
-  API -.-> SDK["C: generic read SDK"]
-  Partner["C: accepted consumer contract"] -.-> SDK
-  Operations -.-> Journey["C: issuer journey"]
-  Entitlement["C: issuer permission and exact-flow evidence"] -.-> Journey
-  Wallet["C: optional embedded signer"] -.-> UX["C: expanded onboarding"]
-  Fiat["C: merchant-enabled native Stellar delivery"] -.-> UX
+flowchart TB
+  Register["Versioned eligible Stellar account register"] --> Cutoff["Agreed daily cutoff and ledger contexts"]
+  Cutoff --> Wallet["Exact native USDC and supported RWA wallet balances"]
+  Cutoff --> Supply["Underlying Stellar lending supply and collateral claims"]
+  Cutoff --> Debt["Accrued borrowing liabilities"]
+  Prices["Versioned approved price and FX observations"] --> Mark["Deduplicated USD asset and debt valuation"]
+  Wallet --> Mark
+  Supply --> Mark
+  Debt --> Mark
+  Mark --> Coverage{Inputs complete and compatible?}
+  Coverage -->|no| Incomplete["Incomplete snapshot with explicit gaps"]
+  Coverage -->|yes| Daily["Sum net assets across eligible accounts"]
+  Daily --> Window["Average all 30 agreed daily totals"]
+  Window --> Report["Reproducible report and full input manifest"]
 ```
 
-Read-only release is gated by data-use permission, correct identity, truthful metric conventions and operational validation. It is not gated by Privy, Mercuryo or a signed Turbolong integration. Native issuer trading, private servicing, optional onboarding and attributed investment claims require additional evidence; they cannot be inferred from a functioning public API.
+### Target 2: gross qualifying USDC inflows
 
-Before implementation acceptance, verify all existing query/portfolio contracts remain backward compatible; new data cannot bypass existing sessions or issuer restrictions; every monetary result is reproducible from exact inputs; stale/missing values remain explicit; malformed or changed identities stop affected actions; and source failures leave unrelated lending functionality available.
+The submitted target is **at least $30,000 cumulative qualifying USDC inflows over a continuous 60-day period**, received into eligible Lendwise-onboarded Stellar accounts through CCTP or Mercuryo. It measures gross receipts rather than receipts net of subsequent withdrawals.
 
-The [implementation roadmap](IMPLEMENTATION_ROADMAP.md) supplies effort ranges and phase acceptance; [delivery readiness](DELIVERY_READINESS.md) defines settlement evidence; [security assessment](SECURITY_AND_RISK_ASSESSMENT.md) lists threat-specific tests; [open questions](OPEN_QUESTIONS.md) tracks unresolved provider/operating gates. No production deployment, completed issuer transaction integration or unconditional execution readiness is implied by this design.
+```text
+qualifying_inflows = sum(actual destination USDC credited by each distinct qualifying receipt
+                         within the full 60-day confirmation-time window)
+```
+
+Use successful Stellar destination evidence and the associated CCTP transfer or Mercuryo order. Include exact Circle-USDC identity, eligible recipient at receipt time, network, transaction hash, operation/event identity, confirmation ledger/time and net credited token amount. Gross here means withdrawals do not reduce inflows; it does not mean substituting a larger source burn or pre-fee quote for the amount actually received.
+
+Canonical receipt identity is scoped by network, transaction, operation/event, asset and recipient. A transaction can contain multiple real transfers, so transaction hash alone is insufficient; conversely, an event and its corresponding operation/provider callback must not become two economic receipts. Store the mapping to the same canonical credit. Exclude failed, pending, duplicate and eligible-account internal transfers. If a provider settles through an intermediate contract, resolve the actual delivery trace rather than counting intermediate bookkeeping as customer inflow.
+
+Withdrawals are reported separately and are not silently netted from this submitted gross measure. Flag suspected wash activity, self-generated round trips or related-party funding for the agreed anti-abuse review; apply additional exclusion rules only through the ratified policy and disclose them. Do not label all account-to-account transfers as Mercuryo/CCTP inflows merely because a wallet was originally funded through one of those routes.
+
+### Metric persistence and reproducible report
+
+All records below are new proposed reporting structures. They reference immutable input versions rather than depend on mutable UI/API totals.
+
+| Proposed record              | Required fields and invariant                                                                                                       |
+| ---------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
+| `stellar_onboarded_accounts` | Account/network, onboarding and sponsorship evidence, effective membership, owner-link/consent reference and policy version         |
+| `stellar_snapshot_runs`      | Cutoff, account-set version, source ledger/block contexts, method version, completeness and gap summary                             |
+| `stellar_position_legs`      | Owner/claim identity, wallet/lending/debt category, exact atomic/decimal quantity, protocol conversion inputs and deduplication key |
+| `stellar_valuation_inputs`   | Exact price/FX observation IDs, source/units, quality, age policy, revision and calculation version                                 |
+| `stellar_funding_receipts`   | Canonical credit identity, provider/bridge link, exact asset/recipient/amount, confirmed time and inclusion/exclusion reason        |
+| `stellar_metric_runs`        | Full window, target/policy version, account/snapshot/receipt IDs, executable query/code version, totals, hashes and report status   |
+
+Create daily runs and receipt projections idempotently. Updating an eligibility policy, price revision or decoder creates a new reproducible run; it does not alter the source transactions or erase a previously published result. Derived report caches may be rebuilt, but accepted historical inputs and lineage remain auditable.
+
+The report/export package contains the eligible addresses and onboarding references, all 30 daily totals split into USDC/RWA/lending/debt legs, source price/FX and conversion references, explicit missing-data coverage, and the full 60-day receipt list with included/excluded reasons. Include safe provider/CCTP references, exact units, the method/policy version and runnable calculation/query instructions. Keep KYC, session tokens, secrets and private provider credentials out of public exports.
+
+Engineering completion and the observation/usage windows are different milestones. Reports show whether each complete ratified window and target has actually been met; release configuration, synthetic transactions or dashboard traffic cannot replace that outcome.
+
+## Verification and integration testing
+
+Testing follows the system boundaries and expected integration outcomes. Pure source/financial/SDK checks run without private provider credentials; separate approved sandbox/Testnet and Mainnet acceptance checks verify real provider and ledger behavior. Labeled fixtures never count as production receipts or user adoption. The matrix defines required verification and documentation for each subsystem; it does not claim that the new implementations have already passed.
+
+| Subsystem                            | Important verification                                                                                                                                                                | Required implementation/documentation output                                                          |
+| ------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
+| Etherfuse and collection             | Etherfuse exact identity/decimals, both return models, absent history, duplicate/revised observations, checkpoint recovery and historical FX                                          | Adapter contract, source-field/method mappings, collection/history setup and limitations              |
+| Wallet authority and sponsorship     | Real Privy challenge/transaction signing, unfunded-account SEP-10, session revocation, multi-source CAP-33 signatures, fee bumps, reserve/fee caps, sequence races and pause/recovery | Wallet/sponsor configuration, supported operations, key boundary and incident/removal procedures      |
+| Mercuryo connector                   | Supported Mercuryo sandbox flow, separate Stellar readiness fixtures, URL signature, raw-body callback fixtures, duplicates, out-of-order events and receipt mismatch                 | Enabled merchant assets/countries, environment/signature contract and production qualification record |
+| Spiko and Ondo sources               | Spiko class/contract/NAV mapping, Ondo Ethereum reference price and block context, precision, gaps and independent source failures                                                    | Source capabilities, identity mappings, history limits and common conformance reports                 |
+| Portfolio and comparison             | Classic/SAC deduplication, native contract holdings, exact quantities, stale/unknown marks, restrictions and compatible screening                                                     | Product/portfolio field meanings and comparison/exclusion rules                                       |
+| Security model and monitoring design | Architecture/trust-boundary coverage, all STRIDE categories, threat-to-control/rule linkage and incident walkthrough                                                                  | Private complete model/monitoring plan, owned findings and safe public summary                        |
+| Public API and migrations            | Additive GraphQL compatibility, bounded cursor/range/cost behavior, precision/null semantics, migration and lossless recovery                                                         | Public schema/resolver changes, release checks and recovery instructions                              |
+| SDK and independent consumer         | Installed npm artifact, same-response precision, subject validation, partial errors, unsupported history, cancellation and versioned independent consumer                             | Published package, tested exports and runnable SDK usage/upgrade guide                                |
+| Onboarding and funding receipts      | Permitted live Privy/sponsored setup and both funding routes, exact destination receipts, reload/retry and no double credit                                                           | Production journey/configuration and operator/user recovery guidance                                  |
+| Etherfuse execution                  | Eligibility/readiness, quote consent, provider-signed XDR preservation, wrong asset/destination/amount rejection, canonical-JSON callbacks, expiry and receiving-leg evidence         | Qualified purchase gateway, state/receipt audit trail and purchase/failure guide                      |
+| Operations and outcome reports       | Active alert delivery, missing telemetry, fourteen-day completeness reporting, staging restore, account eligibility and independent metric reproduction                               | Public adapter/server docs, controlled runbooks and complete-window reproducible outcome reports      |
+
+Report tests against the implemented code/package/deployment and its actual inputs. Reviewers must be able to follow a result from an observation, session, intent or transaction to its responsible module and expected outcome. Financial tests use independent known-value cases and invariants; transaction tests cover rejected as well as successful paths. The existing lending, wallet and CCTP regressions remain part of release acceptance.
+
+The [design contracts](examples/contracts.ts), [GraphQL extension](examples/rwa-extension.graphql), [query examples](examples/queries.graphql), [financial checks](examples/financial-checks.mjs) and [consumer checks](examples/consumer-checks.mjs) are supporting design artifacts. They are not a deployed adapter, sponsor service or published npm package. The implementation must preserve or explicitly version those public contracts rather than assume documentation examples execute production work.
+
+## Architecture decisions and scope boundaries
+
+| Decision                                         | Technical reason                                                                             | Consequence                                                                                    |
+| ------------------------------------------------ | -------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
+| Separate RWA and lending financial models        | Issuer price/income/maturity semantics differ from lending APY                               | Reuse infrastructure; keep separate observations and explicit comparability                    |
+| Exact identities and decimal values              | Symbols and floating-point totals cannot establish claims or financial evidence              | Network-qualified mappings, integer quantities and source-linked decimal prices                |
+| Source-native history with revisions             | Collection time and data availability do not recreate past source values                     | No invented history, donor-copy repair or unversioned corrections                              |
+| Privy plus existing SEP-10 owner boundary        | Email identification and wallet-control proof solve different problems                       | Required signer integration and session/recovery tests; no issuer-eligibility inference        |
+| Distinct reserve/fee sponsorship                 | CAP-33 and fee-bump operations have different authorization and accounting                   | Controlled obligations, budgets, sequence management and explicit signatures                   |
+| Separate provider adapters and callbacks         | Etherfuse and Mercuryo authenticate different signing inputs and expose different lifecycles | No generic webhook verifier or invented cross-provider polling endpoint                        |
+| Data reads separated from purchase authority     | Public observations do not grant access to regulated transactions                            | Committed gateway with provider approval, user consent and exact settlement checks             |
+| Complete independent read SDK                    | Consumers need stable values, errors and package behavior, not application internals         | Typed/validated/versioned client; no strategy execution, wallet custody or frontend dependency |
+| Exact outcome projection separate from UI totals | Financial report needs debt, duplicate-claim and evidence controls absent from legacy floats | Full-cohort snapshots, gross receipt ledger and reproducible method/policy versions            |
+
+The target system includes the complete data, wallet, funding, investment, developer and operational paths described here. Public data can be released independently for fault isolation; the complete integration also requires production wallet, funding, purchase and outcome capabilities. The qualification gates establish whether a route is permitted and working; a provider denial requires resolution of the delivery scope rather than a feature flag presented as completion.
+
+Spiko/Ondo trading, fiat off-ramp, BENJI/WisdomTree/Centrifuge adapters, an MCP server, unattended investment execution, generalized strategy/leveraged allocation and guaranteed third-party consumer deployment are outside the submitted scope. The architecture nevertheless preserves reusable source, identity and read-client boundaries for future separately approved work.
